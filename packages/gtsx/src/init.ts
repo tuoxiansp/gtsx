@@ -3,7 +3,6 @@ import { join } from "node:path"
 
 export type InitOptions = {
   cwd: string
-  adapter: "script"
   dryRun: boolean
 }
 
@@ -17,24 +16,16 @@ const CONFIG_FILE = "gtsx.config.ts"
 const INSTRUCTIONS_FILE = ".cursor/rules/gtsx.md"
 
 export function initGTSX(options: InitOptions): InitResult {
-  if (options.adapter !== "script") {
-    return {
-      exitCode: 1,
-      stdout: "",
-      stderr: "Only --adapter script is supported in this implementation.\n",
-    }
-  }
-
   const changes = [
     `${existsSync(join(options.cwd, CONFIG_FILE)) ? "Would keep" : "Would create"} ${CONFIG_FILE}`,
     `${existsSync(join(options.cwd, INSTRUCTIONS_FILE)) ? "Would keep" : "Would create"} ${INSTRUCTIONS_FILE}`,
-    "Would merge package scripts: gtsx:check, gtsx:serve, gtsx:capture, gtsx:strip",
+    "Would merge package scripts: gtsx:check, gtsx:serve, gtsx:capture",
   ]
 
   if (options.dryRun) {
     return {
       exitCode: 0,
-      stdout: `GTSX script-adapter init plan:\n${changes.map((change) => `- ${change}`).join("\n")}\n`,
+      stdout: `GTSX preview integration init plan:\n${changes.map((change) => `- ${change}`).join("\n")}\n`,
       stderr: "",
     }
   }
@@ -45,7 +36,7 @@ export function initGTSX(options: InitOptions): InitResult {
 
   return {
     exitCode: 0,
-    stdout: "Initialized GTSX script adapter.\n",
+    stdout: "Initialized GTSX preview integration.\n",
     stderr: "",
   }
 }
@@ -68,7 +59,6 @@ function mergePackageScripts(cwd: string) {
     "gtsx:check": packageJson.scripts?.["gtsx:check"] ?? "gtsx check",
     "gtsx:serve": packageJson.scripts?.["gtsx:serve"] ?? "gtsx serve",
     "gtsx:capture": packageJson.scripts?.["gtsx:capture"] ?? "gtsx capture",
-    "gtsx:strip": packageJson.scripts?.["gtsx:strip"] ?? "gtsx strip --check",
   }
 
   writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`)
@@ -78,11 +68,9 @@ function configTemplate(): string {
   return `import { defineGTSXConfig } from "gtsx"
 
 export default defineGTSXConfig({
-  adapter: "script",
-  scripts: {
-    serve: "echo Configure scripts.serve in gtsx.config.ts for {entry} {case} {port}",
-    capture: "echo Configure scripts.capture in gtsx.config.ts for {entry} {case} {viewport} {out}",
-    strip: "echo Configure scripts.strip in gtsx.config.ts --check {check}",
+  preview: {
+    serve: "npm run dev -- --port {port}",
+    url: "http://localhost:{port}/gtsx?entry={entry}&case={case}",
   },
 })
 `
@@ -94,7 +82,8 @@ function instructionsTemplate(): string {
 - Keep preview cases close to production React components in .g.tsx files.
 - Prefer hook-owned cases via createGTSXScope for non-pure components.
 - Use component-level cases only for pure props components.
-- The script adapter delegates serve, capture, and strip to this project's local toolchain.
+- Configure \`preview.serve\` to start this project's normal dev server.
+- Configure \`preview.url\` to point at this project's GTSX preview route.
 - Do not put secrets, credentials, tokens, or customer data in GTSX cases.
 `
 }

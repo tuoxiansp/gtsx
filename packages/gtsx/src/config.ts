@@ -5,17 +5,14 @@ import ts from "typescript"
 
 import type { GTSXDiagnostic } from "./analyzer.js"
 
-export type GTSXScriptConfig = {
-  adapter: "script"
-  scripts: {
+export type GTSXConfig = {
+  preview: {
     serve?: string
-    capture?: string
-    strip?: string
-    diagnose?: string
+    url?: string
   }
 }
 
-export type GTSXConfig = GTSXScriptConfig
+export type GTSXScriptConfig = GTSXConfig
 
 export type LoadConfigResult = {
   config?: GTSXConfig
@@ -99,8 +96,8 @@ function loadCommonJSConfig(configPath: string): GTSXConfig {
 
 function readDefaultExport(exportsValue: Record<string, unknown>): GTSXConfig {
   const config = (exportsValue.default ?? exportsValue) as GTSXConfig
-  if (config.adapter !== "script") {
-    throw new Error("Only the script adapter is implemented in this GTSX build.")
+  if (!config.preview) {
+    throw new Error("Missing preview configuration in gtsx.config.ts.")
   }
   return config
 }

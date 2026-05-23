@@ -4,12 +4,11 @@ This folder contains representative framework-shaped projects used to validate t
 GTSX protocol against realistic scaffolds without making GTSX own their bundlers.
 
 Each example records the upstream issue that motivated the shape of the fixture
-and exposes the same GTSX script-adapter commands:
+and exposes the same GTSX preview commands:
 
 - `pnpm gtsx:check`
 - `pnpm gtsx:serve`
 - `pnpm gtsx:capture`
-- `pnpm gtsx:strip`
 
 Capture commands write screenshots to the repository-level `snapshots/` folder
 so full-chain test output is collected in one place.

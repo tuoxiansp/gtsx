@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 
 import { join } from "node:path"
+import { spawn } from "node:child_process"
 
 import { analyzeEntry } from "./analyzer.js"
+import { capturePreviewPage } from "./browser-capture.js"
 import { loadGTSXConfig } from "./config.js"
 import { initGTSX } from "./init.js"
-import { runScriptAdapter } from "./script-adapter.js"
+import { expandCommand, runScriptAdapter } from "./script-adapter.js"
 
 export type CLIContext = {
   cwd: string
@@ -22,10 +24,10 @@ export type CLIResult = {
 const HELP = `gtsx
 
 Usage:
-  gtsx init [--adapter script] [--dry-run]
+  gtsx init [--dry-run]
   gtsx check <entry.g.tsx> [--json]
   gtsx serve <entry.g.tsx> [--case <name>] [--port <port>]
-  gtsx capture <entry.g.tsx> [--case <name>|--all] [--viewport 1440x900] [--out <file.png>]
+  gtsx capture <entry.g.tsx> [--case <name>|--all] [--viewport 1440x900] [--out <file.png>] [--port <port>]
   gtsx strip [--check]
   gtsx diagnose
 `
@@ -38,7 +40,6 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
   if (args[0] === "init") {
     return initGTSX({
       cwd: context.cwd,
-      adapter: (readOption(args, "--adapter") ?? "script") as "script",
       dryRun: args.includes("--dry-run"),
     })
   }
@@ -98,26 +99,50 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     const config = loadGTSXConfig(context.cwd)
     if (!config.config) return diagnosticsResult(config.diagnostics)
 
+    const port = readOption(args, "--port") ?? "4300"
     const viewport = readOption(args, "--viewport") ?? "1440x900"
     const out = readOption(args, "--out") ?? "gtsx-capture.png"
     const selectedCases = args.includes("--all")
       ? check.cases.map((testCase) => testCase.name)
       : [readOption(args, "--case") ?? check.cases[0]?.name].filter(Boolean)
 
-    const outputs: string[] = []
-    for (const caseName of selectedCases) {
-      const adapter = await runScriptAdapter(config.config, "capture", {
-        cwd: context.cwd,
-        entry,
-        caseName,
-        viewport,
-        out: args.includes("--all") ? outForCase(out, caseName) : out,
-      })
-      if (adapter.exitCode !== 0 || adapter.diagnostics.length > 0) return adapterResult(adapter)
-      outputs.push(adapter.stdout)
+    if (!config.config.preview.url) {
+      return diagnosticsResult([
+        {
+          stage: "adapter-configuration",
+          code: "missing-preview-url",
+          message: "Missing preview.url in gtsx.config.ts for browser capture.",
+        },
+      ])
     }
 
-    return { exitCode: 0, stdout: outputs.join(""), stderr: context.stderr }
+    const previewServer = await startPreviewServer(config.config.preview.serve, context.cwd, { port })
+    if (previewServer.exitCode !== 0) return previewServer
+
+    try {
+      const outputs: string[] = []
+      for (const caseName of selectedCases) {
+        const outPath = args.includes("--all") ? outForCase(out, caseName) : out
+        await capturePreviewPage({
+          cwd: context.cwd,
+          url: expandUrl(config.config.preview.url, { entry, caseName, port }),
+          viewport,
+          out: outPath,
+        })
+        outputs.push(`Captured ${caseName} to ${outPath}\n`)
+      }
+      return { exitCode: 0, stdout: outputs.join(""), stderr: context.stderr }
+    } catch (error) {
+      return diagnosticsResult([
+        {
+          stage: "browser-capture",
+          code: "browser-capture-failed",
+          message: error instanceof Error ? error.message : String(error),
+        },
+      ])
+    } finally {
+      previewServer.stop()
+    }
   }
 
   if (args[0] === "strip") {
@@ -149,6 +174,64 @@ function outForCase(out: string, caseName: string): string {
   }
 
   return join(out, `${caseName}.png`)
+}
+
+async function startPreviewServer(
+  serveCommand: string | undefined,
+  cwd: string,
+  params: { port: string },
+): Promise<CLIResult & { stop(): void }> {
+  if (!serveCommand) {
+    return {
+      exitCode: 1,
+      stdout: "",
+      stderr: "[adapter-configuration] missing-serve-script: Missing preview.serve in gtsx.config.ts.\n",
+      stop() {},
+    }
+  }
+
+  const child = spawn(expandCommand(serveCommand, { cwd, port: params.port }), {
+    cwd,
+    shell: true,
+    stdio: ["ignore", "pipe", "pipe"],
+  })
+  let stdout = ""
+  let stderr = ""
+  let exitCode: number | undefined
+  child.stdout.on("data", (chunk) => {
+    stdout += String(chunk)
+  })
+  child.stderr.on("data", (chunk) => {
+    stderr += String(chunk)
+  })
+  const exitPromise = new Promise<void>((resolve) => {
+    child.on("exit", (code) => {
+      exitCode = code ?? 0
+      resolve()
+    })
+  })
+
+  await Promise.race([exitPromise, new Promise((resolve) => setTimeout(resolve, 500))])
+
+  return {
+    exitCode: exitCode && exitCode !== 0 ? exitCode : 0,
+    stdout,
+    stderr,
+    stop() {
+      if (exitCode === undefined) child.kill()
+    },
+  }
+}
+
+function expandUrl(template: string, params: { entry: string; caseName: string; port: string }): string {
+  const replacements: Record<string, string> = {
+    entry: params.entry,
+    case: params.caseName,
+    port: params.port,
+  }
+  return template.replace(/\{([a-z]+)\}/g, (_match, key: string) =>
+    encodeURIComponent(replacements[key] ?? ""),
+  )
 }
 
 function diagnosticsResult(diagnostics: ReturnType<typeof analyzeEntry>["diagnostics"]): CLIResult {

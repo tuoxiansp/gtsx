@@ -30,7 +30,7 @@ export async function runScriptAdapter(
   action: ScriptAdapterAction,
   params: ScriptAdapterParams,
 ): Promise<ScriptAdapterResult> {
-  const template = config.scripts[action]
+  const template = action === "serve" ? config.preview.serve : undefined
   if (!template) {
     return {
       exitCode: action === "strip" ? 0 : 1,

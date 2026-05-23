@@ -6,10 +6,7 @@
     "gtsx:check": "gtsx check src/routes/AppRoute.g.tsx",
     "gtsx:serve": "gtsx serve src/routes/AppRoute.g.tsx --case createVitePnpmFailure --port 4303",
     "gtsx:capture": "gtsx capture src/routes/AppRoute.g.tsx --all --out ../../snapshots/vite-react-ts-tanstack-router",
-    "gtsx:strip": "gtsx strip --check",
-    "dev": "node scripts/playground-adapter.mjs serve",
-    "capture": "node scripts/playground-adapter.mjs capture",
-    "strip:gtsx": "node scripts/playground-adapter.mjs strip"
+    "dev": "node scripts/playground-adapter.mjs serve"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.2",

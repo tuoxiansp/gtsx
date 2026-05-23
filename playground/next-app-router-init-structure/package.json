@@ -6,10 +6,7 @@
     "gtsx:check": "gtsx check components/AppShell.g.tsx",
     "gtsx:serve": "gtsx serve components/AppShell.g.tsx --case firstLoad --port 4302",
     "gtsx:capture": "gtsx capture components/AppShell.g.tsx --all --out ../../snapshots/next-app-router-init-structure",
-    "gtsx:strip": "gtsx strip --check",
-    "dev": "node scripts/playground-adapter.mjs serve",
-    "capture": "node scripts/playground-adapter.mjs capture",
-    "strip:gtsx": "node scripts/playground-adapter.mjs strip"
+    "dev": "next dev"
   },
   "dependencies": {
     "gtsx": "workspace:*",

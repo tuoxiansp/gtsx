@@ -6,10 +6,7 @@
     "gtsx:check": "gtsx check src/routes/__root.g.tsx",
     "gtsx:serve": "gtsx serve src/routes/__root.g.tsx --case apiDown --port 4301",
     "gtsx:capture": "gtsx capture src/routes/__root.g.tsx --all --out ../../snapshots/tanstack-start-root-provider-error",
-    "gtsx:strip": "gtsx strip --check",
-    "start": "node scripts/playground-adapter.mjs serve",
-    "capture": "node scripts/playground-adapter.mjs capture",
-    "strip:gtsx": "node scripts/playground-adapter.mjs strip"
+    "start": "node scripts/playground-adapter.mjs serve"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.168.10",

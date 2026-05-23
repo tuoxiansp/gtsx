@@ -14,10 +14,10 @@ describe("gtsx init", () => {
     }
   })
 
-  it("prints a minimal script-adapter install plan in dry-run mode", async () => {
+  it("prints a minimal preview integration plan in dry-run mode", async () => {
     const root = createTempProject()
 
-    const result = await runCLI(["init", "--adapter", "script", "--dry-run"], {
+    const result = await runCLI(["init", "--dry-run"], {
       cwd: root,
       stdout: "",
       stderr: "",
@@ -29,23 +29,22 @@ describe("gtsx init", () => {
     expect(existsSync(join(root, "gtsx.config.ts"))).toBe(false)
   })
 
-  it("creates script-adapter config, local instructions, and package scripts", async () => {
+  it("creates preview config, local instructions, and package scripts", async () => {
     const root = createTempProject()
 
-    const result = await runCLI(["init", "--adapter", "script"], {
+    const result = await runCLI(["init"], {
       cwd: root,
       stdout: "",
       stderr: "",
     })
 
     expect(result.exitCode).toBe(0)
-    expect(readFileSync(join(root, "gtsx.config.ts"), "utf8")).toContain("defineGTSXConfig")
+    expect(readFileSync(join(root, "gtsx.config.ts"), "utf8")).toContain("preview")
     expect(readFileSync(join(root, ".cursor/rules/gtsx.md"), "utf8")).toContain(".g.tsx")
     expect(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).scripts).toMatchObject({
       "gtsx:check": "gtsx check",
       "gtsx:serve": "gtsx serve",
       "gtsx:capture": "gtsx capture",
-      "gtsx:strip": "gtsx strip --check",
     })
   })
 })

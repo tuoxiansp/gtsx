@@ -5,4 +5,6 @@ packages/*/dist/
 gtsx-command-log.jsonl
 .gtsx-artifacts/
 playground/**/.gtsx-artifacts/
+playground/**/.next/
+playground/**/next-env.d.ts
 snapshots/**/*.png
