@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  createGPreviewRequestValuesMessage,
   createGPreviewErrorMessage,
   createGPreviewReadyMessage,
   createGPreviewResizeMessage,
   createGPreviewTreeMessage,
+  createGPreviewValuesMessage,
   type GBoundaryTreeNode,
 } from "../src/index.js"
 
@@ -47,6 +49,33 @@ describe("GTSX preview iframe protocol", () => {
       sessionId: "session-1",
       error: {
         message: "render failed",
+      },
+    })
+  })
+
+  it("creates on-demand runtime values request and response messages", () => {
+    expect(createGPreviewRequestValuesMessage("session-1", "gtsx-boundary:2")).toEqual({
+      type: "gtsx:request-values",
+      protocolVersion: 1,
+      sessionId: "session-1",
+      boundaryId: "gtsx-boundary:2",
+    })
+    expect(
+      createGPreviewValuesMessage("session-1", {
+        boundaryId: "gtsx-boundary:2",
+        props: { type: "object", constructorName: "Object", entries: [] },
+        scope: { type: "undefined" },
+        providerValues: [{ providerName: "ThemeGTSXProvider", value: { type: "string", value: "dark" } }],
+      }),
+    ).toEqual({
+      type: "gtsx:values",
+      protocolVersion: 1,
+      sessionId: "session-1",
+      values: {
+        boundaryId: "gtsx-boundary:2",
+        props: { type: "object", constructorName: "Object", entries: [] },
+        scope: { type: "undefined" },
+        providerValues: [{ providerName: "ThemeGTSXProvider", value: { type: "string", value: "dark" } }],
       },
     })
   })

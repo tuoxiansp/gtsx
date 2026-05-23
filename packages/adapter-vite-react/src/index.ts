@@ -1,5 +1,6 @@
 import { relative } from "node:path"
 import ts from "typescript"
+import { buildStudioManifest } from "gtsx/studio/server"
 
 type ViteLikeConfig = {
   root: string
@@ -11,6 +12,7 @@ type TransformResult = {
 }
 
 type GTSXViteReactOptions = {
+  projectRoot?: string
   root?: string
 }
 
@@ -27,6 +29,8 @@ type Insertion = {
 
 export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
   let root = options.root ?? process.cwd()
+  const virtualManifestId = "virtual:gtsx/studio-manifest"
+  const resolvedVirtualManifestId = `\0${virtualManifestId}`
 
   return {
     name: "@gtsx/adapter-vite-react",
@@ -40,6 +44,22 @@ export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
     },
     configResolved(config: ViteLikeConfig) {
       root = options.root ?? config.root
+    },
+    resolveId(id: string) {
+      if (id === virtualManifestId) return resolvedVirtualManifestId
+      return null
+    },
+    load(id: string): TransformResult | null {
+      if (id !== resolvedVirtualManifestId) return null
+
+      const manifest = buildStudioManifest({
+        cwd: root,
+        projectRoot: options.projectRoot ?? "src",
+      })
+      return {
+        code: `export default ${JSON.stringify(manifest)}\n`,
+        map: null,
+      }
     },
     transform(code: string, id: string): TransformResult | null {
       const filePath = cleanViteId(id)

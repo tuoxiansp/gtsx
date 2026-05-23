@@ -24,7 +24,7 @@ export default async function GTSXPreviewPage(props: GTSXPreviewPageProps) {
     )
   }
 
-  const selectedCase = caseName ? cases[caseName] : undefined
+  const selectedCase = Object.entries(cases).find(([name]) => name === caseName)?.[1]
 
   if (!selectedCase) {
     return <main>Unknown GTSX case: {caseName}</main>

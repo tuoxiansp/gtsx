@@ -1,4 +1,5 @@
 import type { GBoundaryTreeNode } from "./runtime.js"
+import type { GSerializedRuntimeValue } from "./runtime-values.js"
 
 export const G_PREVIEW_PROTOCOL_VERSION = 1
 
@@ -32,10 +33,32 @@ export type GPreviewErrorMessage = GPreviewProtocolBase & {
   }
 }
 
+export type GRuntimeValuesSnapshot = {
+  boundaryId: string
+  props: GSerializedRuntimeValue
+  scope?: GSerializedRuntimeValue
+  providerValues: {
+    providerName: string
+    value: GSerializedRuntimeValue
+  }[]
+}
+
+export type GPreviewRequestValuesMessage = GPreviewProtocolBase & {
+  type: "gtsx:request-values"
+  boundaryId: string
+}
+
+export type GPreviewValuesMessage = GPreviewProtocolBase & {
+  type: "gtsx:values"
+  values: GRuntimeValuesSnapshot
+}
+
 export type GPreviewProtocolMessage =
   | GPreviewReadyMessage
   | GPreviewTreeMessage
   | GPreviewResizeMessage
+  | GPreviewRequestValuesMessage
+  | GPreviewValuesMessage
   | GPreviewErrorMessage
 
 export function createGPreviewReadyMessage(sessionId: string): GPreviewReadyMessage {
@@ -78,5 +101,23 @@ export function createGPreviewErrorMessage(sessionId: string, error: unknown): G
       message: normalized.message,
       ...(normalized.stack ? { stack: normalized.stack } : {}),
     },
+  }
+}
+
+export function createGPreviewRequestValuesMessage(sessionId: string, boundaryId: string): GPreviewRequestValuesMessage {
+  return {
+    type: "gtsx:request-values",
+    protocolVersion: G_PREVIEW_PROTOCOL_VERSION,
+    sessionId,
+    boundaryId,
+  }
+}
+
+export function createGPreviewValuesMessage(sessionId: string, values: GRuntimeValuesSnapshot): GPreviewValuesMessage {
+  return {
+    type: "gtsx:values",
+    protocolVersion: G_PREVIEW_PROTOCOL_VERSION,
+    sessionId,
+    values,
   }
 }

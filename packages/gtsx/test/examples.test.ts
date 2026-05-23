@@ -146,6 +146,53 @@ describe("examples Vite host", () => {
       expect(
         (treeMessage as { tree: Array<{ rect?: { width: number; height: number } }> }).tree[0]?.rect?.width,
       ).toBeGreaterThan(0)
+
+      const childBoundaryId = (treeMessage as { tree: Array<{ children?: Array<{ id: string }> }> }).tree[0]?.children?.[0]?.id
+      if (!childBoundaryId) throw new Error("Missing child boundary id")
+
+      await page.evaluate((boundaryId) => {
+        window.postMessage(
+          {
+            type: "gtsx:request-values",
+            protocolVersion: 1,
+            sessionId: "studio-session-1",
+            boundaryId,
+          },
+          "*",
+        )
+      }, childBoundaryId)
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const target = window as unknown as { __gtsxMessages?: Array<{ type?: string }> }
+            return target.__gtsxMessages?.find((message) => message.type === "gtsx:values")
+          }),
+        )
+        .toMatchObject({
+          protocolVersion: 1,
+          sessionId: "studio-session-1",
+          values: {
+            boundaryId: childBoundaryId,
+            props: {
+              type: "object",
+              entries: expect.arrayContaining([
+                {
+                  key: "label",
+                  value: { type: "string", value: "Agent inbox" },
+                },
+              ]),
+            },
+            scope: {
+              type: "object",
+              entries: expect.arrayContaining([
+                {
+                  key: "expanded",
+                  value: { type: "boolean", value: true },
+                },
+              ]),
+            },
+          },
+        })
     } finally {
       await browser?.close()
       server.kill()

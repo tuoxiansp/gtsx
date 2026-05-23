@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "gtsx:check": "gtsx check components/AppShell.g.tsx",
-    "gtsx:serve": "gtsx serve components/AppShell.g.tsx --case firstLoad --port 4302",
+    "gtsx:serve": "gtsx serve --port 4302",
     "gtsx:capture": "gtsx capture components/AppShell.g.tsx --all --out ../../snapshots/next-app-router-init-structure",
     "dev": "next dev"
   },

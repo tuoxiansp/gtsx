@@ -1,3 +1,6 @@
+import { readFileSync, rmSync } from "node:fs"
+import { join } from "node:path"
+
 import { describe, expect, it } from "vitest"
 
 import { expandUrl } from "../src/cli.js"
@@ -9,9 +12,38 @@ describe("gtsx CLI", () => {
 
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain("gtsx check <entry.g.tsx[#export]|dir>")
-    expect(result.stdout).toContain("gtsx serve <entry.g.tsx[#export]>")
+    expect(result.stdout).toContain("gtsx serve [--port <port>]")
     expect(result.stdout).toContain("--gcase <entry.g.tsx#export:case>")
     expect(result.stdout).toContain("gtsx capture <entry.g.tsx[#export]|dir>")
+  })
+
+  it("serves the project Studio URL without requiring a component entry", async () => {
+    const cwd = join(import.meta.dirname, "fixtures/serve-project")
+    const logFile = join(cwd, "gtsx-command-log.jsonl")
+    rmSync(logFile, { force: true })
+
+    const result = await runCLI(["serve", "--port", "4555"], { cwd, stdout: "", stderr: "" })
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stdout: "Studio: http://localhost:4555/gtsx/studio\n",
+      stderr: "",
+    })
+    expect(readFileSync(logFile, "utf8").trim()).toBe(
+      JSON.stringify({ action: "serve", args: ["--port", "4555"] }),
+    )
+  })
+
+  it("reports missing Studio route integration for project-level serve", async () => {
+    const result = await runCLI(["serve"], {
+      cwd: join(import.meta.dirname, "fixtures/missing-studio-url"),
+      stdout: "",
+      stderr: "",
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("missing-studio-url")
+    expect(result.stdout).toContain("Add preview.studioUrl")
   })
 
   it("expands child case overrides as query parameters", () => {

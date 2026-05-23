@@ -27,7 +27,7 @@ const HELP = `gtsx
 Usage:
   gtsx init [--dry-run]
   gtsx check <entry.g.tsx[#export]|dir> [--json]
-  gtsx serve <entry.g.tsx[#export]> [--case <name>] [--gcase <entry.g.tsx#export:case>] [--port <port>]
+  gtsx serve [--port <port>]
   gtsx capture <entry.g.tsx[#export]|dir> [--case <name>|--all] [--gcase <entry.g.tsx#export:case>] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
   gtsx strip [--check]
   gtsx diagnose
@@ -93,25 +93,27 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
   }
 
   if (args[0] === "serve") {
-    const entry = args[1]
-    if (!entry) return { exitCode: 1, stdout: context.stdout, stderr: "Missing entry for gtsx serve.\n" }
-
-    const check = analyzeEntry({ cwd: context.cwd, entry })
-    if (check.diagnostics.length > 0) {
-      return { exitCode: 1, stdout: formatCheckResult(check), stderr: context.stderr }
-    }
-
     const config = loadGTSXConfig(context.cwd)
     if (!config.config) return diagnosticsResult(config.diagnostics)
+    if (!config.config.preview.studioUrl) {
+      return diagnosticsResult([
+        {
+          stage: "adapter-configuration",
+          code: "missing-studio-url",
+          message: "Add preview.studioUrl to gtsx.config.ts after integrating the /gtsx/studio route.",
+        },
+      ])
+    }
 
-    const adapter = await runScriptAdapter(config.config, "serve", {
-      cwd: context.cwd,
-      entry,
-      caseName: readOption(args, "--case"),
-      gcases: readOptions(args, "--gcase"),
-      port: readOption(args, "--port"),
-    })
-    return adapterResult(adapter)
+    const port = readOption(args, "--port") ?? "4300"
+    const previewServer = await startPreviewServer(config.config.preview.serve, context.cwd, { port })
+    if (previewServer.exitCode !== 0) return previewServer
+
+    return {
+      exitCode: 0,
+      stdout: `Studio: ${expandUrl(config.config.preview.studioUrl, { entry: "", caseName: "", port })}\n`,
+      stderr: previewServer.stderr,
+    }
   }
 
   if (args[0] === "capture") {

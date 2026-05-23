@@ -7,8 +7,10 @@ import {
   createGPreviewReadyMessage,
   createGPreviewResizeMessage,
   createGPreviewTreeMessage,
+  createGPreviewValuesMessage,
   type GBoundaryCollector,
   type GBoundaryRect,
+  type GPreviewProtocolMessage,
 } from "gtsx"
 
 type PreviewCase<Props> = {
@@ -152,6 +154,16 @@ function usePreviewProtocolMessages(
   React.useEffect(() => {
     if (!sessionId || !enabled) return
 
+    const handleMessage = (event: MessageEvent) => {
+      if (!isRuntimeValuesRequest(event.data, sessionId)) return
+
+      const values = collector.getValues(event.data.boundaryId)
+      if (values) {
+        window.parent.postMessage(createGPreviewValuesMessage(sessionId, values), "*")
+      }
+    }
+
+    window.addEventListener("message", handleMessage)
     updateBoundaryRects(collector)
     window.parent.postMessage(createGPreviewReadyMessage(sessionId), "*")
     window.parent.postMessage(createGPreviewTreeMessage(sessionId, collector.getTree()), "*")
@@ -162,7 +174,22 @@ function usePreviewProtocolMessages(
       }),
       "*",
     )
+    return () => window.removeEventListener("message", handleMessage)
   }, [collector, enabled, sessionId])
+}
+
+function isRuntimeValuesRequest(
+  message: unknown,
+  sessionId: string,
+): message is Extract<GPreviewProtocolMessage, { type: "gtsx:request-values" }> {
+  return (
+    typeof message === "object" &&
+    message !== null &&
+    (message as { type?: unknown }).type === "gtsx:request-values" &&
+    (message as { protocolVersion?: unknown }).protocolVersion === 1 &&
+    (message as { sessionId?: unknown }).sessionId === sessionId &&
+    typeof (message as { boundaryId?: unknown }).boundaryId === "string"
+  )
 }
 
 function updateBoundaryRects(collector: GBoundaryCollector) {

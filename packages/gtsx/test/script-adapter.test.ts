@@ -17,8 +17,8 @@ describe("GTSX preview commands", () => {
     rmSync(join(fixtureRoot, "shots"), { recursive: true, force: true })
   })
 
-  it("serves an entry by checking the contract before invoking the configured preview command", async () => {
-    const result = await runCLI(["serve", "src/UserCard.g.tsx", "--case", "ready", "--port", "4300"], {
+  it("serves the project Studio without requiring a component entry", async () => {
+    const result = await runCLI(["serve", "--port", "4300"], {
       cwd: fixtureRoot,
       stdout: "",
       stderr: "",
@@ -33,13 +33,10 @@ describe("GTSX preview commands", () => {
     ])
   })
 
-  it("passes child component case overrides to the configured preview command", async () => {
+  it("does not pass component case overrides to the project-level serve command", async () => {
     const result = await runCLI(
       [
         "serve",
-        "src/UserCard.g.tsx",
-        "--case",
-        "ready",
         "--gcase",
         "src/Child.g.tsx#Child:open",
         "--gcase",
@@ -58,14 +55,7 @@ describe("GTSX preview commands", () => {
     expect(readLog()).toEqual([
       {
         action: "serve",
-        args: [
-          "--port",
-          "4300",
-          "--gcase",
-          "src/Child.g.tsx#Child:open",
-          "--gcase",
-          "src/Menu.g.tsx#default:closed",
-        ],
+        args: ["--port", "4300"],
       },
     ])
   })

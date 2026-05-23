@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
+import { resolve } from "node:path"
 
-import { transformGTSXComponentBoundaries } from "../src/index.js"
+import { gtsxViteReact, transformGTSXComponentBoundaries } from "../src/index.js"
+import { buildStudioManifest } from "gtsx/studio/server"
 
 const root = "/repo"
 
@@ -90,5 +92,19 @@ export function PlainComponent() {
         code,
       }),
     ).toBe(code)
+  })
+
+  it("loads a static Studio manifest through a virtual module", () => {
+    const fixtureRoot = resolve(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
+    const plugin = gtsxViteReact({ root: fixtureRoot, projectRoot: "src" })
+    plugin.configResolved({ root: fixtureRoot })
+
+    const resolvedId = plugin.resolveId("virtual:gtsx/studio-manifest")
+    const loaded = plugin.load(resolvedId)
+    const manifest = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
+
+    expect(resolvedId).toBe("\0virtual:gtsx/studio-manifest")
+    expect(manifest).toEqual(buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" }))
+    expect(loaded.code).not.toContain("buildStudioManifest")
   })
 })

@@ -49,6 +49,17 @@ export type BuildStudioManifestOptions = {
   preview?: Partial<StudioManifestPreviewConfig>
 }
 
+export type StudioManifestProviderCandidate = {
+  kind: "server-route" | "virtual-module"
+  manifest?: StudioManifest
+}
+
+export type StudioManifestProviderSelection = {
+  kind?: StudioManifestProviderCandidate["kind"]
+  manifest?: StudioManifest
+  diagnostics: GTSXDiagnostic[]
+}
+
 type ExportedComponent = {
   exportName: string
   componentName: string
@@ -79,6 +90,31 @@ export function buildStudioManifest(options: BuildStudioManifestOptions): Studio
     preview: { ...DEFAULT_PREVIEW, ...configuredPreview.preview, ...options.preview },
     files,
     diagnostics,
+  }
+}
+
+export function selectStudioManifestProvider(
+  candidates: StudioManifestProviderCandidate[],
+): StudioManifestProviderSelection {
+  const serverRoute = candidates.find((candidate) => candidate.kind === "server-route" && candidate.manifest)
+  if (serverRoute?.manifest) {
+    return { kind: "server-route", manifest: serverRoute.manifest, diagnostics: [] }
+  }
+
+  const virtualModule = candidates.find((candidate) => candidate.kind === "virtual-module" && candidate.manifest)
+  if (virtualModule?.manifest) {
+    return { kind: "virtual-module", manifest: virtualModule.manifest, diagnostics: [] }
+  }
+
+  return {
+    diagnostics: [
+      {
+        stage: "adapter-configuration",
+        code: "missing-studio-manifest-provider",
+        message:
+          "No Studio manifest provider is available. Create a /gtsx/studio/manifest server route or enable the adapter virtual:gtsx/studio-manifest fallback.",
+      },
+    ],
   }
 }
 

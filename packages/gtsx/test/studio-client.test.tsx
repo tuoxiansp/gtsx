@@ -8,8 +8,13 @@ import {
   applyStudioPreviewMessage,
   applyStudioPreviewMessageToFrameStates,
   changeStudioComponentCase,
+  changeStudioViewportPreset,
+  createStudioRuntimeValuesRequest,
+  createStudioWorkspaceStateFromUrl,
   createStudioWorkspaceState,
+  createStudioWorkspaceUrlSearchParams,
   selectedStudioCaseName,
+  selectStudioRuntimeInstance,
   selectStudioComponent,
 } from "../src/studio-client.js"
 import { buildStudioManifest } from "../src/studio-manifest.js"
@@ -35,7 +40,7 @@ describe("GTSX Studio shell", () => {
     expect(cardCoordinates(html)).toEqual(["src/MultiExport.g.tsx#NamedBadge"])
   })
 
-  it("renders preview iframes from component coordinates and first statically enumerable cases", () => {
+  it("renders lazy preview placeholders from component coordinates and first statically enumerable cases", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       projectRoot: "src",
@@ -43,12 +48,68 @@ describe("GTSX Studio shell", () => {
     })
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="file:src/MultiExport.g.tsx" />)
 
-    expect(iframeSources(html)).toEqual([
+    expect(previewSources(html)).toEqual([
       "/gtsx?entry=src%2FMultiExport.g.tsx%23NamedBadge&case=ready&sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready",
       "/gtsx?entry=src%2FMultiExport.g.tsx%23default&case=defaultReady&sessionId=src%2FMultiExport.g.tsx%23default%3AdefaultReady",
     ])
+    expect(iframeSources(html)).toEqual([])
     expect(html).toContain("Current case: ready")
     expect(html).toContain("Current case: defaultReady")
+  })
+
+  it("sizes preview iframes from runtime resize messages", () => {
+    const manifest = buildStudioManifest({
+      cwd: fixtureRoot,
+      projectRoot: "src",
+      routes: { preview: "/gtsx" },
+    })
+    const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
+
+    const html = renderToStaticMarkup(
+      <StudioWorkspaceView
+        frameStates={{
+          "src/UserCard.g.tsx#default:loading": {
+            expectedSessionId: "src/UserCard.g.tsx#default:loading",
+            ready: true,
+            size: { width: 320, height: 420 },
+          },
+        }}
+        manifest={manifest}
+        workspace={state}
+      />,
+    )
+
+    expect(html).toContain('data-gtsx-preview-session-id="src/UserCard.g.tsx#default:loading"')
+    expect(html).toContain("height:420px")
+  })
+
+  it("uses fixed viewport presets instead of content-height sizing", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const workspace = changeStudioViewportPreset(
+      createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
+      "src/UserCard.g.tsx#default",
+      "phone",
+    )
+
+    const html = renderToStaticMarkup(
+      <StudioWorkspaceView
+        frameStates={{
+          "src/UserCard.g.tsx#default:loading": {
+            expectedSessionId: "src/UserCard.g.tsx#default:loading",
+            ready: true,
+            size: { width: 320, height: 420 },
+          },
+        }}
+        manifest={manifest}
+        workspace={workspace}
+      />,
+    )
+
+    expect(html).toContain("Viewport")
+    expect(html).toContain('data-gtsx-viewport-preset="phone"')
+    expect(html).toContain("width:390px")
+    expect(html).toContain("height:844px")
+    expect(html).not.toContain("height:420px")
   })
 
   it("renders a card-level error for invalid preview targets", () => {
@@ -62,6 +123,44 @@ describe("GTSX Studio shell", () => {
     expect(iframeSources(html)).toEqual([])
     expect(html).toContain("Preview unavailable")
     expect(html).toContain("non-static-case-key")
+  })
+
+  it("isolates iframe render failures to one card with reproduction details", () => {
+    const manifest = buildStudioManifest({
+      cwd: fixtureRoot,
+      projectRoot: "src",
+      routes: { preview: "/gtsx" },
+    })
+    const state = createStudioWorkspaceState(manifest, "file:src/MultiExport.g.tsx")
+
+    const html = renderToStaticMarkup(
+      <StudioWorkspaceView
+        frameStates={{
+          "src/MultiExport.g.tsx#NamedBadge:ready": {
+            expectedSessionId: "src/MultiExport.g.tsx#NamedBadge:ready",
+            ready: true,
+            error: {
+              message: "Cannot read properties of undefined",
+              stack: "TypeError: Cannot read properties of undefined\n    at NamedBadge",
+            },
+          },
+        }}
+        manifest={manifest}
+        workspace={state}
+      />,
+    )
+
+    expect(html).toContain("Preview unavailable")
+    expect(html).toContain("src/MultiExport.g.tsx#NamedBadge")
+    expect(html).toContain("ready")
+    expect(html).toContain("Cannot read properties of undefined")
+    expect(html).toContain("TypeError: Cannot read properties of undefined")
+    expect(html).toContain(
+      "/gtsx?entry=src%2FMultiExport.g.tsx%23NamedBadge&amp;case=ready&amp;sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready",
+    )
+    expect(previewSources(html)).toContain(
+      "/gtsx?entry=src%2FMultiExport.g.tsx%23default&case=defaultReady&sessionId=src%2FMultiExport.g.tsx%23default%3AdefaultReady",
+    )
   })
 
   it("ignores stale iframe session messages", () => {
@@ -134,6 +233,35 @@ describe("GTSX Studio shell", () => {
       "current-session": {
         expectedSessionId: "current-session",
         ready: true,
+      },
+    })
+  })
+
+  it("stores runtime values responses by boundary id", () => {
+    const state = applyStudioPreviewMessage(
+      {
+        expectedSessionId: "current-session",
+        ready: true,
+      },
+      {
+        type: "gtsx:values",
+        protocolVersion: 1,
+        sessionId: "current-session",
+        values: {
+          boundaryId: "gtsx-boundary:1",
+          props: { type: "object", constructorName: "Object", entries: [] },
+          scope: { type: "undefined" },
+          providerValues: [],
+        },
+      },
+    )
+
+    expect(state.valuesByBoundaryId).toEqual({
+      "gtsx-boundary:1": {
+        boundaryId: "gtsx-boundary:1",
+        props: { type: "object", constructorName: "Object", entries: [] },
+        scope: { type: "undefined" },
+        providerValues: [],
       },
     })
   })
@@ -267,7 +395,7 @@ describe("GTSX Studio shell", () => {
 
     const html = renderToStaticMarkup(<StudioWorkspaceView manifest={manifest} workspace={state} />)
 
-    expect(iframeSources(html)).toEqual([
+    expect(previewSources(html)).toEqual([
       "/gtsx?entry=src%2FBadge.g.tsx%23default&case=warning&sessionId=src%2FBadge.g.tsx%23default%3Awarning",
     ])
     expect(html).toContain("Current case: warning")
@@ -283,6 +411,256 @@ describe("GTSX Studio shell", () => {
     expect(html).toContain("Cases")
     expect(caseControlNames(html)).toEqual(["loading", "ready"])
   })
+
+  it("renders runtime instances for a merged component card from the current parent context", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const parentTree = [
+      {
+        id: "parent",
+        coordinate: "src/UserCard.g.tsx#default",
+        children: [
+          {
+            id: "child-1",
+            coordinate: "src/MultiExport.g.tsx#NamedBadge",
+            rect: { x: 10, y: 20, width: 100, height: 32 },
+            children: [],
+          },
+          {
+            id: "child-2",
+            coordinate: "src/MultiExport.g.tsx#NamedBadge",
+            rect: { x: 10, y: 60, width: 100, height: 32 },
+            children: [],
+          },
+        ],
+      },
+    ]
+    const parentState = selectStudioComponent(
+      createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
+      manifest,
+      "src/UserCard.g.tsx#default",
+      parentTree,
+    )
+    const childState = selectStudioComponent(parentState, manifest, "src/MultiExport.g.tsx#NamedBadge", [])
+
+    const html = renderToStaticMarkup(
+      <StudioWorkspaceView
+        frameStates={{
+          "src/UserCard.g.tsx#default:loading": {
+            expectedSessionId: "src/UserCard.g.tsx#default:loading",
+            ready: true,
+            tree: parentTree,
+          },
+        }}
+        manifest={manifest}
+        workspace={childState}
+      />,
+    )
+
+    expect(html).toContain("Instances")
+    expect(runtimeInstanceIds(html)).toEqual(["child-1", "child-2"])
+    expect(html).toContain("Parent: src/UserCard.g.tsx#default")
+    expect(html).toContain("100x32")
+  })
+
+  it("targets the parent preview session when requesting values for a selected child instance", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const parentState = selectStudioComponent(
+      createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
+      manifest,
+      "src/UserCard.g.tsx#default",
+      [
+        {
+          id: "parent",
+          coordinate: "src/UserCard.g.tsx#default",
+          children: [{ id: "child-1", coordinate: "src/MultiExport.g.tsx#NamedBadge", children: [] }],
+        },
+      ],
+    )
+    const childState = selectStudioComponent(parentState, manifest, "src/MultiExport.g.tsx#NamedBadge", [])
+
+    expect(createStudioRuntimeValuesRequest(manifest, childState, "child-1")).toEqual({
+      sessionId: "src/UserCard.g.tsx#default:loading",
+      message: {
+        type: "gtsx:request-values",
+        protocolVersion: 1,
+        sessionId: "src/UserCard.g.tsx#default:loading",
+        boundaryId: "child-1",
+      },
+    })
+  })
+
+  it("renders values for the selected runtime instance", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const parentTree = [
+      {
+        id: "parent",
+        coordinate: "src/UserCard.g.tsx#default",
+        children: [{ id: "child-1", coordinate: "src/MultiExport.g.tsx#NamedBadge", children: [] }],
+      },
+    ]
+    const parentState = selectStudioComponent(
+      createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
+      manifest,
+      "src/UserCard.g.tsx#default",
+      parentTree,
+    )
+    const childState = selectStudioRuntimeInstance(
+      selectStudioComponent(parentState, manifest, "src/MultiExport.g.tsx#NamedBadge", []),
+      "src/MultiExport.g.tsx#NamedBadge",
+      "child-1",
+    )
+
+    const html = renderToStaticMarkup(
+      <StudioWorkspaceView
+        frameStates={{
+          "src/UserCard.g.tsx#default:loading": {
+            expectedSessionId: "src/UserCard.g.tsx#default:loading",
+            ready: true,
+            tree: parentTree,
+            valuesByBoundaryId: {
+              "child-1": {
+                boundaryId: "child-1",
+                props: {
+                  type: "object",
+                  constructorName: "Object",
+                  entries: [{ key: "label", value: { type: "string", value: "Agent inbox" } }],
+                },
+                scope: {
+                  type: "object",
+                  constructorName: "Object",
+                  entries: [{ key: "expanded", value: { type: "boolean", value: true } }],
+                },
+                providerValues: [{ providerName: "ThemeGTSXProvider", value: { type: "string", value: "dark" } }],
+              },
+            },
+          },
+        }}
+        manifest={manifest}
+        workspace={childState}
+      />,
+    )
+
+    expect(html).toContain("Values")
+    expect(html).toContain("Props")
+    expect(html).toContain("label")
+    expect(html).toContain("Agent inbox")
+    expect(html).toContain("Scope")
+    expect(html).toContain("expanded")
+    expect(html).toContain("true")
+    expect(html).toContain("ThemeGTSXProvider")
+  })
+
+  it("round-trips restorable workspace state through URL params without runtime values", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const workspace = selectStudioRuntimeInstance(
+      {
+        columns: [
+          {
+            components: [
+              manifest.files
+                .flatMap((file) => file.components)
+                .find((component) => component.coordinate === "src/UserCard.g.tsx#default")!,
+            ],
+          },
+          {
+            components: [
+              manifest.files
+                .flatMap((file) => file.components)
+                .find((component) => component.coordinate === "src/MultiExport.g.tsx#NamedBadge")!,
+            ],
+          },
+        ],
+        selectedCaseByCoordinate: {
+          "src/UserCard.g.tsx#default": "ready",
+          "src/MultiExport.g.tsx#NamedBadge": "ready",
+        },
+        selectedCoordinatePath: ["src/UserCard.g.tsx#default", "src/MultiExport.g.tsx#NamedBadge"],
+        selectedRuntimeInstanceByCoordinate: {
+          "src/MultiExport.g.tsx#NamedBadge": "gtsx-boundary:1",
+        },
+        selectedViewportPresetByCoordinate: {},
+      },
+      "src/MultiExport.g.tsx#NamedBadge",
+      "gtsx-boundary:1",
+    )
+
+    const params = createStudioWorkspaceUrlSearchParams("component:src/UserCard.g.tsx#default", workspace)
+    const serialized = params.toString()
+
+    expect(serialized).toContain("selection=component%3Asrc%2FUserCard.g.tsx%23default")
+    expect(serialized).toContain("path=src%2FUserCard.g.tsx%23default")
+    expect(serialized).toContain("case=src%2FUserCard.g.tsx%23default%3Aready")
+    expect(serialized).toContain("instance=src%2FMultiExport.g.tsx%23NamedBadge%3Agtsx-boundary%3A1")
+    expect(serialized).not.toContain("Agent%20inbox")
+    expect(serialized).not.toContain("props")
+    expect(serialized).not.toContain("scope")
+    expect(serialized).not.toContain("provider")
+
+    const restored = createStudioWorkspaceStateFromUrl(manifest, new URLSearchParams(serialized))
+
+    expect(restored.warning).toBeUndefined()
+    expect(restored.selection).toBe("component:src/UserCard.g.tsx#default")
+    expect(restored.workspace.selectedCoordinatePath).toEqual([
+      "src/UserCard.g.tsx#default",
+      "src/MultiExport.g.tsx#NamedBadge",
+    ])
+    expect(restored.workspace.selectedCaseByCoordinate).toEqual({
+      "src/UserCard.g.tsx#default": "ready",
+      "src/MultiExport.g.tsx#NamedBadge": "ready",
+    })
+    expect(restored.workspace.selectedRuntimeInstanceByCoordinate).toEqual({
+      "src/MultiExport.g.tsx#NamedBadge": "gtsx-boundary:1",
+    })
+  })
+
+  it("restores previous and next workspace states from browser history URL entries", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const previousParams = new URLSearchParams(
+      "selection=component%3Asrc%2FUserCard.g.tsx%23default&path=src%2FUserCard.g.tsx%23default&case=src%2FUserCard.g.tsx%23default%3Aloading",
+    )
+    const nextParams = new URLSearchParams(
+      "selection=component%3Asrc%2FUserCard.g.tsx%23default&path=src%2FUserCard.g.tsx%23default&path=src%2FMultiExport.g.tsx%23NamedBadge&case=src%2FUserCard.g.tsx%23default%3Aready&instance=src%2FMultiExport.g.tsx%23NamedBadge%3Agtsx-boundary%3A1",
+    )
+
+    expect(createStudioWorkspaceStateFromUrl(manifest, previousParams).workspace).toMatchObject({
+      selectedCoordinatePath: ["src/UserCard.g.tsx#default"],
+      selectedCaseByCoordinate: {
+        "src/UserCard.g.tsx#default": "loading",
+      },
+      selectedRuntimeInstanceByCoordinate: {},
+    })
+    expect(createStudioWorkspaceStateFromUrl(manifest, nextParams).workspace).toMatchObject({
+      selectedCoordinatePath: ["src/UserCard.g.tsx#default", "src/MultiExport.g.tsx#NamedBadge"],
+      selectedCaseByCoordinate: {
+        "src/UserCard.g.tsx#default": "ready",
+      },
+      selectedRuntimeInstanceByCoordinate: {
+        "src/MultiExport.g.tsx#NamedBadge": "gtsx-boundary:1",
+      },
+    })
+  })
+
+  it("degrades invalid URL state to the nearest valid selection with a visible warning", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const restored = createStudioWorkspaceStateFromUrl(
+      manifest,
+      new URLSearchParams(
+        "selection=component%3Asrc%2FMissing.g.tsx%23default&path=src%2FUserCard.g.tsx%23default&path=src%2FMissingChild.g.tsx%23default&case=src%2FUserCard.g.tsx%23default%3Amissing&instance=src%2FMissingChild.g.tsx%23default%3Agtsx-boundary%3A9",
+      ),
+    )
+
+    expect(restored.warning).toBe("Invalid Studio URL state was ignored.")
+    expect(restored.selection).toBe("file:src/Badge.g.tsx")
+    expect(restored.workspace.selectedCoordinatePath).toEqual(["src/UserCard.g.tsx#default"])
+    expect(restored.workspace.selectedCaseByCoordinate).toEqual({})
+    expect(restored.workspace.selectedRuntimeInstanceByCoordinate).toEqual({})
+
+    const html = renderToStaticMarkup(
+      <StudioWorkspaceView manifest={manifest} urlWarning={restored.warning} workspace={restored.workspace} />,
+    )
+
+    expect(html).toContain("Invalid Studio URL state was ignored.")
+  })
 })
 
 function cardCoordinates(html: string): string[] {
@@ -293,10 +671,18 @@ function iframeSources(html: string): string[] {
   return [...html.matchAll(/<iframe[^>]+src="([^"]+)"/g)].map((match) => (match[1] ?? "").replaceAll("&amp;", "&"))
 }
 
+function previewSources(html: string): string[] {
+  return [...html.matchAll(/data-gtsx-preview-src="([^"]+)"/g)].map((match) => (match[1] ?? "").replaceAll("&amp;", "&"))
+}
+
 function columnCount(html: string): number {
   return [...html.matchAll(/data-gtsx-column-index="/g)].length
 }
 
 function caseControlNames(html: string): string[] {
   return [...html.matchAll(/data-gtsx-case-control="([^"]+)"/g)].map((match) => match[1] ?? "")
+}
+
+function runtimeInstanceIds(html: string): string[] {
+  return [...html.matchAll(/data-gtsx-runtime-instance-id="([^"]+)"/g)].map((match) => match[1] ?? "")
 }

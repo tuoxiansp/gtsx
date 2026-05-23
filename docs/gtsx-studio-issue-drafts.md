@@ -151,12 +151,12 @@ Add Inspector support for runtime instances and value snapshots. For merged comp
 
 ## Acceptance criteria
 
-- [ ] The Inspector shows runtime instances for merged component cards.
-- [ ] Selecting an instance requests props, scope, and provider value snapshots from the relevant preview iframe.
-- [ ] The serializer handles circular references, functions, symbols, dates, React elements, class instances, errors, maps, and sets.
-- [ ] Functions are displayed but never executed.
-- [ ] Depth and size limits prevent large values from freezing Studio.
-- [ ] Runtime values are not included in the static manifest or Studio URL.
+- [x] The Inspector shows runtime instances for merged component cards.
+- [x] Selecting an instance requests props, scope, and provider value snapshots from the relevant preview iframe.
+- [x] The serializer handles circular references, functions, symbols, dates, React elements, class instances, errors, maps, and sets.
+- [x] Functions are displayed but never executed.
+- [x] Depth and size limits prevent large values from freezing Studio.
+- [x] Runtime values are not included in the static manifest or Studio URL.
 
 ## Blocked by
 
@@ -173,11 +173,11 @@ Persist enough Studio workspace state in the URL to restore a review or debuggin
 
 ## Acceptance criteria
 
-- [ ] Reloading a Studio URL restores the selected sidebar item and column path.
-- [ ] Reloading restores selected cases for coordinates in the workspace path.
-- [ ] Browser back and forward navigate previous Studio workspace states.
-- [ ] Runtime props, scope, provider values, and serialized snapshots are never written to the URL.
-- [ ] Invalid or stale URL state degrades to the nearest valid Studio selection with a visible warning.
+- [x] Reloading a Studio URL restores the selected sidebar item and column path.
+- [x] Reloading restores selected cases for coordinates in the workspace path.
+- [x] Browser back and forward navigate previous Studio workspace states.
+- [x] Runtime props, scope, provider values, and serialized snapshots are never written to the URL.
+- [x] Invalid or stale URL state degrades to the nearest valid Studio selection with a visible warning.
 
 ## Blocked by
 
@@ -194,11 +194,11 @@ Harden the Studio card rendering experience so large projects remain usable. Ifr
 
 ## Acceptance criteria
 
-- [ ] Cards near the visible canvas load iframes lazily with `IntersectionObserver`.
-- [ ] Iframes can report content height through runtime resize messages.
-- [ ] Viewport-dependent components can use fixed viewport presets instead of content-height sizing.
-- [ ] A render failure in one card does not crash the Studio shell or other cards.
-- [ ] Error cards show entry coordinate, case, error message or stack summary, and a copyable reproduction preview URL.
+- [x] Cards near the visible canvas load iframes lazily with `IntersectionObserver`.
+- [x] Iframes can report content height through runtime resize messages.
+- [x] Viewport-dependent components can use fixed viewport presets instead of content-height sizing.
+- [x] A render failure in one card does not crash the Studio shell or other cards.
+- [x] Error cards show entry coordinate, case, error message or stack summary, and a copyable reproduction preview URL.
 
 ## Blocked by
 
@@ -215,11 +215,11 @@ Update the CLI contract so `gtsx serve` is project-level and points humans to St
 
 ## Acceptance criteria
 
-- [ ] `gtsx serve` delegates to the project preview environment and prints the configured Studio URL.
-- [ ] `gtsx serve` does not automatically open a browser.
-- [ ] CLI help and tests describe project-level serve semantics rather than single-entry serve semantics.
-- [ ] Existing preview and capture commands continue to use lightweight preview URLs.
-- [ ] Missing Studio route integration produces an actionable diagnostic.
+- [x] `gtsx serve` delegates to the project preview environment and prints the configured Studio URL.
+- [x] `gtsx serve` does not automatically open a browser.
+- [x] CLI help and tests describe project-level serve semantics rather than single-entry serve semantics.
+- [x] Existing preview and capture commands continue to use lightweight preview URLs.
+- [x] Missing Studio route integration produces an actionable diagnostic.
 
 ## Blocked by
 
@@ -235,11 +235,11 @@ Create the official AI installer prompt that guides project agents to integrate 
 
 ## Acceptance criteria
 
-- [ ] The prompt explains the default `/gtsx`, `/gtsx/studio`, and `/gtsx/studio/manifest` route contract.
-- [ ] The prompt tells agents to create thin project-local routes that import official GTSX client/server helpers.
-- [ ] The prompt prefers server/API route manifest providers and documents virtual module fallback.
-- [ ] The prompt explicitly avoids public manifest watcher fallback for MVP.
-- [ ] The prompt includes verification steps for opening Studio and rendering at least one component card.
+- [x] The prompt explains the default `/gtsx`, `/gtsx/studio`, and `/gtsx/studio/manifest` route contract.
+- [x] The prompt tells agents to create thin project-local routes that import official GTSX client/server helpers.
+- [x] The prompt prefers server/API route manifest providers and documents virtual module fallback.
+- [x] The prompt explicitly avoids public manifest watcher fallback for MVP.
+- [x] The prompt includes verification steps for opening Studio and rendering at least one component card.
 
 ## Blocked by
 
@@ -257,11 +257,11 @@ Add a second manifest provider path for stacks where an adapter can expose a vir
 
 ## Acceptance criteria
 
-- [ ] An adapter-supported playground can load the Studio manifest through a virtual module.
-- [ ] The virtual module returns the same manifest shape as the server route provider.
-- [ ] Studio can consume either server route manifests or virtual module manifests through the same client-side interface.
-- [ ] If neither provider is available, diagnostics explain that the project needs a local provider generated by the user's agent.
-- [ ] Tests or verification cover provider selection order.
+- [x] An adapter-supported playground can load the Studio manifest through a virtual module.
+- [x] The virtual module returns the same manifest shape as the server route provider.
+- [x] Studio can consume either server route manifests or virtual module manifests through the same client-side interface.
+- [x] If neither provider is available, diagnostics explain that the project needs a local provider generated by the user's agent.
+- [x] Tests or verification cover provider selection order.
 
 ## Blocked by
 

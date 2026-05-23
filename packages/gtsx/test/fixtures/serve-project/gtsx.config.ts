@@ -2,8 +2,8 @@ import { defineGTSXConfig } from "gtsx"
 
 export default defineGTSXConfig({
   preview: {
-    serve: "npm run dev -- --port {port}",
+    serve: "node scripts/record-command.mjs serve --port {port}",
     studioUrl: "http://localhost:{port}/gtsx/studio",
-    url: "https://preview.test/vite-react?entry={entry}&case={case}&port={port}",
+    url: "https://preview.test/gtsx?entry={entry}&case={case}&port={port}",
   },
 })

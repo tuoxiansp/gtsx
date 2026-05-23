@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
-import { buildStudioManifest } from "../src/studio-manifest.js"
+import { buildStudioManifest, selectStudioManifestProvider } from "../src/studio-manifest.js"
 
 const fixtureRoot = join(import.meta.dirname, "fixtures/check-project")
 const repositoryRoot = resolve(import.meta.dirname, "../../..")
@@ -185,6 +185,35 @@ describe("GTSX Studio manifest", () => {
     })
     expect(packageJson.exports["."]).not.toMatchObject({
       import: "./dist/studio-manifest.js",
+    })
+  })
+
+  it("selects server route manifests before virtual module manifests and diagnoses missing providers", () => {
+    const serverManifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src/corpus" })
+    const virtualManifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+
+    expect(
+      selectStudioManifestProvider([
+        { kind: "virtual-module", manifest: virtualManifest },
+        { kind: "server-route", manifest: serverManifest },
+      ]),
+    ).toEqual({
+      kind: "server-route",
+      manifest: serverManifest,
+      diagnostics: [],
+    })
+    expect(selectStudioManifestProvider([{ kind: "virtual-module", manifest: virtualManifest }])).toEqual({
+      kind: "virtual-module",
+      manifest: virtualManifest,
+      diagnostics: [],
+    })
+    expect(selectStudioManifestProvider([])).toMatchObject({
+      diagnostics: [
+        {
+          stage: "adapter-configuration",
+          code: "missing-studio-manifest-provider",
+        },
+      ],
     })
   })
 })

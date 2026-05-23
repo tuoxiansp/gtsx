@@ -4,11 +4,12 @@
   "type": "module",
   "scripts": {
     "gtsx:check": "gtsx check src/routes/AppRoute.g.tsx",
-    "gtsx:serve": "gtsx serve src/routes/AppRoute.g.tsx --case createVitePnpmFailure --port 4303",
+    "gtsx:serve": "gtsx serve --port 4303",
     "gtsx:capture": "gtsx capture src/routes/AppRoute.g.tsx --all --out ../../snapshots/vite-react-ts-tanstack-router",
     "dev": "node scripts/playground-adapter.mjs serve"
   },
   "dependencies": {
+    "@gtsx/adapter-vite-react": "workspace:*",
     "@vitejs/plugin-react": "^5.1.2",
     "gtsx": "workspace:*",
     "react": "^19.2.6",

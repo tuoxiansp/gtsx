@@ -115,6 +115,9 @@ importers:
 
   playground/vite-react-ts-tanstack-router:
     dependencies:
+      '@gtsx/adapter-vite-react':
+        specifier: workspace:*
+        version: link:../../packages/adapter-vite-react
       '@vitejs/plugin-react':
         specifier: ^5.1.2
         version: 5.2.0(vite@8.0.14(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.3))

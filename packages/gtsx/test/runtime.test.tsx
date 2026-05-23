@@ -199,4 +199,66 @@ describe("GTSX runtime", () => {
       },
     ])
   })
+
+  it("records serialized props, scope, and provider values for each boundary instance without executing functions", () => {
+    const collector = createGBoundaryCollector()
+    let calls = 0
+    const onOpen = function handleOpen() {
+      calls += 1
+    }
+
+    const ProfileCard = defineGComponent("src/ProfileCard.g.tsx#default", function ProfileCardImpl(props: {
+      user: { name: string }
+      onOpen: () => void
+    }) {
+      return <span>{props.user.name}</span>
+    })
+    ProfileCard.cases = {
+      ready: {
+        props: { user: { name: "Ada" }, onOpen },
+        scope: { selectedUserId: "user_1" },
+      },
+    } satisfies GCases<{ user: { name: string }; onOpen: () => void }, { selectedUserId: string }>
+
+    renderToStaticMarkup(
+      <GPreviewProvider boundaryCollector={collector} providerValues={new Map([[ThemeGTSXProvider, { mode: "dark" }]])}>
+        <ProfileCard user={{ name: "Ada" }} onOpen={onOpen} />
+      </GPreviewProvider>,
+    )
+
+    expect(collector.getValues("gtsx-boundary:0")).toEqual({
+      boundaryId: "gtsx-boundary:0",
+      props: {
+        type: "object",
+        constructorName: "Object",
+        entries: [
+          {
+            key: "user",
+            value: {
+              type: "object",
+              constructorName: "Object",
+              entries: [{ key: "name", value: { type: "string", value: "Ada" } }],
+            },
+          },
+          { key: "onOpen", value: { type: "function", name: "handleOpen", displayName: "[Function handleOpen]" } },
+        ],
+      },
+      scope: {
+        type: "object",
+        constructorName: "Object",
+        entries: [{ key: "selectedUserId", value: { type: "string", value: "user_1" } }],
+      },
+      providerValues: [
+        {
+          providerName: "ThemeGTSXProvider",
+          value: {
+            type: "object",
+            constructorName: "Object",
+            entries: [{ key: "mode", value: { type: "string", value: "dark" } }],
+          },
+        },
+      ],
+    })
+    expect(calls).toBe(0)
+  })
 })

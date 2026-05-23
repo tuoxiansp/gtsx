@@ -1,5 +1,7 @@
 import React from "react"
 
+import type { GRuntimeValuesSnapshot } from "./preview-protocol.js"
+import { serializeGRuntimeValue } from "./runtime-values.js"
 import type { AnyGProvider, GCases, GCase, GProvider, GScopeHook } from "./types.js"
 
 type PreviewRuntimeValue = {
@@ -40,6 +42,8 @@ export type GBoundaryCollector = {
   reset(): void
   registerBoundary(coordinate: string, parentId: string | null): string
   updateBoundaryRect(id: string, rect: GBoundaryRect): void
+  updateBoundaryValues(id: string, values: Omit<GRuntimeValuesSnapshot, "boundaryId">): void
+  getValues(id: string): GRuntimeValuesSnapshot | undefined
   getTree(): GBoundaryTreeNode[]
 }
 
@@ -70,10 +74,12 @@ export function GPreviewProvider(props: GPreviewProviderProps) {
 
 export function createGBoundaryCollector(): GBoundaryCollector {
   let nodes: FlatBoundaryNode[] = []
+  let valuesByBoundaryId = new Map<string, Omit<GRuntimeValuesSnapshot, "boundaryId">>()
 
   return {
     reset() {
       nodes = []
+      valuesByBoundaryId = new Map()
     },
     registerBoundary(coordinate, parentId) {
       const id = `gtsx-boundary:${nodes.length}`
@@ -85,6 +91,13 @@ export function createGBoundaryCollector(): GBoundaryCollector {
       if (node) {
         node.rect = rect
       }
+    },
+    updateBoundaryValues(id, values) {
+      valuesByBoundaryId.set(id, values)
+    },
+    getValues(id) {
+      const values = valuesByBoundaryId.get(id)
+      return values ? { boundaryId: id, ...values } : undefined
     },
     getTree() {
       const nodesById = new Map<string, GBoundaryTreeNode>()
@@ -153,6 +166,13 @@ export function defineGComponent<Props extends object>(
     const parentBoundaryId = React.useContext(BoundaryParentContext)
     const boundaryId = preview?.boundaryCollector?.registerBoundary(coordinate, parentBoundaryId) ?? null
     const activeCase = preview ? resolveComponentCase(coordinate, GComponentBoundary.cases, preview) : null
+    if (preview && boundaryId) {
+      preview.boundaryCollector?.updateBoundaryValues(boundaryId, {
+        props: serializeGRuntimeValue(props),
+        scope: serializeGRuntimeValue(readScopeSnapshot(activeCase, preview)),
+        providerValues: serializeProviderValues(preview.providerValues),
+      })
+    }
     const rendered = activeCase ? (
       <ActiveComponentCaseContext.Provider value={activeCase as GCase<unknown, unknown>}>
         <Component {...props} />
@@ -173,6 +193,18 @@ export function defineGComponent<Props extends object>(
 
   GComponentBoundary.displayName = Component.displayName || Component.name
   return GComponentBoundary
+}
+
+function readScopeSnapshot(activeCase: object | null, preview: PreviewRuntimeValue): unknown {
+  if (activeCase && "scope" in activeCase) return (activeCase as { scope: unknown }).scope
+  return preview.scope
+}
+
+function serializeProviderValues(providerValues: Map<AnyGProvider, unknown>): GRuntimeValuesSnapshot["providerValues"] {
+  return [...providerValues.entries()].map(([provider, value]) => ({
+    providerName: provider.displayName || provider.name || "anonymous provider",
+    value: serializeGRuntimeValue(value),
+  }))
 }
 
 function readPreviewContextIfRendering(): PreviewRuntimeValue | null {
