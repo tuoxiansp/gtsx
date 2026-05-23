@@ -1054,9 +1054,7 @@ function LazyPreviewFrame(props: {
           style={{ background: "transparent", border: 0, height: "100%", pointerEvents: "none", width: "100%" }}
           title={props.title}
         />
-      ) : (
-        <p style={{ color: "#6b7280", fontSize: 12, margin: 0, padding: 14 }}>Preview will load when visible.</p>
-      )}
+      ) : null}
     </div>
   )
 }

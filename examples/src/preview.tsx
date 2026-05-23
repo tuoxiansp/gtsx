@@ -87,7 +87,7 @@ function GTSXEntryPreview(props: {
   })
 
   return (
-    <React.Suspense fallback={<PreviewMessage title="Loading" detail={props.entry} />}>
+    <React.Suspense fallback={props.showChrome ? <PreviewMessage title="Loading" detail={props.entry} /> : null}>
       <LazyPreview />
     </React.Suspense>
   )

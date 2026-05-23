@@ -144,6 +144,7 @@ describe("GTSX Studio shell", () => {
       "/gtsx?entry=src%2FMultiExport.g.tsx%23default&case=defaultReady&chrome=0&sessionId=src%2FMultiExport.g.tsx%23default%3AdefaultReady",
     ])
     expect(iframeSources(html)).toEqual([])
+    expect(html).not.toContain("Preview will load when visible.")
     expect(previewFrameHtml(html, "src/MultiExport.g.tsx#NamedBadge:ready")).not.toContain("background:#ffffff")
     expect(previewFrameHtml(html, "src/MultiExport.g.tsx#NamedBadge:ready")).not.toContain("border:1px solid #e5e7eb")
   })
