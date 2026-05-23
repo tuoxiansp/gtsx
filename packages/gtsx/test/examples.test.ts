@@ -124,6 +124,31 @@ describe("examples Vite host", () => {
       server.kill()
     }
   }, 60_000)
+
+  it("renders a named component export selected by entry coordinate", async () => {
+    const port = "4324"
+    const server = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port", port], {
+      cwd: examplesRoot,
+      shell: true,
+      stdio: "ignore",
+    })
+    let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
+
+    try {
+      browser = await chromium.launch()
+      const page = await browser.newPage()
+      await gotoWhenReady(
+        page,
+        `http://localhost:${port}/gtsx?entry=${encodeURIComponent("src/cases/stateful/MultiExportPanel.g.tsx#NamedPanel")}&case=namedReady`,
+      )
+
+      await expect.poll(() => page.getByText("Named export: selected by file coordinate").count()).toBe(1)
+      await expect.poll(() => page.getByText("Default export:").count()).toBe(0)
+    } finally {
+      await browser?.close()
+      server.kill()
+    }
+  }, 60_000)
 })
 
 async function gotoWhenReady(page: Awaited<ReturnType<Awaited<ReturnType<typeof chromium.launch>>["newPage"]>>, url: string) {

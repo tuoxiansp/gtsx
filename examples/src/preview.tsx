@@ -11,7 +11,7 @@ type PreviewComponent<Props = Record<string, unknown>> = React.ComponentType<Pro
   cases?: Record<string, PreviewCase<Props>>
 }
 
-type GTSXModule = {
+type GTSXModule = Record<string, unknown> & {
   default: PreviewComponent
 }
 
@@ -31,7 +31,8 @@ export function GTSXPreviewApp() {
 }
 
 function GTSXEntryPreview(props: { entry: string; caseName: string | null; caseOverrides: Map<string, string> }) {
-  const loader = modules[toModuleKey(props.entry)]
+  const entryCoordinate = parseEntryCoordinate(props.entry)
+  const loader = modules[toModuleKey(entryCoordinate.file)]
 
   if (!loader) {
     return <PreviewMessage title="Unknown entry" detail={props.entry} />
@@ -39,10 +40,17 @@ function GTSXEntryPreview(props: { entry: string; caseName: string | null; caseO
 
   const LazyPreview = React.lazy(async () => {
     const moduleValue = await loader()
+    const component = moduleValue[entryCoordinate.exportName]
+    if (!isPreviewComponent(component)) {
+      return {
+        default: () => <PreviewMessage title="Unknown component export" detail={props.entry} />,
+      }
+    }
+
     return {
       default: () => (
         <LoadedEntryPreview
-          component={moduleValue.default}
+          component={component}
           entry={props.entry}
           caseName={props.caseName}
           caseOverrides={props.caseOverrides}
@@ -100,8 +108,8 @@ function PreviewMessage(props: { title: string; detail: string }) {
   )
 }
 
-function toModuleKey(entry: string): keyof typeof modules {
-  return `./${entry.replace(/^src\//, "")}` as keyof typeof modules
+function toModuleKey(entryFile: string): keyof typeof modules {
+  return `./${entryFile.replace(/^src\//, "")}` as keyof typeof modules
 }
 
 function readCaseOverrides(params: URLSearchParams): Map<string, string> {
@@ -121,4 +129,13 @@ function caseOverridesForFrame(entry: string, caseName: string, childOverrides: 
 
 function toComponentCoordinate(entry: string): string {
   return entry.includes("#") ? entry : `${entry}#default`
+}
+
+function parseEntryCoordinate(entry: string): { file: string; exportName: string } {
+  const [file, exportName] = entry.split("#", 2)
+  return { file, exportName: exportName || "default" }
+}
+
+function isPreviewComponent(value: unknown): value is PreviewComponent {
+  return typeof value === "function"
 }

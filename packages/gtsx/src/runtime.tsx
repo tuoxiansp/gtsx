@@ -8,6 +8,8 @@ type PreviewRuntimeValue = {
   caseOverrides: Map<string, string>
 }
 
+type AnyComponentCases<Props> = Record<string, GCase<Props> | GCase<Props, unknown>>
+
 const PreviewRuntimeContext = React.createContext<PreviewRuntimeValue | null>(null)
 const ActiveComponentCaseContext = React.createContext<GCase<unknown, unknown> | null>(null)
 
@@ -64,7 +66,7 @@ export function useGContext<Value>(provider: GProvider<Value>): Value {
 export function defineGComponent<Props extends object>(
   coordinate: string,
   Component: React.ComponentType<Props>,
-): React.ComponentType<Props> & { cases?: GCases<Props, unknown> } {
+): React.ComponentType<Props> & { cases?: AnyComponentCases<Props> } {
   const GComponentBoundary = ((props: Props) => {
     const preview = React.useContext(PreviewRuntimeContext)
     const activeCase = preview ? resolveComponentCase(coordinate, GComponentBoundary.cases, preview) : null
@@ -76,7 +78,7 @@ export function defineGComponent<Props extends object>(
         <Component {...props} />
       </ActiveComponentCaseContext.Provider>
     )
-  }) as React.ComponentType<Props> & { cases?: GCases<Props, unknown>; displayName?: string }
+  }) as React.ComponentType<Props> & { cases?: AnyComponentCases<Props>; displayName?: string }
 
   GComponentBoundary.displayName = Component.displayName || Component.name
   return GComponentBoundary
@@ -100,14 +102,18 @@ function readActiveComponentCaseIfRendering(): GCase<unknown, unknown> | null {
 
 function resolveComponentCase<Props extends object>(
   coordinate: string,
-  cases: GCases<Props, unknown> | undefined,
+  cases: AnyComponentCases<Props> | undefined,
   preview: PreviewRuntimeValue,
-): GCase<Props, unknown> | null {
+): GCase<Props> | GCase<Props, unknown> | null {
   if (!cases) return null
 
   const overrideName = preview.caseOverrides.get(coordinate)
-  if (overrideName && cases[overrideName]) {
-    return cases[overrideName]
+  if (overrideName) {
+    const overrideCase = cases[overrideName]
+    if (!overrideCase) {
+      throw new Error(`Unknown GTSX case "${overrideName}" for ${coordinate}.`)
+    }
+    return overrideCase
   }
 
   return Object.values(cases)[0] ?? null

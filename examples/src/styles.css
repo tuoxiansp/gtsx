@@ -259,3 +259,13 @@ body {
   margin: 0;
   padding-left: 20px;
 }
+
+.named-panel {
+  width: max-content;
+  padding: 20px 24px;
+  border-radius: 22px;
+  color: #1e1b4b;
+  background: #e0e7ff;
+  border: 1px solid #c7d2fe;
+  font-weight: 800;
+}

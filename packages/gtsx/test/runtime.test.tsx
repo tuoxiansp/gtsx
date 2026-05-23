@@ -103,4 +103,23 @@ describe("GTSX runtime", () => {
 
     expect(html).toBe("<span>open</span>")
   })
+
+  it("reports an unknown component case override instead of falling back", () => {
+    function ChildImpl() {
+      return <span>child</span>
+    }
+
+    const Child = defineGComponent("src/Child.g.tsx#Child", ChildImpl)
+    Child.cases = {
+      closed: { props: {} },
+    } satisfies GCases<Record<string, never>>
+
+    expect(() =>
+      renderToStaticMarkup(
+        <GPreviewProvider caseOverrides={new Map([["src/Child.g.tsx#Child", "missing"]])}>
+          <Child />
+        </GPreviewProvider>,
+      ),
+    ).toThrow('Unknown GTSX case "missing" for src/Child.g.tsx#Child.')
+  })
 })
