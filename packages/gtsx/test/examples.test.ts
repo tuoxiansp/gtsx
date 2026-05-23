@@ -308,6 +308,100 @@ describe("examples Vite host", () => {
     }
   }, 60_000)
 
+  it("keeps the previous canvas iframe visible until the next case finishes rendering", async () => {
+    const port = "4331"
+    const server = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port", port], {
+      cwd: examplesRoot,
+      shell: true,
+      stdio: "ignore",
+    })
+    let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
+    let releaseModuleRequest: (() => void) | undefined
+    let markModuleRequestStarted: (() => void) | undefined
+    const moduleRequestPending = new Promise<void>((resolve) => {
+      releaseModuleRequest = resolve
+    })
+    const moduleRequestStarted = new Promise<void>((resolve) => {
+      markModuleRequestStarted = resolve
+    })
+
+    try {
+      browser = await chromium.launch()
+      const page = await browser.newPage()
+      await gotoWhenReady(page, `http://localhost:${port}/gtsx/studio`)
+      await expect.poll(() => visibleCanvasFrameTexts(page)).toEqual([expect.stringContaining("Primitive props")])
+      await page.locator('[data-gtsx-card-select-coordinate="src/cases/language/PrimitiveProps.g.tsx#default"]').click()
+      await expect.poll(() => casePreviewCardNames(page)).toEqual(["neutralEmpty", "positiveActive", "warningLongText"])
+
+      await page.route("**/src/cases/language/PrimitiveProps.g.tsx*", async (route) => {
+        markModuleRequestStarted?.()
+        await moduleRequestPending
+        await route.continue()
+      })
+      await page.locator('[data-gtsx-case-preview-card="positiveActive"]').click()
+      await moduleRequestStarted
+
+      await expect.poll(() => selectedCasePreviewCardNames(page)).toEqual(["positiveActive"])
+      expect(await visibleCanvasFrameTexts(page)).toEqual([expect.stringContaining("Primitive props")])
+    } finally {
+      releaseModuleRequest?.()
+      await browser?.close()
+      server.kill()
+    }
+  }, 60_000)
+
+  it("keeps chrome-free previews transparent while the selected module is still loading", async () => {
+    const port = "4330"
+    const server = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port", port], {
+      cwd: examplesRoot,
+      shell: true,
+      stdio: "ignore",
+    })
+    let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
+    let releaseModuleRequest: (() => void) | undefined
+    let markModuleRequestStarted: (() => void) | undefined
+    const moduleRequestPending = new Promise<void>((resolve) => {
+      releaseModuleRequest = resolve
+    })
+    const moduleRequestStarted = new Promise<void>((resolve) => {
+      markModuleRequestStarted = resolve
+    })
+
+    try {
+      browser = await chromium.launch()
+      const page = await browser.newPage()
+      await page.route("**/src/cases/stateful/UserCard.g.tsx*", async (route) => {
+        markModuleRequestStarted?.()
+        await moduleRequestPending
+        await route.continue()
+      })
+      await gotoWhenReady(
+        page,
+        `http://localhost:${port}/gtsx?entry=${encodeURIComponent("src/cases/stateful/UserCard.g.tsx#default")}&case=ready&chrome=0`,
+        "domcontentloaded",
+      )
+      await moduleRequestStarted
+
+      expect(
+        await page.evaluate(() => {
+          const root = getComputedStyle(document.documentElement)
+          const body = getComputedStyle(document.body)
+          return {
+            bodyBackground: body.backgroundColor,
+            rootBackground: root.backgroundColor,
+          }
+        }),
+      ).toEqual({
+        bodyBackground: "rgba(0, 0, 0, 0)",
+        rootBackground: "rgba(0, 0, 0, 0)",
+      })
+    } finally {
+      releaseModuleRequest?.()
+      await browser?.close()
+      server.kill()
+    }
+  }, 60_000)
+
   it("renders chrome-free previews without a shared preview background", async () => {
     const port = "4326"
     const server = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port", port], {
@@ -443,13 +537,17 @@ describe("examples Vite host", () => {
   }, 60_000)
 })
 
-async function gotoWhenReady(page: Awaited<ReturnType<Awaited<ReturnType<typeof chromium.launch>>["newPage"]>>, url: string) {
+async function gotoWhenReady(
+  page: Awaited<ReturnType<Awaited<ReturnType<typeof chromium.launch>>["newPage"]>>,
+  url: string,
+  waitUntil: "commit" | "domcontentloaded" | "load" | "networkidle" = "networkidle",
+) {
   const deadline = Date.now() + 30_000
   let lastError: unknown
 
   while (Date.now() < deadline) {
     try {
-      await page.goto(url, { waitUntil: "networkidle", timeout: 5_000 })
+      await page.goto(url, { waitUntil, timeout: 5_000 })
       return
     } catch (error) {
       lastError = error
@@ -517,6 +615,19 @@ async function canvasIframeWidths(
     [...document.querySelectorAll<HTMLIFrameElement>("[data-gtsx-preview-session-id][data-gtsx-preview-src] iframe")].map((frame) =>
       Math.round(frame.getBoundingClientRect().width),
     ),
+  )
+}
+
+async function visibleCanvasFrameTexts(
+  page: Awaited<ReturnType<Awaited<ReturnType<typeof chromium.launch>>["newPage"]>>,
+): Promise<string[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll<HTMLIFrameElement>("[data-gtsx-preview-session-id][data-gtsx-preview-src] iframe")]
+      .filter((frame) => {
+        const style = getComputedStyle(frame)
+        return style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0"
+      })
+      .map((frame) => frame.contentDocument?.body?.innerText ?? ""),
   )
 }
 

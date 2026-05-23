@@ -35,6 +35,7 @@ export function GTSXPreviewApp() {
   const sessionId = params.get("sessionId")
   const caseOverrides = readCaseOverrides(params)
   const showChrome = params.get("chrome") !== "0"
+  usePreviewChromeDocumentAttribute(showChrome)
 
   if (!entry) {
     return (
@@ -106,13 +107,6 @@ function LoadedEntryPreview(props: {
   const selectedCases = props.caseName ? [[props.caseName, cases[props.caseName]] as const] : Object.entries(cases)
   const hasRenderableCases = selectedCases.length > 0 && selectedCases.every(([, testCase]) => testCase)
 
-  React.useEffect(() => {
-    document.documentElement.dataset.gtsxPreviewChrome = props.showChrome ? "1" : "0"
-    return () => {
-      delete document.documentElement.dataset.gtsxPreviewChrome
-    }
-  }, [props.showChrome])
-
   usePreviewProtocolMessages(props.sessionId, collector, hasRenderableCases)
 
   if (!hasRenderableCases) {
@@ -143,6 +137,15 @@ function LoadedEntryPreview(props: {
       ))}
     </main>
   )
+}
+
+function usePreviewChromeDocumentAttribute(showChrome: boolean) {
+  React.useLayoutEffect(() => {
+    document.documentElement.dataset.gtsxPreviewChrome = showChrome ? "1" : "0"
+    return () => {
+      delete document.documentElement.dataset.gtsxPreviewChrome
+    }
+  }, [showChrome])
 }
 
 function PreviewMessage(props: { title: string; detail: string; sessionId?: string | null }) {

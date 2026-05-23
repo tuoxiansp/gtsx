@@ -663,6 +663,7 @@ function clamp(value: number, min: number, max: number): number {
 
 const studioCanvasMinScale = 0.2
 const studioCanvasMaxScale = 2.5
+const studioPreviewPreloadMargin = 1200
 
 export function applyStudioCanvasWheel(current: StudioCanvasTransform, input: StudioCanvasWheelInput): StudioCanvasTransform {
   if (!input.ctrlKey && !input.metaKey) {
@@ -1425,6 +1426,7 @@ function ComponentCard(props: {
           data-gtsx-preview-session-id={sessionId}
           boundaryRect={selectedBoundaryRectForComponent(props.frameState?.tree, props.component.coordinate)}
           coordinate={props.component.coordinate}
+          frameState={props.frameState}
           onMeasureSize={setMeasuredSize}
           onSelect={() => props.onSelect?.(props.component, props.frameState, "pointer")}
           onPreviewFrameMount={props.onPreviewFrameMount}
@@ -1480,6 +1482,7 @@ function LazyPreviewFrame(props: {
   "data-gtsx-preview-session-id": string
   boundaryRect?: GBoundaryRect
   coordinate: string
+  frameState?: StudioPreviewFrameState
   onMeasureSize?: (size: { width: number; height: number }) => void
   onSelect?: () => void
   onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void
@@ -1491,8 +1494,17 @@ function LazyPreviewFrame(props: {
   viewportPreset: StudioViewportPreset
 }) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
-  const [frameElement, setFrameElement] = React.useState<HTMLIFrameElement | null>(null)
   const [shouldLoad, setShouldLoad] = React.useState(false)
+  const requestedSlot = React.useMemo(
+    () => ({
+      previewUrl: props.previewUrl,
+      sessionId: props.sessionId,
+      title: props.title,
+    }),
+    [props.previewUrl, props.sessionId, props.title],
+  )
+  const [activeSlot, setActiveSlot] = React.useState<StudioPreviewFrameSlot>(requestedSlot)
+  const [pendingSlot, setPendingSlot] = React.useState<StudioPreviewFrameSlot | undefined>()
   const layoutHeight = previewFrameLayoutHeight(props.size, props.boundaryRect)
 
   React.useEffect(() => {
@@ -1504,6 +1516,11 @@ function LazyPreviewFrame(props: {
       return
     }
 
+    if (isElementNearViewport(container, studioPreviewPreloadMargin)) {
+      setShouldLoad(true)
+      return
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
@@ -1511,11 +1528,83 @@ function LazyPreviewFrame(props: {
           observer.disconnect()
         }
       },
-      { rootMargin: "600px" },
+      { rootMargin: `${studioPreviewPreloadMargin}px` },
     )
     observer.observe(container)
     return () => observer.disconnect()
   }, [])
+
+  React.useEffect(() => {
+    if (!shouldLoad) return
+    if (isSamePreviewFrameSlot(activeSlot, requestedSlot)) {
+      setPendingSlot(undefined)
+      return
+    }
+
+    setPendingSlot((current) => {
+      if (current && isSamePreviewFrameSlot(current, requestedSlot)) return current
+      return requestedSlot
+    })
+  }, [activeSlot, requestedSlot, shouldLoad])
+
+  React.useEffect(() => {
+    if (!pendingSlot || !isSamePreviewFrameSlot(pendingSlot, requestedSlot)) return
+    if (!props.frameState?.tree) return
+
+    setActiveSlot(pendingSlot)
+    setPendingSlot(undefined)
+  }, [pendingSlot, props.frameState?.tree, requestedSlot])
+
+  const frameSlots = shouldLoad
+    ? [
+        { active: true, slot: activeSlot },
+        ...(pendingSlot && !isSamePreviewFrameSlot(pendingSlot, activeSlot) ? [{ active: false, slot: pendingSlot }] : []),
+      ]
+    : []
+
+  return (
+    <div
+      data-gtsx-preview-session-id={props["data-gtsx-preview-session-id"]}
+      data-gtsx-preview-src={props.previewUrl}
+      data-gtsx-viewport-preset={props.viewportPreset}
+      ref={containerRef}
+      style={{
+        height: layoutHeight,
+        overflow: "visible",
+        position: "relative",
+        width: props.size.width,
+      }}
+    >
+      {frameSlots.map(({ active, slot }) => (
+        <BufferedPreviewIframe
+          active={active}
+          key={previewFrameSlotKey(slot)}
+          onMeasureSize={props.onMeasureSize}
+          onPreviewFrameMount={props.onPreviewFrameMount}
+          size={props.size}
+          slot={slot}
+        />
+      ))}
+      {props.boundaryRect ? <ComponentBoundsHitTarget coordinate={props.coordinate} onSelect={props.onSelect} rect={props.boundaryRect} /> : null}
+      {props.selectedBoundaryRect ? <SelectedBoundaryOutline rect={props.selectedBoundaryRect} /> : null}
+    </div>
+  )
+}
+
+type StudioPreviewFrameSlot = {
+  previewUrl: string
+  sessionId: string
+  title: string
+}
+
+function BufferedPreviewIframe(props: {
+  active: boolean
+  onMeasureSize?: (size: { width: number; height: number }) => void
+  onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void
+  size: { width: number | string; height: number }
+  slot: StudioPreviewFrameSlot
+}) {
+  const [frameElement, setFrameElement] = React.useState<HTMLIFrameElement | null>(null)
 
   React.useEffect(() => {
     if (!frameElement) return
@@ -1531,49 +1620,51 @@ function LazyPreviewFrame(props: {
   }, [frameElement, props.onMeasureSize])
 
   return (
-    <div
-      data-gtsx-preview-session-id={props["data-gtsx-preview-session-id"]}
-      data-gtsx-preview-src={props.previewUrl}
-      data-gtsx-viewport-preset={props.viewportPreset}
-      ref={containerRef}
-      style={{
-        height: layoutHeight,
-        overflow: "visible",
-        position: "relative",
-        width: props.size.width,
+    <iframe
+      aria-hidden={props.active ? undefined : true}
+      loading="eager"
+      onLoad={(event) => {
+        const frame = event.currentTarget
+        const measure = () => {
+          const size = measureIframeContentSize(frame)
+          if (size) props.onMeasureSize?.(size)
+        }
+        measure()
+        window.setTimeout(measure, 80)
       }}
-    >
-      {shouldLoad ? (
-        <iframe
-          onLoad={(event) => {
-            const frame = event.currentTarget
-            const measure = () => {
-              const size = measureIframeContentSize(frame)
-              if (size) props.onMeasureSize?.(size)
-            }
-            measure()
-            window.setTimeout(measure, 80)
-          }}
-          ref={(frame) => {
-            setFrameElement(frame)
-            props.onPreviewFrameMount?.(props.sessionId, frame)
-          }}
-          src={props.previewUrl}
-          style={{
-            background: "transparent",
-            border: 0,
-            height: props.size.height,
-            pointerEvents: "none",
-            position: "absolute",
-            width: props.size.width,
-          }}
-          title={props.title}
-        />
-      ) : null}
-      {props.boundaryRect ? <ComponentBoundsHitTarget coordinate={props.coordinate} onSelect={props.onSelect} rect={props.boundaryRect} /> : null}
-      {props.selectedBoundaryRect ? <SelectedBoundaryOutline rect={props.selectedBoundaryRect} /> : null}
-    </div>
+      ref={(frame) => {
+        setFrameElement(frame)
+        props.onPreviewFrameMount?.(props.slot.sessionId, frame)
+      }}
+      src={props.slot.previewUrl}
+      style={{
+        background: "transparent",
+        border: 0,
+        height: props.size.height,
+        opacity: props.active ? 1 : 0,
+        pointerEvents: "none",
+        position: "absolute",
+        transition: "opacity 80ms linear",
+        width: props.size.width,
+        zIndex: props.active ? 1 : 0,
+      }}
+      tabIndex={props.active ? undefined : -1}
+      title={props.slot.title}
+    />
   )
+}
+
+function isSamePreviewFrameSlot(left: StudioPreviewFrameSlot, right: StudioPreviewFrameSlot): boolean {
+  return left.previewUrl === right.previewUrl && left.sessionId === right.sessionId
+}
+
+function previewFrameSlotKey(slot: StudioPreviewFrameSlot): string {
+  return `${slot.sessionId}\n${slot.previewUrl}`
+}
+
+function isElementNearViewport(element: HTMLElement, margin: number): boolean {
+  const rect = element.getBoundingClientRect()
+  return rect.bottom >= -margin && rect.right >= -margin && rect.top <= window.innerHeight + margin && rect.left <= window.innerWidth + margin
 }
 
 function ComponentBoundsHitTarget(props: { coordinate: string; onSelect?: () => void; rect: GBoundaryRect }) {
