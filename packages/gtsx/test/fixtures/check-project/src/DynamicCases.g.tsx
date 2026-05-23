@@ -1,4 +1,4 @@
-import type { GTSXPureCases } from "gtsx"
+import type { GCases } from "gtsx"
 
 type Props = {
   label: string
@@ -12,4 +12,4 @@ export default function DynamicCases(props: Props) {
 
 DynamicCases.cases = {
   [caseName]: { props: { label: "Ready" } },
-} satisfies GTSXPureCases<Props>
+} satisfies GCases<Props>

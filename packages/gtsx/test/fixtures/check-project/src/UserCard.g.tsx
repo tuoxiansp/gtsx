@@ -1,8 +1,8 @@
 import {
-  createGTSXScope,
-  useGTSXContext,
-  type GTSXProviderCases,
-  type GTSXScopeCases,
+  createGScope,
+  useGContext,
+  type GCases,
+  type GProviderCases,
 } from "gtsx"
 
 export type Props = {
@@ -24,15 +24,22 @@ export function ThemeGTSXProvider(props: { value?: ThemeScope; children: React.R
 ThemeGTSXProvider.cases = {
   light: { value: { mode: "light" } },
   dark: { value: { mode: "dark" } },
-} satisfies GTSXProviderCases<ThemeScope>
+} satisfies GProviderCases<ThemeScope>
 
 function useRealUserCardScope(_props: Props, _theme: ThemeScope): Scope {
   return { status: "loading" }
 }
 
-const useUserCardScopeForGTSX = createGTSXScope(useRealUserCardScope)
+const useUserCardGScope = createGScope(useRealUserCardScope)
 
-useUserCardScopeForGTSX.cases = {
+export default function UserCard(props: Props) {
+  const theme = useGContext(ThemeGTSXProvider)
+  const scope = useUserCardGScope(props, theme)
+
+  return <span>{scope.status}</span>
+}
+
+UserCard.cases = {
   loading: {
     props: { userId: "user_1" },
     providers: { ThemeGTSXProvider: "light" },
@@ -43,11 +50,4 @@ useUserCardScopeForGTSX.cases = {
     providers: { ThemeGTSXProvider: "dark" },
     scope: { status: "ready", title: "Ada Lovelace", onOpen: () => {} },
   },
-} satisfies GTSXScopeCases<Props, Scope, [typeof ThemeGTSXProvider]>
-
-export default function UserCard(props: Props) {
-  const theme = useGTSXContext(ThemeGTSXProvider)
-  const scope = useUserCardScopeForGTSX(props, theme)
-
-  return <span>{scope.status}</span>
-}
+} satisfies GCases<Props, Scope, [typeof ThemeGTSXProvider]>

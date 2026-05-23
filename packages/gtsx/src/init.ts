@@ -81,8 +81,8 @@ function instructionsTemplate(): string {
   return `# GTSX Project Instructions
 
 - Keep preview cases close to production React components in .g.tsx files.
-- Prefer hook-owned cases via createGTSXScope for non-pure components.
-- Use component-level cases only for pure props components.
+- Put main cases on component exports as Component.cases.
+- Use createGScope for stateful components and keep scope values in the component cases.
 - Configure \`preview.serve\` to start this project's normal dev server.
 - Configure \`preview.url\` to point at this project's GTSX preview route.
 - Configure \`preview.allUrl\` to render all cases for one entry as a contact sheet.

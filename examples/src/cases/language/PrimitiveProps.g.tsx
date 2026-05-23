@@ -1,4 +1,4 @@
-import type { GTSXPureCases } from "gtsx"
+import type { GCases } from "gtsx"
 
 type PrimitiveProps = {
   title: string
@@ -54,4 +54,4 @@ PrimitiveProps.cases = {
       items: ["overflow pressure", "visual distinction", "agent-readable labels"],
     },
   },
-} satisfies GTSXPureCases<PrimitiveProps>
+} satisfies GCases<PrimitiveProps>

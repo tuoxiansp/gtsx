@@ -1,0 +1,25 @@
+{
+  "name": "@gtsx/adapter-vite-react",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "gtsx": "workspace:*",
+    "vite": ">=5"
+  },
+  "dependencies": {
+    "typescript": "^6.0.3"
+  }
+}

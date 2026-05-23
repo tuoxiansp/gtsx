@@ -26,9 +26,9 @@ const HELP = `gtsx
 
 Usage:
   gtsx init [--dry-run]
-  gtsx check <entry.g.tsx|dir> [--json]
-  gtsx serve <entry.g.tsx> [--case <name>] [--port <port>]
-  gtsx capture <entry.g.tsx|dir> [--case <name>|--all] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
+  gtsx check <entry.g.tsx[#export]|dir> [--json]
+  gtsx serve <entry.g.tsx[#export]> [--case <name>] [--gcase <entry.g.tsx#export:case>] [--port <port>]
+  gtsx capture <entry.g.tsx[#export]|dir> [--case <name>|--all] [--gcase <entry.g.tsx#export:case>] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
   gtsx strip [--check]
   gtsx diagnose
 `
@@ -108,6 +108,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       cwd: context.cwd,
       entry,
       caseName: readOption(args, "--case"),
+      gcases: readOptions(args, "--gcase"),
       port: readOption(args, "--port"),
     })
     return adapterResult(adapter)
@@ -176,6 +177,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
 
       const port = readOption(args, "--port") ?? "4300"
       const viewport = readOption(args, "--viewport") ?? "1440x900"
+      const gcases = readOptions(args, "--gcase")
       const previewServer = await startPreviewServer(config.config.preview.serve, context.cwd, { port })
       if (previewServer.exitCode !== 0) return previewServer
 
@@ -185,7 +187,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
           const outPath = outForDirectoryContactSheet(out, candidate)
           await capturePreviewPage({
             cwd: context.cwd,
-            url: expandUrl(config.config.preview.allUrl, { entry: candidate, caseName: "", port }),
+            url: expandUrl(config.config.preview.allUrl, { entry: candidate, caseName: "", port, gcases }),
             viewport,
             out: outPath,
           })
@@ -218,6 +220,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     const out = readOption(args, "--out") ?? "gtsx-capture.png"
     const captureAllCases = args.includes("--all")
     const selectedCase = readOption(args, "--case") ?? check.cases[0]?.name
+    const gcases = readOptions(args, "--gcase")
 
     if (captureAllCases && !config.config.preview.allUrl) {
       return diagnosticsResult([
@@ -247,7 +250,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
         const outPath = outForEntryContactSheet(out, entry)
         await capturePreviewPage({
           cwd: context.cwd,
-          url: expandUrl(config.config.preview.allUrl ?? "", { entry, caseName: "", port }),
+          url: expandUrl(config.config.preview.allUrl ?? "", { entry, caseName: "", port, gcases }),
           viewport,
           out: outPath,
         })
@@ -267,7 +270,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
 
       await capturePreviewPage({
         cwd: context.cwd,
-        url: expandUrl(config.config.preview.url ?? "", { entry, caseName: selectedCase, port }),
+        url: expandUrl(config.config.preview.url ?? "", { entry, caseName: selectedCase, port, gcases }),
         viewport,
         out,
       })
@@ -343,6 +346,16 @@ function readOption(args: string[], optionName: string): string | undefined {
   return index >= 0 ? args[index + 1] : undefined
 }
 
+function readOptions(args: string[], optionName: string): string[] {
+  const values: string[] = []
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] === optionName && args[index + 1]) {
+      values.push(args[index + 1])
+    }
+  }
+  return values
+}
+
 function outForEntryContactSheet(out: string, entry: string): string {
   if (out.endsWith(".png")) return out
 
@@ -401,15 +414,17 @@ async function startPreviewServer(
   }
 }
 
-function expandUrl(template: string, params: { entry: string; caseName: string; port: string }): string {
+export function expandUrl(template: string, params: { entry: string; caseName: string; port: string; gcases?: string[] }): string {
   const replacements: Record<string, string> = {
     entry: params.entry,
     case: params.caseName,
     port: params.port,
+    gcase: params.gcases?.map((gcase) => `&gcase=${encodeURIComponent(gcase)}`).join("") ?? "",
   }
-  return template.replace(/\{([a-z]+)\}/g, (_match, key: string) =>
-    encodeURIComponent(replacements[key] ?? ""),
-  )
+  return template.replace(/\{([a-z]+)\}/g, (_match, key: string) => {
+    if (key === "gcase") return replacements.gcase
+    return encodeURIComponent(replacements[key] ?? "")
+  })
 }
 
 function diagnosticsResult(diagnostics: GTSXDiagnostic[]): CLIResult {

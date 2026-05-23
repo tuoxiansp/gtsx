@@ -1,4 +1,4 @@
-import type { GTSXPureCases } from "gtsx"
+import type { GCases } from "gtsx"
 
 type StatusPanelProps = {
   state: "loading" | "error"
@@ -17,4 +17,4 @@ export default function StatusPanel(props: StatusPanelProps) {
 StatusPanel.cases = {
   loading: { props: { state: "loading", message: "Fetching data" } },
   error: { props: { state: "error", message: "Request failed" } },
-} satisfies GTSXPureCases<StatusPanelProps>
+} satisfies GCases<StatusPanelProps>

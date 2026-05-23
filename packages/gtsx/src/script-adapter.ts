@@ -2,7 +2,7 @@ import { exec } from "node:child_process"
 import { promisify } from "node:util"
 
 import type { GTSXDiagnostic, GTSXDiagnosticStage } from "./analyzer.js"
-import type { GTSXScriptConfig } from "./config.js"
+import type { GTSXScriptConfig } from "./config-types.js"
 
 const execAsync = promisify(exec)
 
@@ -12,6 +12,7 @@ export type ScriptAdapterParams = {
   cwd: string
   entry?: string
   caseName?: string
+  gcases?: string[]
   port?: string
   viewport?: string
   out?: string
@@ -84,13 +85,18 @@ export function expandCommand(template: string, params: ScriptAdapterParams): st
   const replacements: Record<string, string> = {
     entry: params.entry ?? "",
     case: params.caseName ?? "",
+    gcase: params.gcases?.join(",") ?? "",
+    gcases: params.gcases?.map((gcase) => `--gcase ${shellQuote(gcase)}`).join(" ") ?? "",
     port: params.port ?? "",
     viewport: params.viewport ?? "",
     out: params.out ?? "",
     check: params.check ? "true" : "false",
   }
 
-  return template.replace(/\{([a-z]+)\}/g, (_match, key: string) => shellQuote(replacements[key] ?? ""))
+  return template.replace(/\{([a-z]+)\}/g, (_match, key: string) => {
+    if (key === "gcases") return replacements.gcases
+    return shellQuote(replacements[key] ?? "")
+  })
 }
 
 function shellQuote(value: string): string {

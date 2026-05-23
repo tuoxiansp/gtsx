@@ -50,7 +50,8 @@ type CasesAssignment = {
 }
 
 export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
-  const entryPath = resolve(options.cwd, options.entry)
+  const entryCoordinate = parseEntryCoordinate(options.entry)
+  const entryPath = resolve(options.cwd, entryCoordinate.file)
   const diagnostics: GTSXDiagnostic[] = []
 
   if (!existsSync(entryPath)) {
@@ -73,10 +74,10 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
 
   const sourceText = readFileSync(entryPath, "utf8")
   const sourceFile = ts.createSourceFile(entryPath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-  const defaultExportName = getDefaultExportName(sourceFile)
+  const componentExportName = getComponentExportName(sourceFile, entryCoordinate.exportName)
   const scopeHookNames = getScopeHookNames(sourceFile)
   const providerCases: Record<string, GTSXProviderSummary> = {}
-  const pureAssignments: CasesAssignment[] = []
+  const componentAssignments: CasesAssignment[] = []
   const scopeAssignments: CasesAssignment[] = []
 
   for (const statement of sourceFile.statements) {
@@ -90,18 +91,40 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
         name: assignment.targetName,
         cases: assignment.cases.map((testCase) => testCase.name),
       }
-    } else if (!defaultExportName || assignment.targetName === defaultExportName) {
-      pureAssignments.push(assignment)
+    } else if (!componentExportName || assignment.targetName === componentExportName) {
+      componentAssignments.push(assignment)
     }
   }
 
-  if (!defaultExportName) {
+  if (!componentExportName) {
     diagnostics.push({
       stage: "contract-extraction",
-      code: "missing-default-export",
-      message: "A .g.tsx entry must have a default React component export.",
+      code: entryCoordinate.exportName === "default" ? "missing-default-export" : "missing-component-export",
+      message:
+        entryCoordinate.exportName === "default"
+          ? "A .g.tsx entry must have a default React component export."
+          : `A .g.tsx entry must export component "${entryCoordinate.exportName}".`,
       file: options.entry,
     })
+  } else {
+    const usedScopeHooks = getGScopeHookCalls(sourceFile, componentExportName, scopeHookNames)
+    if (usedScopeHooks.length > 1) {
+      diagnostics.push({
+        stage: "contract-extraction",
+        code: "multiple-scope-hooks",
+        message: "A stateful GTSX component may have exactly one primary GScope hook.",
+        file: options.entry,
+      })
+    }
+
+    for (const hookName of getNonGTSXHookCalls(sourceFile, componentExportName, scopeHookNames)) {
+      diagnostics.push({
+        stage: "contract-extraction",
+        code: "non-gtsx-hook",
+        message: `GTSX components may only call GTSX hooks; found "${hookName}".`,
+        file: options.entry,
+      })
+    }
   }
 
   if (scopeAssignments.length > 1) {
@@ -113,11 +136,26 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
     })
   }
 
-  const mode = scopeAssignments.length > 0 ? "scope" : pureAssignments.length > 0 ? "pure" : "unknown"
+  if (scopeAssignments.length > 0) {
+    diagnostics.push({
+      stage: "contract-extraction",
+      code: "scope-hook-cases-unsupported",
+      message: "GScope hooks do not own cases; move cases to the exported component.",
+      file: options.entry,
+    })
+  }
+
+  const componentCases = componentAssignments.flatMap((assignment) => assignment.cases)
+  const mode =
+    componentCases.length === 0
+      ? "unknown"
+      : componentCases.some((testCase) => testCase.kind === "scope")
+        ? "scope"
+        : "pure"
   const selectedCases =
     mode === "scope"
-      ? scopeAssignments.flatMap((assignment) => assignment.cases).map((testCase) => ({ ...testCase, kind: "scope" as const }))
-      : pureAssignments.flatMap((assignment) => assignment.cases).map((testCase) => ({ ...testCase, kind: "pure" as const }))
+      ? componentCases.map((testCase) => ({ ...testCase, kind: "scope" as const }))
+      : componentCases.map((testCase) => ({ ...testCase, kind: "pure" as const }))
 
   if (selectedCases.length === 0) {
     diagnostics.push({
@@ -154,11 +192,21 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
   return {
     entry: options.entry,
     mode,
-    defaultExport: Boolean(defaultExportName),
+    defaultExport: Boolean(componentExportName),
     cases: selectedCases,
     providers: providerCases,
     diagnostics,
   }
+}
+
+function parseEntryCoordinate(entry: string): { file: string; exportName: string } {
+  const [file, exportName] = entry.split("#", 2)
+  return { file, exportName: exportName || "default" }
+}
+
+function getComponentExportName(sourceFile: ts.SourceFile, exportName: string): string | undefined {
+  if (exportName === "default") return getDefaultExportName(sourceFile)
+  return getNamedExportName(sourceFile, exportName)
 }
 
 function getDefaultExportName(sourceFile: ts.SourceFile): string | undefined {
@@ -178,6 +226,20 @@ function getDefaultExportName(sourceFile: ts.SourceFile): string | undefined {
   return undefined
 }
 
+function getNamedExportName(sourceFile: ts.SourceFile, exportName: string): string | undefined {
+  for (const statement of sourceFile.statements) {
+    if (
+      (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+      statement.name?.text === exportName &&
+      hasModifier(statement, ts.SyntaxKind.ExportKeyword)
+    ) {
+      return exportName
+    }
+  }
+
+  return undefined
+}
+
 function getScopeHookNames(sourceFile: ts.SourceFile): Set<string> {
   const names = new Set<string>()
 
@@ -186,13 +248,107 @@ function getScopeHookNames(sourceFile: ts.SourceFile): Set<string> {
 
     for (const declaration of statement.declarationList.declarations) {
       if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue
-      if (isCreateGTSXScopeCall(declaration.initializer)) {
+      if (isCreateGScopeCall(declaration.initializer)) {
         names.add(declaration.name.text)
       }
     }
   }
 
   return names
+}
+
+function getNonGTSXHookCalls(
+  sourceFile: ts.SourceFile,
+  componentName: string,
+  scopeHookNames: Set<string>,
+): string[] {
+  const component = getFunctionDeclaration(sourceFile, componentName)
+  if (!component?.body) return []
+
+  const helperFunctions = getTopLevelFunctionDeclarations(sourceFile)
+  const visitedHelpers = new Set<string>([componentName])
+  const hookNames = new Set<string>()
+  visit(component.body)
+  return [...hookNames]
+
+  function visit(node: ts.Node) {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      const hookName = node.expression.text
+      if (isHookName(hookName) && hookName !== "useGContext" && !scopeHookNames.has(hookName)) {
+        hookNames.add(hookName)
+      } else if (!isHookName(hookName)) {
+        visitHelper(hookName)
+      }
+    }
+
+    ts.forEachChild(node, visit)
+  }
+
+  function visitHelper(functionName: string) {
+    if (visitedHelpers.has(functionName)) return
+    const helper = helperFunctions.get(functionName)
+    if (!helper?.body) return
+
+    visitedHelpers.add(functionName)
+    visit(helper.body)
+  }
+}
+
+function getGScopeHookCalls(
+  sourceFile: ts.SourceFile,
+  componentName: string,
+  scopeHookNames: Set<string>,
+): string[] {
+  const component = getFunctionDeclaration(sourceFile, componentName)
+  if (!component?.body) return []
+
+  const helperFunctions = getTopLevelFunctionDeclarations(sourceFile)
+  const visitedHelpers = new Set<string>([componentName])
+  const hookNames = new Set<string>()
+  visit(component.body)
+  return [...hookNames]
+
+  function visit(node: ts.Node) {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      if (scopeHookNames.has(node.expression.text)) {
+        hookNames.add(node.expression.text)
+      } else if (!isHookName(node.expression.text)) {
+        visitHelper(node.expression.text)
+      }
+    }
+
+    ts.forEachChild(node, visit)
+  }
+
+  function visitHelper(functionName: string) {
+    if (visitedHelpers.has(functionName)) return
+    const helper = helperFunctions.get(functionName)
+    if (!helper?.body) return
+
+    visitedHelpers.add(functionName)
+    visit(helper.body)
+  }
+}
+
+function getFunctionDeclaration(sourceFile: ts.SourceFile, functionName: string): ts.FunctionDeclaration | undefined {
+  return sourceFile.statements.find(
+    (statement): statement is ts.FunctionDeclaration =>
+      ts.isFunctionDeclaration(statement) && statement.name?.text === functionName,
+  )
+}
+
+function getTopLevelFunctionDeclarations(sourceFile: ts.SourceFile): Map<string, ts.FunctionDeclaration> {
+  const functions = new Map<string, ts.FunctionDeclaration>()
+  for (const statement of sourceFile.statements) {
+    if (ts.isFunctionDeclaration(statement) && statement.name) {
+      functions.set(statement.name.text, statement)
+    }
+  }
+  return functions
+}
+
+function isHookName(name: string): boolean {
+  return /^use[A-Z0-9_]/.test(name)
 }
 
 function getCasesAssignment(
@@ -263,8 +419,9 @@ function readCasesObject(
 
     const caseValue = unwrapExpression(property.initializer)
     const providers = ts.isObjectLiteralExpression(caseValue) ? readProviderSelections(caseValue) : undefined
+    const kind = ts.isObjectLiteralExpression(caseValue) && hasStaticProperty(caseValue, "scope") ? "scope" : "pure"
     cases.push({
-      kind: "scope",
+      kind,
       name: caseName,
       ...(providers && Object.keys(providers).length > 0 ? { providers } : {}),
     })
@@ -313,8 +470,14 @@ function unwrapExpression(expression: ts.Expression): ts.Expression {
   return expression
 }
 
-function isCreateGTSXScopeCall(expression: ts.Expression): boolean {
-  return ts.isCallExpression(expression) && ts.isIdentifier(expression.expression) && expression.expression.text === "createGTSXScope"
+function isCreateGScopeCall(expression: ts.Expression): boolean {
+  return ts.isCallExpression(expression) && ts.isIdentifier(expression.expression) && expression.expression.text === "createGScope"
+}
+
+function hasStaticProperty(objectLiteral: ts.ObjectLiteralExpression, propertyName: string): boolean {
+  return objectLiteral.properties.some(
+    (property) => ts.isPropertyAssignment(property) && getStaticPropertyName(property.name) === propertyName,
+  )
 }
 
 function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
@@ -322,5 +485,5 @@ function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
 }
 
 function looksLikeProviderCases(targetName: string, statement: ts.Statement): boolean {
-  return targetName.endsWith("Provider") || statement.getText().includes("GTSXProviderCases")
+  return targetName.endsWith("Provider") || statement.getText().includes("GProviderCases")
 }

@@ -2,11 +2,12 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import {
-  GTSXPreviewProvider,
-  createGTSXScope,
-  useGTSXContext,
-  type GTSXProviderCases,
-  type GTSXScopeCases,
+  GPreviewProvider,
+  createGScope,
+  defineGComponent,
+  useGContext,
+  type GCases,
+  type GProviderCases,
 } from "../src/index.js"
 
 type Props = {
@@ -24,25 +25,25 @@ function ThemeGTSXProvider(_props: { value?: ThemeScope; children: React.ReactNo
 ThemeGTSXProvider.cases = {
   light: { value: { mode: "light" } },
   dark: { value: { mode: "dark" } },
-} satisfies GTSXProviderCases<ThemeScope>
+} satisfies GProviderCases<ThemeScope>
 
 describe("GTSX runtime", () => {
   it("delegates a GTSX scope hook to the real hook by default", () => {
-    const useScope = createGTSXScope((props: Props) => ({ title: `user:${props.userId}` }))
+    const useScope = createGScope((props: Props) => ({ title: `user:${props.userId}` }))
 
     expect(useScope({ userId: "user_1" })).toEqual({ title: "user:user_1" })
   })
 
   it("returns the active preview case scope inside a preview provider", () => {
-    const useScope = createGTSXScope((props: Props) => ({ title: `real:${props.userId}` }))
+    const useScope = createGScope((props: Props) => ({ title: `real:${props.userId}` }))
 
-    useScope.cases = {
+    const cases = {
       ready: {
         props: { userId: "user_1" },
         providers: { ThemeGTSXProvider: "dark" },
         scope: { title: "Ada Lovelace" },
       },
-    } satisfies GTSXScopeCases<Props, { title: string }, [typeof ThemeGTSXProvider]>
+    } satisfies GCases<Props, { title: string }, [typeof ThemeGTSXProvider]>
 
     function Card(props: Props) {
       const scope = useScope(props)
@@ -50,12 +51,12 @@ describe("GTSX runtime", () => {
     }
 
     const html = renderToStaticMarkup(
-      <GTSXPreviewProvider
-        scope={useScope.cases.ready.scope}
+      <GPreviewProvider
+        scope={cases.ready.scope}
         providerValues={new Map([[ThemeGTSXProvider, ThemeGTSXProvider.cases.dark.value]])}
       >
         <Card userId="user_1" />
-      </GTSXPreviewProvider>,
+      </GPreviewProvider>,
     )
 
     expect(html).toBe("<span>Ada Lovelace</span>")
@@ -63,16 +64,43 @@ describe("GTSX runtime", () => {
 
   it("reads provider values selected by the active preview case", () => {
     function ThemeLabel() {
-      const theme = useGTSXContext(ThemeGTSXProvider)
+      const theme = useGContext(ThemeGTSXProvider)
       return <span>{theme.mode}</span>
     }
 
     const html = renderToStaticMarkup(
-      <GTSXPreviewProvider providerValues={new Map([[ThemeGTSXProvider, { mode: "dark" }]])}>
+      <GPreviewProvider providerValues={new Map([[ThemeGTSXProvider, { mode: "dark" }]])}>
         <ThemeLabel />
-      </GTSXPreviewProvider>,
+      </GPreviewProvider>,
     )
 
     expect(html).toBe("<span>dark</span>")
+  })
+
+  it("selects a nested component case by component coordinate", () => {
+    const useChildScope = createGScope(() => ({ label: "real" }))
+
+    function ChildImpl() {
+      const scope = useChildScope()
+      return <span>{scope.label}</span>
+    }
+
+    const Child = defineGComponent("src/Child.g.tsx#Child", ChildImpl)
+    Child.cases = {
+      closed: { props: {}, scope: { label: "closed" } },
+      open: { props: {}, scope: { label: "open" } },
+    } satisfies GCases<Record<string, never>, { label: string }>
+
+    function Parent() {
+      return <Child />
+    }
+
+    const html = renderToStaticMarkup(
+      <GPreviewProvider caseOverrides={new Map([["src/Child.g.tsx#Child", "open"]])}>
+        <Parent />
+      </GPreviewProvider>,
+    )
+
+    expect(html).toBe("<span>open</span>")
   })
 })

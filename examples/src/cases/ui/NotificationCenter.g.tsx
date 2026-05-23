@@ -1,4 +1,4 @@
-import type { GTSXPureCases } from "gtsx"
+import type { GCases } from "gtsx"
 
 type Notification = {
   id: string
@@ -64,4 +64,4 @@ NotificationCenter.cases = {
       ],
     },
   },
-} satisfies GTSXPureCases<NotificationCenterProps>
+} satisfies GCases<NotificationCenterProps>

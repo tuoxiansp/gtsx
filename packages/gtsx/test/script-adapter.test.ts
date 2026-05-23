@@ -33,6 +33,43 @@ describe("GTSX preview commands", () => {
     ])
   })
 
+  it("passes child component case overrides to the configured preview command", async () => {
+    const result = await runCLI(
+      [
+        "serve",
+        "src/UserCard.g.tsx",
+        "--case",
+        "ready",
+        "--gcase",
+        "src/Child.g.tsx#Child:open",
+        "--gcase",
+        "src/Menu.g.tsx#default:closed",
+        "--port",
+        "4300",
+      ],
+      {
+        cwd: fixtureRoot,
+        stdout: "",
+        stderr: "",
+      },
+    )
+
+    expect(result.exitCode).toBe(0)
+    expect(readLog()).toEqual([
+      {
+        action: "serve",
+        args: [
+          "--port",
+          "4300",
+          "--gcase",
+          "src/Child.g.tsx#Child:open",
+          "--gcase",
+          "src/Menu.g.tsx#default:closed",
+        ],
+      },
+    ])
+  })
+
   it("does not require a strip command while strip integration is not configured", async () => {
     const result = await runCLI(["strip", "--check"], {
       cwd: fixtureRoot,

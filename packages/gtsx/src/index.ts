@@ -1,27 +1,12 @@
-export { analyzeEntry } from "./analyzer.js"
+export { defineGTSXConfig } from "./define-config.js"
+export type { GTSXConfig, GTSXScriptConfig } from "./config-types.js"
+export { GPreviewProvider, createGScope, defineGComponent, useGContext } from "./runtime.js"
 export type {
-  AnalyzeEntryOptions,
-  GTSXAnalysisResult,
-  GTSXCaseSummary,
-  GTSXDiagnostic,
-  GTSXDiagnosticStage,
-  GTSXProviderSummary,
-} from "./analyzer.js"
-export { defineGTSXConfig, loadGTSXConfig } from "./config.js"
-export type { GTSXConfig, GTSXScriptConfig, LoadConfigResult } from "./config.js"
-export { initGTSX } from "./init.js"
-export type { InitOptions, InitResult } from "./init.js"
-export { runCLI } from "./cli.js"
-export type { CLIContext, CLIResult } from "./cli.js"
-export { GTSXPreviewProvider, createGTSXScope, useGTSXContext } from "./runtime.js"
-export type {
-  GTSXProvider,
-  AnyGTSXProvider,
-  GTSXProviderCase,
-  GTSXProviderCases,
-  GTSXPureCase,
-  GTSXPureCases,
-  GTSXScopeCase,
-  GTSXScopeCases,
-  GTSXScopeHook,
+  GProvider,
+  AnyGProvider,
+  GProviderCase,
+  GProviderCases,
+  GCase,
+  GCases,
+  GScopeHook,
 } from "./types.js"

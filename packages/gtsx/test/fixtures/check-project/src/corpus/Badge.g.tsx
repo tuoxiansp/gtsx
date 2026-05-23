@@ -1,4 +1,4 @@
-import type { GTSXPureCases } from "gtsx"
+import type { GCases } from "gtsx"
 
 type BadgeProps = {
   label: string
@@ -12,4 +12,4 @@ export default function Badge(props: BadgeProps) {
 Badge.cases = {
   neutral: { props: { label: "Ready", tone: "neutral" } },
   success: { props: { label: "Shipped", tone: "success" } },
-} satisfies GTSXPureCases<BadgeProps>
+} satisfies GCases<BadgeProps>

@@ -15,7 +15,7 @@ describe("GTSX analyzer", () => {
     expect(result.cases.map((testCase) => testCase.name)).toEqual(["neutral", "warning"])
   })
 
-  it("discovers scope cases and provider selections", () => {
+  it("discovers stateful component cases and provider selections", () => {
     const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/UserCard.g.tsx" })
 
     expect(result.diagnostics).toEqual([])
@@ -35,10 +35,21 @@ describe("GTSX analyzer", () => {
     expect(result.providers.ThemeGTSXProvider.cases).toEqual(["light", "dark"])
   })
 
+  it("discovers named component cases by file export coordinate", () => {
+    const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/MultiExport.g.tsx#NamedBadge" })
+
+    expect(result.diagnostics).toEqual([])
+    expect(result.mode).toBe("pure")
+    expect(result.cases.map((testCase) => testCase.name)).toEqual(["ready"])
+  })
+
   it("reports contract diagnostics for malformed entries", () => {
     const missingDefault = analyzeEntry({ cwd: fixtureRoot, entry: "src/MissingDefault.g.tsx" })
     const multipleScopes = analyzeEntry({ cwd: fixtureRoot, entry: "src/MultipleScopes.g.tsx" })
     const dynamicCases = analyzeEntry({ cwd: fixtureRoot, entry: "src/DynamicCases.g.tsx" })
+    const legacyScopeCases = analyzeEntry({ cwd: fixtureRoot, entry: "src/LegacyScopeCases.g.tsx" })
+    const nonGTSXHook = analyzeEntry({ cwd: fixtureRoot, entry: "src/NonGTSXHook.g.tsx" })
+    const helperHook = analyzeEntry({ cwd: fixtureRoot, entry: "src/HelperHook.g.tsx" })
 
     expect(missingDefault.diagnostics).toContainEqual(
       expect.objectContaining({ code: "missing-default-export", stage: "contract-extraction" }),
@@ -48,6 +59,15 @@ describe("GTSX analyzer", () => {
     )
     expect(dynamicCases.diagnostics).toContainEqual(
       expect.objectContaining({ code: "non-static-case-key", stage: "contract-extraction" }),
+    )
+    expect(legacyScopeCases.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "scope-hook-cases-unsupported", stage: "contract-extraction" }),
+    )
+    expect(nonGTSXHook.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "non-gtsx-hook", stage: "contract-extraction" }),
+    )
+    expect(helperHook.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "non-gtsx-hook", stage: "contract-extraction" }),
     )
   })
 

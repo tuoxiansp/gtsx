@@ -1,4 +1,4 @@
-import type { GTSXPureCases } from "gtsx"
+import type { GCases } from "gtsx"
 
 export type AppRouteProps = {
   template: "react-ts"
@@ -55,4 +55,4 @@ AppRoute.cases = {
       scaffoldStatus: "ready",
     },
   },
-} satisfies GTSXPureCases<AppRouteProps>
+} satisfies GCases<AppRouteProps>

@@ -4,24 +4,12 @@ import vm from "node:vm"
 import ts from "typescript"
 
 import type { GTSXDiagnostic } from "./analyzer.js"
-
-export type GTSXConfig = {
-  preview: {
-    serve?: string
-    url?: string
-    allUrl?: string
-  }
-}
-
-export type GTSXScriptConfig = GTSXConfig
+import { defineGTSXConfig } from "./define-config.js"
+import type { GTSXConfig, GTSXScriptConfig } from "./config-types.js"
 
 export type LoadConfigResult = {
   config?: GTSXConfig
   diagnostics: GTSXDiagnostic[]
-}
-
-export function defineGTSXConfig(config: GTSXConfig): GTSXConfig {
-  return config
 }
 
 export function loadGTSXConfig(cwd: string): LoadConfigResult {

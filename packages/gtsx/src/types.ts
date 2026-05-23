@@ -1,41 +1,31 @@
 import type React from "react"
 
-export type GTSXProviderCase<Value> = {
+export type GProviderCase<Value> = {
   value: Value
 }
 
-export type GTSXProviderCases<Value> = Record<string, GTSXProviderCase<Value>>
+export type GProviderCases<Value> = Record<string, GProviderCase<Value>>
 
-export type GTSXProvider<Value = unknown> = React.ComponentType<{
+export type GProvider<Value = unknown> = React.ComponentType<{
   value?: Value
   children: React.ReactNode
 }> & {
-  cases?: GTSXProviderCases<Value>
+  cases?: GProviderCases<Value>
 }
 
-export type AnyGTSXProvider = React.ComponentType<any> & {
-  cases?: GTSXProviderCases<any>
+export type AnyGProvider = React.ComponentType<any> & {
+  cases?: GProviderCases<any>
 }
 
-export type GTSXScopeCase<Props, Scope> = {
+export type GCase<Props, Scope = never> = {
   props: Props
-  scope: Scope
   providers?: Record<string, string>
-}
+} & ([Scope] extends [never] ? unknown : { scope: Scope })
 
-export type GTSXScopeCases<
+export type GCases<
   Props,
-  Scope,
+  Scope = never,
   _Providers extends readonly unknown[] = readonly unknown[],
-> = Record<string, GTSXScopeCase<Props, Scope>>
+> = Record<string, GCase<Props, Scope>>
 
-export type GTSXPureCase<Props> = {
-  props: Props
-  providers?: Record<string, string>
-}
-
-export type GTSXPureCases<Props> = Record<string, GTSXPureCase<Props>>
-
-export type GTSXScopeHook<Args extends unknown[], Scope> = ((...args: Args) => Scope) & {
-  cases?: GTSXScopeCases<Args[0], Scope>
-}
+export type GScopeHook<Args extends unknown[], Scope> = (...args: Args) => Scope

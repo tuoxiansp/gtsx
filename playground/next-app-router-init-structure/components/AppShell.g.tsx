@@ -1,4 +1,4 @@
-import type { GTSXPureCases } from "gtsx"
+import type { GCases } from "gtsx"
 
 export type AppShellProps = {
   route: "/"
@@ -22,4 +22,4 @@ AppShell.cases = {
   routeHandlerTrouble: {
     props: { route: "/", routeHandlerStatus: "hanging" },
   },
-} satisfies GTSXPureCases<AppShellProps>
+} satisfies GCases<AppShellProps>
