@@ -156,10 +156,10 @@ describe("playground full-chain examples", () => {
       expect(html).toContain("routeHandlerTrouble")
       expect(html).toContain("selection=component%3Acomponents%2FAppShell.g.tsx%23default")
       expect(normalizedHtml).toContain(
-        'data-gtsx-preview-src="/gtsx?entry=components%2FAppShell.g.tsx%23default&case=firstLoad&sessionId=components%2FAppShell.g.tsx%23default%3AfirstLoad"',
+        'data-gtsx-preview-src="/gtsx?entry=components%2FAppShell.g.tsx%23default&case=firstLoad&chrome=0&sessionId=components%2FAppShell.g.tsx%23default%3AfirstLoad"',
       )
       expect(normalizedHtml).not.toContain(
-        '<iframe src="/gtsx?entry=components%2FAppShell.g.tsx%23default&case=firstLoad&sessionId=components%2FAppShell.g.tsx%23default%3AfirstLoad"',
+        '<iframe src="/gtsx?entry=components%2FAppShell.g.tsx%23default&case=firstLoad&chrome=0&sessionId=components%2FAppShell.g.tsx%23default%3AfirstLoad"',
       )
 
       const previewHtml = await fetchTextWhenReady(`http://localhost:${port}/gtsx?case=firstLoad`)

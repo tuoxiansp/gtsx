@@ -34,6 +34,7 @@ export function GTSXPreviewApp() {
   const caseName = params.get("case")
   const sessionId = params.get("sessionId")
   const caseOverrides = readCaseOverrides(params)
+  const showChrome = params.get("chrome") !== "0"
 
   if (!entry) {
     return (
@@ -45,7 +46,7 @@ export function GTSXPreviewApp() {
     )
   }
 
-  return <GTSXEntryPreview entry={entry} caseName={caseName} caseOverrides={caseOverrides} sessionId={sessionId} />
+  return <GTSXEntryPreview entry={entry} caseName={caseName} caseOverrides={caseOverrides} sessionId={sessionId} showChrome={showChrome} />
 }
 
 function GTSXEntryPreview(props: {
@@ -53,6 +54,7 @@ function GTSXEntryPreview(props: {
   caseName: string | null
   caseOverrides: Map<string, string>
   sessionId: string | null
+  showChrome: boolean
 }) {
   const entryCoordinate = parseEntryCoordinate(props.entry)
   const loader = modules[toModuleKey(entryCoordinate.file)]
@@ -78,6 +80,7 @@ function GTSXEntryPreview(props: {
           caseName={props.caseName}
           caseOverrides={props.caseOverrides}
           sessionId={props.sessionId}
+          showChrome={props.showChrome}
         />
       ),
     }
@@ -96,6 +99,7 @@ function LoadedEntryPreview(props: {
   caseName: string | null
   caseOverrides: Map<string, string>
   sessionId: string | null
+  showChrome: boolean
 }) {
   const collector = React.useMemo(() => createGBoundaryCollector(), [])
   const cases = props.component.cases ?? {}
@@ -113,10 +117,12 @@ function LoadedEntryPreview(props: {
     <main className="gtsx-contact-sheet">
       {selectedCases.map(([name, testCase]) => (
         <section className="gtsx-case-frame" key={name}>
-          <header className="gtsx-case-label">
-            <span>{props.entry}</span>
-            <strong>{name}</strong>
-          </header>
+          {props.showChrome ? (
+            <header className="gtsx-case-label">
+              <span>{props.entry}</span>
+              <strong>{name}</strong>
+            </header>
+          ) : null}
           <div className="gtsx-case-body">
             <GPreviewProvider
               boundaryCollector={collector}
@@ -165,17 +171,36 @@ function usePreviewProtocolMessages(
 
     window.addEventListener("message", handleMessage)
     updateBoundaryRects(collector)
+    const tree = collector.getTree()
     window.parent.postMessage(createGPreviewReadyMessage(sessionId), "*")
-    window.parent.postMessage(createGPreviewTreeMessage(sessionId, collector.getTree()), "*")
-    window.parent.postMessage(
-      createGPreviewResizeMessage(sessionId, {
-        width: document.documentElement.scrollWidth,
-        height: document.documentElement.scrollHeight,
-      }),
-      "*",
-    )
+    window.parent.postMessage(createGPreviewTreeMessage(sessionId, tree), "*")
+    window.parent.postMessage(createGPreviewResizeMessage(sessionId, previewContentSize(tree)), "*")
     return () => window.removeEventListener("message", handleMessage)
   }, [collector, enabled, sessionId])
+}
+
+function previewContentSize(tree: ReturnType<GBoundaryCollector["getTree"]>): { width: number; height: number } {
+  const rects = tree.flatMap(flattenBoundaryRects)
+  if (rects.length === 0) {
+    return {
+      width: document.documentElement.scrollWidth,
+      height: document.documentElement.scrollHeight,
+    }
+  }
+
+  const left = Math.min(0, ...rects.map((rect) => rect.x))
+  const top = Math.min(0, ...rects.map((rect) => rect.y))
+  const right = Math.max(document.documentElement.scrollWidth, ...rects.map((rect) => rect.x + rect.width))
+  const bottom = Math.max(document.documentElement.scrollHeight, ...rects.map((rect) => rect.y + rect.height))
+
+  return {
+    width: Math.ceil(right - left),
+    height: Math.ceil(bottom - top),
+  }
+}
+
+function flattenBoundaryRects(node: ReturnType<GBoundaryCollector["getTree"]>[number]): GBoundaryRect[] {
+  return [...(node.rect ? [node.rect] : []), ...node.children.flatMap(flattenBoundaryRects)]
 }
 
 function isRuntimeValuesRequest(

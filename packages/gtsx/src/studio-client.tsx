@@ -53,6 +53,7 @@ export type StudioWorkspaceViewProps = {
   workspace: StudioWorkspaceState
   selection?: string
   frameStates?: Record<string, StudioPreviewFrameState>
+  onChangeSelection?: (selection: string) => void
   onChangeCase?: (component: StudioManifestComponent, caseName: string) => void
   onChangeViewportPreset?: (component: StudioManifestComponent, preset: StudioViewportPreset) => void
   onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void
@@ -322,7 +323,7 @@ export function createStudioRuntimeValuesRequest(
   if (!sourceComponent) return undefined
 
   const sourceCaseName = selectedStudioCaseName(workspace, sourceComponent)
-  const sessionId = previewSessionId(sourceComponent, sourceCaseName)
+  const sessionId = previewSessionId(sourceComponent, sourceCaseName, previewCaseOverridesForComponent(workspace, sourceComponent))
   return {
     sessionId,
     message: createGPreviewRequestValuesMessage(sessionId, boundaryId),
@@ -516,6 +517,17 @@ export function StudioShell(props: StudioShellProps) {
       onChangeCase={(component, caseName) => {
         commitWorkspace((current) => changeStudioComponentCase(current, component.coordinate, caseName))
       }}
+      onChangeSelection={(nextSelection) => {
+        const params = new URLSearchParams()
+        params.set("selection", nextSelection)
+        const nextUrlState = createStudioWorkspaceStateFromUrl(props.manifest, params)
+        selectionRef.current = nextUrlState.selection
+        setSelection(nextUrlState.selection)
+        setUrlWarning(nextUrlState.warning)
+        setWorkspace(nextUrlState.workspace)
+        setFrameStates({})
+        pushStudioWorkspaceUrlState(nextUrlState.selection, nextUrlState.workspace)
+      }}
       onChangeViewportPreset={(component, preset) => {
         commitWorkspace((current) => changeStudioViewportPreset(current, component.coordinate, preset))
       }}
@@ -540,7 +552,11 @@ export function StudioShell(props: StudioShellProps) {
 }
 
 function initialStudioUrlSearchParams(selection: string | undefined, urlSearch: string | undefined): URLSearchParams {
-  if (urlSearch) return new URLSearchParams(urlSearch)
+  if (urlSearch !== undefined) return new URLSearchParams(urlSearch)
+  if (typeof window !== "undefined" && window.location.search) {
+    return new URLSearchParams(window.location.search)
+  }
+
   const params = new URLSearchParams()
   if (selection) params.set("selection", selection)
   return params
@@ -558,66 +574,225 @@ function pushStudioWorkspaceUrlState(selection: string | undefined, workspace: S
   }
 }
 
+const canvasControlStyle: React.CSSProperties = {
+  background: "#ffffff",
+  border: "1px solid #cdd6e1",
+  borderRadius: 8,
+  boxShadow: "0 1px 1px rgba(31,35,40,0.04)",
+  color: "#1f2328",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 650,
+  minHeight: 30,
+  padding: "0 10px",
+}
+
+const inspectorSectionTitleStyle: React.CSSProperties = {
+  color: "#4b5563",
+  fontSize: 11,
+  fontWeight: 800,
+  letterSpacing: 0.8,
+  margin: "0 0 8px",
+  textTransform: "uppercase",
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
 export function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
   const selected = resolveSelection(props.manifest, props.selection)
+  const [canvas, setCanvas] = React.useState({ x: 40, y: 40, scale: 1 })
+  const panRef = React.useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null)
+  const zoomLabel = `${Math.round(canvas.scale * 100)}%`
+
+  const zoomCanvas = React.useCallback((nextScale: number) => {
+    setCanvas((current) => ({ ...current, scale: clamp(nextScale, 0.5, 1.6) }))
+  }, [])
 
   return (
     <main
       style={{
         display: "grid",
-        gridTemplateColumns: "280px minmax(0, 1fr) 320px",
-        minHeight: "100vh",
-        background: "#f6f8fa",
-        color: "#24292f",
-        fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+        gridTemplateColumns: "300px minmax(0, 1fr) 360px",
+        height: "100vh",
+        overflow: "hidden",
+        background: "#f5f6f8",
+        color: "#1f2328",
+        fontFamily:
+          "ui-sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
       }}
     >
-      <aside style={{ borderRight: "1px solid #d0d7de", background: "#ffffff", padding: 20 }}>
-        <h1 style={{ fontSize: 18, margin: "0 0 20px" }}>GTSX Studio</h1>
+      <aside
+        style={{
+          background: "#fbfcfe",
+          borderRight: "1px solid #d8dee8",
+          boxShadow: "1px 0 0 rgba(255,255,255,0.8) inset",
+          minHeight: 0,
+          overflow: "auto",
+          padding: "22px 18px",
+        }}
+      >
+        <div style={{ display: "grid", gap: 3, marginBottom: 22 }}>
+          <h1 style={{ fontSize: 18, letterSpacing: -0.2, lineHeight: 1.1, margin: 0 }}>GTSX Studio</h1>
+          <p style={{ color: "#6b7280", fontSize: 12, margin: 0 }}>Component workspace</p>
+        </div>
         {props.urlWarning ? (
           <p
             role="status"
-            style={{ background: "#fff8c5", border: "1px solid #d4a72c", borderRadius: 8, color: "#5a1e02", fontSize: 12, padding: 8 }}
+            style={{
+              background: "#fff8c5",
+              border: "1px solid #d4a72c",
+              borderRadius: 10,
+              color: "#5a1e02",
+              fontSize: 12,
+              lineHeight: 1.45,
+              padding: 10,
+            }}
           >
             {props.urlWarning}
           </p>
         ) : null}
         <nav aria-label="GTSX component index" style={{ display: "grid", gap: 16 }}>
           {props.manifest.files.map((file) => (
-            <FileGroupLink file={file} key={file.path} selectedId={selected.id} />
+            <FileGroupLink file={file} key={file.path} onChangeSelection={props.onChangeSelection} selectedId={selected.id} />
           ))}
         </nav>
       </aside>
 
-      <section style={{ padding: 24 }}>
-        <div style={{ alignItems: "start", display: "flex", gap: 20, overflowX: "auto" }}>
-          {props.workspace.columns.map((column, columnIndex) => (
-            <section
-              data-gtsx-column-index={columnIndex}
-              key={columnIndex}
-              style={{ display: "grid", flex: "0 0 360px", gap: 16 }}
-            >
-              <p style={{ color: "#57606a", fontSize: 12, fontWeight: 700, letterSpacing: 0.8, margin: 0 }}>
-                {columnIndex === 0 ? "First column" : `Column ${columnIndex + 1}`}
-              </p>
-              {column.components.map((component) => {
-                const caseName = selectedStudioCaseName(props.workspace, component)
-                const sessionId = previewSessionId(component, caseName)
-                return (
-                  <ComponentCard
-                    component={component}
-                    frameState={props.frameStates?.[sessionId]}
-                    key={component.coordinate}
-                    manifest={props.manifest}
-                    onPreviewFrameMount={props.onPreviewFrameMount}
-                    onSelect={props.onSelectComponent}
-                    selectedCaseName={caseName}
-                    viewportPreset={props.workspace.selectedViewportPresetByCoordinate[component.coordinate] ?? "content"}
-                  />
-                )
-              })}
-            </section>
-          ))}
+      <section style={{ display: "grid", gridTemplateRows: "44px minmax(0, 1fr)", minWidth: 0 }}>
+        <div
+          style={{
+            alignItems: "center",
+            background: "rgba(255,255,255,0.86)",
+            borderBottom: "1px solid #e4e7ec",
+            display: "flex",
+            justifyContent: "space-between",
+            padding: "0 14px",
+          }}
+        >
+          <div style={{ alignItems: "center", display: "flex", gap: 10 }}>
+            <strong style={{ fontSize: 13 }}>Canvas</strong>
+            <span style={{ color: "#8b949e", fontSize: 11 }}>Drag to pan</span>
+          </div>
+          <div style={{ alignItems: "center", display: "flex", gap: 8 }}>
+            <button data-gtsx-canvas-control="zoom-out" onClick={() => zoomCanvas(canvas.scale - 0.1)} style={canvasControlStyle} type="button">
+              -
+            </button>
+            <span style={{ color: "#4b5563", fontSize: 12, fontVariantNumeric: "tabular-nums", minWidth: 42, textAlign: "center" }}>
+              {zoomLabel}
+            </span>
+            <button data-gtsx-canvas-control="zoom-in" onClick={() => zoomCanvas(canvas.scale + 0.1)} style={canvasControlStyle} type="button">
+              +
+            </button>
+            <button data-gtsx-canvas-control="reset" onClick={() => setCanvas({ x: 40, y: 40, scale: 1 })} style={canvasControlStyle} type="button">
+              Reset
+            </button>
+          </div>
+        </div>
+        <div
+          aria-label="GTSX canvas viewport"
+          data-gtsx-canvas-viewport
+          onPointerDown={(event) => {
+            if ((event.target as HTMLElement).closest("a,button,iframe")) return
+            panRef.current = {
+              pointerId: event.pointerId,
+              startX: event.clientX,
+              startY: event.clientY,
+              originX: canvas.x,
+              originY: canvas.y,
+            }
+            event.currentTarget.setPointerCapture(event.pointerId)
+          }}
+          onPointerMove={(event) => {
+            const pan = panRef.current
+            if (!pan || pan.pointerId !== event.pointerId) return
+            setCanvas((current) => ({
+              ...current,
+              x: pan.originX + event.clientX - pan.startX,
+              y: pan.originY + event.clientY - pan.startY,
+            }))
+          }}
+          onPointerUp={(event) => {
+            if (panRef.current?.pointerId === event.pointerId) panRef.current = null
+          }}
+          onPointerCancel={(event) => {
+            if (panRef.current?.pointerId === event.pointerId) panRef.current = null
+          }}
+          onWheel={(event) => {
+            event.preventDefault()
+            if (event.ctrlKey || event.metaKey) {
+              zoomCanvas(canvas.scale - event.deltaY * 0.001)
+              return
+            }
+
+            setCanvas((current) => ({ ...current, x: current.x - event.deltaX, y: current.y - event.deltaY }))
+          }}
+          style={{
+            backgroundColor: "#f5f6f8",
+            backgroundImage:
+              "radial-gradient(circle at 1px 1px, rgba(31,35,40,0.10) 1px, transparent 0)",
+            backgroundSize: "24px 24px",
+            cursor: panRef.current ? "grabbing" : "grab",
+            minHeight: 0,
+            overflow: "hidden",
+            position: "relative",
+            touchAction: "none",
+          }}
+          role="application"
+          tabIndex={0}
+        >
+          <div
+            data-gtsx-canvas-surface
+            style={{
+              alignItems: "flex-start",
+              display: "flex",
+              gap: 40,
+              left: 0,
+              padding: "0 80px 80px 0",
+              position: "absolute",
+              top: 0,
+              transform: `translate(${canvas.x}px, ${canvas.y}px) scale(${canvas.scale})`,
+              transformOrigin: "0 0",
+            }}
+          >
+            {props.workspace.columns.map((column, columnIndex) => (
+              <section data-gtsx-column-index={columnIndex} key={columnIndex} style={{ display: "grid", gap: 10, width: "max-content" }}>
+                <div
+                  style={{
+                    alignItems: "center",
+                    color: "#8b949e",
+                    display: "flex",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    justifyContent: "space-between",
+                    letterSpacing: 0.8,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  <span>{columnIndex === 0 ? "Root" : `Level ${columnIndex + 1}`}</span>
+                  <span>{column.components.length} component{column.components.length === 1 ? "" : "s"}</span>
+                </div>
+                {column.components.map((component) => {
+                  const caseName = selectedStudioCaseName(props.workspace, component)
+                  const sessionId = previewSessionId(component, caseName, previewCaseOverridesForComponent(props.workspace, component))
+                  return (
+                    <ComponentCard
+                      component={component}
+                      frameState={props.frameStates?.[sessionId]}
+                      key={component.coordinate}
+                      manifest={props.manifest}
+                      onPreviewFrameMount={props.onPreviewFrameMount}
+                      onSelect={props.onSelectComponent}
+                      selectedCaseName={caseName}
+                      viewportPreset={props.workspace.selectedViewportPresetByCoordinate[component.coordinate] ?? "content"}
+                      workspace={props.workspace}
+                    />
+                  )
+                })}
+              </section>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -635,44 +810,72 @@ export function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
   )
 }
 
-function FileGroupLink(props: { file: StudioManifestFile; selectedId: string }) {
+function FileGroupLink(props: {
+  file: StudioManifestFile
+  onChangeSelection?: (selection: string) => void
+  selectedId: string
+}) {
   const fileSelection = `file:${props.file.path}`
+  const fileName = props.file.path.split("/").pop() ?? props.file.path
+  const directoryName = props.file.path.includes("/") ? props.file.path.slice(0, props.file.path.lastIndexOf("/")) : ""
 
   return (
-    <section>
+    <section style={{ display: "grid", gap: 8 }}>
       <a
         href={`?selection=${encodeURIComponent(fileSelection)}`}
+        onClick={(event) => {
+          if (!props.onChangeSelection) return
+          event.preventDefault()
+          props.onChangeSelection(fileSelection)
+        }}
         style={{
-          color: props.selectedId === fileSelection ? "#0969da" : "#24292f",
-          display: "block",
-          fontSize: 13,
-          fontWeight: 700,
-          marginBottom: 8,
+          color: props.selectedId === fileSelection ? "#0969da" : "#57606a",
+          display: "grid",
+          gap: 2,
+          fontSize: 12,
+          fontWeight: 750,
+          lineHeight: 1.35,
+          overflowWrap: "anywhere",
           textDecoration: "none",
         }}
       >
-        {props.file.path}
+        <span>{fileName}</span>
+        {directoryName ? (
+          <span style={{ color: "#8b949e", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 10, fontWeight: 500 }}>
+            {directoryName}
+          </span>
+        ) : null}
       </a>
-      <div style={{ display: "grid", gap: 6 }}>
+      <div style={{ display: "grid", gap: 7 }}>
         {props.file.components.map((component) => {
           const componentSelection = `component:${component.coordinate}`
+          const isSelected = props.selectedId === componentSelection
           return (
             <a
               href={`?selection=${encodeURIComponent(componentSelection)}`}
               key={component.coordinate}
+              onClick={(event) => {
+                if (!props.onChangeSelection) return
+                event.preventDefault()
+                props.onChangeSelection(componentSelection)
+              }}
               style={{
-                border: "1px solid #d0d7de",
-                borderColor: props.selectedId === componentSelection ? "#0969da" : "#d0d7de",
-                borderRadius: 8,
-                color: "#24292f",
+                background: isSelected ? "#eaf4ff" : "#ffffff",
+                border: "1px solid",
+                borderColor: isSelected ? "#8ec5ff" : "#d8dee8",
+                borderRadius: 10,
+                boxShadow: isSelected ? "0 6px 18px rgba(9,105,218,0.12)" : "0 1px 2px rgba(31,35,40,0.04)",
+                color: "#1f2328",
                 display: "grid",
-                gap: 2,
-                padding: "8px 10px",
+                gap: 3,
+                padding: "9px 10px",
                 textDecoration: "none",
               }}
             >
-              <strong style={{ fontSize: 13 }}>{component.componentName}</strong>
-              <span style={{ color: "#57606a", fontSize: 11 }}>{component.coordinate}</span>
+              <strong style={{ fontSize: 13, lineHeight: 1.25 }}>{component.componentName}</strong>
+              <span style={{ color: "#6b7280", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 10, overflowWrap: "anywhere" }}>
+                {component.coordinate}
+              </span>
             </a>
           )
         })}
@@ -689,17 +892,29 @@ function ComponentCard(props: {
   onSelect?: (component: StudioManifestComponent, frameState: StudioPreviewFrameState | undefined) => void
   selectedCaseName: string
   viewportPreset: StudioViewportPreset
+  workspace: StudioWorkspaceState
 }) {
   const defaultCase = props.selectedCaseName
   const previewError = getPreviewError(props.component)
-  const sessionId = previewSessionId(props.component, defaultCase)
+  const caseOverrides = previewCaseOverridesForComponent(props.workspace, props.component)
+  const sessionId = previewSessionId(props.component, defaultCase, caseOverrides)
   const previewSize = previewFrameSize(props.viewportPreset, props.frameState?.size)
-  const previewUrl = previewUrlForComponent(props.manifest, props.component, defaultCase)
+  const [measuredSize, setMeasuredSize] = React.useState<{ width: number; height: number } | undefined>()
+  const displaySize = mergePreviewFrameSize(previewSize, measuredSize)
+  const previewUrl = previewUrlForComponent(props.manifest, props.component, defaultCase, caseOverrides)
+  const cardWidth = typeof displaySize.width === "number" ? displaySize.width + 28 : 520
 
   return (
     <article
       data-gtsx-card-coordinate={props.component.coordinate}
-      style={{ background: "#ffffff", border: "1px solid #d0d7de", borderRadius: 12, padding: 16 }}
+      style={{
+        background: "#ffffff",
+        border: "1px solid #dfe3ea",
+        borderRadius: 10,
+        boxShadow: "0 10px 28px rgba(31,35,40,0.08), 0 1px 2px rgba(31,35,40,0.06)",
+        overflow: "hidden",
+        width: cardWidth,
+      }}
     >
       <button
         onClick={() => props.onSelect?.(props.component, props.frameState)}
@@ -710,16 +925,30 @@ function ComponentCard(props: {
           cursor: props.onSelect ? "pointer" : "default",
           display: "block",
           margin: 0,
-          padding: 0,
+          padding: "10px 12px",
           textAlign: "left",
           width: "100%",
         }}
         type="button"
       >
-        <header style={{ display: "grid", gap: 4, marginBottom: 12 }}>
-        <strong>{props.component.componentName}</strong>
-        <code style={{ color: "#57606a", fontSize: 12 }}>{props.component.coordinate}</code>
-        <span style={{ color: "#57606a", fontSize: 12 }}>Current case: {defaultCase}</span>
+        <header style={{ alignItems: "center", display: "flex", gap: 10, justifyContent: "space-between" }}>
+          <strong style={{ fontSize: 13, letterSpacing: -0.05, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {props.component.componentName}
+          </strong>
+          <span
+            style={{
+              background: "#f3f4f6",
+              border: "1px solid #e5e7eb",
+              borderRadius: 999,
+              color: "#4b5563",
+              flex: "0 0 auto",
+              fontSize: 11,
+              fontWeight: 650,
+              padding: "3px 8px",
+            }}
+          >
+            {defaultCase}
+          </span>
         </header>
       </button>
       {previewError || props.frameState?.error ? (
@@ -730,33 +959,18 @@ function ComponentCard(props: {
           previewUrl={previewUrl}
         />
       ) : (
-        <>
+        <div style={{ padding: "0 14px 14px" }}>
           <LazyPreviewFrame
             data-gtsx-preview-session-id={sessionId}
+            onMeasureSize={setMeasuredSize}
             onPreviewFrameMount={props.onPreviewFrameMount}
             previewUrl={previewUrl}
-            size={previewSize}
+            size={displaySize}
             sessionId={sessionId}
             title={`${props.component.componentName} preview`}
             viewportPreset={props.viewportPreset}
           />
-          <ul style={{ display: "flex", flexWrap: "wrap", gap: 8, listStyle: "none", margin: "12px 0 0", padding: 0 }}>
-            {props.component.cases.map((testCase) => (
-              <li
-                key={testCase.name}
-                style={{
-                  background: "#f6f8fa",
-                  border: "1px solid #d0d7de",
-                  borderRadius: 999,
-                  fontSize: 12,
-                  padding: "4px 8px",
-                }}
-              >
-                {testCase.name}
-              </li>
-            ))}
-          </ul>
-        </>
+        </div>
       )}
     </article>
   )
@@ -764,6 +978,7 @@ function ComponentCard(props: {
 
 function LazyPreviewFrame(props: {
   "data-gtsx-preview-session-id": string
+  onMeasureSize?: (size: { width: number; height: number }) => void
   onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void
   previewUrl: string
   size: { width: number | string; height: number }
@@ -772,6 +987,7 @@ function LazyPreviewFrame(props: {
   viewportPreset: StudioViewportPreset
 }) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
+  const [frameElement, setFrameElement] = React.useState<HTMLIFrameElement | null>(null)
   const [shouldLoad, setShouldLoad] = React.useState(false)
 
   React.useEffect(() => {
@@ -796,6 +1012,19 @@ function LazyPreviewFrame(props: {
     return () => observer.disconnect()
   }, [])
 
+  React.useEffect(() => {
+    if (!frameElement) return
+
+    const measure = () => {
+      const size = measureIframeContentSize(frameElement)
+      if (size) props.onMeasureSize?.(size)
+    }
+    const timers = [window.setTimeout(measure, 0), window.setTimeout(measure, 80), window.setTimeout(measure, 250)]
+    return () => {
+      for (const timer of timers) window.clearTimeout(timer)
+    }
+  }, [frameElement, props.onMeasureSize])
+
   return (
     <div
       data-gtsx-preview-session-id={props["data-gtsx-preview-session-id"]}
@@ -804,7 +1033,7 @@ function LazyPreviewFrame(props: {
       ref={containerRef}
       style={{
         background: "#ffffff",
-        border: "1px solid #d0d7de",
+        border: "1px solid #e5e7eb",
         borderRadius: 8,
         height: props.size.height,
         maxWidth: "100%",
@@ -814,16 +1043,66 @@ function LazyPreviewFrame(props: {
     >
       {shouldLoad ? (
         <iframe
-          ref={(frame) => props.onPreviewFrameMount?.(props.sessionId, frame)}
+          onLoad={(event) => {
+            const frame = event.currentTarget
+            const measure = () => {
+              const size = measureIframeContentSize(frame)
+              if (size) props.onMeasureSize?.(size)
+            }
+            measure()
+            window.setTimeout(measure, 80)
+          }}
+          ref={(frame) => {
+            setFrameElement(frame)
+            props.onPreviewFrameMount?.(props.sessionId, frame)
+          }}
           src={props.previewUrl}
-          style={{ border: 0, height: "100%", width: "100%" }}
+          style={{ background: "#ffffff", border: 0, height: "100%", width: "100%" }}
           title={props.title}
         />
       ) : (
-        <p style={{ color: "#57606a", fontSize: 12, margin: 0, padding: 12 }}>Preview will load when visible.</p>
+        <p style={{ color: "#6b7280", fontSize: 12, margin: 0, padding: 14 }}>Preview will load when visible.</p>
       )}
     </div>
   )
+}
+
+function mergePreviewFrameSize(
+  reported: { width: number | string; height: number },
+  measured: { width: number; height: number } | undefined,
+): { width: number | string; height: number } {
+  if (!measured || typeof reported.width !== "number") return reported
+
+  return {
+    width: Math.max(reported.width, measured.width),
+    height: Math.max(reported.height, measured.height),
+  }
+}
+
+function measureIframeContentSize(frame: HTMLIFrameElement): { width: number; height: number } | undefined {
+  const documentValue = frame.contentDocument
+  if (!documentValue) return undefined
+
+  const rects = [...documentValue.querySelectorAll<HTMLElement>("*")]
+    .map((element) => element.getBoundingClientRect())
+    .filter((rect) => rect.width > 0 || rect.height > 0)
+
+  if (rects.length === 0) {
+    return {
+      width: documentValue.documentElement.scrollWidth,
+      height: documentValue.documentElement.scrollHeight,
+    }
+  }
+
+  const left = Math.min(0, ...rects.map((rect) => rect.left))
+  const top = Math.min(0, ...rects.map((rect) => rect.top))
+  const right = Math.max(documentValue.documentElement.scrollWidth, ...rects.map((rect) => rect.right))
+  const bottom = Math.max(documentValue.documentElement.scrollHeight, ...rects.map((rect) => rect.bottom))
+
+  return {
+    width: Math.ceil(right - left + 24),
+    height: Math.ceil(bottom - top),
+  }
 }
 
 function previewFrameSize(
@@ -832,8 +1111,12 @@ function previewFrameSize(
 ): { width: number | string; height: number } {
   if (preset === "phone") return { width: 390, height: 844 }
   if (preset === "tablet") return { width: 768, height: 1024 }
-  if (preset === "desktop") return { width: "100%", height: 900 }
-  return { width: "100%", height: reportedSize?.height ?? 240 }
+  if (preset === "desktop") return { width: 1280, height: 900 }
+
+  return {
+    width: clamp(reportedSize?.width ?? 320, 280, 960),
+    height: clamp(reportedSize?.height ?? 240, 160, 1200),
+  }
 }
 
 function PreviewError(props: {
@@ -885,9 +1168,9 @@ function StudioInspector(props: {
 }) {
   if (!props.component) {
     return (
-      <aside style={{ background: "#ffffff", borderLeft: "1px solid #d0d7de", padding: 20 }}>
+      <aside style={{ background: "#fbfcfe", borderLeft: "1px solid #d8dee8", minHeight: 0, overflow: "auto", padding: 20 }}>
         <h2 style={{ fontSize: 16, margin: 0 }}>Inspector</h2>
-        <p style={{ color: "#57606a", fontSize: 13 }}>Select a GTSX component.</p>
+        <p style={{ color: "#6b7280", fontSize: 13 }}>Select a GTSX component.</p>
       </aside>
     )
   }
@@ -898,14 +1181,24 @@ function StudioInspector(props: {
   const selectedValues = selectedRuntimeValuesSnapshot(props.manifest, props.workspace, props.frameStates)
 
   return (
-    <aside style={{ background: "#ffffff", borderLeft: "1px solid #d0d7de", padding: 20 }}>
-      <h2 style={{ fontSize: 16, margin: "0 0 16px" }}>Inspector</h2>
-      <section style={{ display: "grid", gap: 4, marginBottom: 20 }}>
-        <strong>{props.component.componentName}</strong>
-        <code style={{ color: "#57606a", fontSize: 12 }}>{props.component.coordinate}</code>
+    <aside style={{ background: "#fbfcfe", borderLeft: "1px solid #d8dee8", minHeight: 0, overflow: "auto", padding: "22px 18px" }}>
+      <h2 style={{ fontSize: 16, letterSpacing: -0.1, margin: "0 0 18px" }}>Inspector</h2>
+      <section style={{ borderBottom: "1px solid #e5e7eb", display: "grid", gap: 5, marginBottom: 18, paddingBottom: 16 }}>
+        <strong style={{ fontSize: 14 }}>{props.component.componentName}</strong>
+        <code
+          style={{
+            color: "#6b7280",
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+            fontSize: 11,
+            lineHeight: 1.4,
+            overflowWrap: "anywhere",
+          }}
+        >
+          {props.component.coordinate}
+        </code>
       </section>
       <section>
-        <h3 style={{ fontSize: 13, margin: "0 0 8px" }}>Cases</h3>
+        <h3 style={inspectorSectionTitleStyle}>Cases</h3>
         <div style={{ display: "grid", gap: 8 }}>
           {props.component.cases.map((testCase) => (
             <button
@@ -913,13 +1206,14 @@ function StudioInspector(props: {
               key={testCase.name}
               onClick={() => props.onChangeCase?.(props.component!, testCase.name)}
               style={{
-                background: selectedCase === testCase.name ? "#ddf4ff" : "#ffffff",
-                border: "1px solid #d0d7de",
-                borderColor: selectedCase === testCase.name ? "#0969da" : "#d0d7de",
-                borderRadius: 8,
+                background: selectedCase === testCase.name ? "#eaf4ff" : "#ffffff",
+                border: "1px solid",
+                borderColor: selectedCase === testCase.name ? "#8ec5ff" : "#d8dee8",
+                borderRadius: 10,
                 color: "#24292f",
                 cursor: props.onChangeCase ? "pointer" : "default",
-                padding: "8px 10px",
+                fontWeight: selectedCase === testCase.name ? 700 : 500,
+                padding: "9px 10px",
                 textAlign: "left",
               }}
               type="button"
@@ -930,7 +1224,7 @@ function StudioInspector(props: {
         </div>
       </section>
       <section style={{ marginTop: 20 }}>
-        <h3 style={{ fontSize: 13, margin: "0 0 8px" }}>Viewport</h3>
+        <h3 style={inspectorSectionTitleStyle}>Viewport</h3>
         <div style={{ display: "grid", gap: 8 }}>
           {(["content", "phone", "tablet", "desktop"] satisfies StudioViewportPreset[]).map((preset) => (
             <button
@@ -938,13 +1232,14 @@ function StudioInspector(props: {
               key={preset}
               onClick={() => props.onChangeViewportPreset?.(props.component!, preset)}
               style={{
-                background: selectedViewportPreset === preset ? "#ddf4ff" : "#ffffff",
-                border: "1px solid #d0d7de",
-                borderColor: selectedViewportPreset === preset ? "#0969da" : "#d0d7de",
-                borderRadius: 8,
+                background: selectedViewportPreset === preset ? "#eaf4ff" : "#ffffff",
+                border: "1px solid",
+                borderColor: selectedViewportPreset === preset ? "#8ec5ff" : "#d8dee8",
+                borderRadius: 10,
                 color: "#24292f",
                 cursor: props.onChangeViewportPreset ? "pointer" : "default",
-                padding: "8px 10px",
+                fontWeight: selectedViewportPreset === preset ? 700 : 500,
+                padding: "9px 10px",
                 textAlign: "left",
               }}
               type="button"
@@ -955,7 +1250,7 @@ function StudioInspector(props: {
         </div>
       </section>
       <section style={{ marginTop: 20 }}>
-        <h3 style={{ fontSize: 13, margin: "0 0 8px" }}>Instances</h3>
+        <h3 style={inspectorSectionTitleStyle}>Instances</h3>
         {instances.length > 0 ? (
           <ol style={{ display: "grid", gap: 8, listStyle: "none", margin: 0, padding: 0 }}>
             {instances.map((instance) => (
@@ -963,12 +1258,12 @@ function StudioInspector(props: {
                 data-gtsx-runtime-instance-id={instance.boundaryId}
                 key={instance.boundaryId}
                 style={{
-                  background: "#f6f8fa",
-                  border: "1px solid #d0d7de",
-                  borderRadius: 8,
+                  background: "#ffffff",
+                  border: "1px solid #d8dee8",
+                  borderRadius: 10,
                   display: "grid",
                   gap: 4,
-                  padding: "8px 10px",
+                  padding: "10px",
                 }}
               >
                 <button
@@ -990,9 +1285,11 @@ function StudioInspector(props: {
                 >
                   <strong style={{ fontSize: 12 }}>{instance.boundaryId}</strong>
                 </button>
-                <span style={{ color: "#57606a", fontSize: 12 }}>Parent: {instance.parentPath.join(" > ") || "root"}</span>
+                <span style={{ color: "#6b7280", fontSize: 11, lineHeight: 1.35, overflowWrap: "anywhere" }}>
+                  Parent: {instance.parentPath.join(" > ") || "root"}
+                </span>
                 {instance.rect ? (
-                  <span style={{ color: "#57606a", fontSize: 12 }}>
+                  <span style={{ color: "#6b7280", fontSize: 11 }}>
                     {instance.rect.width}x{instance.rect.height} at {instance.rect.x},{instance.rect.y}
                   </span>
                 ) : null}
@@ -1000,11 +1297,11 @@ function StudioInspector(props: {
             ))}
           </ol>
         ) : (
-          <p style={{ color: "#57606a", fontSize: 12, margin: 0 }}>No runtime instances reported yet.</p>
+          <p style={{ color: "#6b7280", fontSize: 12, margin: 0 }}>No runtime instances reported yet.</p>
         )}
       </section>
       <section style={{ marginTop: 20 }}>
-        <h3 style={{ fontSize: 13, margin: "0 0 8px" }}>Values</h3>
+        <h3 style={inspectorSectionTitleStyle}>Values</h3>
         {selectedValues ? (
           <div style={{ display: "grid", gap: 12 }}>
             <RuntimeValueSection label="Props" value={selectedValues.props} />
@@ -1018,12 +1315,12 @@ function StudioInspector(props: {
                   ))}
                 </div>
               ) : (
-                <p style={{ color: "#57606a", fontSize: 12, margin: 0 }}>No provider values reported.</p>
+                <p style={{ color: "#6b7280", fontSize: 12, margin: 0 }}>No provider values reported.</p>
               )}
             </section>
           </div>
         ) : (
-          <p style={{ color: "#57606a", fontSize: 12, margin: 0 }}>Select an instance to request runtime values.</p>
+          <p style={{ color: "#6b7280", fontSize: 12, margin: 0 }}>Select an instance to request runtime values.</p>
         )}
       </section>
     </aside>
@@ -1116,7 +1413,8 @@ function runtimeInstancesForSelectedComponent(
     if (!parentComponent) return []
 
     const parentCaseName = selectedStudioCaseName(workspace, parentComponent)
-    const parentFrameState = frameStates?.[previewSessionId(parentComponent, parentCaseName)]
+    const parentFrameState =
+      frameStates?.[previewSessionId(parentComponent, parentCaseName, previewCaseOverridesForComponent(workspace, parentComponent))]
     return findBoundaryNodes(parentFrameState?.tree ?? [], parentCoordinate).flatMap((parentNode) =>
       parentNode.children
         .filter((child) => child.coordinate === selectedCoordinate)
@@ -1128,7 +1426,8 @@ function runtimeInstancesForSelectedComponent(
   if (!selectedComponent) return []
 
   const selectedCaseName = selectedStudioCaseName(workspace, selectedComponent)
-  const selectedFrameState = frameStates?.[previewSessionId(selectedComponent, selectedCaseName)]
+  const selectedFrameState =
+    frameStates?.[previewSessionId(selectedComponent, selectedCaseName, previewCaseOverridesForComponent(workspace, selectedComponent))]
   return findBoundaryNodes(selectedFrameState?.tree ?? [], selectedCoordinate).map((node) => toRuntimeInstance(node, []))
 }
 
@@ -1148,7 +1447,8 @@ function selectedRuntimeValuesSnapshot(
   if (!sourceComponent) return undefined
 
   const sourceCaseName = selectedStudioCaseName(workspace, sourceComponent)
-  const sourceFrameState = frameStates?.[previewSessionId(sourceComponent, sourceCaseName)]
+  const sourceFrameState =
+    frameStates?.[previewSessionId(sourceComponent, sourceCaseName, previewCaseOverridesForComponent(workspace, sourceComponent))]
   return sourceFrameState?.valuesByBoundaryId?.[selectedBoundaryId]
 }
 
@@ -1196,18 +1496,50 @@ function getPreviewError(component: StudioManifestComponent): string | undefined
   return undefined
 }
 
-function previewUrlForComponent(manifest: StudioManifest, component: StudioManifestComponent, caseName: string): string {
+function previewUrlForComponent(
+  manifest: StudioManifest,
+  component: StudioManifestComponent,
+  caseName: string,
+  caseOverrides: readonly (readonly [string, string])[] = [],
+): string {
   const params = new URLSearchParams({
     entry: component.coordinate,
     case: caseName,
-    sessionId: previewSessionId(component, caseName),
+    chrome: "0",
+    sessionId: previewSessionId(component, caseName, caseOverrides),
   })
+  for (const [coordinate, overrideCaseName] of caseOverrides) {
+    params.append("gcase", `${coordinate}:${overrideCaseName}`)
+  }
 
   return `${manifest.routes.preview}?${params.toString()}`
 }
 
-function previewSessionId(component: StudioManifestComponent, caseName: string): string {
-  return `${component.coordinate}:${caseName}`
+function previewSessionId(
+  component: StudioManifestComponent,
+  caseName: string,
+  caseOverrides: readonly (readonly [string, string])[] = [],
+): string {
+  if (caseOverrides.length === 0) return `${component.coordinate}:${caseName}`
+
+  return `${component.coordinate}:${caseName}|${caseOverrides
+    .map(([coordinate, overrideCaseName]) => `${coordinate}:${overrideCaseName}`)
+    .join("|")}`
+}
+
+function previewCaseOverridesForComponent(
+  workspace: Pick<StudioWorkspaceState, "selectedCaseByCoordinate" | "selectedCoordinatePath">,
+  component: StudioManifestComponent,
+): readonly (readonly [string, string])[] {
+  const componentPathIndex = workspace.selectedCoordinatePath.indexOf(component.coordinate)
+  if (componentPathIndex < 0) return []
+
+  return workspace.selectedCoordinatePath
+    .slice(componentPathIndex + 1)
+    .flatMap((coordinate) => {
+      const caseName = workspace.selectedCaseByCoordinate[coordinate]
+      return caseName ? ([[coordinate, caseName]] as const) : []
+    })
 }
 
 function currentPreviewSessionIds(workspace: StudioWorkspaceState): Set<string> {
@@ -1215,7 +1547,7 @@ function currentPreviewSessionIds(workspace: StudioWorkspaceState): Set<string> 
     workspace.columns.flatMap((column) =>
       column.components.flatMap((component) => {
         const caseName = selectedStudioCaseName(workspace, component)
-        return caseName !== "No cases" ? [previewSessionId(component, caseName)] : []
+        return caseName !== "No cases" ? [previewSessionId(component, caseName, previewCaseOverridesForComponent(workspace, component))] : []
       }),
     ),
   )

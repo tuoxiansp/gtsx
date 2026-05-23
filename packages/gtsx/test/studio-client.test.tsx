@@ -40,6 +40,21 @@ describe("GTSX Studio shell", () => {
     expect(cardCoordinates(html)).toEqual(["src/MultiExport.g.tsx#NamedBadge"])
   })
 
+  it("restores the initial Studio workspace from URL search params", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const html = renderToStaticMarkup(
+      <StudioShell
+        manifest={manifest}
+        urlSearch="selection=component%3Asrc%2FUserCard.g.tsx%23default&path=src%2FUserCard.g.tsx%23default&case=src%2FUserCard.g.tsx%23default%3Aready"
+      />,
+    )
+
+    expect(cardCoordinates(html)).toEqual(["src/UserCard.g.tsx#default"])
+    expect(previewSources(html)).toEqual([
+      "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0&sessionId=src%2FUserCard.g.tsx%23default%3Aready",
+    ])
+  })
+
   it("renders lazy preview placeholders from component coordinates and first statically enumerable cases", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
@@ -49,12 +64,12 @@ describe("GTSX Studio shell", () => {
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="file:src/MultiExport.g.tsx" />)
 
     expect(previewSources(html)).toEqual([
-      "/gtsx?entry=src%2FMultiExport.g.tsx%23NamedBadge&case=ready&sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready",
-      "/gtsx?entry=src%2FMultiExport.g.tsx%23default&case=defaultReady&sessionId=src%2FMultiExport.g.tsx%23default%3AdefaultReady",
+      "/gtsx?entry=src%2FMultiExport.g.tsx%23NamedBadge&case=ready&chrome=0&sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready",
+      "/gtsx?entry=src%2FMultiExport.g.tsx%23default&case=defaultReady&chrome=0&sessionId=src%2FMultiExport.g.tsx%23default%3AdefaultReady",
     ])
     expect(iframeSources(html)).toEqual([])
-    expect(html).toContain("Current case: ready")
-    expect(html).toContain("Current case: defaultReady")
+    expect(html).toContain(">ready</span>")
+    expect(html).toContain(">defaultReady</span>")
   })
 
   it("sizes preview iframes from runtime resize messages", () => {
@@ -156,10 +171,10 @@ describe("GTSX Studio shell", () => {
     expect(html).toContain("Cannot read properties of undefined")
     expect(html).toContain("TypeError: Cannot read properties of undefined")
     expect(html).toContain(
-      "/gtsx?entry=src%2FMultiExport.g.tsx%23NamedBadge&amp;case=ready&amp;sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready",
+      "/gtsx?entry=src%2FMultiExport.g.tsx%23NamedBadge&amp;case=ready&amp;chrome=0&amp;sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready",
     )
     expect(previewSources(html)).toContain(
-      "/gtsx?entry=src%2FMultiExport.g.tsx%23default&case=defaultReady&sessionId=src%2FMultiExport.g.tsx%23default%3AdefaultReady",
+      "/gtsx?entry=src%2FMultiExport.g.tsx%23default&case=defaultReady&chrome=0&sessionId=src%2FMultiExport.g.tsx%23default%3AdefaultReady",
     )
   })
 
@@ -396,9 +411,43 @@ describe("GTSX Studio shell", () => {
     const html = renderToStaticMarkup(<StudioWorkspaceView manifest={manifest} workspace={state} />)
 
     expect(previewSources(html)).toEqual([
-      "/gtsx?entry=src%2FBadge.g.tsx%23default&case=warning&sessionId=src%2FBadge.g.tsx%23default%3Awarning",
+      "/gtsx?entry=src%2FBadge.g.tsx%23default&case=warning&chrome=0&sessionId=src%2FBadge.g.tsx%23default%3Awarning",
     ])
-    expect(html).toContain("Current case: warning")
+    expect(html).toContain(">warning</span>")
+  })
+
+  it("passes selected child cases as gcase overrides to ancestor preview URLs", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const parentState = selectStudioComponent(
+      createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
+      manifest,
+      "src/UserCard.g.tsx#default",
+      [
+        {
+          id: "root",
+          coordinate: "src/UserCard.g.tsx#default",
+          children: [{ id: "child", coordinate: "src/MultiExport.g.tsx#NamedBadge", children: [] }],
+        },
+      ],
+    )
+    const childState = changeStudioComponentCase(
+      selectStudioComponent(parentState, manifest, "src/MultiExport.g.tsx#NamedBadge", []),
+      "src/MultiExport.g.tsx#NamedBadge",
+      "ready",
+    )
+
+    const html = renderToStaticMarkup(<StudioWorkspaceView manifest={manifest} workspace={childState} />)
+    const sources = previewSources(html)
+
+    expect(sources[0]).toContain("entry=src%2FUserCard.g.tsx%23default")
+    expect(sources[0]).toContain("case=loading")
+    expect(sources[0]).toContain("gcase=src%2FMultiExport.g.tsx%23NamedBadge%3Aready")
+    expect(sources[1]).toBe(
+      "/gtsx?entry=src%2FMultiExport.g.tsx%23NamedBadge&case=ready&chrome=0&sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready",
+    )
+    expect(createStudioRuntimeValuesRequest(manifest, childState, "child")?.sessionId).toBe(
+      "src/UserCard.g.tsx#default:loading|src/MultiExport.g.tsx#NamedBadge:ready",
+    )
   })
 
   it("renders ordered case controls in the Inspector", () => {
