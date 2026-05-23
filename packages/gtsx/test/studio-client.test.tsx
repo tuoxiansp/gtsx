@@ -5,11 +5,14 @@ import { describe, expect, it } from "vitest"
 import {
   StudioShell,
   StudioWorkspaceView,
+  applyStudioCardSelectionAction,
   applyStudioPreviewMessage,
   applyStudioPreviewMessageToFrameStates,
   applyStudioCanvasWheel,
   changeStudioComponentCase,
+  changeStudioCanvasViewportPreset,
   changeStudioViewportPreset,
+  componentCardLayoutWidth,
   createStudioRuntimeValuesRequest,
   createStudioWorkspaceStateFromUrl,
   createStudioWorkspaceState,
@@ -39,6 +42,15 @@ describe("GTSX Studio shell", () => {
     )
 
     expect(cardCoordinates(html)).toEqual(["src/MultiExport.g.tsx#NamedBadge"])
+  })
+
+  it("renders sidebar component entries as scaled tablet previews", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="file:src/MultiExport.g.tsx" />)
+
+    expect(html).toContain('data-gtsx-sidebar-preview-coordinate="src/MultiExport.g.tsx#NamedBadge"')
+    expect(html).toContain('data-gtsx-viewport-preset="tablet"')
+    expect(sidebarIframeSources(html)).toEqual([])
   })
 
   it("renders the canvas without top chrome or redundant card metadata", () => {
@@ -108,12 +120,105 @@ describe("GTSX Studio shell", () => {
     ).toEqual({ x: 16, y: 52, scale: 1 })
   })
 
-  it("uses the whole UI card surface as the component selection target", () => {
+  it("uses only the rendered component bounds as the component selection target", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
-    const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="component:src/UserCard.g.tsx#default" />)
+    const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
+    const html = renderToStaticMarkup(
+      <StudioWorkspaceView
+        frameStates={{
+          "src/UserCard.g.tsx#default:loading": {
+            expectedSessionId: "src/UserCard.g.tsx#default:loading",
+            ready: true,
+            tree: [
+              {
+                id: "root",
+                coordinate: "src/UserCard.g.tsx#default",
+                rect: { x: 10, y: 20, width: 100, height: 32 },
+                children: [],
+              },
+            ],
+          },
+        }}
+        manifest={manifest}
+        workspace={state}
+      />,
+    )
 
     expect(cardSelectTargets(html)).toEqual(["src/UserCard.g.tsx#default"])
+    expect(cardHtml(html, "src/UserCard.g.tsx#default")).not.toContain('data-gtsx-card-select-target="card"')
+    expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("left:10px")
+    expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("top:20px")
+    expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("width:100px")
+    expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("height:32px")
     expect(cardHtml(html, "src/UserCard.g.tsx#default")).not.toContain("<button")
+  })
+
+  it("does not enter card selected state from sidebar or drilldown state alone", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const state = selectStudioComponent(
+      createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
+      manifest,
+      "src/UserCard.g.tsx#default",
+      [
+        {
+          id: "root",
+          coordinate: "src/UserCard.g.tsx#default",
+          children: [{ id: "child", coordinate: "src/MultiExport.g.tsx#NamedBadge", children: [] }],
+        },
+      ],
+    )
+
+    const html = renderToStaticMarkup(
+      <StudioWorkspaceView
+        frameStates={{
+          "src/UserCard.g.tsx#default:loading": {
+            expectedSessionId: "src/UserCard.g.tsx#default:loading",
+            ready: true,
+            tree: [
+              {
+                id: "root",
+                coordinate: "src/UserCard.g.tsx#default",
+                rect: { x: 10, y: 20, width: 100, height: 32 },
+                children: [],
+              },
+            ],
+          },
+        }}
+        manifest={manifest}
+        workspace={state}
+      />,
+    )
+
+    expect(selectedCardCoordinates(html)).toEqual([])
+    expect(selectionOutlineHtml(html)).toBe("")
+  })
+
+  it("only selects one UI card from pointer activation and clears it from non-card actions", () => {
+    expect(
+      applyStudioCardSelectionAction(undefined, {
+        type: "activate-card",
+        coordinate: "src/UserCard.g.tsx#default",
+        source: "keyboard",
+      }),
+    ).toBeUndefined()
+
+    expect(
+      applyStudioCardSelectionAction(undefined, {
+        type: "activate-card",
+        coordinate: "src/UserCard.g.tsx#default",
+        source: "pointer",
+      }),
+    ).toBe("src/UserCard.g.tsx#default")
+
+    expect(
+      applyStudioCardSelectionAction("src/UserCard.g.tsx#default", {
+        type: "activate-card",
+        coordinate: "src/MultiExport.g.tsx#NamedBadge",
+        source: "pointer",
+      }),
+    ).toBe("src/MultiExport.g.tsx#NamedBadge")
+
+    expect(applyStudioCardSelectionAction("src/MultiExport.g.tsx#NamedBadge", { type: "clear" })).toBeUndefined()
   })
 
   it("restores the initial Studio workspace from URL search params", () => {
@@ -149,7 +254,7 @@ describe("GTSX Studio shell", () => {
     expect(previewFrameHtml(html, "src/MultiExport.g.tsx#NamedBadge:ready")).not.toContain("border:1px solid #e5e7eb")
   })
 
-  it("sizes preview iframes from runtime resize messages", () => {
+  it("uses tablet viewport sizing by default", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       projectRoot: "src",
@@ -172,7 +277,8 @@ describe("GTSX Studio shell", () => {
     )
 
     expect(html).toContain('data-gtsx-preview-session-id="src/UserCard.g.tsx#default:loading"')
-    expect(html).toContain("height:420px")
+    expect(previewFrameHtml(html, "src/UserCard.g.tsx#default:loading")).toContain("width:768px")
+    expect(previewFrameHtml(html, "src/UserCard.g.tsx#default:loading")).toContain("height:1024px")
   })
 
   it("uses fixed viewport presets instead of content-height sizing", () => {
@@ -202,6 +308,116 @@ describe("GTSX Studio shell", () => {
     expect(html).toContain("width:390px")
     expect(html).toContain("height:844px")
     expect(html).not.toContain("height:420px")
+  })
+
+  it("applies the floating viewport preset to every canvas component", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const workspace = {
+      ...createStudioWorkspaceState(manifest, "file:src/MultiExport.g.tsx"),
+      canvasViewportPreset: "phone" as const,
+      selectedViewportPresetByCoordinate: {
+        "src/MultiExport.g.tsx#NamedBadge": "desktop" as const,
+        "src/MultiExport.g.tsx#default": "tablet" as const,
+      },
+    }
+
+    const html = renderToStaticMarkup(<StudioWorkspaceView manifest={manifest} workspace={workspace} />)
+
+    expect(canvasViewportPresets(html)).toEqual(["phone", "phone"])
+  })
+
+  it("stores viewport as a single canvas-level preset across drilldown columns", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const parentState = selectStudioComponent(
+      createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
+      manifest,
+      "src/UserCard.g.tsx#default",
+      [
+        {
+          id: "root",
+          coordinate: "src/UserCard.g.tsx#default",
+          children: [{ id: "child", coordinate: "src/MultiExport.g.tsx#NamedBadge", children: [] }],
+        },
+      ],
+    )
+    const childState = selectStudioComponent(parentState, manifest, "src/MultiExport.g.tsx#NamedBadge", [])
+    const nextState = changeStudioCanvasViewportPreset(
+      {
+        ...childState,
+        selectedViewportPresetByCoordinate: {
+          "src/UserCard.g.tsx#default": "desktop",
+          "src/MultiExport.g.tsx#NamedBadge": "phone",
+        },
+      },
+      "tablet",
+    )
+
+    const html = renderToStaticMarkup(<StudioWorkspaceView manifest={manifest} workspace={nextState} />)
+
+    expect(nextState.canvasViewportPreset).toBe("tablet")
+    expect(canvasViewportPresets(html)).toEqual(["tablet", "tablet"])
+    expect(nextState.selectedViewportPresetByCoordinate).toEqual({})
+  })
+
+  it("restores canvas viewport when the sidebar changes selection", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const restored = createStudioWorkspaceStateFromUrl(
+      manifest,
+      new URLSearchParams("selection=component%3Asrc%2FMultiExport.g.tsx%23NamedBadge&canvasViewport=phone"),
+    )
+
+    expect(restored.selection).toBe("component:src/MultiExport.g.tsx#NamedBadge")
+    expect(restored.workspace.canvasViewportPreset).toBe("phone")
+    expect(canvasViewportPresets(renderToStaticMarkup(<StudioWorkspaceView manifest={manifest} workspace={restored.workspace} />))).toEqual([
+      "phone",
+    ])
+  })
+
+  it("uses component bounds height instead of viewport height for canvas card layout", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
+
+    const html = renderToStaticMarkup(
+      <StudioWorkspaceView
+        frameStates={{
+          "src/UserCard.g.tsx#default:loading": {
+            expectedSessionId: "src/UserCard.g.tsx#default:loading",
+            ready: true,
+            tree: [
+              {
+                id: "root",
+                coordinate: "src/UserCard.g.tsx#default",
+                rect: { x: 0, y: 12, width: 320, height: 88 },
+                children: [],
+              },
+            ],
+          },
+        }}
+        manifest={manifest}
+        workspace={state}
+      />,
+    )
+
+    expect(previewFrameHtml(html, "src/UserCard.g.tsx#default:loading")).toContain("height:100px")
+  })
+
+  it("uses component bounds instead of desktop viewport width for card column layout", () => {
+    expect(
+      componentCardLayoutWidth(
+        { width: 1280 },
+        [
+          {
+            id: "root",
+            coordinate: "src/UserCard.g.tsx#default",
+            rect: { x: 0, y: 0, width: 520, height: 240 },
+            children: [],
+          },
+        ],
+        "src/UserCard.g.tsx#default",
+      ),
+    ).toBe(520)
+
+    expect(componentCardLayoutWidth({ width: 1280 }, undefined, "src/UserCard.g.tsx#default")).toBe(1308)
   })
 
   it("renders a card-level error for invalid preview targets", () => {
@@ -477,6 +693,34 @@ describe("GTSX Studio shell", () => {
     expect(nextState.selectedCoordinatePath).toEqual(["src/Badge.g.tsx#default"])
   })
 
+  it("keeps drilldown columns when changing the highlighted component case", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const state = selectStudioComponent(
+      createStudioWorkspaceState(manifest, "component:src/Badge.g.tsx#default"),
+      manifest,
+      "src/Badge.g.tsx#default",
+      [
+        {
+          id: "root",
+          coordinate: "src/Badge.g.tsx#default",
+          children: [{ id: "child", coordinate: "src/MultiExport.g.tsx#default", children: [] }],
+        },
+      ],
+    )
+    const childState = selectStudioComponent(state, manifest, "src/MultiExport.g.tsx#default", [])
+
+    const nextState = changeStudioComponentCase(childState, "src/Badge.g.tsx#default", "warning", { keepDrilldown: true })
+
+    expect(nextState.selectedCaseByCoordinate).toEqual({
+      "src/Badge.g.tsx#default": "warning",
+    })
+    expect(nextState.columns.map((column) => column.components.map((component) => component.coordinate))).toEqual([
+      ["src/Badge.g.tsx#default"],
+      ["src/MultiExport.g.tsx#default"],
+    ])
+    expect(nextState.selectedCoordinatePath).toEqual(["src/Badge.g.tsx#default", "src/MultiExport.g.tsx#default"])
+  })
+
   it("renders the selected case in the component iframe URL", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
     const state = changeStudioComponentCase(
@@ -490,7 +734,6 @@ describe("GTSX Studio shell", () => {
     expect(previewSources(html)).toEqual([
       "/gtsx?entry=src%2FBadge.g.tsx%23default&case=warning&chrome=0&sessionId=src%2FBadge.g.tsx%23default%3Awarning",
     ])
-    expect(caseControlNames(html)).toEqual(["neutral", "warning"])
   })
 
   it("passes selected child cases as gcase overrides to ancestor preview URLs", () => {
@@ -527,18 +770,19 @@ describe("GTSX Studio shell", () => {
     )
   })
 
-  it("renders ordered case controls in the Inspector", () => {
+  it("renders floating viewport controls without the Inspector panel", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
     const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
 
     const html = renderToStaticMarkup(<StudioWorkspaceView manifest={manifest} workspace={state} />)
 
-    expect(html).toContain("Inspector")
-    expect(html).toContain("Cases")
-    expect(caseControlNames(html)).toEqual(["loading", "ready"])
+    expect(html).not.toContain(">Inspector<")
+    expect(html).toContain('data-gtsx-floating-viewport-controls="true"')
+    expect(viewportControlNames(html)).toEqual(["phone", "tablet", "desktop"])
+    expect(html).toContain('data-gtsx-viewport-tab-highlight="true"')
   })
 
-  it("renders runtime instances for a merged component card from the current parent context", () => {
+  it("does not render runtime instance Inspector UI", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
     const parentTree = [
       {
@@ -582,10 +826,8 @@ describe("GTSX Studio shell", () => {
       />,
     )
 
-    expect(html).toContain("Instances")
-    expect(runtimeInstanceIds(html)).toEqual(["child-1", "child-2"])
-    expect(html).toContain("Parent: src/UserCard.g.tsx#default")
-    expect(html).toContain("100x32")
+    expect(html).not.toContain(">Instances<")
+    expect(runtimeInstanceIds(html)).toEqual([])
   })
 
   it("targets the parent preview session when requesting values for a selected child instance", () => {
@@ -615,7 +857,7 @@ describe("GTSX Studio shell", () => {
     })
   })
 
-  it("renders values for the selected runtime instance", () => {
+  it("does not render runtime values in the removed Inspector panel", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
     const parentTree = [
       {
@@ -666,20 +908,16 @@ describe("GTSX Studio shell", () => {
       />,
     )
 
-    expect(html).toContain("Values")
-    expect(html).toContain("Props")
-    expect(html).toContain("label")
-    expect(html).toContain("Agent inbox")
-    expect(html).toContain("Scope")
-    expect(html).toContain("expanded")
-    expect(html).toContain("true")
-    expect(html).toContain("ThemeGTSXProvider")
+    expect(html).not.toContain(">Values<")
+    expect(html).not.toContain("Agent inbox")
+    expect(html).not.toContain("ThemeGTSXProvider")
   })
 
   it("round-trips restorable workspace state through URL params without runtime values", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
     const workspace = selectStudioRuntimeInstance(
       {
+        canvasViewportPreset: "phone",
         columns: [
           {
             components: [
@@ -714,6 +952,7 @@ describe("GTSX Studio shell", () => {
     const serialized = params.toString()
 
     expect(serialized).toContain("selection=component%3Asrc%2FUserCard.g.tsx%23default")
+    expect(serialized).toContain("canvasViewport=phone")
     expect(serialized).toContain("path=src%2FUserCard.g.tsx%23default")
     expect(serialized).toContain("case=src%2FUserCard.g.tsx%23default%3Aready")
     expect(serialized).toContain("instance=src%2FMultiExport.g.tsx%23NamedBadge%3Agtsx-boundary%3A1")
@@ -726,6 +965,7 @@ describe("GTSX Studio shell", () => {
 
     expect(restored.warning).toBeUndefined()
     expect(restored.selection).toBe("component:src/UserCard.g.tsx#default")
+    expect(restored.workspace.canvasViewportPreset).toBe("phone")
     expect(restored.workspace.selectedCoordinatePath).toEqual([
       "src/UserCard.g.tsx#default",
       "src/MultiExport.g.tsx#NamedBadge",
@@ -801,9 +1041,19 @@ function screenPointForCanvasPoint(transform: { x: number; y: number; scale: num
 }
 
 function cardSelectTargets(html: string): string[] {
-  return [...html.matchAll(/<article[^>]+data-gtsx-card-coordinate="([^"]+)"[^>]+data-gtsx-card-select-target="card"/g)].map(
+  return [...html.matchAll(/data-gtsx-card-select-coordinate="([^"]+)"[^>]+data-gtsx-card-select-target="component-bounds"/g)].map(
     (match) => match[1] ?? "",
   )
+}
+
+function selectedCardCoordinates(html: string): string[] {
+  return [...html.matchAll(/<article[^>]+data-gtsx-card-coordinate="([^"]+)"[^>]+data-gtsx-card-selected="true"/g)].map(
+    (match) => match[1] ?? "",
+  )
+}
+
+function selectionOutlineHtml(html: string): string {
+  return html.match(/<div[^>]+data-gtsx-selection-outline="true"[^>]*>/)?.[0] ?? ""
 }
 
 function cardHtml(html: string, coordinate: string): string {
@@ -817,7 +1067,18 @@ function escapeRegExp(value: string): string {
 }
 
 function iframeSources(html: string): string[] {
-  return [...html.matchAll(/<iframe[^>]+src="([^"]+)"/g)].map((match) => (match[1] ?? "").replaceAll("&amp;", "&"))
+  return [...html.matchAll(/<iframe[^>]+>/g)]
+    .filter((match) => !(match[0] ?? "").includes("data-gtsx-sidebar-preview-frame"))
+    .flatMap((match) => {
+      const source = match[0]?.match(/src="([^"]+)"/)?.[1]
+      return source ? [source.replaceAll("&amp;", "&")] : []
+    })
+}
+
+function sidebarIframeSources(html: string): string[] {
+  return [...html.matchAll(/<iframe[^>]+data-gtsx-sidebar-preview-frame="true"[^>]+src="([^"]+)"/g)].map((match) =>
+    (match[1] ?? "").replaceAll("&amp;", "&"),
+  )
 }
 
 function previewSources(html: string): string[] {
@@ -828,12 +1089,22 @@ function previewFrameHtml(html: string, sessionId: string): string {
   return html.match(new RegExp(`<div[^>]+data-gtsx-preview-session-id="${escapeRegExp(sessionId)}"[\\s\\S]*?</div>`))?.[0] ?? ""
 }
 
+function canvasViewportPresets(html: string): string[] {
+  return [...html.matchAll(/<div[^>]+data-gtsx-preview-session-id="[^"]+"[^>]+data-gtsx-preview-src="[^"]+"[^>]+data-gtsx-viewport-preset="([^"]+)"/g)].map(
+    (match) => match[1] ?? "",
+  )
+}
+
 function columnCount(html: string): number {
   return [...html.matchAll(/data-gtsx-column-index="/g)].length
 }
 
 function caseControlNames(html: string): string[] {
   return [...html.matchAll(/data-gtsx-case-control="([^"]+)"/g)].map((match) => match[1] ?? "")
+}
+
+function viewportControlNames(html: string): string[] {
+  return [...html.matchAll(/data-gtsx-viewport-control="([^"]+)"/g)].map((match) => match[1] ?? "")
 }
 
 function runtimeInstanceIds(html: string): string[] {

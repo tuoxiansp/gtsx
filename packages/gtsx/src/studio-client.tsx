@@ -39,6 +39,7 @@ export type StudioWorkspaceColumn = {
 }
 
 export type StudioWorkspaceState = {
+  canvasViewportPreset?: StudioViewportPreset
   columns: StudioWorkspaceColumn[]
   selectedCaseByCoordinate: Record<string, string>
   selectedCoordinatePath: string[]
@@ -64,7 +65,19 @@ export type StudioCanvasWheelInput = {
   viewportTop: number
 }
 
-export type StudioViewportPreset = "content" | "phone" | "tablet" | "desktop"
+export type StudioCardSelectionSource = "keyboard" | "pointer"
+
+export type StudioCardSelectionAction =
+  | {
+      type: "activate-card"
+      coordinate: string
+      source: StudioCardSelectionSource
+    }
+  | {
+      type: "clear"
+    }
+
+export type StudioViewportPreset = "phone" | "tablet" | "desktop"
 
 export type StudioWorkspaceViewProps = {
   manifest: StudioManifest
@@ -72,7 +85,8 @@ export type StudioWorkspaceViewProps = {
   selection?: string
   frameStates?: Record<string, StudioPreviewFrameState>
   onChangeSelection?: (selection: string) => void
-  onChangeCase?: (component: StudioManifestComponent, caseName: string) => void
+  onChangeCase?: (component: StudioManifestComponent, caseName: string, options?: { keepDrilldown?: boolean }) => void
+  onChangeCanvasViewportPreset?: (preset: StudioViewportPreset) => void
   onChangeViewportPreset?: (component: StudioManifestComponent, preset: StudioViewportPreset) => void
   onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void
   onRequestValues?: (request: StudioRuntimeValuesRequest) => void
@@ -157,6 +171,7 @@ export function applyStudioPreviewMessageToFrameStates(
 export function createStudioWorkspaceState(manifest: StudioManifest, selection?: string): StudioWorkspaceState {
   const selected = resolveSelection(manifest, selection)
   return {
+    canvasViewportPreset: "tablet",
     columns: [{ components: selected.components }],
     selectedCaseByCoordinate: {},
     selectedCoordinatePath: [],
@@ -184,6 +199,7 @@ export function selectStudioComponent(
   }
 
   return {
+    canvasViewportPreset: canvasViewportPresetForWorkspace(state),
     columns: nextColumns,
     selectedCaseByCoordinate: state.selectedCaseByCoordinate,
     selectedCoordinatePath: selectedPath,
@@ -203,20 +219,24 @@ export function changeStudioComponentCase(
   state: StudioWorkspaceState,
   coordinate: string,
   caseName: string,
+  options: { keepDrilldown?: boolean } = {},
 ): StudioWorkspaceState {
   const selectedColumnIndex = state.columns.findIndex((column) =>
     column.components.some((component) => component.coordinate === coordinate),
   )
-  const columns = selectedColumnIndex >= 0 ? state.columns.slice(0, selectedColumnIndex + 1) : state.columns
+  const columns = options.keepDrilldown || selectedColumnIndex < 0 ? state.columns : state.columns.slice(0, selectedColumnIndex + 1)
 
   return {
+    canvasViewportPreset: canvasViewportPresetForWorkspace(state),
     columns,
     selectedCaseByCoordinate: {
       ...state.selectedCaseByCoordinate,
       [coordinate]: caseName,
     },
     selectedCoordinatePath:
-      selectedColumnIndex >= 0 ? [...state.selectedCoordinatePath.slice(0, selectedColumnIndex), coordinate] : state.selectedCoordinatePath,
+      options.keepDrilldown || selectedColumnIndex < 0
+        ? state.selectedCoordinatePath
+        : [...state.selectedCoordinatePath.slice(0, selectedColumnIndex), coordinate],
     selectedRuntimeInstanceByCoordinate: {},
     selectedViewportPresetByCoordinate: state.selectedViewportPresetByCoordinate,
   }
@@ -241,22 +261,32 @@ export function changeStudioViewportPreset(
   coordinate: string,
   preset: StudioViewportPreset,
 ): StudioWorkspaceState {
-  const { [coordinate]: _currentPreset, ...remainingPresets } = state.selectedViewportPresetByCoordinate
   return {
     ...state,
-    selectedViewportPresetByCoordinate:
-      preset === "content"
-        ? remainingPresets
-        : {
-            ...remainingPresets,
-            [coordinate]: preset,
-          },
+    canvasViewportPreset: preset,
+    selectedViewportPresetByCoordinate: {
+      ...state.selectedViewportPresetByCoordinate,
+      [coordinate]: preset,
+    },
+  }
+}
+
+export function changeStudioCanvasViewportPreset(
+  state: StudioWorkspaceState,
+  preset: StudioViewportPreset,
+): StudioWorkspaceState {
+  return {
+    ...state,
+    canvasViewportPreset: preset,
+    selectedViewportPresetByCoordinate: {},
   }
 }
 
 export function createStudioWorkspaceUrlSearchParams(selection: string | undefined, workspace: StudioWorkspaceState): URLSearchParams {
   const params = new URLSearchParams()
   if (selection) params.set("selection", selection)
+  const canvasViewportPreset = canvasViewportPresetForWorkspace(workspace)
+  if (canvasViewportPreset !== "tablet") params.set("canvasViewport", canvasViewportPreset)
 
   for (const coordinate of workspace.selectedCoordinatePath) {
     params.append("path", coordinate)
@@ -270,7 +300,7 @@ export function createStudioWorkspaceUrlSearchParams(selection: string | undefin
     if (boundaryId) params.append("instance", `${coordinate}:${boundaryId}`)
 
     const viewport = workspace.selectedViewportPresetByCoordinate[coordinate]
-    if (viewport) params.append("viewport", `${coordinate}:${viewport}`)
+    if (viewport !== undefined) params.append("viewport", `${coordinate}:${viewport}`)
   }
 
   return params
@@ -288,17 +318,20 @@ export function createStudioWorkspaceStateFromUrl(
   const selectedCaseByCoordinate = selectedCasesFromUrl(manifest, params, pathCoordinates)
   const selectedRuntimeInstanceByCoordinate = selectedRuntimeInstancesFromUrl(manifest, params, pathCoordinates)
   const selectedViewportPresetByCoordinate = selectedViewportPresetsFromUrl(manifest, params, pathCoordinates)
+  const canvasViewportPreset = canvasViewportPresetFromUrl(params, selectedViewportPresetByCoordinate, selectedCoordinatePath)
   const hasInvalidUrlState =
     Boolean(selection && selection !== resolvedSelection.id) ||
     rawPath.length !== selectedCoordinatePath.length ||
     hasInvalidSelectedCase(manifest, params, pathCoordinates) ||
-    hasInvalidSelectedRuntimeInstance(manifest, params, pathCoordinates)
+    hasInvalidSelectedRuntimeInstance(manifest, params, pathCoordinates) ||
+    hasInvalidCanvasViewportPreset(params)
   const warning = hasInvalidUrlState ? "Invalid Studio URL state was ignored." : undefined
 
   if (selectedCoordinatePath.length === 0) {
     return {
       selection: resolvedSelection.id,
       workspace: {
+        canvasViewportPreset,
         columns: [{ components: resolvedSelection.components }],
         selectedCaseByCoordinate,
         selectedCoordinatePath: [],
@@ -312,6 +345,7 @@ export function createStudioWorkspaceStateFromUrl(
   return {
     selection: resolvedSelection.id,
     workspace: {
+      canvasViewportPreset,
       columns: [
         { components: resolvedSelection.components },
         ...selectedCoordinatePath.slice(1).map((coordinate) => {
@@ -389,15 +423,32 @@ function selectedViewportPresetsFromUrl(
   const selectedPresets: Record<string, StudioViewportPreset> = {}
   for (const value of params.getAll("viewport")) {
     const parsed = parseCoordinateValuePair(manifest, value)
-    if (parsed && pathCoordinates.has(parsed.coordinate) && isStudioViewportPreset(parsed.value) && parsed.value !== "content") {
+    if (parsed && pathCoordinates.has(parsed.coordinate) && isStudioViewportPreset(parsed.value)) {
       selectedPresets[parsed.coordinate] = parsed.value
     }
   }
   return selectedPresets
 }
 
+function canvasViewportPresetFromUrl(
+  params: URLSearchParams,
+  selectedViewportPresetByCoordinate: Record<string, StudioViewportPreset>,
+  selectedCoordinatePath: string[],
+): StudioViewportPreset {
+  const value = params.get("canvasViewport")
+  if (value && isStudioViewportPreset(value)) return value
+
+  const legacyCoordinate = [...selectedCoordinatePath].reverse().find((coordinate) => selectedViewportPresetByCoordinate[coordinate])
+  return legacyCoordinate ? selectedViewportPresetByCoordinate[legacyCoordinate]! : "tablet"
+}
+
 function isStudioViewportPreset(value: string): value is StudioViewportPreset {
-  return value === "content" || value === "phone" || value === "tablet" || value === "desktop"
+  return value === "phone" || value === "tablet" || value === "desktop"
+}
+
+function hasInvalidCanvasViewportPreset(params: URLSearchParams): boolean {
+  const value = params.get("canvasViewport")
+  return Boolean(value && !isStudioViewportPreset(value))
 }
 
 function hasInvalidSelectedCase(manifest: StudioManifest, params: URLSearchParams, pathCoordinates: Set<string>): boolean {
@@ -532,12 +583,17 @@ export function StudioShell(props: StudioShellProps) {
       onSelectComponent={(component, frameState) => {
         commitWorkspace((current) => selectStudioComponent(current, props.manifest, component.coordinate, frameState?.tree ?? []))
       }}
-      onChangeCase={(component, caseName) => {
-        commitWorkspace((current) => changeStudioComponentCase(current, component.coordinate, caseName))
+      onChangeCase={(component, caseName, options) => {
+        commitWorkspace((current) => changeStudioComponentCase(current, component.coordinate, caseName, options))
+      }}
+      onChangeCanvasViewportPreset={(preset) => {
+        commitWorkspace((current) => changeStudioCanvasViewportPreset(current, preset))
       }}
       onChangeSelection={(nextSelection) => {
         const params = new URLSearchParams()
         params.set("selection", nextSelection)
+        const canvasViewportPreset = canvasViewportPresetForWorkspace(workspace)
+        if (canvasViewportPreset !== "tablet") params.set("canvasViewport", canvasViewportPreset)
         const nextUrlState = createStudioWorkspaceStateFromUrl(props.manifest, params)
         selectionRef.current = nextUrlState.selection
         setSelection(nextUrlState.selection)
@@ -631,6 +687,16 @@ export function applyStudioCanvasWheel(current: StudioCanvasTransform, input: St
   }
 }
 
+export function applyStudioCardSelectionAction(
+  current: string | undefined,
+  action: StudioCardSelectionAction,
+): string | undefined {
+  if (action.type === "clear") return undefined
+  if (action.source === "keyboard") return undefined
+  if (action.coordinate === current) return current
+  return action.coordinate
+}
+
 function wheelDeltaModeMultiplier(deltaMode: number): number {
   if (deltaMode === 1) return 0.05
   if (deltaMode === 2) return 1
@@ -639,9 +705,17 @@ function wheelDeltaModeMultiplier(deltaMode: number): number {
 
 export function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
   const selected = resolveSelection(props.manifest, props.selection)
+  const [selectedCardCoordinate, setSelectedCardCoordinate] = React.useState<string | undefined>()
+  const canvasViewportPreset = canvasViewportPresetForWorkspace(props.workspace)
   const [canvas, setCanvas] = React.useState<StudioCanvasTransform>({ x: 40, y: 40, scale: 1 })
   const panRef = React.useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null)
   const canvasViewportRef = React.useRef<HTMLDivElement | null>(null)
+  const selectedCardComponent = selectedCardCoordinate ? findManifestComponent(props.manifest, selectedCardCoordinate) : undefined
+  const selectedCaseName = selectedCardComponent ? selectedStudioCaseName(props.workspace, selectedCardComponent) : undefined
+
+  React.useEffect(() => {
+    setSelectedCardCoordinate(undefined)
+  }, [props.selection])
 
   React.useEffect(() => {
     const viewport = canvasViewportRef.current
@@ -673,7 +747,7 @@ export function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
     <main
       style={{
         display: "grid",
-        gridTemplateColumns: "300px minmax(0, 1fr) 360px",
+        gridTemplateColumns: "210px minmax(0, 1fr)",
         height: "100vh",
         overflow: "hidden",
         background: "#f5f6f8",
@@ -689,7 +763,7 @@ export function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
           boxShadow: "1px 0 0 rgba(255,255,255,0.8) inset",
           minHeight: 0,
           overflow: "auto",
-          padding: "22px 18px",
+          padding: "18px 12px",
         }}
       >
         <div style={{ display: "grid", gap: 3, marginBottom: 22 }}>
@@ -714,7 +788,20 @@ export function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
         ) : null}
         <nav aria-label="GTSX component index" style={{ display: "grid", gap: 16 }}>
           {props.manifest.files.map((file) => (
-            <FileGroupLink file={file} key={file.path} onChangeSelection={props.onChangeSelection} selectedId={selected.id} />
+            <FileGroupLink
+              file={file}
+              key={file.path}
+              manifest={props.manifest}
+              onChangeSelection={
+                props.onChangeSelection
+                  ? (nextSelection) => {
+                      setSelectedCardCoordinate((current) => applyStudioCardSelectionAction(current, { type: "clear" }))
+                      props.onChangeSelection?.(nextSelection)
+                    }
+                  : undefined
+              }
+              selectedId={selected.id}
+            />
           ))}
         </nav>
       </aside>
@@ -725,6 +812,7 @@ export function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
           data-gtsx-canvas-viewport
           onPointerDown={(event) => {
             if ((event.target as HTMLElement).closest("a,button,iframe")) return
+            setSelectedCardCoordinate((current) => applyStudioCardSelectionAction(current, { type: "clear" }))
             panRef.current = {
               pointerId: event.pointerId,
               startX: event.clientX,
@@ -770,6 +858,16 @@ export function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
           role="application"
           tabIndex={0}
         >
+          <ViewportPresetTabs
+            onChange={(preset) => {
+              if (props.onChangeCanvasViewportPreset) {
+                props.onChangeCanvasViewportPreset(preset)
+              } else {
+                for (const component of visibleWorkspaceComponents(props.workspace)) props.onChangeViewportPreset?.(component, preset)
+              }
+            }}
+            selectedPreset={canvasViewportPreset}
+          />
           <div
             data-gtsx-canvas-surface
             style={{
@@ -796,9 +894,19 @@ export function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
                       key={component.coordinate}
                       manifest={props.manifest}
                       onPreviewFrameMount={props.onPreviewFrameMount}
-                      onSelect={props.onSelectComponent}
+                      onSelect={(selectedComponent, frameState, source) => {
+                        setSelectedCardCoordinate((current) =>
+                          applyStudioCardSelectionAction(current, {
+                            type: "activate-card",
+                            coordinate: selectedComponent.coordinate,
+                            source,
+                          }),
+                        )
+                        props.onSelectComponent?.(selectedComponent, frameState)
+                      }}
+                      selected={selectedCardCoordinate === component.coordinate}
                       selectedCaseName={caseName}
-                      viewportPreset={props.workspace.selectedViewportPresetByCoordinate[component.coordinate] ?? "content"}
+                      viewportPreset={canvasViewportPreset}
                       workspace={props.workspace}
                     />
                   )
@@ -806,25 +914,140 @@ export function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
               </section>
             ))}
           </div>
+          {selectedCardComponent && selectedCaseName ? (
+            <SelectedComponentCasesSidebar
+              component={selectedCardComponent}
+              manifest={props.manifest}
+              onChangeCase={props.onChangeCase}
+              selectedCaseName={selectedCaseName}
+            />
+          ) : null}
         </div>
       </section>
-
-      <StudioInspector
-        component={selectedInspectorComponent(props.manifest, props.workspace)}
-        frameStates={props.frameStates}
-        manifest={props.manifest}
-        onChangeCase={props.onChangeCase}
-        onChangeViewportPreset={props.onChangeViewportPreset}
-        onRequestValues={props.onRequestValues}
-        onSelectRuntimeInstance={props.onSelectRuntimeInstance}
-        workspace={props.workspace}
-      />
     </main>
+  )
+}
+
+function ViewportPresetTabs(props: {
+  onChange: (preset: StudioViewportPreset) => void
+  selectedPreset: StudioViewportPreset
+}) {
+  const presets = ["phone", "tablet", "desktop"] satisfies StudioViewportPreset[]
+  const selectedIndex = Math.max(0, presets.indexOf(props.selectedPreset))
+  return (
+    <div
+      aria-label="Viewport"
+      data-gtsx-floating-viewport-controls
+      style={{
+        background: "rgba(255,255,255,0.82)",
+        border: "1px solid rgba(216,222,232,0.92)",
+        borderRadius: 999,
+        boxShadow: "0 10px 30px rgba(31,35,40,0.12)",
+        display: "grid",
+        gridTemplateColumns: `repeat(${presets.length}, 34px)`,
+        left: "50%",
+        padding: 3,
+        position: "absolute",
+        top: 16,
+        transform: "translateX(-50%)",
+        zIndex: 3,
+      }}
+    >
+      <span
+        aria-hidden="true"
+        data-gtsx-viewport-tab-highlight
+        style={{
+          background: "#ffffff",
+          border: "1px solid #d8dee8",
+          borderRadius: 999,
+          boxShadow: "0 3px 10px rgba(31,35,40,0.12)",
+          height: 28,
+          left: 3,
+          position: "absolute",
+          top: 3,
+          transform: `translateX(${selectedIndex * 34}px)`,
+          transition: "transform 120ms ease",
+          width: 32,
+        }}
+      />
+      {presets.map((preset) => (
+        <button
+          aria-label={`Viewport ${preset}`}
+          data-gtsx-viewport-control={preset}
+          key={preset}
+          onClick={() => props.onChange(preset)}
+          style={{
+            alignItems: "center",
+            background: "transparent",
+            border: 0,
+            color: props.selectedPreset === preset ? "#0969da" : "#57606a",
+            cursor: "pointer",
+            display: "grid",
+            height: 28,
+            justifyItems: "center",
+            padding: 0,
+            position: "relative",
+            width: 32,
+            zIndex: 1,
+          }}
+          title={preset}
+          type="button"
+        >
+          <ViewportPresetIcon preset={preset} />
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function ViewportPresetIcon(props: { preset: StudioViewportPreset }) {
+  if (props.preset === "phone") {
+    return (
+      <span
+        aria-hidden="true"
+        style={{
+          border: "1.5px solid currentColor",
+          borderRadius: 3,
+          display: "block",
+          height: 16,
+          width: 9,
+        }}
+      />
+    )
+  }
+
+  if (props.preset === "tablet") {
+    return (
+      <span
+        aria-hidden="true"
+        style={{
+          border: "1.5px solid currentColor",
+          borderRadius: 3,
+          display: "block",
+          height: 15,
+          width: 12,
+        }}
+      />
+    )
+  }
+
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        border: "1.5px solid currentColor",
+        borderRadius: 2,
+        display: "block",
+        height: 11,
+        width: 18,
+      }}
+    />
   )
 }
 
 function FileGroupLink(props: {
   file: StudioManifestFile
+  manifest: StudioManifest
   onChangeSelection?: (selection: string) => void
   selectedId: string
 }) {
@@ -876,19 +1099,17 @@ function FileGroupLink(props: {
                 background: isSelected ? "#eaf4ff" : "#ffffff",
                 border: "1px solid",
                 borderColor: isSelected ? "#8ec5ff" : "#d8dee8",
-                borderRadius: 10,
+                borderRadius: 12,
                 boxShadow: isSelected ? "0 6px 18px rgba(9,105,218,0.12)" : "0 1px 2px rgba(31,35,40,0.04)",
                 color: "#1f2328",
-                display: "grid",
-                gap: 3,
-                padding: "9px 10px",
+                display: "block",
+                overflow: "hidden",
+                padding: 8,
                 textDecoration: "none",
               }}
+              title={component.componentName}
             >
-              <strong style={{ fontSize: 13, lineHeight: 1.25 }}>{component.componentName}</strong>
-              <span style={{ color: "#6b7280", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 10, overflowWrap: "anywhere" }}>
-                {component.coordinate}
-              </span>
+              <SidebarComponentPreview component={component} manifest={props.manifest} />
             </a>
           )
         })}
@@ -897,12 +1118,254 @@ function FileGroupLink(props: {
   )
 }
 
+function SidebarComponentPreview(props: { component: StudioManifestComponent; manifest: StudioManifest }) {
+  const previewUrl = sidebarPreviewUrlForComponent(props.manifest, props.component)
+  const sessionId = sidebarPreviewSessionId(props.component)
+  const containerRef = React.useRef<HTMLDivElement | null>(null)
+  const [shouldLoad, setShouldLoad] = React.useState(false)
+  const [boundaryRect, setBoundaryRect] = React.useState<GBoundaryRect | undefined>()
+
+  React.useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    if (!("IntersectionObserver" in window)) {
+      setShouldLoad(true)
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setShouldLoad(true)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: "500px" },
+    )
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
+
+  React.useEffect(() => {
+    if (!shouldLoad) return
+
+    const handleMessage = (event: MessageEvent) => {
+      const message = event.data as GPreviewProtocolMessage
+      if (!isGPreviewProtocolMessage(message) || message.sessionId !== sessionId || message.type !== "gtsx:tree") return
+
+      setBoundaryRect(findBoundaryNode(message.tree, props.component.coordinate)?.rect)
+    }
+
+    window.addEventListener("message", handleMessage)
+    return () => window.removeEventListener("message", handleMessage)
+  }, [props.component.coordinate, sessionId, shouldLoad])
+
+  const height = boundaryRect ? Math.max(1, Math.ceil((Math.max(0, boundaryRect.y) + boundaryRect.height) * 0.24)) : 96
+
+  return (
+    <div
+      aria-hidden="true"
+      data-gtsx-sidebar-preview-coordinate={props.component.coordinate}
+      data-gtsx-sidebar-preview-loaded={shouldLoad ? "true" : undefined}
+      data-gtsx-viewport-preset="tablet"
+      ref={containerRef}
+      style={{
+        background: "#f5f6f8",
+        height,
+        overflow: "hidden",
+        position: "relative",
+        width: 184.32,
+      }}
+    >
+      {previewUrl && shouldLoad ? (
+        <iframe
+          data-gtsx-sidebar-preview-frame="true"
+          src={previewUrl}
+          style={{
+            background: "transparent",
+            border: 0,
+            height: 1024,
+            left: 0,
+            pointerEvents: "none",
+            position: "absolute",
+            top: 0,
+            transform: "scale(0.24)",
+            transformOrigin: "0 0",
+            width: 768,
+          }}
+          tabIndex={-1}
+          title={`${props.component.componentName} thumbnail`}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function sidebarPreviewUrlForComponent(manifest: StudioManifest, component: StudioManifestComponent): string | undefined {
+  const caseName = component.cases[0]?.name
+  if (!caseName) return undefined
+
+  const params = new URLSearchParams({
+    entry: component.coordinate,
+    case: caseName,
+    chrome: "0",
+    sessionId: sidebarPreviewSessionId(component),
+  })
+  return `${manifest.routes.preview}?${params.toString()}`
+}
+
+function sidebarPreviewSessionId(component: StudioManifestComponent): string {
+  return `sidebar:${component.coordinate}:${component.cases[0]?.name ?? "No cases"}`
+}
+
+function SelectedComponentCasesSidebar(props: {
+  component: StudioManifestComponent
+  manifest: StudioManifest
+  onChangeCase?: (component: StudioManifestComponent, caseName: string, options?: { keepDrilldown?: boolean }) => void
+  selectedCaseName: string
+}) {
+  return (
+    <aside
+      aria-label={`${props.component.componentName} cases`}
+      data-gtsx-case-sidebar={props.component.coordinate}
+      onPointerDown={(event) => event.stopPropagation()}
+      style={{
+        background: "transparent",
+        border: 0,
+        boxShadow: "none",
+        display: "grid",
+        gap: 14,
+        maxHeight: "calc(100% - 96px)",
+        overflow: "auto",
+        padding: 0,
+        position: "absolute",
+        right: 12,
+        top: 72,
+        width: 200,
+        zIndex: 4,
+      }}
+    >
+      {props.component.cases.map((testCase) => (
+        <CasePreviewCard
+          component={props.component}
+          key={testCase.name}
+          manifest={props.manifest}
+          onChangeCase={props.onChangeCase}
+          selected={props.selectedCaseName === testCase.name}
+          testCaseName={testCase.name}
+        />
+      ))}
+    </aside>
+  )
+}
+
+function CasePreviewCard(props: {
+  component: StudioManifestComponent
+  manifest: StudioManifest
+  onChangeCase?: (component: StudioManifestComponent, caseName: string, options?: { keepDrilldown?: boolean }) => void
+  selected: boolean
+  testCaseName: string
+}) {
+  const sessionId = casePreviewSessionId(props.component, props.testCaseName)
+  const previewUrl = casePreviewUrlForComponent(props.manifest, props.component, props.testCaseName)
+  const [boundaryRect, setBoundaryRect] = React.useState<GBoundaryRect | undefined>()
+
+  React.useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const message = event.data as GPreviewProtocolMessage
+      if (!isGPreviewProtocolMessage(message) || message.sessionId !== sessionId || message.type !== "gtsx:tree") return
+
+      setBoundaryRect(findBoundaryNode(message.tree, props.component.coordinate)?.rect)
+    }
+
+    window.addEventListener("message", handleMessage)
+    return () => window.removeEventListener("message", handleMessage)
+  }, [props.component.coordinate, sessionId])
+
+  const height = boundaryRect ? Math.max(64, Math.ceil((Math.max(0, boundaryRect.y) + boundaryRect.height) * 0.25)) : 112
+
+  return (
+    <div
+      data-gtsx-case-preview-card={props.testCaseName}
+      data-gtsx-case-preview-selected={props.selected ? "true" : undefined}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return
+        event.preventDefault()
+        props.onChangeCase?.(props.component, props.testCaseName, { keepDrilldown: true })
+      }}
+      onClick={() => props.onChangeCase?.(props.component, props.testCaseName, { keepDrilldown: true })}
+      role="button"
+      style={{
+        background: "transparent",
+        border: 0,
+        boxShadow: "none",
+        color: "#1f2328",
+        cursor: props.onChangeCase ? "pointer" : "default",
+        display: "grid",
+        gap: 6,
+        padding: 0,
+        textAlign: "left",
+      }}
+      tabIndex={0}
+    >
+      <strong style={{ fontSize: 12, lineHeight: 1.2 }}>{props.testCaseName}</strong>
+      <div
+        aria-hidden="true"
+        data-gtsx-case-preview-frame={props.testCaseName}
+        style={{
+          background: "#f5f6f8",
+          border: "1px solid",
+          borderColor: props.selected ? "#0d99ff" : "transparent",
+          height,
+          overflow: "hidden",
+          position: "relative",
+          width: 192,
+        }}
+      >
+        <iframe
+          src={previewUrl}
+          style={{
+            background: "transparent",
+            border: 0,
+            height: 1024,
+            left: 0,
+            pointerEvents: "none",
+            position: "absolute",
+            top: 0,
+            transform: "scale(0.25)",
+            transformOrigin: "0 0",
+            width: 768,
+          }}
+          tabIndex={-1}
+          title={`${props.component.componentName} ${props.testCaseName} preview`}
+        />
+      </div>
+    </div>
+  )
+}
+
+function casePreviewUrlForComponent(manifest: StudioManifest, component: StudioManifestComponent, caseName: string): string {
+  const params = new URLSearchParams({
+    entry: component.coordinate,
+    case: caseName,
+    chrome: "0",
+    sessionId: casePreviewSessionId(component, caseName),
+  })
+  return `${manifest.routes.preview}?${params.toString()}`
+}
+
+function casePreviewSessionId(component: StudioManifestComponent, caseName: string): string {
+  return `case:${component.coordinate}:${caseName}`
+}
+
 function ComponentCard(props: {
   component: StudioManifestComponent
   frameState?: StudioPreviewFrameState
   manifest: StudioManifest
   onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void
-  onSelect?: (component: StudioManifestComponent, frameState: StudioPreviewFrameState | undefined) => void
+  onSelect?: (component: StudioManifestComponent, frameState: StudioPreviewFrameState | undefined, source: StudioCardSelectionSource) => void
+  selected: boolean
   selectedCaseName: string
   viewportPreset: StudioViewportPreset
   workspace: StudioWorkspaceState
@@ -913,21 +1376,21 @@ function ComponentCard(props: {
   const sessionId = previewSessionId(props.component, defaultCase, caseOverrides)
   const previewSize = previewFrameSize(props.viewportPreset, props.frameState?.size)
   const [measuredSize, setMeasuredSize] = React.useState<{ width: number; height: number } | undefined>()
-  const displaySize = mergePreviewFrameSize(previewSize, measuredSize)
+  const displaySize = mergePreviewFrameSize(previewSize, measuredSize, props.viewportPreset)
   const previewUrl = previewUrlForComponent(props.manifest, props.component, defaultCase, caseOverrides)
-  const cardWidth = typeof displaySize.width === "number" ? displaySize.width + 28 : 520
+  const cardWidth = componentCardLayoutWidth(displaySize, props.frameState?.tree, props.component.coordinate)
+  const selectedBoundaryRect = props.selected ? selectedBoundaryRectForComponent(props.frameState?.tree, props.component.coordinate) : undefined
 
   return (
     <article
+      aria-pressed={props.selected}
       data-gtsx-card-coordinate={props.component.coordinate}
-      data-gtsx-card-select-target="card"
-      onClick={() => props.onSelect?.(props.component, props.frameState)}
+      data-gtsx-card-selected={props.selected ? "true" : undefined}
       onKeyDown={(event) => {
         if (event.key !== "Enter" && event.key !== " ") return
         event.preventDefault()
-        props.onSelect?.(props.component, props.frameState)
+        props.onSelect?.(props.component, props.frameState, "keyboard")
       }}
-      onPointerDown={(event) => event.stopPropagation()}
       role="button"
       style={{
         cursor: props.onSelect ? "pointer" : "default",
@@ -960,9 +1423,13 @@ function ComponentCard(props: {
       ) : (
         <LazyPreviewFrame
           data-gtsx-preview-session-id={sessionId}
+          boundaryRect={selectedBoundaryRectForComponent(props.frameState?.tree, props.component.coordinate)}
+          coordinate={props.component.coordinate}
           onMeasureSize={setMeasuredSize}
+          onSelect={() => props.onSelect?.(props.component, props.frameState, "pointer")}
           onPreviewFrameMount={props.onPreviewFrameMount}
           previewUrl={previewUrl}
+          selectedBoundaryRect={selectedBoundaryRect}
           size={displaySize}
           sessionId={sessionId}
           title={`${props.component.componentName} preview`}
@@ -973,11 +1440,51 @@ function ComponentCard(props: {
   )
 }
 
+export function componentCardLayoutWidth(
+  displaySize: { width: number | string },
+  tree: GBoundaryTreeNode[] | undefined,
+  coordinate: string,
+): number {
+  const rect = tree ? findBoundaryNode(tree, coordinate)?.rect : undefined
+  if (rect) return Math.max(280, Math.ceil(Math.max(0, rect.x) + rect.width))
+  return typeof displaySize.width === "number" ? displaySize.width + 28 : 520
+}
+
+function canvasViewportPresetForWorkspace(workspace: StudioWorkspaceState): StudioViewportPreset {
+  if (workspace.canvasViewportPreset) return workspace.canvasViewportPreset
+
+  const selectedCoordinate = workspace.selectedCoordinatePath.at(-1)
+  if (selectedCoordinate) return workspace.selectedViewportPresetByCoordinate[selectedCoordinate] ?? "tablet"
+  return Object.values(workspace.selectedViewportPresetByCoordinate)[0] ?? "tablet"
+}
+
+function visibleWorkspaceComponents(workspace: StudioWorkspaceState): StudioManifestComponent[] {
+  const seen = new Set<string>()
+  const components: StudioManifestComponent[] = []
+  for (const component of workspace.columns.flatMap((column) => column.components)) {
+    if (seen.has(component.coordinate)) continue
+    seen.add(component.coordinate)
+    components.push(component)
+  }
+  return components
+}
+
+function selectedBoundaryRectForComponent(
+  tree: GBoundaryTreeNode[] | undefined,
+  coordinate: string,
+): GBoundaryRect | undefined {
+  return tree ? findBoundaryNode(tree, coordinate)?.rect : undefined
+}
+
 function LazyPreviewFrame(props: {
   "data-gtsx-preview-session-id": string
+  boundaryRect?: GBoundaryRect
+  coordinate: string
   onMeasureSize?: (size: { width: number; height: number }) => void
+  onSelect?: () => void
   onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void
   previewUrl: string
+  selectedBoundaryRect?: GBoundaryRect
   size: { width: number | string; height: number }
   sessionId: string
   title: string
@@ -986,6 +1493,7 @@ function LazyPreviewFrame(props: {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const [frameElement, setFrameElement] = React.useState<HTMLIFrameElement | null>(null)
   const [shouldLoad, setShouldLoad] = React.useState(false)
+  const layoutHeight = previewFrameLayoutHeight(props.size, props.boundaryRect)
 
   React.useEffect(() => {
     const container = containerRef.current
@@ -1029,9 +1537,9 @@ function LazyPreviewFrame(props: {
       data-gtsx-viewport-preset={props.viewportPreset}
       ref={containerRef}
       style={{
-        height: props.size.height,
-        maxWidth: "100%",
+        height: layoutHeight,
         overflow: "visible",
+        position: "relative",
         width: props.size.width,
       }}
     >
@@ -1051,24 +1559,80 @@ function LazyPreviewFrame(props: {
             props.onPreviewFrameMount?.(props.sessionId, frame)
           }}
           src={props.previewUrl}
-          style={{ background: "transparent", border: 0, height: "100%", pointerEvents: "none", width: "100%" }}
+          style={{
+            background: "transparent",
+            border: 0,
+            height: props.size.height,
+            pointerEvents: "none",
+            position: "absolute",
+            width: props.size.width,
+          }}
           title={props.title}
         />
       ) : null}
+      {props.boundaryRect ? <ComponentBoundsHitTarget coordinate={props.coordinate} onSelect={props.onSelect} rect={props.boundaryRect} /> : null}
+      {props.selectedBoundaryRect ? <SelectedBoundaryOutline rect={props.selectedBoundaryRect} /> : null}
     </div>
+  )
+}
+
+function ComponentBoundsHitTarget(props: { coordinate: string; onSelect?: () => void; rect: GBoundaryRect }) {
+  return (
+    <div
+      aria-hidden="true"
+      data-gtsx-card-select-coordinate={props.coordinate}
+      data-gtsx-card-select-target="component-bounds"
+      onClick={(event) => {
+        event.stopPropagation()
+        props.onSelect?.()
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
+      style={{
+        height: props.rect.height,
+        left: props.rect.x,
+        pointerEvents: "auto",
+        position: "absolute",
+        top: props.rect.y,
+        width: props.rect.width,
+        zIndex: 2,
+      }}
+    />
+  )
+}
+
+function SelectedBoundaryOutline(props: { rect: GBoundaryRect }) {
+  return (
+    <div
+      aria-hidden="true"
+      data-gtsx-selection-outline="true"
+      style={{
+        height: props.rect.height,
+        left: props.rect.x,
+        outline: "1px solid #0d99ff",
+        pointerEvents: "none",
+        position: "absolute",
+        top: props.rect.y,
+        width: props.rect.width,
+        zIndex: 1,
+      }}
+    />
   )
 }
 
 function mergePreviewFrameSize(
   reported: { width: number | string; height: number },
-  measured: { width: number; height: number } | undefined,
+  _measured: { width: number; height: number } | undefined,
+  _preset: StudioViewportPreset,
 ): { width: number | string; height: number } {
-  if (!measured || typeof reported.width !== "number") return reported
+  return reported
+}
 
-  return {
-    width: Math.max(reported.width, measured.width),
-    height: Math.max(reported.height, measured.height),
-  }
+function previewFrameLayoutHeight(
+  displaySize: { height: number },
+  rect: GBoundaryRect | undefined,
+): number {
+  if (!rect) return displaySize.height
+  return Math.max(1, Math.ceil(Math.max(0, rect.y) + rect.height))
 }
 
 function measureIframeContentSize(frame: HTMLIFrameElement): { width: number; height: number } | undefined {
@@ -1104,11 +1668,7 @@ function previewFrameSize(
   if (preset === "phone") return { width: 390, height: 844 }
   if (preset === "tablet") return { width: 768, height: 1024 }
   if (preset === "desktop") return { width: 1280, height: 900 }
-
-  return {
-    width: clamp(reportedSize?.width ?? 320, 280, 960),
-    height: clamp(reportedSize?.height ?? 240, 160, 1200),
-  }
+  return { width: 768, height: clamp(reportedSize?.height ?? 1024, 160, 1200) }
 }
 
 function PreviewError(props: {
@@ -1168,7 +1728,7 @@ function StudioInspector(props: {
   }
 
   const selectedCase = selectedStudioCaseName(props.workspace, props.component)
-  const selectedViewportPreset = props.workspace.selectedViewportPresetByCoordinate[props.component.coordinate] ?? "content"
+  const selectedViewportPreset = props.workspace.selectedViewportPresetByCoordinate[props.component.coordinate] ?? "tablet"
   const instances = runtimeInstancesForSelectedComponent(props.manifest, props.workspace, props.frameStates)
   const selectedValues = selectedRuntimeValuesSnapshot(props.manifest, props.workspace, props.frameStates)
 
@@ -1218,7 +1778,7 @@ function StudioInspector(props: {
       <section style={{ marginTop: 20 }}>
         <h3 style={inspectorSectionTitleStyle}>Viewport</h3>
         <div style={{ display: "grid", gap: 8 }}>
-          {(["content", "phone", "tablet", "desktop"] satisfies StudioViewportPreset[]).map((preset) => (
+          {(["phone", "tablet", "desktop"] satisfies StudioViewportPreset[]).map((preset) => (
             <button
               data-gtsx-viewport-control={preset}
               key={preset}

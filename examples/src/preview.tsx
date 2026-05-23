@@ -166,6 +166,22 @@ function usePreviewProtocolMessages(
 ) {
   React.useEffect(() => {
     if (!sessionId || !enabled) return
+    let scheduledFrame = 0
+
+    const publishLayout = () => {
+      updateBoundaryRects(collector)
+      const tree = collector.getTree()
+      window.parent.postMessage(createGPreviewTreeMessage(sessionId, tree), "*")
+      window.parent.postMessage(createGPreviewResizeMessage(sessionId, previewContentSize(tree)), "*")
+    }
+
+    const scheduleLayoutPublish = () => {
+      if (scheduledFrame) return
+      scheduledFrame = window.requestAnimationFrame(() => {
+        scheduledFrame = 0
+        publishLayout()
+      })
+    }
 
     const handleMessage = (event: MessageEvent) => {
       if (!isRuntimeValuesRequest(event.data, sessionId)) return
@@ -177,12 +193,18 @@ function usePreviewProtocolMessages(
     }
 
     window.addEventListener("message", handleMessage)
-    updateBoundaryRects(collector)
-    const tree = collector.getTree()
+    window.addEventListener("resize", scheduleLayoutPublish)
+    const resizeObserver = "ResizeObserver" in window ? new ResizeObserver(scheduleLayoutPublish) : undefined
+    resizeObserver?.observe(document.documentElement)
+    if (document.body) resizeObserver?.observe(document.body)
     window.parent.postMessage(createGPreviewReadyMessage(sessionId), "*")
-    window.parent.postMessage(createGPreviewTreeMessage(sessionId, tree), "*")
-    window.parent.postMessage(createGPreviewResizeMessage(sessionId, previewContentSize(tree)), "*")
-    return () => window.removeEventListener("message", handleMessage)
+    publishLayout()
+    return () => {
+      window.removeEventListener("message", handleMessage)
+      window.removeEventListener("resize", scheduleLayoutPublish)
+      resizeObserver?.disconnect()
+      if (scheduledFrame) window.cancelAnimationFrame(scheduledFrame)
+    }
   }, [collector, enabled, sessionId])
 }
 
@@ -197,8 +219,8 @@ function previewContentSize(tree: ReturnType<GBoundaryCollector["getTree"]>): { 
 
   const left = Math.min(0, ...rects.map((rect) => rect.x))
   const top = Math.min(0, ...rects.map((rect) => rect.y))
-  const right = Math.max(document.documentElement.scrollWidth, ...rects.map((rect) => rect.x + rect.width))
-  const bottom = Math.max(document.documentElement.scrollHeight, ...rects.map((rect) => rect.y + rect.height))
+  const right = Math.max(...rects.map((rect) => rect.x + rect.width))
+  const bottom = Math.max(...rects.map((rect) => rect.y + rect.height))
 
   return {
     width: Math.ceil(right - left),

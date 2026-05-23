@@ -199,6 +199,115 @@ describe("examples Vite host", () => {
     }
   }, 60_000)
 
+  it("serves the Studio shell from the examples Vite host", async () => {
+    const port = "4325"
+    const server = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port", port], {
+      cwd: examplesRoot,
+      shell: true,
+      stdio: "ignore",
+    })
+    let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
+
+    try {
+      browser = await chromium.launch()
+      const page = await browser.newPage()
+      await gotoWhenReady(page, `http://localhost:${port}/gtsx/studio`)
+
+      await expect.poll(() => page.getByText("GTSX Studio").count()).toBe(1)
+      await expect
+        .poll(() => page.locator('[data-gtsx-sidebar-preview-coordinate="src/cases/stateful/UserCard.g.tsx#default"]').count())
+        .toBeGreaterThan(0)
+      await expect.poll(() => page.locator('[data-gtsx-floating-viewport-controls]').count()).toBe(1)
+      await expect
+        .poll(() =>
+          page.locator(
+            '[data-gtsx-preview-src="/gtsx?entry=src%2Fcases%2Flanguage%2FPrimitiveProps.g.tsx%23default&case=neutralEmpty&chrome=0&sessionId=src%2Fcases%2Flanguage%2FPrimitiveProps.g.tsx%23default%3AneutralEmpty"]',
+          ).count(),
+        )
+        .toBe(1)
+    } finally {
+      await browser?.close()
+      server.kill()
+    }
+  }, 60_000)
+
+  it("keeps viewport tabs working after desktop and sidebar component switches", async () => {
+    const port = "4328"
+    const server = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port", port], {
+      cwd: examplesRoot,
+      shell: true,
+      stdio: "ignore",
+    })
+    let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
+
+    try {
+      browser = await chromium.launch()
+      const page = await browser.newPage()
+      await gotoWhenReady(page, `http://localhost:${port}/gtsx/studio`)
+      await expect.poll(() => page.locator('[data-gtsx-floating-viewport-controls]').count()).toBe(1)
+
+      await page.locator('[data-gtsx-viewport-control="desktop"]').click()
+      await expect.poll(() => canvasViewportPresets(page)).toEqual(["desktop"])
+      await expect.poll(() => canvasIframeWidths(page)).toEqual([1280])
+
+      await page.locator('[data-gtsx-sidebar-preview-coordinate="src/cases/stateful/UserCard.g.tsx#default"]').click()
+      await expect.poll(() => canvasViewportPresets(page)).toEqual(["desktop"])
+      await expect.poll(() => canvasIframeWidths(page)).toEqual([1280])
+      await expect.poll(() => page.url()).toContain("canvasViewport=desktop")
+
+      await page.locator('[data-gtsx-sidebar-preview-coordinate="src/cases/language/PrimitiveProps.g.tsx#default"]').click()
+      await expect.poll(() => canvasViewportPresets(page)).toEqual(["desktop"])
+      await expect.poll(() => canvasIframeWidths(page)).toEqual([1280])
+      await page.locator('[data-gtsx-viewport-control="phone"]').click()
+
+      await expect.poll(() => canvasViewportPresets(page)).toEqual(["phone"])
+      await expect.poll(() => canvasIframeWidths(page)).toEqual([390])
+      await expect.poll(() => page.url()).toContain("canvasViewport=phone")
+    } finally {
+      await browser?.close()
+      server.kill()
+    }
+  }, 60_000)
+
+  it("shows case previews for the highlighted canvas component", async () => {
+    const port = "4329"
+    const server = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port", port], {
+      cwd: examplesRoot,
+      shell: true,
+      stdio: "ignore",
+    })
+    let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
+
+    try {
+      browser = await chromium.launch()
+      const page = await browser.newPage()
+      await gotoWhenReady(page, `http://localhost:${port}/gtsx/studio`)
+      await expect
+        .poll(() => page.locator('[data-gtsx-card-select-coordinate="src/cases/language/PrimitiveProps.g.tsx#default"]').count())
+        .toBe(1)
+
+      await page.locator('[data-gtsx-card-select-coordinate="src/cases/language/PrimitiveProps.g.tsx#default"]').click()
+
+      await expect
+        .poll(() => page.locator('[data-gtsx-case-sidebar="src/cases/language/PrimitiveProps.g.tsx#default"]').count())
+        .toBe(1)
+      await expect.poll(() => casePreviewCardNames(page)).toEqual(["neutralEmpty", "positiveActive", "warningLongText"])
+      await expect.poll(() => selectedCasePreviewCardNames(page)).toEqual(["neutralEmpty"])
+
+      await page.locator('[data-gtsx-case-preview-card="positiveActive"]').click()
+
+      await expect.poll(() => selectedCasePreviewCardNames(page)).toEqual(["positiveActive"])
+      await expect
+        .poll(() => canvasPreviewSources(page))
+        .toContain(
+          "/gtsx?entry=src%2Fcases%2Flanguage%2FPrimitiveProps.g.tsx%23default&case=positiveActive&chrome=0&sessionId=src%2Fcases%2Flanguage%2FPrimitiveProps.g.tsx%23default%3ApositiveActive",
+        )
+    } finally {
+      await browser?.close()
+      server.kill()
+    }
+  }, 60_000)
+
   it("renders chrome-free previews without a shared preview background", async () => {
     const port = "4326"
     const server = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port", port], {
@@ -238,6 +347,45 @@ describe("examples Vite host", () => {
         frameBorder: "none",
         rootBackground: "rgba(0, 0, 0, 0)",
       })
+    } finally {
+      await browser?.close()
+      server.kill()
+    }
+  }, 60_000)
+
+  it("reports fresh boundary rects after preview viewport changes", async () => {
+    const port = "4327"
+    const server = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port", port], {
+      cwd: examplesRoot,
+      shell: true,
+      stdio: "ignore",
+    })
+    let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
+
+    try {
+      browser = await chromium.launch()
+      const page = await browser.newPage({ viewport: { width: 420, height: 700 } })
+      await page.addInitScript(() => {
+        const target = window as unknown as { __gtsxMessages: unknown[] }
+        target.__gtsxMessages = []
+        window.addEventListener("message", (event) => {
+          const message = event.data as { type?: string }
+          if (typeof message?.type === "string" && message.type.startsWith("gtsx:")) {
+            target.__gtsxMessages.push(message)
+          }
+        })
+      })
+      await gotoWhenReady(
+        page,
+        `http://localhost:${port}/gtsx?entry=src/cases/ui/NotificationCenter.g.tsx&case=mixedPriority&sessionId=studio-session-resize&chrome=0`,
+      )
+
+      await expect.poll(() => latestTreeRootRectWidth(page, "studio-session-resize")).toBeGreaterThan(0)
+      const initialWidth = await latestTreeRootRectWidth(page, "studio-session-resize")
+      await page.setViewportSize({ width: 1000, height: 700 })
+
+      await expect.poll(() => treeMessageCount(page, "studio-session-resize")).toBeGreaterThan(1)
+      await expect.poll(() => latestTreeRootRectWidth(page, "studio-session-resize")).toBeGreaterThan(initialWidth)
     } finally {
       await browser?.close()
       server.kill()
@@ -310,4 +458,82 @@ async function gotoWhenReady(page: Awaited<ReturnType<Awaited<ReturnType<typeof 
   }
 
   throw lastError instanceof Error ? lastError : new Error(`Timed out waiting for preview URL: ${url}`)
+}
+
+async function treeMessageCount(
+  page: Awaited<ReturnType<Awaited<ReturnType<typeof chromium.launch>>["newPage"]>>,
+  sessionId: string,
+): Promise<number> {
+  return page.evaluate((expectedSessionId) => {
+    const target = window as unknown as { __gtsxMessages?: Array<{ sessionId?: string; type?: string }> }
+    return target.__gtsxMessages?.filter((message) => message.type === "gtsx:tree" && message.sessionId === expectedSessionId).length ?? 0
+  }, sessionId)
+}
+
+async function canvasViewportPresets(
+  page: Awaited<ReturnType<Awaited<ReturnType<typeof chromium.launch>>["newPage"]>>,
+): Promise<string[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>("[data-gtsx-preview-session-id][data-gtsx-preview-src]")].map(
+      (element) => element.dataset.gtsxViewportPreset ?? "",
+    ),
+  )
+}
+
+async function casePreviewCardNames(
+  page: Awaited<ReturnType<Awaited<ReturnType<typeof chromium.launch>>["newPage"]>>,
+): Promise<string[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>("[data-gtsx-case-preview-card]")].map(
+      (element) => element.dataset.gtsxCasePreviewCard ?? "",
+    ),
+  )
+}
+
+async function selectedCasePreviewCardNames(
+  page: Awaited<ReturnType<Awaited<ReturnType<typeof chromium.launch>>["newPage"]>>,
+): Promise<string[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('[data-gtsx-case-preview-selected="true"]')].map(
+      (element) => element.dataset.gtsxCasePreviewCard ?? "",
+    ),
+  )
+}
+
+async function canvasPreviewSources(
+  page: Awaited<ReturnType<Awaited<ReturnType<typeof chromium.launch>>["newPage"]>>,
+): Promise<string[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>("[data-gtsx-preview-session-id][data-gtsx-preview-src]")].map(
+      (element) => element.dataset.gtsxPreviewSrc ?? "",
+    ),
+  )
+}
+
+async function canvasIframeWidths(
+  page: Awaited<ReturnType<Awaited<ReturnType<typeof chromium.launch>>["newPage"]>>,
+): Promise<number[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll<HTMLIFrameElement>("[data-gtsx-preview-session-id][data-gtsx-preview-src] iframe")].map((frame) =>
+      Math.round(frame.getBoundingClientRect().width),
+    ),
+  )
+}
+
+async function latestTreeRootRectWidth(
+  page: Awaited<ReturnType<Awaited<ReturnType<typeof chromium.launch>>["newPage"]>>,
+  sessionId: string,
+): Promise<number> {
+  return page.evaluate((expectedSessionId) => {
+    const target = window as unknown as {
+      __gtsxMessages?: Array<{
+        sessionId?: string
+        type?: string
+        tree?: Array<{ rect?: { width?: number } }>
+      }>
+    }
+    const treeMessages =
+      target.__gtsxMessages?.filter((message) => message.type === "gtsx:tree" && message.sessionId === expectedSessionId) ?? []
+    return treeMessages.at(-1)?.tree?.[0]?.rect?.width ?? 0
+  }, sessionId)
 }
