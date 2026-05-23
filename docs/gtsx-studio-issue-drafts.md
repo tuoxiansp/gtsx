@@ -12,10 +12,10 @@ Build a framework-neutral Studio manifest provider that scans the configured GTS
 
 ## Acceptance criteria
 
-- [ ] A reusable manifest builder returns stable JSON for the current repository examples and fixture projects.
-- [ ] Manifest entries include component coordinates, component names, file grouping, export names, mode, ordered cases, providers, and analyzer diagnostics.
-- [ ] The manifest builder does not execute user components or include runtime props, scope, provider values, DOM rects, or child trees.
-- [ ] Tests cover valid entries, entries with diagnostics, multiple exports in one file, and stable ordering.
+- [x] A reusable manifest builder returns stable JSON for the current repository examples and fixture projects.
+- [x] Manifest entries include component coordinates, component names, file grouping, export names, mode, ordered cases, providers, and analyzer diagnostics.
+- [x] The manifest builder does not execute user components or include runtime props, scope, provider values, DOM rects, or child trees.
+- [x] Tests cover valid entries, entries with diagnostics, multiple exports in one file, and stable ordering.
 
 ## Blocked by
 
@@ -31,10 +31,10 @@ Add a tracer-bullet project integration that exposes the Studio manifest through
 
 ## Acceptance criteria
 
-- [ ] A playground or fixture exposes `/gtsx/studio/manifest` through a project-local server/API route.
-- [ ] The route returns the manifest generated from the real project files.
-- [ ] The route uses official GTSX server helpers rather than duplicating manifest logic in the playground.
-- [ ] Tests or verification steps prove the route works when the project dev server is running.
+- [x] A playground or fixture exposes `/gtsx/studio/manifest` through a project-local server/API route.
+- [x] The route returns the manifest generated from the real project files.
+- [x] The route uses official GTSX server helpers rather than duplicating manifest logic in the playground.
+- [x] Tests or verification steps prove the route works when the project dev server is running.
 
 ## Blocked by
 
@@ -50,11 +50,11 @@ Add the first Studio app shell and mount it at `/gtsx/studio` in the tracer-bull
 
 ## Acceptance criteria
 
-- [ ] `/gtsx/studio` loads without requiring `gtsx serve`.
-- [ ] The Studio shell fetches or receives the manifest from the project-local provider.
-- [ ] The left sidebar shows file groups and GTSX component exports with stable labels.
-- [ ] Selecting a file group shows all exported GTSX components from that file in the first canvas column.
-- [ ] Selecting one component shows only that component in the first canvas column.
+- [x] `/gtsx/studio` loads without requiring `gtsx serve`.
+- [x] The Studio shell fetches or receives the manifest from the project-local provider.
+- [x] The left sidebar shows file groups and GTSX component exports with stable labels.
+- [x] Selecting a file group shows all exported GTSX components from that file in the first canvas column.
+- [x] Selecting one component shows only that component in the first canvas column.
 
 ## Blocked by
 
@@ -71,11 +71,11 @@ Render each Studio component card through an isolated preview iframe that uses t
 
 ## Acceptance criteria
 
-- [ ] Each first-column component card contains an identity header and an iframe preview.
-- [ ] Iframe URLs are derived from manifest coordinates and selected cases.
-- [ ] The lightweight preview renderer still works without loading the Studio shell or manifest.
-- [ ] The first statically enumerable case is selected by default.
-- [ ] Invalid or missing preview targets render a card-level error state instead of crashing Studio.
+- [x] Each first-column component card contains an identity header and an iframe preview.
+- [x] Iframe URLs are derived from manifest coordinates and selected cases.
+- [x] The lightweight preview renderer still works without loading the Studio shell or manifest.
+- [x] The first statically enumerable case is selected by default.
+- [x] Invalid or missing preview targets render a card-level error state instead of crashing Studio.
 
 ## Blocked by
 
@@ -91,11 +91,11 @@ Extend the GTSX runtime so rendered preview iframes can report GTSX boundary tre
 
 ## Acceptance criteria
 
-- [ ] GTSX boundaries register parent-child relationships through runtime context.
-- [ ] Preview iframes send `gtsx:ready`, `gtsx:tree`, `gtsx:resize`, and `gtsx:error` messages with a protocol version and session ID.
-- [ ] DOM rects are included as positioning metadata but are not used to infer hierarchy.
-- [ ] Ordinary React components and DOM nodes are not reported as drillable Studio nodes.
-- [ ] Tests or verification cover nested GTSX components and stale iframe session messages.
+- [x] GTSX boundaries register parent-child relationships through runtime context.
+- [x] Preview iframes send `gtsx:ready`, `gtsx:tree`, `gtsx:resize`, and `gtsx:error` messages with a protocol version and session ID.
+- [x] DOM rects are included as positioning metadata but are not used to infer hierarchy.
+- [x] Ordinary React components and DOM nodes are not reported as drillable Studio nodes.
+- [x] Tests or verification cover nested GTSX components and stale iframe session messages.
 
 ## Blocked by
 
@@ -111,11 +111,11 @@ Implement horizontal Finder-style component drilldown in the Studio canvas. Clic
 
 ## Acceptance criteria
 
-- [ ] Clicking a card in column `N` discards columns to the right and creates a new `N + 1` child column when children exist.
-- [ ] Child columns contain direct GTSX child components from the selected card's current rendered boundary tree.
-- [ ] Repeated child components are merged by component coordinate in the column.
-- [ ] Components with no GTSX children select normally and do not create an empty drilldown column.
-- [ ] Non-GTSX children remain visible in preview but are not drillable.
+- [x] Clicking a card in column `N` discards columns to the right and creates a new `N + 1` child column when children exist.
+- [x] Child columns contain direct GTSX child components from the selected card's current rendered boundary tree.
+- [x] Repeated child components are merged by component coordinate in the column.
+- [x] Components with no GTSX children select normally and do not create an empty drilldown column.
+- [x] Non-GTSX children remain visible in preview but are not drillable.
 
 ## Blocked by
 
@@ -131,11 +131,11 @@ Add Inspector case controls for the selected GTSX component. Cases should be edi
 
 ## Acceptance criteria
 
-- [ ] The Inspector displays ordered cases for the selected GTSX component.
-- [ ] Changing the selected case rerenders the selected component card.
-- [ ] Changing a case clears columns to the right of the changed component.
-- [ ] Case selection is stored per component coordinate in the current Studio workspace state.
-- [ ] The default case remains the first statically enumerable case when no explicit selection exists.
+- [x] The Inspector displays ordered cases for the selected GTSX component.
+- [x] Changing the selected case rerenders the selected component card.
+- [x] Changing a case clears columns to the right of the changed component.
+- [x] Case selection is stored per component coordinate in the current Studio workspace state.
+- [x] The default case remains the first statically enumerable case when no explicit selection exists.
 
 ## Blocked by
 

@@ -88,12 +88,64 @@ describe("examples Vite host", () => {
     try {
       browser = await chromium.launch()
       const page = await browser.newPage()
+      await page.addInitScript(() => {
+        const target = window as unknown as { __gtsxMessages: unknown[] }
+        target.__gtsxMessages = []
+        window.addEventListener("message", (event) => {
+          const message = event.data as { type?: string }
+          if (typeof message?.type === "string" && message.type.startsWith("gtsx:")) {
+            target.__gtsxMessages.push(message)
+          }
+        })
+      })
       await gotoWhenReady(
         page,
-        `http://localhost:${port}/gtsx?entry=src/cases/stateful/DashboardShell.g.tsx&case=stagingReview&gcase=${encodeURIComponent("src/cases/stateful/NotificationBell.g.tsx#default:expanded")}`,
+        `http://localhost:${port}/gtsx?entry=src/cases/stateful/DashboardShell.g.tsx&case=stagingReview&sessionId=studio-session-1&gcase=${encodeURIComponent("src/cases/stateful/NotificationBell.g.tsx#default:expanded")}`,
       )
 
       await expect.poll(() => page.getByText("Preview capture ready").count()).toBe(1)
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const target = window as unknown as { __gtsxMessages?: Array<{ type?: string }> }
+            return target.__gtsxMessages?.map((message) => message.type) ?? []
+          }),
+        )
+        .toEqual(expect.arrayContaining(["gtsx:ready", "gtsx:tree", "gtsx:resize"]))
+
+      const treeMessage = await page.evaluate(() => {
+        const target = window as unknown as { __gtsxMessages?: Array<{ type?: string }> }
+        return target.__gtsxMessages?.find((message) => message.type === "gtsx:tree")
+      })
+      expect(treeMessage).toMatchObject({
+        protocolVersion: 1,
+        sessionId: "studio-session-1",
+        tree: [
+          {
+            coordinate: "src/cases/stateful/DashboardShell.g.tsx#default",
+            rect: {
+              height: expect.any(Number),
+              width: expect.any(Number),
+              x: expect.any(Number),
+              y: expect.any(Number),
+            },
+            children: [
+              {
+                coordinate: "src/cases/stateful/NotificationBell.g.tsx#default",
+                rect: {
+                  height: expect.any(Number),
+                  width: expect.any(Number),
+                  x: expect.any(Number),
+                  y: expect.any(Number),
+                },
+              },
+            ],
+          },
+        ],
+      })
+      expect(
+        (treeMessage as { tree: Array<{ rect?: { width: number; height: number } }> }).tree[0]?.rect?.width,
+      ).toBeGreaterThan(0)
     } finally {
       await browser?.close()
       server.kill()

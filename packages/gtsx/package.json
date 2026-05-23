@@ -9,6 +9,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./studio/server": {
+      "types": "./dist/studio-manifest.d.ts",
+      "import": "./dist/studio-manifest.js"
+    },
+    "./studio/client": {
+      "types": "./dist/studio-client.d.ts",
+      "import": "./dist/studio-client.js"
     }
   },
   "files": [

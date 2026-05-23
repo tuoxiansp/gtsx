@@ -6,32 +6,113 @@ type PreviewRuntimeValue = {
   scope?: unknown
   providerValues: Map<AnyGProvider, unknown>
   caseOverrides: Map<string, string>
+  boundaryCollector?: GBoundaryCollector
 }
 
 type AnyComponentCases<Props> = Record<string, GCase<Props> | GCase<Props, unknown>>
 
 const PreviewRuntimeContext = React.createContext<PreviewRuntimeValue | null>(null)
 const ActiveComponentCaseContext = React.createContext<GCase<unknown, unknown> | null>(null)
+const BoundaryParentContext = React.createContext<string | null>(null)
+
+type FlatBoundaryNode = {
+  id: string
+  coordinate: string
+  parentId: string | null
+  rect?: GBoundaryRect
+}
+
+export type GBoundaryRect = {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export type GBoundaryTreeNode = {
+  id: string
+  coordinate: string
+  rect?: GBoundaryRect
+  children: GBoundaryTreeNode[]
+}
+
+export type GBoundaryCollector = {
+  reset(): void
+  registerBoundary(coordinate: string, parentId: string | null): string
+  updateBoundaryRect(id: string, rect: GBoundaryRect): void
+  getTree(): GBoundaryTreeNode[]
+}
 
 export type GPreviewProviderProps = {
   scope?: unknown
   providerValues?: Map<AnyGProvider, unknown>
   caseOverrides?: Map<string, string>
+  boundaryCollector?: GBoundaryCollector
   children: React.ReactNode
 }
 
 export function GPreviewProvider(props: GPreviewProviderProps) {
+  props.boundaryCollector?.reset()
+
   return (
     <PreviewRuntimeContext.Provider
       value={{
         scope: props.scope,
         providerValues: props.providerValues ?? new Map(),
         caseOverrides: props.caseOverrides ?? new Map(),
+        boundaryCollector: props.boundaryCollector,
       }}
     >
       {props.children}
     </PreviewRuntimeContext.Provider>
   )
+}
+
+export function createGBoundaryCollector(): GBoundaryCollector {
+  let nodes: FlatBoundaryNode[] = []
+
+  return {
+    reset() {
+      nodes = []
+    },
+    registerBoundary(coordinate, parentId) {
+      const id = `gtsx-boundary:${nodes.length}`
+      nodes.push({ id, coordinate, parentId })
+      return id
+    },
+    updateBoundaryRect(id, rect) {
+      const node = nodes.find((candidate) => candidate.id === id)
+      if (node) {
+        node.rect = rect
+      }
+    },
+    getTree() {
+      const nodesById = new Map<string, GBoundaryTreeNode>()
+      for (const node of nodes) {
+        nodesById.set(node.id, {
+          id: node.id,
+          coordinate: node.coordinate,
+          ...(node.rect ? { rect: node.rect } : {}),
+          children: [],
+        })
+      }
+
+      const roots: GBoundaryTreeNode[] = []
+      for (const node of nodes) {
+        const treeNode = nodesById.get(node.id)
+        if (!treeNode) continue
+
+        const parent = node.parentId ? nodesById.get(node.parentId) : undefined
+        if (parent) {
+          parent.children.push(treeNode)
+        } else {
+          roots.push(treeNode)
+        }
+      }
+
+      return roots
+    },
+  }
 }
 
 export function createGScope<Args extends unknown[], Scope>(
@@ -69,14 +150,24 @@ export function defineGComponent<Props extends object>(
 ): React.ComponentType<Props> & { cases?: AnyComponentCases<Props> } {
   const GComponentBoundary = ((props: Props) => {
     const preview = React.useContext(PreviewRuntimeContext)
+    const parentBoundaryId = React.useContext(BoundaryParentContext)
+    const boundaryId = preview?.boundaryCollector?.registerBoundary(coordinate, parentBoundaryId) ?? null
     const activeCase = preview ? resolveComponentCase(coordinate, GComponentBoundary.cases, preview) : null
-
-    if (!activeCase) return <Component {...props} />
-
-    return (
+    const rendered = activeCase ? (
       <ActiveComponentCaseContext.Provider value={activeCase as GCase<unknown, unknown>}>
         <Component {...props} />
       </ActiveComponentCaseContext.Provider>
+    ) : (
+      <Component {...props} />
+    )
+
+    if (!boundaryId) return rendered
+    return (
+      <BoundaryParentContext.Provider value={boundaryId}>
+        <div data-gtsx-boundary-id={boundaryId} style={{ display: "contents" }}>
+          {rendered}
+        </div>
+      </BoundaryParentContext.Provider>
     )
   }) as React.ComponentType<Props> & { cases?: AnyComponentCases<Props>; displayName?: string }
 

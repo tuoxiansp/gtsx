@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   GPreviewProvider,
+  createGBoundaryCollector,
   createGScope,
   defineGComponent,
   useGContext,
@@ -121,5 +122,81 @@ describe("GTSX runtime", () => {
         </GPreviewProvider>,
       ),
     ).toThrow('Unknown GTSX case "missing" for src/Child.g.tsx#Child.')
+  })
+
+  it("records GTSX boundary parent-child relationships through runtime context", () => {
+    const collector = createGBoundaryCollector()
+
+    function OrdinaryReactChild() {
+      return <em>ordinary child</em>
+    }
+
+    const Child = defineGComponent("src/Child.g.tsx#default", function ChildImpl() {
+      return <span>child</span>
+    })
+
+    const Parent = defineGComponent("src/Parent.g.tsx#default", function ParentImpl() {
+      return (
+        <section>
+          <OrdinaryReactChild />
+          <Child />
+        </section>
+      )
+    })
+
+    renderToStaticMarkup(
+      <GPreviewProvider boundaryCollector={collector}>
+        <Parent />
+      </GPreviewProvider>,
+    )
+
+    expect(collector.getTree()).toEqual([
+      {
+        id: "gtsx-boundary:0",
+        coordinate: "src/Parent.g.tsx#default",
+        children: [
+          {
+            id: "gtsx-boundary:1",
+            coordinate: "src/Child.g.tsx#default",
+            children: [],
+          },
+        ],
+      },
+    ])
+  })
+
+  it("adds DOM rects as positioning metadata without using them for hierarchy", () => {
+    const collector = createGBoundaryCollector()
+    const parentId = collector.registerBoundary("src/Parent.g.tsx#default", null)
+    const childId = collector.registerBoundary("src/Child.g.tsx#default", parentId)
+
+    collector.updateBoundaryRect(childId, {
+      x: 10,
+      y: 20,
+      width: 120,
+      height: 40,
+    })
+    collector.updateBoundaryRect(parentId, {
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 100,
+    })
+
+    expect(collector.getTree()).toEqual([
+      {
+        id: "gtsx-boundary:0",
+        coordinate: "src/Parent.g.tsx#default",
+        rect: { x: 0, y: 0, width: 200, height: 100 },
+        children: [
+          {
+            id: "gtsx-boundary:1",
+            coordinate: "src/Child.g.tsx#default",
+            rect: { x: 10, y: 20, width: 120, height: 40 },
+            children: [],
+          },
+        ],
+      },
+    ])
   })
 })
