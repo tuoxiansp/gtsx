@@ -7,6 +7,7 @@ import {
   StudioWorkspaceView,
   applyStudioPreviewMessage,
   applyStudioPreviewMessageToFrameStates,
+  applyStudioCanvasWheel,
   changeStudioComponentCase,
   changeStudioViewportPreset,
   createStudioRuntimeValuesRequest,
@@ -40,6 +41,81 @@ describe("GTSX Studio shell", () => {
     expect(cardCoordinates(html)).toEqual(["src/MultiExport.g.tsx#NamedBadge"])
   })
 
+  it("renders the canvas without top chrome or redundant card metadata", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="file:src/MultiExport.g.tsx" />)
+
+    expect(html).not.toContain("Drag to pan")
+    expect(html).not.toContain("data-gtsx-canvas-control")
+    expect(html).not.toContain(">Root<")
+    expect(html).not.toContain(">Level 2<")
+    expect(html).not.toContain(">2 components<")
+    expect(html).not.toContain(">ready</span>")
+    expect(html).not.toContain(">defaultReady</span>")
+    expect(html).toContain("height:100%")
+    expect(html).toContain(">NamedBadge<")
+    expect(html).toContain(">DefaultBadge<")
+  })
+
+  it("contains trackpad browser gestures inside the canvas viewport", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="component:src/UserCard.g.tsx#default" />)
+
+    expect(html).toContain('data-gtsx-canvas-viewport="true"')
+    expect(html).toContain("touch-action:none")
+    expect(html).toContain("overscroll-behavior:contain")
+  })
+
+  it("zooms the canvas quickly around the trackpad focal point", () => {
+    const next = applyStudioCanvasWheel(
+      { x: 40, y: 40, scale: 1 },
+      {
+        clientX: 200,
+        clientY: 160,
+        ctrlKey: true,
+        deltaMode: 0,
+        deltaX: 0,
+        deltaY: -10,
+        metaKey: false,
+        viewportLeft: 0,
+        viewportTop: 0,
+      },
+    )
+
+    expect(next.scale).toBeGreaterThan(1.1)
+    expect(screenPointForCanvasPoint(next, { x: 160, y: 120 })).toEqual({
+      x: expect.closeTo(200),
+      y: expect.closeTo(160),
+    })
+  })
+
+  it("pans the canvas with two-finger wheel movement", () => {
+    expect(
+      applyStudioCanvasWheel(
+        { x: 40, y: 40, scale: 1 },
+        {
+          clientX: 0,
+          clientY: 0,
+          ctrlKey: false,
+          deltaMode: 0,
+          deltaX: 24,
+          deltaY: -12,
+          metaKey: false,
+          viewportLeft: 0,
+          viewportTop: 0,
+        },
+      ),
+    ).toEqual({ x: 16, y: 52, scale: 1 })
+  })
+
+  it("uses the whole UI card surface as the component selection target", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="component:src/UserCard.g.tsx#default" />)
+
+    expect(cardSelectTargets(html)).toEqual(["src/UserCard.g.tsx#default"])
+    expect(cardHtml(html, "src/UserCard.g.tsx#default")).not.toContain("<button")
+  })
+
   it("restores the initial Studio workspace from URL search params", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
     const html = renderToStaticMarkup(
@@ -68,8 +144,8 @@ describe("GTSX Studio shell", () => {
       "/gtsx?entry=src%2FMultiExport.g.tsx%23default&case=defaultReady&chrome=0&sessionId=src%2FMultiExport.g.tsx%23default%3AdefaultReady",
     ])
     expect(iframeSources(html)).toEqual([])
-    expect(html).toContain(">ready</span>")
-    expect(html).toContain(">defaultReady</span>")
+    expect(previewFrameHtml(html, "src/MultiExport.g.tsx#NamedBadge:ready")).not.toContain("background:#ffffff")
+    expect(previewFrameHtml(html, "src/MultiExport.g.tsx#NamedBadge:ready")).not.toContain("border:1px solid #e5e7eb")
   })
 
   it("sizes preview iframes from runtime resize messages", () => {
@@ -413,7 +489,7 @@ describe("GTSX Studio shell", () => {
     expect(previewSources(html)).toEqual([
       "/gtsx?entry=src%2FBadge.g.tsx%23default&case=warning&chrome=0&sessionId=src%2FBadge.g.tsx%23default%3Awarning",
     ])
-    expect(html).toContain(">warning</span>")
+    expect(caseControlNames(html)).toEqual(["neutral", "warning"])
   })
 
   it("passes selected child cases as gcase overrides to ancestor preview URLs", () => {
@@ -716,12 +792,39 @@ function cardCoordinates(html: string): string[] {
   return [...html.matchAll(/data-gtsx-card-coordinate="([^"]+)"/g)].map((match) => match[1] ?? "")
 }
 
+function screenPointForCanvasPoint(transform: { x: number; y: number; scale: number }, point: { x: number; y: number }) {
+  return {
+    x: transform.x + point.x * transform.scale,
+    y: transform.y + point.y * transform.scale,
+  }
+}
+
+function cardSelectTargets(html: string): string[] {
+  return [...html.matchAll(/<article[^>]+data-gtsx-card-coordinate="([^"]+)"[^>]+data-gtsx-card-select-target="card"/g)].map(
+    (match) => match[1] ?? "",
+  )
+}
+
+function cardHtml(html: string, coordinate: string): string {
+  return (
+    html.match(new RegExp(`<article[^>]+data-gtsx-card-coordinate="${escapeRegExp(coordinate)}"[\\s\\S]*?</article>`))?.[0] ?? ""
+  )
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
 function iframeSources(html: string): string[] {
   return [...html.matchAll(/<iframe[^>]+src="([^"]+)"/g)].map((match) => (match[1] ?? "").replaceAll("&amp;", "&"))
 }
 
 function previewSources(html: string): string[] {
   return [...html.matchAll(/data-gtsx-preview-src="([^"]+)"/g)].map((match) => (match[1] ?? "").replaceAll("&amp;", "&"))
+}
+
+function previewFrameHtml(html: string, sessionId: string): string {
+  return html.match(new RegExp(`<div[^>]+data-gtsx-preview-session-id="${escapeRegExp(sessionId)}"[\\s\\S]*?</div>`))?.[0] ?? ""
 }
 
 function columnCount(html: string): number {

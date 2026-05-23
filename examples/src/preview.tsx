@@ -106,6 +106,13 @@ function LoadedEntryPreview(props: {
   const selectedCases = props.caseName ? [[props.caseName, cases[props.caseName]] as const] : Object.entries(cases)
   const hasRenderableCases = selectedCases.length > 0 && selectedCases.every(([, testCase]) => testCase)
 
+  React.useEffect(() => {
+    document.documentElement.dataset.gtsxPreviewChrome = props.showChrome ? "1" : "0"
+    return () => {
+      delete document.documentElement.dataset.gtsxPreviewChrome
+    }
+  }, [props.showChrome])
+
   usePreviewProtocolMessages(props.sessionId, collector, hasRenderableCases)
 
   if (!hasRenderableCases) {
@@ -114,7 +121,7 @@ function LoadedEntryPreview(props: {
 
   const Component = props.component
   return (
-    <main className="gtsx-contact-sheet">
+    <main className="gtsx-contact-sheet" data-gtsx-preview-chrome={props.showChrome ? "1" : "0"}>
       {selectedCases.map(([name, testCase]) => (
         <section className="gtsx-case-frame" key={name}>
           {props.showChrome ? (

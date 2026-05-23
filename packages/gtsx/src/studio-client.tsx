@@ -46,6 +46,24 @@ export type StudioWorkspaceState = {
   selectedViewportPresetByCoordinate: Record<string, StudioViewportPreset>
 }
 
+export type StudioCanvasTransform = {
+  x: number
+  y: number
+  scale: number
+}
+
+export type StudioCanvasWheelInput = {
+  clientX: number
+  clientY: number
+  ctrlKey: boolean
+  deltaMode: number
+  deltaX: number
+  deltaY: number
+  metaKey: boolean
+  viewportLeft: number
+  viewportTop: number
+}
+
 export type StudioViewportPreset = "content" | "phone" | "tablet" | "desktop"
 
 export type StudioWorkspaceViewProps = {
@@ -574,19 +592,6 @@ function pushStudioWorkspaceUrlState(selection: string | undefined, workspace: S
   }
 }
 
-const canvasControlStyle: React.CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid #cdd6e1",
-  borderRadius: 8,
-  boxShadow: "0 1px 1px rgba(31,35,40,0.04)",
-  color: "#1f2328",
-  cursor: "pointer",
-  fontSize: 12,
-  fontWeight: 650,
-  minHeight: 30,
-  padding: "0 10px",
-}
-
 const inspectorSectionTitleStyle: React.CSSProperties = {
   color: "#4b5563",
   fontSize: 11,
@@ -600,14 +605,68 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
+const studioCanvasMinScale = 0.2
+const studioCanvasMaxScale = 2.5
+
+export function applyStudioCanvasWheel(current: StudioCanvasTransform, input: StudioCanvasWheelInput): StudioCanvasTransform {
+  if (!input.ctrlKey && !input.metaKey) {
+    return {
+      ...current,
+      x: current.x - input.deltaX,
+      y: current.y - input.deltaY,
+    }
+  }
+
+  const viewportX = input.clientX - input.viewportLeft
+  const viewportY = input.clientY - input.viewportTop
+  const focalCanvasX = (viewportX - current.x) / current.scale
+  const focalCanvasY = (viewportY - current.y) / current.scale
+  const wheelDelta = -input.deltaY * wheelDeltaModeMultiplier(input.deltaMode) * 10
+  const nextScale = clamp(current.scale * 2 ** wheelDelta, studioCanvasMinScale, studioCanvasMaxScale)
+
+  return {
+    scale: nextScale,
+    x: viewportX - focalCanvasX * nextScale,
+    y: viewportY - focalCanvasY * nextScale,
+  }
+}
+
+function wheelDeltaModeMultiplier(deltaMode: number): number {
+  if (deltaMode === 1) return 0.05
+  if (deltaMode === 2) return 1
+  return 0.002
+}
+
 export function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
   const selected = resolveSelection(props.manifest, props.selection)
-  const [canvas, setCanvas] = React.useState({ x: 40, y: 40, scale: 1 })
+  const [canvas, setCanvas] = React.useState<StudioCanvasTransform>({ x: 40, y: 40, scale: 1 })
   const panRef = React.useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null)
-  const zoomLabel = `${Math.round(canvas.scale * 100)}%`
+  const canvasViewportRef = React.useRef<HTMLDivElement | null>(null)
 
-  const zoomCanvas = React.useCallback((nextScale: number) => {
-    setCanvas((current) => ({ ...current, scale: clamp(nextScale, 0.5, 1.6) }))
+  React.useEffect(() => {
+    const viewport = canvasViewportRef.current
+    if (!viewport) return
+
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault()
+      const rect = viewport.getBoundingClientRect()
+      setCanvas((current) =>
+        applyStudioCanvasWheel(current, {
+          clientX: event.clientX,
+          clientY: event.clientY,
+          ctrlKey: event.ctrlKey,
+          deltaMode: event.deltaMode,
+          deltaX: event.deltaX,
+          deltaY: event.deltaY,
+          metaKey: event.metaKey,
+          viewportLeft: rect.left,
+          viewportTop: rect.top,
+        }),
+      )
+    }
+
+    viewport.addEventListener("wheel", handleWheel, { passive: false })
+    return () => viewport.removeEventListener("wheel", handleWheel)
   }, [])
 
   return (
@@ -660,36 +719,7 @@ export function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
         </nav>
       </aside>
 
-      <section style={{ display: "grid", gridTemplateRows: "44px minmax(0, 1fr)", minWidth: 0 }}>
-        <div
-          style={{
-            alignItems: "center",
-            background: "rgba(255,255,255,0.86)",
-            borderBottom: "1px solid #e4e7ec",
-            display: "flex",
-            justifyContent: "space-between",
-            padding: "0 14px",
-          }}
-        >
-          <div style={{ alignItems: "center", display: "flex", gap: 10 }}>
-            <strong style={{ fontSize: 13 }}>Canvas</strong>
-            <span style={{ color: "#8b949e", fontSize: 11 }}>Drag to pan</span>
-          </div>
-          <div style={{ alignItems: "center", display: "flex", gap: 8 }}>
-            <button data-gtsx-canvas-control="zoom-out" onClick={() => zoomCanvas(canvas.scale - 0.1)} style={canvasControlStyle} type="button">
-              -
-            </button>
-            <span style={{ color: "#4b5563", fontSize: 12, fontVariantNumeric: "tabular-nums", minWidth: 42, textAlign: "center" }}>
-              {zoomLabel}
-            </span>
-            <button data-gtsx-canvas-control="zoom-in" onClick={() => zoomCanvas(canvas.scale + 0.1)} style={canvasControlStyle} type="button">
-              +
-            </button>
-            <button data-gtsx-canvas-control="reset" onClick={() => setCanvas({ x: 40, y: 40, scale: 1 })} style={canvasControlStyle} type="button">
-              Reset
-            </button>
-          </div>
-        </div>
+      <section style={{ display: "grid", minHeight: 0, minWidth: 0 }}>
         <div
           aria-label="GTSX canvas viewport"
           data-gtsx-canvas-viewport
@@ -702,7 +732,11 @@ export function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
               originX: canvas.x,
               originY: canvas.y,
             }
-            event.currentTarget.setPointerCapture(event.pointerId)
+            try {
+              event.currentTarget.setPointerCapture(event.pointerId)
+            } catch {
+              // Browsers can cancel trackpad pointer streams before React handles them.
+            }
           }}
           onPointerMove={(event) => {
             const pan = panRef.current
@@ -719,22 +753,16 @@ export function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
           onPointerCancel={(event) => {
             if (panRef.current?.pointerId === event.pointerId) panRef.current = null
           }}
-          onWheel={(event) => {
-            event.preventDefault()
-            if (event.ctrlKey || event.metaKey) {
-              zoomCanvas(canvas.scale - event.deltaY * 0.001)
-              return
-            }
-
-            setCanvas((current) => ({ ...current, x: current.x - event.deltaX, y: current.y - event.deltaY }))
-          }}
+          ref={canvasViewportRef}
           style={{
             backgroundColor: "#f5f6f8",
             backgroundImage:
               "radial-gradient(circle at 1px 1px, rgba(31,35,40,0.10) 1px, transparent 0)",
             backgroundSize: "24px 24px",
             cursor: panRef.current ? "grabbing" : "grab",
+            height: "100%",
             minHeight: 0,
+            overscrollBehavior: "contain",
             overflow: "hidden",
             position: "relative",
             touchAction: "none",
@@ -758,21 +786,6 @@ export function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
           >
             {props.workspace.columns.map((column, columnIndex) => (
               <section data-gtsx-column-index={columnIndex} key={columnIndex} style={{ display: "grid", gap: 10, width: "max-content" }}>
-                <div
-                  style={{
-                    alignItems: "center",
-                    color: "#8b949e",
-                    display: "flex",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    justifyContent: "space-between",
-                    letterSpacing: 0.8,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  <span>{columnIndex === 0 ? "Root" : `Level ${columnIndex + 1}`}</span>
-                  <span>{column.components.length} component{column.components.length === 1 ? "" : "s"}</span>
-                </div>
                 {column.components.map((component) => {
                   const caseName = selectedStudioCaseName(props.workspace, component)
                   const sessionId = previewSessionId(component, caseName, previewCaseOverridesForComponent(props.workspace, component))
@@ -907,50 +920,36 @@ function ComponentCard(props: {
   return (
     <article
       data-gtsx-card-coordinate={props.component.coordinate}
+      data-gtsx-card-select-target="card"
+      onClick={() => props.onSelect?.(props.component, props.frameState)}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return
+        event.preventDefault()
+        props.onSelect?.(props.component, props.frameState)
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
+      role="button"
       style={{
-        background: "#ffffff",
-        border: "1px solid #dfe3ea",
-        borderRadius: 10,
-        boxShadow: "0 10px 28px rgba(31,35,40,0.08), 0 1px 2px rgba(31,35,40,0.06)",
-        overflow: "hidden",
+        cursor: props.onSelect ? "pointer" : "default",
+        display: "grid",
+        gap: 6,
         width: cardWidth,
       }}
+      tabIndex={0}
     >
-      <button
-        onClick={() => props.onSelect?.(props.component, props.frameState)}
+      <strong
         style={{
-          background: "transparent",
-          border: 0,
           color: "inherit",
-          cursor: props.onSelect ? "pointer" : "default",
-          display: "block",
-          margin: 0,
-          padding: "10px 12px",
-          textAlign: "left",
-          width: "100%",
+          fontSize: 13,
+          letterSpacing: -0.05,
+          lineHeight: 1.2,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
         }}
-        type="button"
       >
-        <header style={{ alignItems: "center", display: "flex", gap: 10, justifyContent: "space-between" }}>
-          <strong style={{ fontSize: 13, letterSpacing: -0.05, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {props.component.componentName}
-          </strong>
-          <span
-            style={{
-              background: "#f3f4f6",
-              border: "1px solid #e5e7eb",
-              borderRadius: 999,
-              color: "#4b5563",
-              flex: "0 0 auto",
-              fontSize: 11,
-              fontWeight: 650,
-              padding: "3px 8px",
-            }}
-          >
-            {defaultCase}
-          </span>
-        </header>
-      </button>
+        {props.component.componentName}
+      </strong>
       {previewError || props.frameState?.error ? (
         <PreviewError
           caseName={defaultCase}
@@ -959,18 +958,16 @@ function ComponentCard(props: {
           previewUrl={previewUrl}
         />
       ) : (
-        <div style={{ padding: "0 14px 14px" }}>
-          <LazyPreviewFrame
-            data-gtsx-preview-session-id={sessionId}
-            onMeasureSize={setMeasuredSize}
-            onPreviewFrameMount={props.onPreviewFrameMount}
-            previewUrl={previewUrl}
-            size={displaySize}
-            sessionId={sessionId}
-            title={`${props.component.componentName} preview`}
-            viewportPreset={props.viewportPreset}
-          />
-        </div>
+        <LazyPreviewFrame
+          data-gtsx-preview-session-id={sessionId}
+          onMeasureSize={setMeasuredSize}
+          onPreviewFrameMount={props.onPreviewFrameMount}
+          previewUrl={previewUrl}
+          size={displaySize}
+          sessionId={sessionId}
+          title={`${props.component.componentName} preview`}
+          viewportPreset={props.viewportPreset}
+        />
       )}
     </article>
   )
@@ -1032,12 +1029,9 @@ function LazyPreviewFrame(props: {
       data-gtsx-viewport-preset={props.viewportPreset}
       ref={containerRef}
       style={{
-        background: "#ffffff",
-        border: "1px solid #e5e7eb",
-        borderRadius: 8,
         height: props.size.height,
         maxWidth: "100%",
-        overflow: "hidden",
+        overflow: "visible",
         width: props.size.width,
       }}
     >
@@ -1057,7 +1051,7 @@ function LazyPreviewFrame(props: {
             props.onPreviewFrameMount?.(props.sessionId, frame)
           }}
           src={props.previewUrl}
-          style={{ background: "#ffffff", border: 0, height: "100%", width: "100%" }}
+          style={{ background: "transparent", border: 0, height: "100%", pointerEvents: "none", width: "100%" }}
           title={props.title}
         />
       ) : (

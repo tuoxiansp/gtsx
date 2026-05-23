@@ -199,6 +199,51 @@ describe("examples Vite host", () => {
     }
   }, 60_000)
 
+  it("renders chrome-free previews without a shared preview background", async () => {
+    const port = "4326"
+    const server = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port", port], {
+      cwd: examplesRoot,
+      shell: true,
+      stdio: "ignore",
+    })
+    let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
+
+    try {
+      browser = await chromium.launch()
+      const page = await browser.newPage()
+      await gotoWhenReady(
+        page,
+        `http://localhost:${port}/gtsx?entry=${encodeURIComponent("src/cases/stateful/UserCard.g.tsx#default")}&case=ready&chrome=0`,
+      )
+
+      await expect.poll(() => page.getByText("Ada Lovelace").count()).toBe(1)
+      expect(
+        await page.evaluate(() => {
+          const root = getComputedStyle(document.documentElement)
+          const body = getComputedStyle(document.body)
+          const frame = document.querySelector<HTMLElement>(".gtsx-case-frame")
+          const caseBody = document.querySelector<HTMLElement>(".gtsx-case-body")
+          return {
+            bodyBackground: body.backgroundColor,
+            caseBodyPadding: caseBody ? getComputedStyle(caseBody).padding : null,
+            frameBackground: frame ? getComputedStyle(frame).backgroundColor : null,
+            frameBorder: frame ? getComputedStyle(frame).borderStyle : null,
+            rootBackground: root.backgroundColor,
+          }
+        }),
+      ).toEqual({
+        bodyBackground: "rgba(0, 0, 0, 0)",
+        caseBodyPadding: "0px",
+        frameBackground: "rgba(0, 0, 0, 0)",
+        frameBorder: "none",
+        rootBackground: "rgba(0, 0, 0, 0)",
+      })
+    } finally {
+      await browser?.close()
+      server.kill()
+    }
+  }, 60_000)
+
   it("renders the selected root stateful component case in the browser", async () => {
     const port = "4323"
     const server = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port", port], {

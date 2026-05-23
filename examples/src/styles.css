@@ -9,10 +9,20 @@ body {
   margin: 0;
 }
 
+:root[data-gtsx-preview-chrome="0"],
+:root[data-gtsx-preview-chrome="0"] body {
+  background: transparent;
+}
+
 .gtsx-contact-sheet {
   display: grid;
   gap: 28px;
   padding: 28px;
+}
+
+.gtsx-contact-sheet[data-gtsx-preview-chrome="0"] {
+  gap: 0;
+  padding: 0;
 }
 
 .gtsx-case-frame {
@@ -21,6 +31,14 @@ body {
   border-radius: 18px;
   background: #ffffff;
   box-shadow: 0 16px 44px rgb(15 23 42 / 10%);
+}
+
+.gtsx-contact-sheet[data-gtsx-preview-chrome="0"] .gtsx-case-frame {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .gtsx-case-label {
@@ -41,6 +59,10 @@ body {
 
 .gtsx-case-body {
   padding: 32px;
+}
+
+.gtsx-contact-sheet[data-gtsx-preview-chrome="0"] .gtsx-case-body {
+  padding: 0;
 }
 
 .gtsx-preview-message {
