@@ -1,0 +1,8 @@
+node_modules/
+dist/
+packages/*/dist/
+*.log
+gtsx-command-log.jsonl
+.gtsx-artifacts/
+playground/**/.gtsx-artifacts/
+snapshots/**/*.png
