@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "types": ["vite/client"],
+    "paths": {
+      "gtsx": ["../packages/gtsx/src/index.ts"]
+    }
+  },
+  "include": ["src", "vite.config.ts", "gtsx.config.ts"]
+}

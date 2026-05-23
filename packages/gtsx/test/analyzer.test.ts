@@ -65,4 +65,18 @@ describe("GTSX analyzer", () => {
       diagnostics: [],
     })
   })
+
+  it("checks every GTSX entry under a directory", async () => {
+    const result = await runCLI(["check", "src/corpus"], {
+      cwd: fixtureRoot,
+      stdout: "",
+      stderr: "",
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain("GTSX pure entry: src/corpus/Badge.g.tsx")
+    expect(result.stdout).toContain("GTSX pure entry: src/corpus/StatusPanel.g.tsx")
+    expect(result.stdout).toContain("- neutral")
+    expect(result.stdout).toContain("- error")
+  })
 })

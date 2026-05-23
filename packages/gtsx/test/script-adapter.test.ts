@@ -44,6 +44,18 @@ describe("GTSX preview commands", () => {
     expect(result.stdout).toContain("missing-strip-script")
     expect(existsSync(logFile)).toBe(false)
   })
+
+  it("requires an all-cases preview URL before capturing a contact sheet", async () => {
+    const result = await runCLI(["capture", "src/Badge.g.tsx", "--all"], {
+      cwd: fixtureRoot,
+      stdout: "",
+      stderr: "",
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("missing-preview-all-url")
+    expect(existsSync(logFile)).toBe(false)
+  })
 })
 
 function readLog() {

@@ -63,7 +63,7 @@ describe("playground full-chain examples", () => {
     )
   })
 
-  it("captures real screenshots from the Next.js preview route", async () => {
+  it("captures a real contact sheet from the Next.js preview route", async () => {
     const project = projects.find((candidate) => candidate.snapshotName === "next-app-router-init-structure")
     if (!project) throw new Error("Missing Next.js playground project")
     rmSync(join(snapshotsRoot, project.snapshotName), { recursive: true, force: true })
@@ -78,11 +78,9 @@ describe("playground full-chain examples", () => {
     )
     expect(capture, `${capture.stdout}\n${capture.stderr}`).toMatchObject({ exitCode: 0 })
 
-    for (const caseName of project.expectedCases) {
-      const snapshot = join(snapshotsRoot, project.snapshotName, `${caseName}.png`)
-      expect(existsSync(snapshot)).toBe(true)
-      expect(readFileSync(snapshot).subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-      expect(statSync(snapshot).size).toBeGreaterThan(10_000)
-    }
+    const snapshot = join(snapshotsRoot, project.snapshotName, "AppShell.png")
+    expect(existsSync(snapshot)).toBe(true)
+    expect(readFileSync(snapshot).subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+    expect(statSync(snapshot).size).toBeGreaterThan(10_000)
   }, 60_000)
 })

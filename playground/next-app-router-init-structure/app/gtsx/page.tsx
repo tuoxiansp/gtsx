@@ -9,7 +9,21 @@ type GTSXPreviewPageProps = {
 export default async function GTSXPreviewPage(props: GTSXPreviewPageProps) {
   const searchParams = await props.searchParams
   const cases = AppShell.cases ?? {}
-  const caseName = searchParams?.case ?? Object.keys(cases)[0]
+  const caseName = searchParams?.case
+
+  if (!caseName) {
+    return (
+      <main style={{ display: "grid", gap: 24, padding: 24 }}>
+        {Object.entries(cases).map(([name, testCase]) => (
+          <section key={name} style={{ border: "1px solid #d0d7de", padding: 16 }}>
+            <h2>{name}</h2>
+            <AppShell {...testCase.props} />
+          </section>
+        ))}
+      </main>
+    )
+  }
+
   const selectedCase = caseName ? cases[caseName] : undefined
 
   if (!selectedCase) {

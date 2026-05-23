@@ -71,6 +71,7 @@ export default defineGTSXConfig({
   preview: {
     serve: "npm run dev -- --port {port}",
     url: "http://localhost:{port}/gtsx?entry={entry}&case={case}",
+    allUrl: "http://localhost:{port}/gtsx?entry={entry}",
   },
 })
 `
@@ -84,6 +85,7 @@ function instructionsTemplate(): string {
 - Use component-level cases only for pure props components.
 - Configure \`preview.serve\` to start this project's normal dev server.
 - Configure \`preview.url\` to point at this project's GTSX preview route.
+- Configure \`preview.allUrl\` to render all cases for one entry as a contact sheet.
 - Do not put secrets, credentials, tokens, or customer data in GTSX cases.
 `
 }

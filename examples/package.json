@@ -1,0 +1,21 @@
+{
+  "name": "@gtsx/examples",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "gtsx:check": "gtsx check src/cases",
+    "gtsx:capture": "gtsx capture src/cases --all --out ../snapshots/examples",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.1.2",
+    "gtsx": "workspace:*",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "vite": "^8.0.14"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

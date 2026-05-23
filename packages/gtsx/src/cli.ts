@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
-import { join } from "node:path"
+import { readdirSync, statSync } from "node:fs"
+import { join, relative, resolve, sep } from "node:path"
 import { spawn } from "node:child_process"
 
-import { analyzeEntry } from "./analyzer.js"
+import { analyzeEntry, type GTSXAnalysisResult, type GTSXDiagnostic } from "./analyzer.js"
 import { capturePreviewPage } from "./browser-capture.js"
 import { loadGTSXConfig } from "./config.js"
 import { initGTSX } from "./init.js"
@@ -25,9 +26,9 @@ const HELP = `gtsx
 
 Usage:
   gtsx init [--dry-run]
-  gtsx check <entry.g.tsx> [--json]
+  gtsx check <entry.g.tsx|dir> [--json]
   gtsx serve <entry.g.tsx> [--case <name>] [--port <port>]
-  gtsx capture <entry.g.tsx> [--case <name>|--all] [--viewport 1440x900] [--out <file.png>] [--port <port>]
+  gtsx capture <entry.g.tsx|dir> [--case <name>|--all] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
   gtsx strip [--check]
   gtsx diagnose
 `
@@ -48,6 +49,31 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     const entry = args[1]
     if (!entry) {
       return { exitCode: 1, stdout: context.stdout, stderr: "Missing entry for gtsx check.\n" }
+    }
+
+    if (isDirectory(context.cwd, entry)) {
+      if (args.includes("--json")) {
+        return { exitCode: 1, stdout: context.stdout, stderr: "Directory JSON output is not supported yet.\n" }
+      }
+
+      const entries = discoverGTSXEntries(context.cwd, entry)
+      if (entries.length === 0) {
+        return diagnosticsResult([
+          {
+            stage: "contract-extraction",
+            code: "no-entries-found",
+            message: `No .g.tsx entries found under ${entry}.`,
+            file: entry,
+          },
+        ])
+      }
+
+      const results = entries.map((candidate) => analyzeEntry({ cwd: context.cwd, entry: candidate }))
+      return {
+        exitCode: results.some((result) => result.diagnostics.length > 0) ? 1 : 0,
+        stdout: results.map(formatCheckResult).join("\n"),
+        stderr: context.stderr,
+      }
     }
 
     const result = analyzeEntry({ cwd: context.cwd, entry })
@@ -91,6 +117,94 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     const entry = args[1]
     if (!entry) return { exitCode: 1, stdout: context.stdout, stderr: "Missing entry for gtsx capture.\n" }
 
+    if (isDirectory(context.cwd, entry)) {
+      if (!args.includes("--all")) {
+        return diagnosticsResult([
+          {
+            stage: "browser-capture",
+            code: "directory-capture-requires-all",
+            message: "Directory capture requires --all so each entry can render a contact sheet.",
+            file: entry,
+          },
+        ])
+      }
+
+      const entries = discoverGTSXEntries(context.cwd, entry)
+      if (entries.length === 0) {
+        return diagnosticsResult([
+          {
+            stage: "contract-extraction",
+            code: "no-entries-found",
+            message: `No .g.tsx entries found under ${entry}.`,
+            file: entry,
+          },
+        ])
+      }
+
+      const checks = entries.map((candidate) => analyzeEntry({ cwd: context.cwd, entry: candidate }))
+      if (checks.some((check) => check.diagnostics.length > 0)) {
+        return {
+          exitCode: 1,
+          stdout: checks.map(formatCheckResult).join("\n"),
+          stderr: context.stderr,
+        }
+      }
+
+      const config = loadGTSXConfig(context.cwd)
+      if (!config.config) return diagnosticsResult(config.diagnostics)
+
+      if (!config.config.preview.allUrl) {
+        return diagnosticsResult([
+          {
+            stage: "adapter-configuration",
+            code: "missing-preview-all-url",
+            message: "Missing preview.allUrl in gtsx.config.ts for contact sheet capture.",
+          },
+        ])
+      }
+
+      const out = readOption(args, "--out") ?? "gtsx-captures"
+      if (out.endsWith(".png")) {
+        return diagnosticsResult([
+          {
+            stage: "browser-capture",
+            code: "directory-output-must-be-directory",
+            message: "Directory capture writes one PNG per entry, so --out must be a directory.",
+          },
+        ])
+      }
+
+      const port = readOption(args, "--port") ?? "4300"
+      const viewport = readOption(args, "--viewport") ?? "1440x900"
+      const previewServer = await startPreviewServer(config.config.preview.serve, context.cwd, { port })
+      if (previewServer.exitCode !== 0) return previewServer
+
+      try {
+        const outputs: string[] = []
+        for (const candidate of entries) {
+          const outPath = outForDirectoryContactSheet(out, candidate)
+          await capturePreviewPage({
+            cwd: context.cwd,
+            url: expandUrl(config.config.preview.allUrl, { entry: candidate, caseName: "", port }),
+            viewport,
+            out: outPath,
+          })
+          outputs.push(`Captured ${candidate} contact sheet to ${outPath}\n`)
+        }
+        return { exitCode: 0, stdout: outputs.join(""), stderr: context.stderr }
+      } catch (error) {
+        return diagnosticsResult([
+          {
+            stage: "browser-capture",
+            code: "browser-capture-failed",
+            message: error instanceof Error ? error.message : String(error),
+          },
+        ])
+      } finally {
+        previewServer.stop()
+      }
+    }
+
     const check = analyzeEntry({ cwd: context.cwd, entry })
     if (check.diagnostics.length > 0) {
       return { exitCode: 1, stdout: formatCheckResult(check), stderr: context.stderr }
@@ -102,11 +216,20 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     const port = readOption(args, "--port") ?? "4300"
     const viewport = readOption(args, "--viewport") ?? "1440x900"
     const out = readOption(args, "--out") ?? "gtsx-capture.png"
-    const selectedCases = args.includes("--all")
-      ? check.cases.map((testCase) => testCase.name)
-      : [readOption(args, "--case") ?? check.cases[0]?.name].filter(Boolean)
+    const captureAllCases = args.includes("--all")
+    const selectedCase = readOption(args, "--case") ?? check.cases[0]?.name
 
-    if (!config.config.preview.url) {
+    if (captureAllCases && !config.config.preview.allUrl) {
+      return diagnosticsResult([
+        {
+          stage: "adapter-configuration",
+          code: "missing-preview-all-url",
+          message: "Missing preview.allUrl in gtsx.config.ts for contact sheet capture.",
+        },
+      ])
+    }
+
+    if (!captureAllCases && !config.config.preview.url) {
       return diagnosticsResult([
         {
           stage: "adapter-configuration",
@@ -120,18 +243,35 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     if (previewServer.exitCode !== 0) return previewServer
 
     try {
-      const outputs: string[] = []
-      for (const caseName of selectedCases) {
-        const outPath = args.includes("--all") ? outForCase(out, caseName) : out
+      if (captureAllCases) {
+        const outPath = outForEntryContactSheet(out, entry)
         await capturePreviewPage({
           cwd: context.cwd,
-          url: expandUrl(config.config.preview.url, { entry, caseName, port }),
+          url: expandUrl(config.config.preview.allUrl ?? "", { entry, caseName: "", port }),
           viewport,
           out: outPath,
         })
-        outputs.push(`Captured ${caseName} to ${outPath}\n`)
+        return { exitCode: 0, stdout: `Captured ${entry} contact sheet to ${outPath}\n`, stderr: context.stderr }
       }
-      return { exitCode: 0, stdout: outputs.join(""), stderr: context.stderr }
+
+      if (!selectedCase) {
+        return diagnosticsResult([
+          {
+            stage: "contract-extraction",
+            code: "missing-cases",
+            message: `No cases found for ${entry}.`,
+            file: entry,
+          },
+        ])
+      }
+
+      await capturePreviewPage({
+        cwd: context.cwd,
+        url: expandUrl(config.config.preview.url ?? "", { entry, caseName: selectedCase, port }),
+        viewport,
+        out,
+      })
+      return { exitCode: 0, stdout: `Captured ${selectedCase} to ${out}\n`, stderr: context.stderr }
     } catch (error) {
       return diagnosticsResult([
         {
@@ -163,17 +303,55 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
   }
 }
 
+const IGNORED_DISCOVERY_DIRS = new Set(["node_modules", "dist", ".vite", ".next", ".git"])
+
+function isDirectory(cwd: string, target: string): boolean {
+  try {
+    return statSync(resolve(cwd, target)).isDirectory()
+  } catch {
+    return false
+  }
+}
+
+function discoverGTSXEntries(cwd: string, targetDirectory: string): string[] {
+  const root = resolve(cwd, targetDirectory)
+  const entries: string[] = []
+
+  walk(root)
+  return entries
+    .map((entryPath) => relative(cwd, entryPath).split(sep).join("/"))
+    .sort((left, right) => left.localeCompare(right))
+
+  function walk(directory: string) {
+    for (const dirent of readdirSync(directory, { withFileTypes: true })) {
+      if (dirent.isDirectory()) {
+        if (!IGNORED_DISCOVERY_DIRS.has(dirent.name)) {
+          walk(join(directory, dirent.name))
+        }
+        continue
+      }
+
+      if (dirent.isFile() && dirent.name.endsWith(".g.tsx")) {
+        entries.push(join(directory, dirent.name))
+      }
+    }
+  }
+}
+
 function readOption(args: string[], optionName: string): string | undefined {
   const index = args.indexOf(optionName)
   return index >= 0 ? args[index + 1] : undefined
 }
 
-function outForCase(out: string, caseName: string): string {
-  if (out.endsWith(".png")) {
-    return out.replace(/\.png$/, `.${caseName}.png`)
-  }
+function outForEntryContactSheet(out: string, entry: string): string {
+  if (out.endsWith(".png")) return out
 
-  return join(out, `${caseName}.png`)
+  const fileName = entry.split(/[\\/]/).pop()?.replace(/\.g\.tsx$/, ".png") ?? "gtsx-capture.png"
+  return join(out, fileName)
+}
+
+function outForDirectoryContactSheet(out: string, entry: string): string {
+  return join(out, entry.replace(/\.g\.tsx$/, ".png"))
 }
 
 async function startPreviewServer(
@@ -234,7 +412,7 @@ function expandUrl(template: string, params: { entry: string; caseName: string; 
   )
 }
 
-function diagnosticsResult(diagnostics: ReturnType<typeof analyzeEntry>["diagnostics"]): CLIResult {
+function diagnosticsResult(diagnostics: GTSXDiagnostic[]): CLIResult {
   return {
     exitCode: diagnostics.some((diagnostic) => diagnostic.code.startsWith("missing-strip-script")) ? 0 : 1,
     stdout: diagnostics.map((diagnostic) => `[${diagnostic.stage}] ${diagnostic.code}: ${diagnostic.message}`).join("\n") + "\n",
@@ -252,7 +430,7 @@ function adapterResult(adapter: Awaited<ReturnType<typeof runScriptAdapter>>): C
   }
 }
 
-function formatCheckResult(result: ReturnType<typeof analyzeEntry>): string {
+function formatCheckResult(result: GTSXAnalysisResult): string {
   const lines = [`GTSX ${result.mode} entry: ${result.entry}`]
   for (const testCase of result.cases) {
     lines.push(`- ${testCase.name}`)

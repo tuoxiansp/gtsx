@@ -7,8 +7,8 @@ describe("gtsx CLI", () => {
     const result = await runCLI(["--help"], { cwd: process.cwd(), stdout: "", stderr: "" })
 
     expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain("gtsx check <entry.g.tsx>")
+    expect(result.stdout).toContain("gtsx check <entry.g.tsx|dir>")
     expect(result.stdout).toContain("gtsx serve <entry.g.tsx>")
-    expect(result.stdout).toContain("gtsx capture <entry.g.tsx>")
+    expect(result.stdout).toContain("gtsx capture <entry.g.tsx|dir>")
   })
 })

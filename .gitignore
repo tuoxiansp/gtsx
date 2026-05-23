@@ -8,3 +8,4 @@ playground/**/.gtsx-artifacts/
 playground/**/.next/
 playground/**/next-env.d.ts
 snapshots/**/*.png
+!snapshots/examples/**/*.png
