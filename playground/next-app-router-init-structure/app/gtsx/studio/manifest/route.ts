@@ -1,4 +1,4 @@
-import { createStudioManifest } from "@gtsx/studio"
+import { createStudioManifest } from "@gtsx/studio/manifest"
 import { buildGTSXProjectIndex } from "gtsx/project-index"
 
 export function GET() {

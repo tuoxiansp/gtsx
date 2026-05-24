@@ -17,6 +17,32 @@ The product invariant is:
 
 GTSX does not decide scope by app, library, package, or monorepo shape. It resolves a TypeScript project, derives the `.g.tsx` files in that Program, and renders them through a project-native, managed, or external Host.
 
+## Installation Model
+
+GTSX does not provide a `gtsx init` command.
+
+Installation is agent-driven. Use the official [Studio Installer Prompt](docs/gtsx-studio-installer-prompt.md) inside the target repository. The agent inspects the selected TypeScript project, detects or asks about the Host, applies the smallest project-local Studio and preview integration, and verifies the result.
+
+The CLI assumes this integration already exists. It checks `.g.tsx` contracts, serves the configured Studio URL, and captures configured preview URLs; it does not generate framework routes or own the target project's bundler.
+
+## First Successful Path
+
+This path exercises the repository example app. It does not install GTSX into another project.
+
+```sh
+pnpm install
+pnpm --filter @gtsx/examples gtsx:check
+pnpm --filter @gtsx/examples dev -- --port 4300
+```
+
+After the dev server starts, open:
+
+```txt
+http://localhost:4300/gtsx/studio
+```
+
+The check command should list the example `.g.tsx` entries and their cases. The Studio URL should show the example project's GTSX components through the Vite Host.
+
 ## Workspace
 
 This repository is a pnpm workspace:
@@ -63,7 +89,5 @@ preview URLs from the selected project root or the current host boundary.
 ## Docs
 
 - [GTSX Authoring Guide](docs/gtsx-authoring-guide.md)
-- [Product PRD](docs/gtsx-prd.md)
-- [Studio UX and Architecture](docs/gtsx-studio-ux-architecture.md)
 - [Studio Installer Prompt](docs/gtsx-studio-installer-prompt.md)
-- [Studio Issue Drafts](docs/gtsx-studio-issue-drafts.md)
+- [Open Issues](issues)

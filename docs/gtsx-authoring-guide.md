@@ -2,7 +2,15 @@
 
 This guide shows how to write `.g.tsx` components that GTSX can statically check, preview, and capture.
 
-Start here when adding cases to a React component. For product-level terminology, see [`gtsx-prd.md`](./gtsx-prd.md).
+Start here when adding cases to a React component. If the target project has not been wired for GTSX preview and Studio yet, first give the official [Studio Installer Prompt](./gtsx-studio-installer-prompt.md) to an AI coding agent inside that project.
+
+This guide covers authoring only. It does not replace the agent-driven installation flow.
+
+## What `gtsx check` Validates
+
+`gtsx check` validates the GTSX contract inside `.g.tsx` files: component exports, statically enumerable `Component.cases`, pure versus scope cases, provider case names, and the GTSX hook boundary.
+
+It does not replace TypeScript. Prop types, scope types, JSX types, imports, and ordinary TypeScript errors remain the TypeScript compiler's job. Run the target project's normal typecheck alongside `gtsx check`.
 
 ## Quickstart: Pure UI
 

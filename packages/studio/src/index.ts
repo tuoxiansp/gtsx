@@ -8,8 +8,6 @@ export type {
   StudioManifestRouteConfig,
 } from "./manifest"
 export {
-  StudioShell,
-  StudioWorkspaceView,
   applyStudioCanvasWheel,
   applyStudioCardSelectionAction,
   applyStudioPreviewMessage,
@@ -34,10 +32,10 @@ export type {
   StudioPreviewFrameState,
   StudioRuntimeInstance,
   StudioRuntimeValuesRequest,
-  StudioShellProps,
   StudioViewportPreset,
   StudioWorkspaceColumn,
   StudioWorkspaceState,
   StudioWorkspaceUrlState,
-  StudioWorkspaceViewProps,
 } from "./client"
+export { StudioShell, StudioWorkspaceView } from "./client-entry"
+export type { StudioShellProps, StudioWorkspaceViewProps } from "./client-entry"

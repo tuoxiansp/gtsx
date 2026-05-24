@@ -3,6 +3,7 @@ import type { GCases } from "gtsx"
 type ViewportPreset = "phone" | "tablet" | "desktop"
 
 type ViewportPresetTabsProps = {
+  floating?: boolean
   selectedPreset: ViewportPreset
   onChange?: (preset: ViewportPreset) => void
 }
@@ -15,6 +16,7 @@ export default function ViewportPresetTabs(props: ViewportPresetTabsProps) {
   return (
     <div
       aria-label="Viewport"
+      data-gtsx-floating-viewport-controls={props.floating ? true : undefined}
       style={{
         background: "rgba(255,255,255,0.82)",
         border: "1px solid rgba(216,222,232,0.92)",
@@ -22,13 +24,23 @@ export default function ViewportPresetTabs(props: ViewportPresetTabsProps) {
         boxShadow: "0 10px 30px rgba(31,35,40,0.12)",
         display: "grid",
         gridTemplateColumns: `repeat(${presets.length}, 34px)`,
+        ...(props.floating
+          ? {
+              left: "50%",
+              position: "absolute" as const,
+              top: 16,
+              transform: "translateX(-50%)",
+              zIndex: 3,
+            }
+          : {}),
         padding: 3,
-        position: "relative",
+        position: props.floating ? "absolute" : "relative",
         width: "max-content",
       }}
     >
       <span
         aria-hidden="true"
+        data-gtsx-viewport-tab-highlight={props.floating ? true : undefined}
         style={{
           background: "#ffffff",
           border: "1px solid #d8dee8",
@@ -46,6 +58,7 @@ export default function ViewportPresetTabs(props: ViewportPresetTabsProps) {
       {presets.map((preset) => (
         <button
           aria-label={`Viewport ${preset}`}
+          data-gtsx-viewport-control={preset}
           key={preset}
           onClick={() => props.onChange?.(preset)}
           style={{
@@ -76,6 +89,12 @@ ViewportPresetTabs.cases = {
   tabletSelected: {
     props: {
       selectedPreset: "tablet",
+    },
+  },
+  floatingPhoneSelected: {
+    props: {
+      floating: true,
+      selectedPreset: "phone",
     },
   },
 } satisfies GCases<ViewportPresetTabsProps>

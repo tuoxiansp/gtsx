@@ -1,4 +1,5 @@
-import { StudioShell, createStudioManifest } from "@gtsx/studio"
+import { StudioShell } from "@gtsx/studio/client"
+import { createStudioManifest } from "@gtsx/studio/manifest"
 import { buildGTSXProjectIndex } from "gtsx/project-index"
 
 type GTSXStudioPageProps = {

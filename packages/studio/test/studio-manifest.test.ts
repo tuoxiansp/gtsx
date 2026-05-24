@@ -243,13 +243,21 @@ describe("GTSX Studio manifest", () => {
     expect(manifest.diagnostics).toEqual([])
   })
 
-  it("exposes Studio through a browser-safe package root", () => {
+  it("exposes server-safe manifest and browser Studio entrypoints", () => {
     const packageJson = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"))
 
     expect(packageJson.exports).toEqual({
       ".": {
         types: "./src/index.ts",
         import: "./src/index.ts",
+      },
+      "./client": {
+        types: "./src/client-entry.ts",
+        import: "./src/client-entry.ts",
+      },
+      "./manifest": {
+        types: "./src/manifest.ts",
+        import: "./src/manifest.ts",
       },
     })
   })

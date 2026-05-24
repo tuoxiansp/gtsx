@@ -1,5 +1,9 @@
 # GTSX Studio Installer Prompt
 
+This is the canonical installation entrypoint for GTSX.
+
+GTSX does not provide a `gtsx init` command. Install GTSX by giving this prompt to an AI coding agent inside the target repository. The agent should inspect the selected TypeScript project, detect or ask about the Host, apply the smallest project-local integration, and verify Studio, preview, and capture behavior.
+
 You are integrating GTSX Studio into this repository. Treat GTSX as a TypeScript project companion, not as an app/library/framework classifier.
 
 The setup model is:
