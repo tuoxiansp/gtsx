@@ -664,6 +664,8 @@ function clamp(value: number, min: number, max: number): number {
 const studioCanvasMinScale = 0.2
 const studioCanvasMaxScale = 2.5
 const studioPreviewPreloadMargin = 1200
+const studioCasePreviewScale = 0.25
+const studioCasePreviewWidth = 192
 
 export function applyStudioCanvasWheel(current: StudioCanvasTransform, input: StudioCanvasWheelInput): StudioCanvasTransform {
   if (!input.ctrlKey && !input.metaKey) {
@@ -1284,7 +1286,13 @@ function CasePreviewCard(props: {
     return () => window.removeEventListener("message", handleMessage)
   }, [props.component.coordinate, sessionId])
 
-  const height = boundaryRect ? Math.max(64, Math.ceil((Math.max(0, boundaryRect.y) + boundaryRect.height) * 0.25)) : 112
+  const height = boundaryRect ? Math.max(64, Math.ceil(boundaryRect.height * studioCasePreviewScale) + 32) : 112
+  const iframeOffset = boundaryRect
+    ? {
+        left: (studioCasePreviewWidth - boundaryRect.width * studioCasePreviewScale) / 2 - boundaryRect.x * studioCasePreviewScale,
+        top: (height - boundaryRect.height * studioCasePreviewScale) / 2 - boundaryRect.y * studioCasePreviewScale,
+      }
+    : { left: 0, top: 0 }
 
   return (
     <div
@@ -1315,13 +1323,15 @@ function CasePreviewCard(props: {
         aria-hidden="true"
         data-gtsx-case-preview-frame={props.testCaseName}
         style={{
-          background: "#f5f6f8",
+          background: "#ffffff",
           border: "1px solid",
           borderColor: props.selected ? "#0d99ff" : "transparent",
+          borderRadius: 10,
+          boxShadow: props.selected ? "0 0 0 4px rgba(13, 153, 255, 0.18)" : "none",
           height,
           overflow: "hidden",
           position: "relative",
-          width: 192,
+          width: studioCasePreviewWidth,
         }}
       >
         <iframe
@@ -1330,11 +1340,11 @@ function CasePreviewCard(props: {
             background: "transparent",
             border: 0,
             height: 1024,
-            left: 0,
+            left: iframeOffset.left,
             pointerEvents: "none",
             position: "absolute",
-            top: 0,
-            transform: "scale(0.25)",
+            top: iframeOffset.top,
+            transform: `scale(${studioCasePreviewScale})`,
             transformOrigin: "0 0",
             width: 768,
           }}
