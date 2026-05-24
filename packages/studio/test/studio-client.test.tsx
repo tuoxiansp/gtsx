@@ -22,6 +22,7 @@ import {
   createStudioWorkspaceUrlSearchParams,
   currentStudioPreviewTargets,
   mergeStudioPreviewFrameState,
+  previewSessionId,
   replaceStudioCanvasUrlState,
   selectedStudioCaseName,
   selectStudioRuntimeInstance,
@@ -402,6 +403,7 @@ describe("GTSX Studio shell", () => {
     )
 
     expect(casePreviewFrameHtml(html, "ready")).toContain("height:64px")
+    expect(casePreviewCardHtml(html, "ready")).toContain("width:192px")
   })
 
   it("uses tablet viewport sizing by default", () => {
@@ -474,6 +476,17 @@ describe("GTSX Studio shell", () => {
     const html = renderToStaticMarkup(<StudioWorkspaceView manifest={manifest} workspace={workspace} />)
 
     expect(canvasViewportPresets(html)).toEqual(["phone", "phone"])
+  })
+
+  it("separates preview sessions by non-tablet viewport preset", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
+    if (!component) throw new Error("Missing UserCard fixture")
+
+    expect(previewSessionId(component, "ready")).toBe("src/UserCard.g.tsx#default:ready")
+    expect(previewSessionId(component, "ready", "tablet")).toBe("src/UserCard.g.tsx#default:ready")
+    expect(previewSessionId(component, "ready", "desktop")).toBe("src/UserCard.g.tsx#default:ready@desktop")
+    expect(previewSessionId(component, "ready", "phone")).toBe("src/UserCard.g.tsx#default:ready@phone")
   })
 
   it("stores viewport as a single canvas-level preset across drilldown columns", () => {
@@ -1316,6 +1329,10 @@ function previewFrameHtml(html: string, sessionId: string): string {
 
 function casePreviewFrameHtml(html: string, caseName: string): string {
   return html.match(new RegExp(`<div[^>]+data-gtsx-case-preview-frame="${escapeRegExp(caseName)}"[^>]*>`))?.[0] ?? ""
+}
+
+function casePreviewCardHtml(html: string, caseName: string): string {
+  return html.match(new RegExp(`<div[^>]+data-gtsx-case-preview-card="${escapeRegExp(caseName)}"[^>]*>`))?.[0] ?? ""
 }
 
 function canvasViewportPresets(html: string): string[] {

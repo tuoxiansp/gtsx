@@ -33,9 +33,9 @@ type ComponentCardProps = {
 export default function ComponentCard(props: ComponentCardProps) {
   const defaultCase = props.selectedCaseName
   const previewError = getPreviewError(props.component)
-  const sessionId = previewSessionId(props.component, defaultCase)
+  const sessionId = previewSessionId(props.component, defaultCase, props.viewportPreset)
   const displaySize = studioPreviewFrameSize(props.viewportPreset, props.frameState?.size)
-  const previewUrl = createStudioPreviewUrl(props.manifest, props.component, defaultCase)
+  const previewUrl = createStudioPreviewUrl(props.manifest, props.component, defaultCase, sessionId)
   const boundaryRect = selectedBoundaryRectForComponent(props.frameState?.tree, props.component.coordinate)
   const visibleBoundaryRect = clipPreviewBoundaryRectToViewport(boundaryRect, displaySize)
   const cardWidth = componentCardLayoutWidth(displaySize, props.frameState?.tree, props.component.coordinate)

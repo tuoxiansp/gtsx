@@ -291,7 +291,7 @@ export default function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
               <section data-gtsx-column-index={columnIndex} key={columnIndex} style={{ display: "grid", gap: 10, width: "max-content" }}>
                 {column.components.map((component) => {
                   const caseName = selectedStudioCaseName(props.workspace, component)
-                  const sessionId = previewSessionId(component, caseName)
+                  const sessionId = previewSessionId(component, caseName, scope.canvasViewportPreset)
                   const cacheKey = studioPreviewCacheKey(component, caseName, scope.canvasViewportPreset)
                   const frameState = mergeStudioPreviewFrameState(
                     sessionId,

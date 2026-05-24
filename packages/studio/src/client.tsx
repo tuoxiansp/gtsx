@@ -375,7 +375,7 @@ export function createStudioRuntimeValuesRequest(
   if (!sourceComponent) return undefined
 
   const sourceCaseName = selectedStudioCaseName(workspace, sourceComponent)
-  const sessionId = previewSessionId(sourceComponent, sourceCaseName)
+  const sessionId = previewSessionId(sourceComponent, sourceCaseName, canvasViewportPresetForWorkspace(workspace))
   return {
     sessionId,
     message: createGPreviewRequestValuesMessage(sessionId, boundaryId),
@@ -722,8 +722,9 @@ export function createStudioPreviewUrl(
 export function previewSessionId(
   component: StudioManifestComponent,
   caseName: string,
+  viewportPreset?: StudioViewportPreset,
 ): string {
-  return `${component.coordinate}:${caseName}`
+  return `${component.coordinate}:${caseName}${viewportPreset && viewportPreset !== "tablet" ? `@${viewportPreset}` : ""}`
 }
 
 export function studioPreviewCacheKey(component: StudioManifestComponent, caseName: string, viewportPreset: StudioViewportPreset): string {
@@ -758,11 +759,12 @@ export function mergeStudioPreviewFrameState(
 }
 
 export function currentPreviewSessionIds(workspace: StudioWorkspaceState): Set<string> {
+  const viewportPreset = canvasViewportPresetForWorkspace(workspace)
   return new Set(
     workspace.columns.flatMap((column) =>
       column.components.flatMap((component) => {
         const caseName = selectedStudioCaseName(workspace, component)
-        return caseName !== "No cases" ? [previewSessionId(component, caseName)] : []
+        return caseName !== "No cases" ? [previewSessionId(component, caseName, viewportPreset)] : []
       }),
     ),
   )
@@ -774,7 +776,7 @@ export function currentStudioPreviewTargets(manifest: StudioManifest, workspace:
     const caseName = selectedStudioCaseName(workspace, component)
     if (caseName === "No cases") return []
 
-    const sessionId = previewSessionId(component, caseName)
+    const sessionId = previewSessionId(component, caseName, viewportPreset)
     return [studioPreviewTarget(manifest, component, caseName, viewportPreset, sessionId)]
   })
 }

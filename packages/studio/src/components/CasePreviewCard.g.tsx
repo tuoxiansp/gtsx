@@ -50,6 +50,7 @@ export default function CasePreviewCard(props: CasePreviewCardProps) {
         gap: 6,
         padding: 0,
         textAlign: "left",
+        width: studioCasePreviewWidth,
       }}
       tabIndex={0}
     >
