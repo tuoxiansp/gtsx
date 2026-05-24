@@ -6,6 +6,7 @@
     "noEmit": true,
     "types": ["vite/client"],
     "paths": {
+      "@gtsx/studio": ["../packages/studio/src/index.ts"],
       "gtsx": ["../packages/gtsx/src/index.ts"]
     }
   },

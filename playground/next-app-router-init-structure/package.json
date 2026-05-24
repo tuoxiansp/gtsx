@@ -9,6 +9,7 @@
     "dev": "next dev"
   },
   "dependencies": {
+    "@gtsx/studio": "workspace:*",
     "gtsx": "workspace:*",
     "next": "^16.1.6",
     "react": "^19.2.6",

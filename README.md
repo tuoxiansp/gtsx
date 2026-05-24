@@ -21,7 +21,8 @@ GTSX does not decide scope by app, library, package, or monorepo shape. It resol
 
 This repository is a pnpm workspace:
 
-- `packages/gtsx`: protocol, runtime, analyzer, CLI, Studio client, and Studio manifest helpers.
+- `packages/gtsx`: protocol, runtime, analyzer, CLI, and project index helpers.
+- `packages/studio`: Studio shell and Studio manifest model helpers.
 - `packages/adapter-vite-react`: Vite React adapter and preview transform.
 - `examples`: Vite example app for current end-to-end behavior.
 - `playground`: Host/Adapter validation fixtures shaped like real framework projects.
@@ -61,6 +62,7 @@ preview URLs from the selected project root or the current host boundary.
 
 ## Docs
 
+- [GTSX Authoring Guide](docs/gtsx-authoring-guide.md)
 - [Product PRD](docs/gtsx-prd.md)
 - [Studio UX and Architecture](docs/gtsx-studio-ux-architecture.md)
 - [Studio Installer Prompt](docs/gtsx-studio-installer-prompt.md)

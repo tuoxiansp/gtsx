@@ -1,5 +1,5 @@
-import { StudioShell } from "gtsx/studio/client"
-import { buildStudioManifest } from "gtsx/studio/server"
+import { StudioShell, createStudioManifest } from "@gtsx/studio"
+import { buildGTSXProjectIndex } from "gtsx/project-index"
 
 type GTSXStudioPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
@@ -10,10 +10,7 @@ export default async function GTSXStudioPage(props: GTSXStudioPageProps) {
 
   return (
     <StudioShell
-      manifest={buildStudioManifest({
-        cwd: ".",
-        projectRoot: "components",
-      })}
+      manifest={createStudioManifest(buildGTSXProjectIndex({ cwd: ".", projectRoot: "components" }))}
       selection={typeof searchParams?.selection === "string" ? searchParams.selection : undefined}
       urlSearch={studioUrlSearch(searchParams)}
     />

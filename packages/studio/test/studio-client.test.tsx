@@ -1,10 +1,12 @@
 import { join } from "node:path"
 import { renderToStaticMarkup } from "react-dom/server"
+import { buildGTSXProjectIndex } from "gtsx/project-index"
 import { describe, expect, it } from "vitest"
 
 import {
   StudioShell,
   StudioWorkspaceView,
+  createStudioManifest,
   applyStudioCardSelectionAction,
   applyStudioPreviewMessage,
   applyStudioPreviewMessageToFrameStates,
@@ -20,10 +22,22 @@ import {
   selectedStudioCaseName,
   selectStudioRuntimeInstance,
   selectStudioComponent,
-} from "../src/studio-client.js"
-import { buildStudioManifest } from "../src/studio-manifest.js"
+} from "../src/index.js"
 
-const fixtureRoot = join(import.meta.dirname, "fixtures/check-project")
+const fixtureRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
+
+type CreateStudioManifestOptions = NonNullable<Parameters<typeof createStudioManifest>[1]>
+
+function buildStudioManifest(
+  options: { cwd: string; projectRoot?: string; tsconfigPath?: string } & CreateStudioManifestOptions,
+) {
+  const projectIndex = buildGTSXProjectIndex({
+    cwd: options.cwd,
+    projectRoot: options.projectRoot,
+    tsconfigPath: options.tsconfigPath,
+  })
+  return createStudioManifest(projectIndex, { preview: options.preview, routes: options.routes, diagnostics: options.diagnostics })
+}
 
 describe("GTSX Studio shell", () => {
   it("renders every exported component from the selected file group in the first column", () => {

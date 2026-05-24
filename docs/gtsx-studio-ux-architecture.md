@@ -65,10 +65,10 @@ It should not be modeled around serving one entry file. Entry selection is a Stu
 
 The primary install path is an official AI installer prompt, not a large universal framework generator.
 
-Official packages should provide stable client and server building blocks, for example:
+Official packages should provide stable Studio building blocks, for example:
 
-- `@gtsx/studio/client`: Studio shell.
-- `@gtsx/studio/server`: manifest builder and framework-neutral helpers.
+- `@gtsx/studio`: Studio shell and manifest model helpers.
+- `gtsx/project-index`: core project index data for Studio and adapters.
 - GTSX runtime hooks for boundary tree, resize, and value reporting.
 
 The AI installer first resolves the selected TypeScript project and then checks whether a Host already exists. If a Host exists, the installer creates thin Host-specific routes:
@@ -84,10 +84,10 @@ If no Host exists, the installer configures a managed Host or asks the user to c
 
 Studio needs a static manifest for navigation. The manifest is only for Studio and should not affect preview.
 
-Provider order:
+Project index provider order:
 
 1. Host-local API or server route.
-2. Adapter-provided virtual module.
+2. Adapter-provided `virtual:gtsx/project-index` module.
 3. Managed Host manifest provider.
 4. No automatic Studio support. The installer or user's AI agent must create or configure a Host provider.
 

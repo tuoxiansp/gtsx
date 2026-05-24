@@ -5,13 +5,14 @@ import React from "react"
 import {
   G_PREVIEW_PROTOCOL_VERSION,
   createGPreviewRequestValuesMessage,
+  type GBoundaryRect,
+  type GBoundaryTreeNode,
   type GRuntimeValuesSnapshot,
   type GPreviewProtocolMessage,
   type GPreviewRequestValuesMessage,
-} from "./preview-protocol.js"
-import type { StudioManifest, StudioManifestComponent, StudioManifestFile } from "./studio-manifest-model.js"
-import type { GBoundaryRect, GBoundaryTreeNode } from "./runtime.js"
-import type { GSerializedRuntimeValue } from "./runtime-values.js"
+  type GSerializedRuntimeValue,
+} from "gtsx"
+import type { StudioManifest, StudioManifestComponent, StudioManifestFile } from "./manifest"
 
 export type StudioShellProps = {
   manifest: StudioManifest

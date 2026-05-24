@@ -38,21 +38,21 @@ Install or configure these development routes in the selected Host:
 - `/gtsx/studio`: Studio shell route.
 - `/gtsx/studio/manifest`: Studio manifest route when the Host supports an API or server route.
 
-The Studio shell route should import `StudioShell` from `gtsx/studio/client`. The manifest route should import `buildStudioManifest` from `gtsx/studio/server`.
+The Studio shell route should import `StudioShell` and `createStudioManifest` from `@gtsx/studio`. When a Host needs to build a manifest on the server, compose `buildGTSXProjectIndex` from `gtsx/project-index` with `createStudioManifest`.
 
 The Host may import CSS, setup files, providers, mocks, app shells, aliases, and other dependencies needed for rendering. Those imports do not expand the GTSX Scope. Studio entries come only from `.g.tsx` files in the selected TypeScript Program.
 
 ## Manifest Provider Preference
 
-Prefer providers in this order:
+Prefer project index providers in this order:
 
 1. Host-local API or server route.
-2. Adapter-provided virtual module.
+2. Adapter-provided `virtual:gtsx/project-index` module.
 3. Managed Host provider.
 
 For Hosts with server routes, create a thin `/gtsx/studio/manifest` endpoint that returns the static manifest for the selected GTSX Project.
 
-Use a virtual module fallback only when the adapter-supported Host cannot expose a Host-local server/API route. The virtual module fallback must return the same static manifest shape as the server/API route manifest provider.
+Use a virtual project-index module only when the adapter-supported Host cannot expose a Host-local server/API route. The Studio Host should turn that project index into a manifest with `createStudioManifest`.
 
 Do not create a public manifest watcher fallback for the MVP. Do not write runtime props, scope, provider values, DOM rects, or serialized runtime snapshots into a public file.
 

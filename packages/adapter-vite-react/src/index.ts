@@ -1,7 +1,6 @@
 import { relative } from "node:path"
 import ts from "typescript"
 import { buildGTSXProjectIndex } from "gtsx/project-index"
-import { buildStudioManifest } from "gtsx/studio/server"
 
 type ViteLikeConfig = {
   root: string
@@ -31,8 +30,6 @@ type Insertion = {
 
 export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
   let root = options.root ?? process.cwd()
-  const virtualManifestId = "virtual:gtsx/studio-manifest"
-  const resolvedVirtualManifestId = `\0${virtualManifestId}`
   const virtualProjectIndexId = "virtual:gtsx/project-index"
   const resolvedVirtualProjectIndexId = `\0${virtualProjectIndexId}`
 
@@ -42,7 +39,7 @@ export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
     config() {
       return {
         optimizeDeps: {
-          exclude: ["@gtsx/adapter-vite-react", "typescript", virtualManifestId, virtualProjectIndexId],
+          exclude: ["@gtsx/adapter-vite-react", "typescript", virtualProjectIndexId],
         },
       }
     },
@@ -50,32 +47,18 @@ export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
       root = options.root ?? config.root
     },
     resolveId(id: string) {
-      if (id === virtualManifestId) return resolvedVirtualManifestId
       if (id === virtualProjectIndexId) return resolvedVirtualProjectIndexId
       return null
     },
     load(id: string): TransformResult | null {
-      if (id === resolvedVirtualProjectIndexId) {
-        const projectIndex = buildGTSXProjectIndex({
-          cwd: root,
-          projectRoot: options.projectRoot ?? "src",
-          tsconfigPath: options.tsconfigPath,
-        })
-        return {
-          code: `export default ${JSON.stringify(projectIndex)}\n`,
-          map: null,
-        }
-      }
-
-      if (id !== resolvedVirtualManifestId) return null
-
-      const manifest = buildStudioManifest({
+      if (id !== resolvedVirtualProjectIndexId) return null
+      const projectIndex = buildGTSXProjectIndex({
         cwd: root,
         projectRoot: options.projectRoot ?? "src",
         tsconfigPath: options.tsconfigPath,
       })
       return {
-        code: `export default ${JSON.stringify(manifest)}\n`,
+        code: `export default ${JSON.stringify(projectIndex)}\n`,
         map: null,
       }
     },

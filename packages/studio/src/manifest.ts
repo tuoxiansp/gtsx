@@ -1,5 +1,5 @@
-import type { GTSXDiagnostic } from "./analyzer.js"
-import type { GTSXProjectIndex, GTSXProjectIndexComponent } from "./project-index.js"
+import type { GTSXDiagnostic } from "gtsx"
+import type { GTSXProjectIndex, GTSXProjectIndexComponent } from "gtsx/project-index"
 
 export type StudioManifestRouteConfig = {
   preview: string

@@ -2,11 +2,16 @@ import { join, resolve } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { runCLI } from "../src/cli.js"
-import { buildStudioManifest } from "../src/studio-manifest.js"
+import { buildGTSXProjectIndex } from "gtsx/project-index"
+import { runCLI } from "../../gtsx/src/cli.js"
+import { createStudioManifest } from "../src/index.js"
 
 const repositoryRoot = resolve(import.meta.dirname, "../../..")
 const studioRoot = join(repositoryRoot, "packages/studio")
+
+function buildStudioManifest(options: { cwd: string; projectRoot?: string }) {
+  return createStudioManifest(buildGTSXProjectIndex(options))
+}
 
 describe("Studio package", () => {
   it("is checkable as a normal GTSX project", async () => {
@@ -18,19 +23,25 @@ describe("Studio package", () => {
 
     expect(check, `${check.stdout}\n${check.stderr}`).toMatchObject({ exitCode: 0 })
     expect(check.stdout).toContain("GTSX pure entry: src/components/StudioEmptyState.g.tsx")
+    expect(check.stdout).toContain("GTSX pure entry: src/components/ViewportPresetTabs.g.tsx")
     expect(check.stdout).toContain("- empty")
+    expect(check.stdout).toContain("- tabletSelected")
   })
 
   it("builds a Studio manifest for its own UI cases", () => {
     const manifest = buildStudioManifest({ cwd: studioRoot, projectRoot: "src" })
 
     expect(manifest.preview).toEqual({
-      urlTemplate: "http://localhost:{port}/gtsx?entry={entry}&case={case}{gcase}",
-      allUrlTemplate: "http://localhost:{port}/gtsx?entry={entry}{gcase}",
+      urlTemplate: "/gtsx?entry={entry}&case={case}{gcase}",
+      allUrlTemplate: "/gtsx?entry={entry}{gcase}",
     })
-    expect(manifest.files.map((file) => file.path)).toEqual(["src/components/StudioEmptyState.g.tsx"])
-    expect(manifest.files[0]?.components.map((component) => component.coordinate)).toEqual([
+    expect(manifest.files.map((file) => file.path)).toEqual([
+      "src/components/StudioEmptyState.g.tsx",
+      "src/components/ViewportPresetTabs.g.tsx",
+    ])
+    expect(manifest.files.flatMap((file) => file.components.map((component) => component.coordinate))).toEqual([
       "src/components/StudioEmptyState.g.tsx#default",
+      "src/components/ViewportPresetTabs.g.tsx#default",
     ])
   })
 })

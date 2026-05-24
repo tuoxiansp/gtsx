@@ -3,7 +3,6 @@ import { resolve } from "node:path"
 
 import { gtsxViteReact, transformGTSXComponentBoundaries } from "../src/index.js"
 import { buildGTSXProjectIndex } from "gtsx/project-index"
-import { buildStudioManifest } from "gtsx/studio/server"
 
 const root = "/repo"
 
@@ -95,18 +94,12 @@ export function PlainComponent() {
     ).toBe(code)
   })
 
-  it("loads a static Studio manifest through a virtual module", () => {
+  it("does not expose a Studio manifest virtual module", () => {
     const fixtureRoot = resolve(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
     const plugin = gtsxViteReact({ root: fixtureRoot, projectRoot: "src" })
     plugin.configResolved({ root: fixtureRoot })
 
-    const resolvedId = plugin.resolveId("virtual:gtsx/studio-manifest")
-    const loaded = plugin.load(resolvedId)
-    const manifest = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
-
-    expect(resolvedId).toBe("\0virtual:gtsx/studio-manifest")
-    expect(manifest).toEqual(buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" }))
-    expect(loaded.code).not.toContain("buildStudioManifest")
+    expect(plugin.resolveId("virtual:gtsx/studio-manifest")).toBeNull()
   })
 
   it("loads a low-level GTSX project index through a virtual module", () => {
@@ -124,27 +117,27 @@ export function PlainComponent() {
     expect(JSON.stringify(projectIndex)).not.toContain("urlTemplate")
   })
 
-  it("loads virtual Studio manifests from a selected TypeScript project scope", () => {
+  it("loads project indexes from a selected TypeScript project scope", () => {
     const fixtureRoot = resolve(import.meta.dirname, "../../gtsx/test/fixtures/ts-project-scope")
     const plugin = gtsxViteReact({ root: fixtureRoot, projectRoot: ".", tsconfigPath: "tsconfig.json" })
     plugin.configResolved({ root: fixtureRoot })
 
-    const resolvedId = plugin.resolveId("virtual:gtsx/studio-manifest")
+    const resolvedId = plugin.resolveId("virtual:gtsx/project-index")
     const loaded = plugin.load(resolvedId)
-    const manifest = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
+    const projectIndex = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
 
-    expect(manifest.files.map((file) => file.path)).toEqual(["src/Included.g.tsx"])
+    expect(projectIndex.files.map((file) => file.path)).toEqual(["src/Included.g.tsx"])
   })
 
-  it("loads virtual Studio manifests from the nearest TypeScript project scope by default", () => {
+  it("loads project indexes from the nearest TypeScript project scope by default", () => {
     const fixtureRoot = resolve(import.meta.dirname, "../../gtsx/test/fixtures/ts-project-scope")
     const plugin = gtsxViteReact({ root: fixtureRoot, projectRoot: "." })
     plugin.configResolved({ root: fixtureRoot })
 
-    const resolvedId = plugin.resolveId("virtual:gtsx/studio-manifest")
+    const resolvedId = plugin.resolveId("virtual:gtsx/project-index")
     const loaded = plugin.load(resolvedId)
-    const manifest = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
+    const projectIndex = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
 
-    expect(manifest.files.map((file) => file.path)).toEqual(["src/Included.g.tsx"])
+    expect(projectIndex.files.map((file) => file.path)).toEqual(["src/Included.g.tsx"])
   })
 })

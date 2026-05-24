@@ -1,6 +1,5 @@
 import { createRoot } from "react-dom/client"
-import { StudioShell } from "gtsx/studio/client"
-import { createStudioManifest } from "gtsx/studio/manifest"
+import { StudioShell, createStudioManifest } from "@gtsx/studio"
 import projectIndex from "virtual:gtsx/project-index"
 
 import { GTSXPreviewApp } from "./preview"

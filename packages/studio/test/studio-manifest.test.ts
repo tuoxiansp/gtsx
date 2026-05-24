@@ -2,13 +2,13 @@ import { readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
-import { buildGTSXProjectIndex } from "../src/project-index.js"
-import { buildStudioManifest, createStudioManifest, selectStudioManifestProvider } from "../src/studio-manifest.js"
+import { buildGTSXProjectIndex } from "gtsx/project-index"
+import { createStudioManifest } from "../src/index.js"
 
-const fixtureRoot = join(import.meta.dirname, "fixtures/check-project")
-const tsProjectScopeRoot = join(import.meta.dirname, "fixtures/ts-project-scope")
+const fixtureRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
+const tsProjectScopeRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/ts-project-scope")
 const repositoryRoot = resolve(import.meta.dirname, "../../..")
-const packageRoot = join(repositoryRoot, "packages/gtsx")
+const packageRoot = join(repositoryRoot, "packages/studio")
 const examplesRoot = join(repositoryRoot, "examples")
 const playgroundProjects = [
   {
@@ -28,9 +28,26 @@ const playgroundProjects = [
   },
 ]
 
+type CreateStudioManifestOptions = NonNullable<Parameters<typeof createStudioManifest>[1]>
+
+function buildStudioManifest(
+  options: { cwd: string; projectRoot?: string; tsconfigPath?: string } & CreateStudioManifestOptions,
+) {
+  const projectIndex = buildGTSXProjectIndex({
+    cwd: options.cwd,
+    projectRoot: options.projectRoot,
+    tsconfigPath: options.tsconfigPath,
+  })
+  return createStudioManifest(projectIndex, { preview: options.preview, routes: options.routes, diagnostics: options.diagnostics })
+}
+
 describe("GTSX Studio manifest", () => {
   it("returns stable static JSON for a project surface", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src/corpus" })
+    const manifest = buildStudioManifest({
+      cwd: fixtureRoot,
+      projectRoot: "src/corpus",
+      preview: { urlTemplate: "https://preview.test/gtsx?entry={entry}&case={case}&port={port}" },
+    })
 
     expect(manifest).toEqual({
       version: 1,
@@ -194,7 +211,14 @@ describe("GTSX Studio manifest", () => {
   })
 
   it("returns configured preview URL templates for repository examples", () => {
-    const manifest = buildStudioManifest({ cwd: examplesRoot, projectRoot: "src/cases" })
+    const manifest = buildStudioManifest({
+      cwd: examplesRoot,
+      projectRoot: "src/cases",
+      preview: {
+        urlTemplate: "http://localhost:{port}/gtsx?entry={entry}&case={case}{gcase}",
+        allUrlTemplate: "http://localhost:{port}/gtsx?entry={entry}{gcase}",
+      },
+    })
 
     expect(manifest.preview).toEqual({
       urlTemplate: "http://localhost:{port}/gtsx?entry={entry}&case={case}{gcase}",
@@ -219,54 +243,16 @@ describe("GTSX Studio manifest", () => {
     expect(manifest.diagnostics).toEqual([])
   })
 
-  it("exposes the manifest builder through a server-only package subpath", () => {
+  it("exposes Studio through a browser-safe package root", () => {
     const packageJson = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"))
 
-    expect(packageJson.exports).toMatchObject({
-      "./project-index": {
-        types: "./dist/project-index.d.ts",
-        import: "./dist/project-index.js",
+    expect(packageJson.exports).toEqual({
+      ".": {
+        types: "./src/index.ts",
+        import: "./src/index.ts",
       },
-      "./studio/manifest": {
-        types: "./dist/studio-manifest-model.d.ts",
-        import: "./dist/studio-manifest-model.js",
-      },
-      "./studio/server": {
-        types: "./dist/studio-manifest.d.ts",
-        import: "./dist/studio-manifest.js",
-      },
-    })
-    expect(packageJson.exports["."]).not.toMatchObject({
-      import: "./dist/studio-manifest.js",
     })
   })
 
-  it("selects server route manifests before virtual module manifests and diagnoses missing providers", () => {
-    const serverManifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src/corpus" })
-    const virtualManifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
 
-    expect(
-      selectStudioManifestProvider([
-        { kind: "virtual-module", manifest: virtualManifest },
-        { kind: "server-route", manifest: serverManifest },
-      ]),
-    ).toEqual({
-      kind: "server-route",
-      manifest: serverManifest,
-      diagnostics: [],
-    })
-    expect(selectStudioManifestProvider([{ kind: "virtual-module", manifest: virtualManifest }])).toEqual({
-      kind: "virtual-module",
-      manifest: virtualManifest,
-      diagnostics: [],
-    })
-    expect(selectStudioManifestProvider([])).toMatchObject({
-      diagnostics: [
-        {
-          stage: "adapter-configuration",
-          code: "missing-studio-manifest-provider",
-        },
-      ],
-    })
-  })
 })
