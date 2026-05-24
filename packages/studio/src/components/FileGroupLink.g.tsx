@@ -1,5 +1,6 @@
 import type { GCases } from "gtsx"
 
+import { studioPreviewCacheKey, type StudioPreviewCacheEntry } from "../client"
 import type { StudioManifest, StudioManifestFile } from "../manifest"
 import SidebarComponentPreview from "./SidebarComponentPreview.g"
 
@@ -7,6 +8,7 @@ type FileGroupLinkProps = {
   file: StudioManifestFile
   manifest: StudioManifest
   onChangeSelection?: (selection: string) => void
+  previewCache?: Record<string, StudioPreviewCacheEntry>
   selectedId: string
 }
 
@@ -69,7 +71,15 @@ export default function FileGroupLink(props: FileGroupLinkProps) {
               }}
               title={component.componentName}
             >
-              <SidebarComponentPreview component={component} manifest={props.manifest} />
+              <SidebarComponentPreview
+                component={component}
+                frameState={
+                  component.cases[0]?.name
+                    ? props.previewCache?.[studioPreviewCacheKey(component, component.cases[0].name, "tablet")]?.frameState
+                    : undefined
+                }
+                manifest={props.manifest}
+              />
             </a>
           )
         })}
@@ -112,6 +122,7 @@ FileGroupLink.cases = {
         files: [],
         diagnostics: [],
       },
+      previewCache: {},
       selectedId: "component:src/UserCard.g.tsx#default",
     },
   },

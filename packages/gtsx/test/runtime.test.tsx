@@ -6,6 +6,7 @@ import {
   createGBoundaryCollector,
   createGScope,
   defineGComponent,
+  readGBoundaryElementRect,
   useGContext,
   type GCases,
   type GProviderCases,
@@ -200,6 +201,44 @@ describe("GTSX runtime", () => {
     ])
   })
 
+  it("clips display-contents boundary fallback rects to overflow ancestors", () => {
+    const restoreGetComputedStyle = installFakeComputedStyle()
+    const overflowingChild = fakeElement({ x: 0, y: 0, width: 184, height: 246 })
+    const clippedPreview = fakeElement({ x: 0, y: 0, width: 184, height: 96 }, { overflowX: "hidden", overflowY: "hidden" }, [
+      overflowingChild,
+    ])
+    const boundary = fakeElement({ x: 0, y: 0, width: 0, height: 0 }, {}, [clippedPreview])
+
+    try {
+      expect(readGBoundaryElementRect(boundary)).toEqual({
+        x: 0,
+        y: 0,
+        width: 184,
+        height: 96,
+      })
+    } finally {
+      restoreGetComputedStyle()
+    }
+  })
+
+  it("uses rendered root rects instead of absolute descendant overflow for boundary fallbacks", () => {
+    const restoreGetComputedStyle = installFakeComputedStyle()
+    const previewIframe = fakeElement({ x: 0, y: 0, width: 390, height: 844 })
+    const previewRoot = fakeElement({ x: 0, y: 0, width: 390, height: 108 }, {}, [previewIframe])
+    const boundary = fakeElement({ x: 0, y: 0, width: 0, height: 0 }, {}, [previewRoot])
+
+    try {
+      expect(readGBoundaryElementRect(boundary)).toEqual({
+        x: 0,
+        y: 0,
+        width: 390,
+        height: 108,
+      })
+    } finally {
+      restoreGetComputedStyle()
+    }
+  })
+
   it("records serialized props, scope, and provider values for each boundary instance without executing functions", () => {
     const collector = createGBoundaryCollector()
     let calls = 0
@@ -262,3 +301,62 @@ describe("GTSX runtime", () => {
     expect(calls).toBe(0)
   })
 })
+
+type FakeElement = HTMLElement & {
+  fakeChildren: FakeElement[]
+  fakeOverflowX?: string
+  fakeOverflowY?: string
+}
+
+function fakeElement(
+  rect: { x: number; y: number; width: number; height: number },
+  style: { overflowX?: string; overflowY?: string } = {},
+  children: FakeElement[] = [],
+): FakeElement {
+  const element = {
+    children,
+    fakeChildren: children,
+    fakeOverflowX: style.overflowX,
+    fakeOverflowY: style.overflowY,
+    parentElement: null,
+    getBoundingClientRect() {
+      return {
+        ...rect,
+        bottom: rect.y + rect.height,
+        left: rect.x,
+        right: rect.x + rect.width,
+        top: rect.y,
+      } as DOMRect
+    },
+    querySelectorAll() {
+      return children.flatMap((child) => [child, ...child.querySelectorAll("*")]) as unknown as NodeListOf<HTMLElement>
+    },
+  } as unknown as FakeElement
+
+  for (const child of children) {
+    ;(child as unknown as { parentElement: HTMLElement }).parentElement = element
+  }
+
+  return element
+}
+
+function installFakeComputedStyle(): () => void {
+  const original = globalThis.getComputedStyle
+  Object.defineProperty(globalThis, "getComputedStyle", {
+    configurable: true,
+    value(element: Element) {
+      const fake = element as FakeElement
+      return {
+        overflowX: fake.fakeOverflowX ?? "visible",
+        overflowY: fake.fakeOverflowY ?? "visible",
+      } as CSSStyleDeclaration
+    },
+  })
+
+  return () => {
+    Object.defineProperty(globalThis, "getComputedStyle", {
+      configurable: true,
+      value: original,
+    })
+  }
+}

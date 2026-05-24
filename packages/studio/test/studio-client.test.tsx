@@ -1,7 +1,7 @@
 import { join } from "node:path"
 import { renderToStaticMarkup } from "react-dom/server"
 import { buildGTSXProjectIndex } from "gtsx/project-index"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import {
   StudioShell,
@@ -15,14 +15,21 @@ import {
   changeStudioCanvasViewportPreset,
   changeStudioViewportPreset,
   componentCardLayoutWidth,
+  createStudioCanvasTransformFromUrl,
   createStudioRuntimeValuesRequest,
   createStudioWorkspaceStateFromUrl,
   createStudioWorkspaceState,
   createStudioWorkspaceUrlSearchParams,
+  currentStudioPreviewTargets,
+  mergeStudioPreviewFrameState,
+  replaceStudioCanvasUrlState,
   selectedStudioCaseName,
   selectStudioRuntimeInstance,
   selectStudioComponent,
+  studioPreviewWarmupTargets,
 } from "../src/index.js"
+import ComponentCard from "../src/components/ComponentCard.g.js"
+import SelectedComponentCasesSidebar from "../src/components/SelectedComponentCasesSidebar.g.js"
 
 const fixtureRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
 
@@ -167,6 +174,38 @@ describe("GTSX Studio shell", () => {
     expect(cardHtml(html, "src/UserCard.g.tsx#default")).not.toContain("<button")
   })
 
+  it("clips component selection overlays to the preview viewport", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
+    if (!component) throw new Error("Missing UserCard fixture")
+
+    const html = renderToStaticMarkup(
+      <ComponentCard
+        component={component}
+        frameState={{
+          expectedSessionId: "src/UserCard.g.tsx#default:loading",
+          ready: true,
+          tree: [
+            {
+              id: "root",
+              coordinate: "src/UserCard.g.tsx#default",
+              rect: { x: 0, y: 12, width: 900, height: 120 },
+              children: [],
+            },
+          ],
+        }}
+        manifest={manifest}
+        selected
+        selectedCaseName="loading"
+        viewportPreset="phone"
+      />,
+    )
+
+    expect(selectionOutlineHtml(html)).toContain("width:390px")
+    expect(boundsHitTargetHtml(html)).toContain("width:390px")
+    expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("width:390px")
+  })
+
   it("does not enter card selected state from sidebar or drilldown state alone", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
     const state = selectStudioComponent(
@@ -266,6 +305,103 @@ describe("GTSX Studio shell", () => {
     expect(html).not.toContain("Preview will load when visible.")
     expect(previewFrameHtml(html, "src/MultiExport.g.tsx#NamedBadge:ready")).not.toContain("background:#ffffff")
     expect(previewFrameHtml(html, "src/MultiExport.g.tsx#NamedBadge:ready")).not.toContain("border:1px solid #e5e7eb")
+  })
+
+  it("derives warmup previews near the selected workspace path without duplicating active cards", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const state = selectStudioComponent(
+      createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
+      manifest,
+      "src/UserCard.g.tsx#default",
+      [
+        {
+          id: "root",
+          coordinate: "src/UserCard.g.tsx#default",
+          children: [{ id: "child", coordinate: "src/MultiExport.g.tsx#NamedBadge", children: [] }],
+        },
+      ],
+    )
+
+    const activeTargets = currentStudioPreviewTargets(manifest, state)
+    const warmupTargets = studioPreviewWarmupTargets(manifest, state)
+
+    expect(activeTargets.map((target) => target.sessionId)).toEqual([
+      "src/UserCard.g.tsx#default:loading",
+      "src/MultiExport.g.tsx#NamedBadge:ready",
+    ])
+    expect(warmupTargets.map((target) => target.previewUrl)).toContain(
+      "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0&sessionId=warmup%3Atablet%0Asrc%2FUserCard.g.tsx%23default%0Aready",
+    )
+    expect(warmupTargets.map((target) => target.sessionId)).not.toContain("src/UserCard.g.tsx#default:loading")
+    expect(warmupTargets.map((target) => target.sessionId)).not.toContain("src/MultiExport.g.tsx#NamedBadge:ready")
+  })
+
+  it("uses cached preview geometry while the active preview is still loading", () => {
+    expect(
+      mergeStudioPreviewFrameState(
+        "src/UserCard.g.tsx#default:ready",
+        {
+          expectedSessionId: "src/UserCard.g.tsx#default:ready",
+          ready: true,
+        },
+        {
+          expectedSessionId: "warmup:tablet\nsrc/UserCard.g.tsx#default\nready",
+          ready: true,
+          size: { width: 768, height: 1024 },
+          tree: [
+            {
+              id: "root",
+              coordinate: "src/UserCard.g.tsx#default",
+              rect: { x: 0, y: 12, width: 320, height: 88 },
+              children: [],
+            },
+          ],
+        },
+      ),
+    ).toMatchObject({
+      expectedSessionId: "src/UserCard.g.tsx#default:ready",
+      ready: true,
+      size: { width: 768, height: 1024 },
+      tree: [
+        {
+          rect: { x: 0, y: 12, width: 320, height: 88 },
+        },
+      ],
+    })
+  })
+
+  it("uses cached preview geometry for selected component case previews", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
+    if (!component) throw new Error("Missing UserCard fixture")
+
+    const html = renderToStaticMarkup(
+      <SelectedComponentCasesSidebar
+        component={component}
+        previewCache={{
+          "tablet\nsrc/UserCard.g.tsx#default\nready": {
+            lastUsedAt: 1,
+            frameState: {
+              expectedSessionId: "warmup:tablet\nsrc/UserCard.g.tsx#default\nready",
+              ready: true,
+              tree: [
+                {
+                  id: "root",
+                  coordinate: "src/UserCard.g.tsx#default",
+                  rect: { x: 0, y: 0, width: 320, height: 88 },
+                  children: [],
+                },
+              ],
+            },
+          },
+        }}
+        manifest={manifest}
+        selectedCaseName="ready"
+        viewportPreset="tablet"
+      />,
+    )
+
+    expect(casePreviewFrameHtml(html, "ready")).toContain("height:64px")
   })
 
   it("uses tablet viewport sizing by default", () => {
@@ -750,7 +886,7 @@ describe("GTSX Studio shell", () => {
     ])
   })
 
-  it("passes selected child cases as gcase overrides to ancestor preview URLs", () => {
+  it("keeps ancestor preview URLs stable when selected child cases change", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
     const parentState = selectStudioComponent(
       createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
@@ -775,12 +911,13 @@ describe("GTSX Studio shell", () => {
 
     expect(sources[0]).toContain("entry=src%2FUserCard.g.tsx%23default")
     expect(sources[0]).toContain("case=loading")
-    expect(sources[0]).toContain("gcase=src%2FMultiExport.g.tsx%23NamedBadge%3Aready")
+    expect(sources[0]).not.toContain("gcase=")
+    expect(sources[0]).toContain("sessionId=src%2FUserCard.g.tsx%23default%3Aloading")
     expect(sources[1]).toBe(
       "/gtsx?entry=src%2FMultiExport.g.tsx%23NamedBadge&case=ready&chrome=0&sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready",
     )
     expect(createStudioRuntimeValuesRequest(manifest, childState, "child")?.sessionId).toBe(
-      "src/UserCard.g.tsx#default:loading|src/MultiExport.g.tsx#NamedBadge:ready",
+      "src/UserCard.g.tsx#default:loading",
     )
   })
 
@@ -993,6 +1130,76 @@ describe("GTSX Studio shell", () => {
     })
   })
 
+  it("round-trips canvas drag and zoom state through URL params", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const workspace = createStudioWorkspaceState(manifest, "file:src/MultiExport.g.tsx")
+    const params = createStudioWorkspaceUrlSearchParams("file:src/MultiExport.g.tsx", workspace, {
+      x: 123.4567,
+      y: -8.7654,
+      scale: 1.23456,
+    })
+    const serialized = params.toString()
+
+    expect(serialized).toContain("canvasX=123.457")
+    expect(serialized).toContain("canvasY=-8.765")
+    expect(serialized).toContain("canvasScale=1.235")
+    expect(createStudioCanvasTransformFromUrl(new URLSearchParams("canvasX=10&canvasY=20&canvasScale=9"))).toEqual({
+      x: 10,
+      y: 20,
+      scale: 2.5,
+    })
+    expect(createStudioWorkspaceStateFromUrl(manifest, params).canvas).toEqual({
+      x: 123.457,
+      y: -8.765,
+      scale: 1.235,
+    })
+  })
+
+  it("renders the initial canvas transform restored from URL params", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const html = renderToStaticMarkup(
+      <StudioShell
+        manifest={manifest}
+        urlSearch="selection=file%3Asrc%2FMultiExport.g.tsx&canvasX=120&canvasY=-30&canvasScale=1.25"
+      />,
+    )
+
+    expect(html).toContain("transform:translate(120px, -30px) scale(1.25)")
+  })
+
+  it("replaces the current URL for canvas-only changes instead of pushing history", () => {
+    const pushState = vi.fn()
+    const replaceState = vi.fn()
+    const originalWindow = Reflect.get(globalThis, "window") as Window | undefined
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        history: { pushState, replaceState },
+        location: {
+          pathname: "/gtsx/studio",
+          search: "?selection=file%3Asrc%2FMultiExport.g.tsx",
+        },
+      },
+    })
+
+    try {
+      replaceStudioCanvasUrlState({ x: 120, y: -30, scale: 1.25 })
+    } finally {
+      if (originalWindow === undefined) {
+        Reflect.deleteProperty(globalThis, "window")
+      } else {
+        Object.defineProperty(globalThis, "window", { configurable: true, value: originalWindow })
+      }
+    }
+
+    expect(pushState).not.toHaveBeenCalled()
+    expect(replaceState).toHaveBeenCalledWith(
+      { gtsxStudio: true },
+      "",
+      "/gtsx/studio?selection=file%3Asrc%2FMultiExport.g.tsx&canvasX=120&canvasY=-30&canvasScale=1.25",
+    )
+  })
+
   it("restores previous and next workspace states from browser history URL entries", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
     const previousParams = new URLSearchParams(
@@ -1060,6 +1267,10 @@ function cardSelectTargets(html: string): string[] {
   )
 }
 
+function boundsHitTargetHtml(html: string): string {
+  return html.match(/<div[^>]+data-gtsx-card-select-coordinate="[^"]+"[^>]+data-gtsx-card-select-target="component-bounds"[^>]*>/)?.[0] ?? ""
+}
+
 function selectedCardCoordinates(html: string): string[] {
   return [...html.matchAll(/<article[^>]+data-gtsx-card-coordinate="([^"]+)"[^>]+data-gtsx-card-selected="true"/g)].map(
     (match) => match[1] ?? "",
@@ -1101,6 +1312,10 @@ function previewSources(html: string): string[] {
 
 function previewFrameHtml(html: string, sessionId: string): string {
   return html.match(new RegExp(`<div[^>]+data-gtsx-preview-session-id="${escapeRegExp(sessionId)}"[\\s\\S]*?</div>`))?.[0] ?? ""
+}
+
+function casePreviewFrameHtml(html: string, caseName: string): string {
+  return html.match(new RegExp(`<div[^>]+data-gtsx-case-preview-frame="${escapeRegExp(caseName)}"[^>]*>`))?.[0] ?? ""
 }
 
 function canvasViewportPresets(html: string): string[] {

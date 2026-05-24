@@ -1,9 +1,9 @@
 "use client"
 
 import React from "react"
-import { createGScope, type GBoundaryRect, type GBoundaryTreeNode, type GCases } from "gtsx"
+import { createGScope, type GBoundaryRect, type GCases } from "gtsx"
 
-import BufferedPreviewIframe, { type StudioPreviewFrameSlot } from "./BufferedPreviewIframe.g"
+import BufferedPreviewIframe from "./BufferedPreviewIframe.g"
 import ComponentBoundsHitTarget from "./ComponentBoundsHitTarget.g"
 import SelectedBoundaryOutline from "./SelectedBoundaryOutline.g"
 
@@ -11,10 +11,6 @@ type LazyPreviewFrameProps = {
   "data-gtsx-preview-session-id": string
   boundaryRect?: GBoundaryRect
   coordinate: string
-  frameState?: {
-    tree?: GBoundaryTreeNode[]
-  }
-  onMeasureSize?: (size: { width: number; height: number }) => void
   onSelect?: () => void
   onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void
   previewUrl: string
@@ -26,30 +22,15 @@ type LazyPreviewFrameProps = {
 }
 
 type LazyPreviewFrameScope = {
-  frameSlots: { active: boolean; slot: StudioPreviewFrameSlot }[]
+  shouldLoad: boolean
   setContainerElement: (element: HTMLDivElement | null) => void
 }
 
 const studioPreviewPreloadMargin = 1200
 
-function useRealLazyPreviewFrameScope(
-  previewUrl: string,
-  sessionId: string,
-  title: string,
-  frameState: { tree?: GBoundaryTreeNode[] } | undefined,
-): LazyPreviewFrameScope {
+function useRealLazyPreviewFrameScope(): LazyPreviewFrameScope {
   const [containerElement, setContainerElement] = React.useState<HTMLDivElement | null>(null)
   const [shouldLoad, setShouldLoad] = React.useState(false)
-  const requestedSlot = React.useMemo(
-    () => ({
-      previewUrl,
-      sessionId,
-      title,
-    }),
-    [previewUrl, sessionId, title],
-  )
-  const [activeSlot, setActiveSlot] = React.useState<StudioPreviewFrameSlot>(requestedSlot)
-  const [pendingSlot, setPendingSlot] = React.useState<StudioPreviewFrameSlot | undefined>()
 
   React.useEffect(() => {
     if (!containerElement) return
@@ -77,34 +58,8 @@ function useRealLazyPreviewFrameScope(
     return () => observer.disconnect()
   }, [containerElement])
 
-  React.useEffect(() => {
-    if (!shouldLoad) return
-    if (isSamePreviewFrameSlot(activeSlot, requestedSlot)) {
-      setPendingSlot(undefined)
-      return
-    }
-
-    setPendingSlot((current) => {
-      if (current && isSamePreviewFrameSlot(current, requestedSlot)) return current
-      return requestedSlot
-    })
-  }, [activeSlot, requestedSlot, shouldLoad])
-
-  React.useEffect(() => {
-    if (!pendingSlot || !isSamePreviewFrameSlot(pendingSlot, requestedSlot)) return
-    if (!frameState?.tree) return
-
-    setActiveSlot(pendingSlot)
-    setPendingSlot(undefined)
-  }, [frameState?.tree, pendingSlot, requestedSlot])
-
   return {
-    frameSlots: shouldLoad
-      ? [
-          { active: true, slot: activeSlot },
-          ...(pendingSlot && !isSamePreviewFrameSlot(pendingSlot, activeSlot) ? [{ active: false, slot: pendingSlot }] : []),
-        ]
-      : [],
+    shouldLoad,
     setContainerElement,
   }
 }
@@ -112,7 +67,7 @@ function useRealLazyPreviewFrameScope(
 const useLazyPreviewFrameScope = createGScope(useRealLazyPreviewFrameScope)
 
 export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
-  const scope = useLazyPreviewFrameScope(props.previewUrl, props.sessionId, props.title, props.frameState)
+  const scope = useLazyPreviewFrameScope()
   const layoutHeight = previewFrameLayoutHeight(props.size, props.boundaryRect)
 
   return (
@@ -128,16 +83,17 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
         width: props.size.width,
       }}
     >
-      {scope.frameSlots.map(({ active, slot }) => (
+      {scope.shouldLoad ? (
         <BufferedPreviewIframe
-          active={active}
-          key={previewFrameSlotKey(slot)}
-          onMeasureSize={props.onMeasureSize}
           onPreviewFrameMount={props.onPreviewFrameMount}
           size={props.size}
-          slot={slot}
+          slot={{
+            previewUrl: props.previewUrl,
+            sessionId: props.sessionId,
+            title: props.title,
+          }}
         />
-      ))}
+      ) : null}
       {props.boundaryRect ? <ComponentBoundsHitTarget coordinate={props.coordinate} onSelect={props.onSelect} rect={props.boundaryRect} /> : null}
       {props.selectedBoundaryRect ? <SelectedBoundaryOutline rect={props.selectedBoundaryRect} /> : null}
     </div>
@@ -158,16 +114,7 @@ LazyPreviewFrame.cases = {
       viewportPreset: "phone",
     },
     scope: {
-      frameSlots: [
-        {
-          active: true,
-          slot: {
-            previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0",
-            sessionId: "src/UserCard.g.tsx#default:ready",
-            title: "UserCard preview",
-          },
-        },
-      ],
+      shouldLoad: true,
       setContainerElement() {},
     },
   },
@@ -176,14 +123,6 @@ LazyPreviewFrame.cases = {
 function previewFrameLayoutHeight(displaySize: { height: number }, rect: GBoundaryRect | undefined): number {
   if (!rect) return displaySize.height
   return Math.max(1, Math.ceil(Math.max(0, rect.y) + rect.height))
-}
-
-function isSamePreviewFrameSlot(left: StudioPreviewFrameSlot, right: StudioPreviewFrameSlot): boolean {
-  return left.previewUrl === right.previewUrl && left.sessionId === right.sessionId
-}
-
-function previewFrameSlotKey(slot: StudioPreviewFrameSlot): string {
-  return `${slot.sessionId}\n${slot.previewUrl}`
 }
 
 function isElementNearViewport(element: HTMLElement, margin: number): boolean {

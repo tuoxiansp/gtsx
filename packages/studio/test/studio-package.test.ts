@@ -22,10 +22,10 @@ describe("Studio package", () => {
     })
 
     expect(check, `${check.stdout}\n${check.stderr}`).toMatchObject({ exitCode: 0 })
-    expect(check.stdout).toContain("GTSX scope entry: src/components/BufferedPreviewIframe.g.tsx")
-    expect(check.stdout).toContain("GTSX scope entry: src/components/CasePreviewCard.g.tsx")
+    expect(check.stdout).toContain("GTSX pure entry: src/components/BufferedPreviewIframe.g.tsx")
+    expect(check.stdout).toContain("GTSX pure entry: src/components/CasePreviewCard.g.tsx")
     expect(check.stdout).toContain("GTSX pure entry: src/components/ComponentBoundsHitTarget.g.tsx")
-    expect(check.stdout).toContain("GTSX scope entry: src/components/ComponentCard.g.tsx")
+    expect(check.stdout).toContain("GTSX pure entry: src/components/ComponentCard.g.tsx")
     expect(check.stdout).toContain("GTSX pure entry: src/components/FileGroupLink.g.tsx")
     expect(check.stdout).toContain("GTSX scope entry: src/components/LazyPreviewFrame.g.tsx")
     expect(check.stdout).toContain("GTSX pure entry: src/components/PreviewError.g.tsx")

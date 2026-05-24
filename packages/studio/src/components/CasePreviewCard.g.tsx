@@ -1,50 +1,26 @@
 "use client"
 
-import React from "react"
-import { createGScope, type GBoundaryRect, type GBoundaryTreeNode, type GCases, type GPreviewProtocolMessage } from "gtsx"
+import { type GBoundaryRect, type GBoundaryTreeNode, type GCases } from "gtsx"
 
+import { createStudioPreviewUrl, studioPreviewFrameSize, type StudioPreviewFrameState } from "../client"
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 
 type CasePreviewCardProps = {
   component: StudioManifestComponent
+  frameState?: StudioPreviewFrameState
   manifest: StudioManifest
   onChangeCase?: (component: StudioManifestComponent, caseName: string, options?: { keepDrilldown?: boolean }) => void
   selected: boolean
   testCaseName: string
 }
 
-type CasePreviewCardScope = {
-  boundaryRect?: GBoundaryRect
-}
-
 const studioCasePreviewScale = 0.25
 const studioCasePreviewWidth = 192
 
-function useRealCasePreviewCardScope(component: StudioManifestComponent, testCaseName: string): CasePreviewCardScope {
-  const sessionId = casePreviewSessionId(component, testCaseName)
-  const [boundaryRect, setBoundaryRect] = React.useState<GBoundaryRect | undefined>()
-
-  React.useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      const message = event.data as GPreviewProtocolMessage
-      if (!isGPreviewProtocolMessage(message) || message.sessionId !== sessionId || message.type !== "gtsx:tree") return
-
-      setBoundaryRect(findBoundaryNode(message.tree, component.coordinate)?.rect)
-    }
-
-    window.addEventListener("message", handleMessage)
-    return () => window.removeEventListener("message", handleMessage)
-  }, [component.coordinate, sessionId])
-
-  return { boundaryRect }
-}
-
-const useCasePreviewCardScope = createGScope(useRealCasePreviewCardScope)
-
 export default function CasePreviewCard(props: CasePreviewCardProps) {
-  const sessionId = casePreviewSessionId(props.component, props.testCaseName)
-  const previewUrl = casePreviewUrlForComponent(props.manifest, props.component, props.testCaseName)
-  const { boundaryRect } = useCasePreviewCardScope(props.component, props.testCaseName)
+  const previewUrl = createStudioPreviewUrl(props.manifest, props.component, props.testCaseName)
+  const boundaryRect = selectedBoundaryRectForComponent(props.frameState?.tree, props.component.coordinate)
+  const frameSize = studioPreviewFrameSize("tablet", props.frameState?.size)
   const height = boundaryRect ? Math.max(64, Math.ceil(boundaryRect.height * studioCasePreviewScale) + 32) : 112
   const iframeOffset = boundaryRect
     ? {
@@ -98,14 +74,14 @@ export default function CasePreviewCard(props: CasePreviewCardProps) {
           style={{
             background: "transparent",
             border: 0,
-            height: 1024,
+            height: frameSize.height,
             left: iframeOffset.left,
             pointerEvents: "none",
             position: "absolute",
             top: iframeOffset.top,
             transform: `scale(${studioCasePreviewScale})`,
             transformOrigin: "0 0",
-            width: 768,
+            width: frameSize.width,
           }}
           tabIndex={-1}
           title={`${props.component.componentName} ${props.testCaseName} preview`}
@@ -128,6 +104,18 @@ CasePreviewCard.cases = {
         providers: {},
         diagnostics: [],
       },
+      frameState: {
+        expectedSessionId: "src/UserCard.g.tsx#default:ready",
+        ready: true,
+        tree: [
+          {
+            id: "root",
+            coordinate: "src/UserCard.g.tsx#default",
+            rect: { x: 12, y: 20, width: 320, height: 88 },
+            children: [],
+          },
+        ],
+      },
       manifest: {
         version: 1,
         routes: {
@@ -145,24 +133,11 @@ CasePreviewCard.cases = {
       selected: true,
       testCaseName: "ready",
     },
-    scope: {
-      boundaryRect: { x: 12, y: 20, width: 320, height: 88 },
-    },
   },
-} satisfies GCases<CasePreviewCardProps, CasePreviewCardScope>
+} satisfies GCases<CasePreviewCardProps>
 
-function casePreviewUrlForComponent(manifest: StudioManifest, component: StudioManifestComponent, caseName: string): string {
-  const params = new URLSearchParams({
-    entry: component.coordinate,
-    case: caseName,
-    chrome: "0",
-    sessionId: casePreviewSessionId(component, caseName),
-  })
-  return `${manifest.routes.preview}?${params.toString()}`
-}
-
-function casePreviewSessionId(component: StudioManifestComponent, caseName: string): string {
-  return `case:${component.coordinate}:${caseName}`
+function selectedBoundaryRectForComponent(tree: GBoundaryTreeNode[] | undefined, coordinate: string): GBoundaryRect | undefined {
+  return tree ? findBoundaryNode(tree, coordinate)?.rect : undefined
 }
 
 function findBoundaryNode(tree: GBoundaryTreeNode[], coordinate: string): GBoundaryTreeNode | undefined {
@@ -175,12 +150,3 @@ function findBoundaryNode(tree: GBoundaryTreeNode[], coordinate: string): GBound
   return undefined
 }
 
-function isGPreviewProtocolMessage(value: unknown): value is GPreviewProtocolMessage {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "type" in value &&
-    typeof (value as { type: unknown }).type === "string" &&
-    (value as { type: string }).type.startsWith("gtsx:")
-  )
-}

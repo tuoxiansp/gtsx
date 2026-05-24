@@ -8,6 +8,7 @@ import {
   createGPreviewResizeMessage,
   createGPreviewTreeMessage,
   createGPreviewValuesMessage,
+  readGBoundaryElementRect,
   type GBoundaryCollector,
   type GBoundaryRect,
   type GPreviewProtocolMessage,
@@ -239,41 +240,10 @@ function isRuntimeValuesRequest(
 function updateBoundaryRects(collector: GBoundaryCollector) {
   for (const element of document.querySelectorAll<HTMLElement>("[data-gtsx-boundary-id]")) {
     const boundaryId = element.dataset.gtsxBoundaryId
-    const rect = readBoundaryRect(element)
+    const rect = readGBoundaryElementRect(element)
     if (boundaryId && rect) {
       collector.updateBoundaryRect(boundaryId, rect)
     }
-  }
-}
-
-function readBoundaryRect(element: HTMLElement): GBoundaryRect | undefined {
-  const ownRect = element.getBoundingClientRect()
-  if (ownRect.width > 0 || ownRect.height > 0) return toBoundaryRect(ownRect)
-
-  const childRects = [...element.querySelectorAll<HTMLElement>("*")]
-    .map((child) => child.getBoundingClientRect())
-    .filter((rect) => rect.width > 0 || rect.height > 0)
-  if (childRects.length === 0) return undefined
-
-  const left = Math.min(...childRects.map((rect) => rect.left))
-  const top = Math.min(...childRects.map((rect) => rect.top))
-  const right = Math.max(...childRects.map((rect) => rect.right))
-  const bottom = Math.max(...childRects.map((rect) => rect.bottom))
-
-  return {
-    x: left,
-    y: top,
-    width: right - left,
-    height: bottom - top,
-  }
-}
-
-function toBoundaryRect(rect: DOMRect): GBoundaryRect {
-  return {
-    x: rect.x,
-    y: rect.y,
-    width: rect.width,
-    height: rect.height,
   }
 }
 

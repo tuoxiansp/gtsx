@@ -81,7 +81,21 @@ export type StudioRuntimeValuesRequest = {
   message: GPreviewRequestValuesMessage
 }
 
+export type StudioPreviewCacheEntry = {
+  frameState: StudioPreviewFrameState
+  lastUsedAt: number
+}
+
+export type StudioPreviewWarmupTarget = {
+  cacheKey: string
+  previewUrl: string
+  sessionId: string
+  size: { width: number; height: number }
+  title: string
+}
+
 export type StudioWorkspaceUrlState = {
+  canvas: StudioCanvasTransform
   selection: string
   workspace: StudioWorkspaceState
   warning?: string
@@ -152,6 +166,10 @@ export function createStudioWorkspaceState(manifest: StudioManifest, selection?:
     selectedRuntimeInstanceByCoordinate: {},
     selectedViewportPresetByCoordinate: {},
   }
+}
+
+export function defaultStudioCanvasTransform(): StudioCanvasTransform {
+  return { x: 40, y: 40, scale: 1 }
 }
 
 export function selectStudioComponent(
@@ -256,11 +274,16 @@ export function changeStudioCanvasViewportPreset(
   }
 }
 
-export function createStudioWorkspaceUrlSearchParams(selection: string | undefined, workspace: StudioWorkspaceState): URLSearchParams {
+export function createStudioWorkspaceUrlSearchParams(
+  selection: string | undefined,
+  workspace: StudioWorkspaceState,
+  canvas?: StudioCanvasTransform,
+): URLSearchParams {
   const params = new URLSearchParams()
   if (selection) params.set("selection", selection)
   const canvasViewportPreset = canvasViewportPresetForWorkspace(workspace)
   if (canvasViewportPreset !== "tablet") params.set("canvasViewport", canvasViewportPreset)
+  setStudioCanvasTransformUrlParams(params, canvas)
 
   for (const coordinate of workspace.selectedCoordinatePath) {
     params.append("path", coordinate)
@@ -285,6 +308,7 @@ export function createStudioWorkspaceStateFromUrl(
   params: URLSearchParams,
 ): StudioWorkspaceUrlState {
   const selection = params.get("selection") ?? undefined
+  const canvas = createStudioCanvasTransformFromUrl(params)
   const resolvedSelection = resolveSelection(manifest, selection)
   const rawPath = params.getAll("path")
   const selectedCoordinatePath = rawPath.filter((coordinate) => Boolean(findManifestComponent(manifest, coordinate)))
@@ -303,6 +327,7 @@ export function createStudioWorkspaceStateFromUrl(
 
   if (selectedCoordinatePath.length === 0) {
     return {
+      canvas,
       selection: resolvedSelection.id,
       workspace: {
         canvasViewportPreset,
@@ -317,6 +342,7 @@ export function createStudioWorkspaceStateFromUrl(
   }
 
   return {
+    canvas,
     selection: resolvedSelection.id,
     workspace: {
       canvasViewportPreset,
@@ -349,7 +375,7 @@ export function createStudioRuntimeValuesRequest(
   if (!sourceComponent) return undefined
 
   const sourceCaseName = selectedStudioCaseName(workspace, sourceComponent)
-  const sessionId = previewSessionId(sourceComponent, sourceCaseName, previewCaseOverridesForComponent(workspace, sourceComponent))
+  const sessionId = previewSessionId(sourceComponent, sourceCaseName)
   return {
     sessionId,
     message: createGPreviewRequestValuesMessage(sessionId, boundaryId),
@@ -508,10 +534,37 @@ export function initialStudioUrlSearchParams(selection: string | undefined, urlS
   return params
 }
 
-export function pushStudioWorkspaceUrlState(selection: string | undefined, workspace: StudioWorkspaceState) {
+export function createStudioCanvasTransformFromUrl(params: URLSearchParams): StudioCanvasTransform {
+  const fallback = defaultStudioCanvasTransform()
+  return {
+    x: numberUrlParam(params, "canvasX", fallback.x),
+    y: numberUrlParam(params, "canvasY", fallback.y),
+    scale: clamp(numberUrlParam(params, "canvasScale", fallback.scale), studioCanvasMinScale, studioCanvasMaxScale),
+  }
+}
+
+export function replaceStudioCanvasUrlState(canvas: StudioCanvasTransform) {
   if (typeof window === "undefined") return
 
-  const params = createStudioWorkspaceUrlSearchParams(selection, workspace)
+  const params = new URLSearchParams(window.location.search)
+  setStudioCanvasTransformUrlParams(params, canvas)
+  const search = params.toString()
+  const nextUrl = `${window.location.pathname}${search ? `?${search}` : ""}`
+  const currentUrl = `${window.location.pathname}${window.location.search}`
+  if (nextUrl !== currentUrl) {
+    window.history.replaceState({ gtsxStudio: true }, "", nextUrl)
+  }
+}
+
+export function pushStudioWorkspaceUrlState(
+  selection: string | undefined,
+  workspace: StudioWorkspaceState,
+  options: { canvas?: StudioCanvasTransform } = {},
+) {
+  if (typeof window === "undefined") return
+
+  const canvas = options.canvas ?? createStudioCanvasTransformFromUrl(new URLSearchParams(window.location.search))
+  const params = createStudioWorkspaceUrlSearchParams(selection, workspace, canvas)
   const search = params.toString()
   const nextUrl = `${window.location.pathname}${search ? `?${search}` : ""}`
   const currentUrl = `${window.location.pathname}${window.location.search}`
@@ -526,6 +579,30 @@ function clamp(value: number, min: number, max: number): number {
 
 const studioCanvasMinScale = 0.2
 const studioCanvasMaxScale = 2.5
+
+function setStudioCanvasTransformUrlParams(params: URLSearchParams, canvas: StudioCanvasTransform | undefined) {
+  params.delete("canvasX")
+  params.delete("canvasY")
+  params.delete("canvasScale")
+  if (!canvas) return
+
+  const fallback = defaultStudioCanvasTransform()
+  if (canvas.x !== fallback.x) params.set("canvasX", formatStudioCanvasNumber(canvas.x))
+  if (canvas.y !== fallback.y) params.set("canvasY", formatStudioCanvasNumber(canvas.y))
+  if (canvas.scale !== fallback.scale) params.set("canvasScale", formatStudioCanvasNumber(canvas.scale))
+}
+
+function numberUrlParam(params: URLSearchParams, name: string, fallback: number): number {
+  const value = params.get(name)
+  if (!value) return fallback
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function formatStudioCanvasNumber(value: number): string {
+  const rounded = Math.round(value * 1000) / 1000
+  return String(Object.is(rounded, -0) ? 0 : rounded)
+}
 
 export function applyStudioCanvasWheel(current: StudioCanvasTransform, input: StudioCanvasWheelInput): StudioCanvasTransform {
   if (!input.ctrlKey && !input.metaKey) {
@@ -572,8 +649,36 @@ export function componentCardLayoutWidth(
   coordinate: string,
 ): number {
   const rect = tree ? findBoundaryNode(tree, coordinate)?.rect : undefined
-  if (rect) return Math.max(280, Math.ceil(Math.max(0, rect.x) + rect.width))
+  if (rect) return Math.max(280, Math.ceil(boundaryRightWithinPreviewViewport(rect, displaySize.width)))
   return typeof displaySize.width === "number" ? displaySize.width + 28 : 520
+}
+
+export function clipPreviewBoundaryRectToViewport(
+  rect: GBoundaryRect | undefined,
+  viewport: { width: number | string; height: number },
+): GBoundaryRect | undefined {
+  if (!rect) return undefined
+
+  const viewportWidth = typeof viewport.width === "number" ? viewport.width : Number.POSITIVE_INFINITY
+  const left = clamp(rect.x, 0, viewportWidth)
+  const top = clamp(rect.y, 0, viewport.height)
+  const right = clamp(rect.x + rect.width, 0, viewportWidth)
+  const bottom = clamp(rect.y + rect.height, 0, viewport.height)
+
+  if (right <= left || bottom <= top) return undefined
+
+  return {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+  }
+}
+
+function boundaryRightWithinPreviewViewport(rect: GBoundaryRect, viewportWidth: number | string): number {
+  const right = Math.max(0, rect.x + rect.width)
+  if (typeof viewportWidth !== "number") return right
+  return Math.min(viewportWidth, right)
 }
 
 export function canvasViewportPresetForWorkspace(workspace: StudioWorkspaceState): StudioViewportPreset {
@@ -599,31 +704,57 @@ export function findManifestComponent(manifest: StudioManifest, coordinate: stri
   return manifest.files.flatMap((file) => file.components).find((component) => component.coordinate === coordinate)
 }
 
+export function createStudioPreviewUrl(
+  manifest: StudioManifest,
+  component: StudioManifestComponent,
+  caseName: string,
+  sessionId = previewSessionId(component, caseName),
+): string {
+  const params = new URLSearchParams({
+    entry: component.coordinate,
+    case: caseName,
+    chrome: "0",
+    sessionId,
+  })
+  return `${manifest.routes.preview}?${params.toString()}`
+}
+
 export function previewSessionId(
   component: StudioManifestComponent,
   caseName: string,
-  caseOverrides: readonly (readonly [string, string])[] = [],
 ): string {
-  if (caseOverrides.length === 0) return `${component.coordinate}:${caseName}`
-
-  return `${component.coordinate}:${caseName}|${caseOverrides
-    .map(([coordinate, overrideCaseName]) => `${coordinate}:${overrideCaseName}`)
-    .join("|")}`
+  return `${component.coordinate}:${caseName}`
 }
 
-export function previewCaseOverridesForComponent(
-  workspace: Pick<StudioWorkspaceState, "selectedCaseByCoordinate" | "selectedCoordinatePath">,
-  component: StudioManifestComponent,
-): readonly (readonly [string, string])[] {
-  const componentPathIndex = workspace.selectedCoordinatePath.indexOf(component.coordinate)
-  if (componentPathIndex < 0) return []
+export function studioPreviewCacheKey(component: StudioManifestComponent, caseName: string, viewportPreset: StudioViewportPreset): string {
+  return `${viewportPreset}\n${component.coordinate}\n${caseName}`
+}
 
-  return workspace.selectedCoordinatePath
-    .slice(componentPathIndex + 1)
-    .flatMap((coordinate) => {
-      const caseName = workspace.selectedCaseByCoordinate[coordinate]
-      return caseName ? ([[coordinate, caseName]] as const) : []
-    })
+export function studioPreviewFrameSize(
+  preset: StudioViewportPreset,
+  reportedSize: { width: number; height: number } | undefined,
+): { width: number | string; height: number } {
+  if (preset === "phone") return { width: 390, height: 844 }
+  if (preset === "tablet") return { width: 768, height: 1024 }
+  if (preset === "desktop") return { width: 1280, height: 900 }
+  return { width: 768, height: clamp(reportedSize?.height ?? 1024, 160, 1200) }
+}
+
+export function mergeStudioPreviewFrameState(
+  sessionId: string,
+  current: StudioPreviewFrameState | undefined,
+  cached: StudioPreviewFrameState | undefined,
+): StudioPreviewFrameState | undefined {
+  if (!current && !cached) return undefined
+
+  return {
+    expectedSessionId: sessionId,
+    ready: current?.ready ?? false,
+    ...(current?.tree ?? cached?.tree ? { tree: current?.tree ?? cached?.tree } : {}),
+    ...(current?.size ?? cached?.size ? { size: current?.size ?? cached?.size } : {}),
+    ...(current?.error ? { error: current.error } : {}),
+    ...(current?.valuesByBoundaryId ? { valuesByBoundaryId: current.valuesByBoundaryId } : {}),
+  }
 }
 
 export function currentPreviewSessionIds(workspace: StudioWorkspaceState): Set<string> {
@@ -631,10 +762,86 @@ export function currentPreviewSessionIds(workspace: StudioWorkspaceState): Set<s
     workspace.columns.flatMap((column) =>
       column.components.flatMap((component) => {
         const caseName = selectedStudioCaseName(workspace, component)
-        return caseName !== "No cases" ? [previewSessionId(component, caseName, previewCaseOverridesForComponent(workspace, component))] : []
+        return caseName !== "No cases" ? [previewSessionId(component, caseName)] : []
       }),
     ),
   )
+}
+
+export function currentStudioPreviewTargets(manifest: StudioManifest, workspace: StudioWorkspaceState): StudioPreviewWarmupTarget[] {
+  const viewportPreset = canvasViewportPresetForWorkspace(workspace)
+  return visibleWorkspaceComponents(workspace).flatMap((component) => {
+    const caseName = selectedStudioCaseName(workspace, component)
+    if (caseName === "No cases") return []
+
+    const sessionId = previewSessionId(component, caseName)
+    return [studioPreviewTarget(manifest, component, caseName, viewportPreset, sessionId)]
+  })
+}
+
+export function studioPreviewWarmupTargets(
+  manifest: StudioManifest,
+  workspace: StudioWorkspaceState,
+  options: { limit?: number } = {},
+): StudioPreviewWarmupTarget[] {
+  const viewportPreset = canvasViewportPresetForWorkspace(workspace)
+  const activeCacheKeys = new Set(currentStudioPreviewTargets(manifest, workspace).map((target) => target.cacheKey))
+  const targets = new Map<string, StudioPreviewWarmupTarget>()
+  const limit = options.limit ?? 16
+
+  const addTarget = (component: StudioManifestComponent | undefined, caseName: string | undefined) => {
+    if (!component || !caseName || caseName === "No cases") return
+    const cacheKey = studioPreviewCacheKey(component, caseName, viewportPreset)
+    if (activeCacheKeys.has(cacheKey) || targets.has(cacheKey)) return
+    targets.set(cacheKey, studioPreviewTarget(manifest, component, caseName, viewportPreset, warmupPreviewSessionId(cacheKey)))
+  }
+
+  const componentsByCoordinate = new Map(
+    manifest.files.flatMap((file) => file.components).map((component) => [component.coordinate, component] as const),
+  )
+
+  for (const coordinate of workspace.selectedCoordinatePath) {
+    const component = componentsByCoordinate.get(coordinate)
+    for (const testCase of component?.cases ?? []) addTarget(component, testCase.name)
+  }
+
+  const selectedCoordinate = workspace.selectedCoordinatePath.at(-1)
+  const selectedComponent = selectedCoordinate ? componentsByCoordinate.get(selectedCoordinate) : undefined
+  for (const testCase of selectedComponent?.cases ?? []) addTarget(selectedComponent, testCase.name)
+
+  for (const column of workspace.columns) {
+    const selectedIndex = Math.max(
+      0,
+      column.components.findIndex((component) => workspace.selectedCoordinatePath.includes(component.coordinate)),
+    )
+    for (const index of [selectedIndex - 1, selectedIndex, selectedIndex + 1]) {
+      const component = column.components[index]
+      if (component) addTarget(component, selectedStudioCaseName(workspace, component))
+      for (const testCase of component?.cases ?? []) addTarget(component, testCase.name)
+    }
+  }
+
+  return [...targets.values()].slice(0, limit)
+}
+
+function studioPreviewTarget(
+  manifest: StudioManifest,
+  component: StudioManifestComponent,
+  caseName: string,
+  viewportPreset: StudioViewportPreset,
+  sessionId: string,
+): StudioPreviewWarmupTarget {
+  return {
+    cacheKey: studioPreviewCacheKey(component, caseName, viewportPreset),
+    previewUrl: createStudioPreviewUrl(manifest, component, caseName, sessionId),
+    sessionId,
+    size: studioPreviewFrameSize(viewportPreset, undefined) as { width: number; height: number },
+    title: `${component.componentName} ${caseName} warmup`,
+  }
+}
+
+function warmupPreviewSessionId(cacheKey: string): string {
+  return `warmup:${cacheKey}`
 }
 
 export function isGPreviewProtocolMessage(value: unknown): value is GPreviewProtocolMessage {

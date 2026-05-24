@@ -2,6 +2,7 @@ export { defineGTSXConfig } from "./define-config.js"
 export type { GTSXConfig, GTSXScriptConfig } from "./config-types.js"
 export type { GTSXDiagnostic } from "./analyzer.js"
 export { GPreviewProvider, createGBoundaryCollector, createGScope, defineGComponent, useGContext } from "./runtime.js"
+export { readGBoundaryElementRect } from "./boundary-rect.js"
 export type {
   GProvider,
   AnyGProvider,

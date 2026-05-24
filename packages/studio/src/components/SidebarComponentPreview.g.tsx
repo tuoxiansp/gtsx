@@ -3,10 +3,12 @@
 import React from "react"
 import { createGScope, type GBoundaryRect, type GBoundaryTreeNode, type GCases, type GPreviewProtocolMessage } from "gtsx"
 
+import type { StudioPreviewFrameState } from "../client"
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 
 type SidebarComponentPreviewProps = {
   component: StudioManifestComponent
+  frameState?: StudioPreviewFrameState
   manifest: StudioManifest
 }
 
@@ -65,7 +67,8 @@ const useSidebarComponentPreviewScope = createGScope(useRealSidebarComponentPrev
 export default function SidebarComponentPreview(props: SidebarComponentPreviewProps) {
   const previewUrl = sidebarPreviewUrlForComponent(props.manifest, props.component)
   const scope = useSidebarComponentPreviewScope(props.component)
-  const height = scope.boundaryRect ? Math.max(1, Math.ceil((Math.max(0, scope.boundaryRect.y) + scope.boundaryRect.height) * 0.24)) : 96
+  const boundaryRect = scope.boundaryRect ?? selectedBoundaryRectForComponent(props.frameState?.tree, props.component.coordinate)
+  const height = boundaryRect ? Math.max(1, Math.ceil((Math.max(0, boundaryRect.y) + boundaryRect.height) * 0.24)) : 96
 
   return (
     <div
@@ -133,6 +136,18 @@ SidebarComponentPreview.cases = {
         files: [],
         diagnostics: [],
       },
+      frameState: {
+        expectedSessionId: "sidebar:src/UserCard.g.tsx#default:ready",
+        ready: true,
+        tree: [
+          {
+            id: "root",
+            coordinate: "src/UserCard.g.tsx#default",
+            rect: { x: 0, y: 12, width: 320, height: 88 },
+            children: [],
+          },
+        ],
+      },
     },
     scope: {
       boundaryRect: { x: 0, y: 12, width: 320, height: 88 },
@@ -157,6 +172,10 @@ function sidebarPreviewUrlForComponent(manifest: StudioManifest, component: Stud
 
 function sidebarPreviewSessionId(component: StudioManifestComponent): string {
   return `sidebar:${component.coordinate}:${component.cases[0]?.name ?? "No cases"}`
+}
+
+function selectedBoundaryRectForComponent(tree: GBoundaryTreeNode[] | undefined, coordinate: string): GBoundaryRect | undefined {
+  return tree ? findBoundaryNode(tree, coordinate)?.rect : undefined
 }
 
 function findBoundaryNode(tree: GBoundaryTreeNode[], coordinate: string): GBoundaryTreeNode | undefined {

@@ -5,21 +5,29 @@ import { createGScope, type GCases, type GPreviewProtocolMessage } from "gtsx"
 
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import {
+  applyStudioPreviewMessage,
   applyStudioPreviewMessageToFrameStates,
   canvasViewportPresetForWorkspace,
   changeStudioCanvasViewportPreset,
   changeStudioComponentCase,
   changeStudioViewportPreset,
   createStudioWorkspaceStateFromUrl,
+  currentStudioPreviewTargets,
   currentPreviewSessionIds,
   initialStudioUrlSearchParams,
   isGPreviewProtocolMessage,
   pushStudioWorkspaceUrlState,
+  replaceStudioCanvasUrlState,
   selectStudioComponent,
+  studioPreviewWarmupTargets,
+  type StudioCanvasTransform,
+  type StudioPreviewCacheEntry,
   type StudioPreviewFrameState,
+  type StudioPreviewWarmupTarget,
   type StudioViewportPreset,
   type StudioWorkspaceState,
 } from "../client"
+import BufferedPreviewIframe from "./BufferedPreviewIframe.g"
 import StudioWorkspaceView from "./StudioWorkspaceView.g"
 
 export type StudioShellProps = {
@@ -29,15 +37,19 @@ export type StudioShellProps = {
 }
 
 type StudioShellScope = {
+  canvas: StudioCanvasTransform
   frameStates: Record<string, StudioPreviewFrameState>
+  onChangeCanvas: (canvas: StudioCanvasTransform) => void
   onChangeCanvasViewportPreset: (preset: StudioViewportPreset) => void
   onChangeCase: (component: StudioManifestComponent, caseName: string, options?: { keepDrilldown?: boolean }) => void
   onChangeSelection: (selection: string) => void
   onChangeViewportPreset: (component: StudioManifestComponent, preset: StudioViewportPreset) => void
   onPreviewFrameMount: (sessionId: string, frame: HTMLIFrameElement | null) => void
   onSelectComponent: (component: StudioManifestComponent, frameState: StudioPreviewFrameState | undefined) => void
+  previewCache: Record<string, StudioPreviewCacheEntry>
   selection: string
   urlWarning?: string
+  warmupTargets: StudioPreviewWarmupTarget[]
   workspace: StudioWorkspaceState
 }
 
@@ -47,33 +59,74 @@ function useRealStudioShellScope(props: StudioShellProps): StudioShellScope {
     [props.manifest, props.selection, props.urlSearch],
   )
   const [selection, setSelection] = React.useState(initialUrlState.selection)
+  const [canvas, setCanvas] = React.useState(initialUrlState.canvas)
   const [urlWarning, setUrlWarning] = React.useState(initialUrlState.warning)
   const [workspace, setWorkspace] = React.useState(initialUrlState.workspace)
   const [frameStates, setFrameStates] = React.useState<Record<string, StudioPreviewFrameState>>({})
+  const [previewCache, setPreviewCache] = React.useState<Record<string, StudioPreviewCacheEntry>>({})
+  const [warmupsEnabled, setWarmupsEnabled] = React.useState(false)
   const previewFrames = React.useRef(new Map<string, HTMLIFrameElement>())
   const sessionIds = React.useMemo(() => currentPreviewSessionIds(workspace), [workspace])
+  const currentTargets = React.useMemo(() => currentStudioPreviewTargets(props.manifest, workspace), [props.manifest, workspace])
+  const warmupTargets = React.useMemo(
+    () => (warmupsEnabled ? studioPreviewWarmupTargets(props.manifest, workspace) : []),
+    [props.manifest, warmupsEnabled, workspace],
+  )
+  const targetsBySessionId = React.useMemo(
+    () => new Map([...currentTargets, ...warmupTargets].map((target) => [target.sessionId, target] as const)),
+    [currentTargets, warmupTargets],
+  )
+  const canvasRef = React.useRef(canvas)
   const selectionRef = React.useRef(selection)
+
+  React.useEffect(() => {
+    setWarmupsEnabled(true)
+  }, [])
 
   React.useEffect(() => {
     selectionRef.current = selection
   }, [selection])
 
   React.useEffect(() => {
+    canvasRef.current = canvas
+  }, [canvas])
+
+  React.useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const message = event.data as GPreviewProtocolMessage
-      if (!isGPreviewProtocolMessage(message) || !sessionIds.has(message.sessionId)) return
+      if (!isGPreviewProtocolMessage(message)) return
 
-      setFrameStates((current) => applyStudioPreviewMessageToFrameStates(current, message, sessionIds))
+      const target = targetsBySessionId.get(message.sessionId)
+      if (!target) return
+
+      if (sessionIds.has(message.sessionId)) {
+        setFrameStates((current) => applyStudioPreviewMessageToFrameStates(current, message, sessionIds))
+      }
+      setPreviewCache((current) => {
+        const currentEntry = current[target.cacheKey]
+        const currentFrameState = currentEntry?.frameState ?? {
+          expectedSessionId: message.sessionId,
+          ready: false,
+        }
+        return {
+          ...current,
+          [target.cacheKey]: {
+            frameState: applyStudioPreviewMessage(currentFrameState, message),
+            lastUsedAt: Date.now(),
+          },
+        }
+      })
     }
 
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [sessionIds])
+  }, [sessionIds, targetsBySessionId])
 
   React.useEffect(() => {
     const handlePopState = () => {
       const restored = createStudioWorkspaceStateFromUrl(props.manifest, new URLSearchParams(window.location.search))
       setSelection(restored.selection)
+      setCanvas(restored.canvas)
       setUrlWarning(restored.warning)
       setWorkspace(restored.workspace)
       setFrameStates({})
@@ -86,13 +139,21 @@ function useRealStudioShellScope(props: StudioShellProps): StudioShellScope {
   const commitWorkspace = React.useCallback((updater: (current: StudioWorkspaceState) => StudioWorkspaceState) => {
     setWorkspace((current) => {
       const next = updater(current)
-      pushStudioWorkspaceUrlState(selectionRef.current, next)
+      pushStudioWorkspaceUrlState(selectionRef.current, next, { canvas: canvasRef.current })
       return next
     })
   }, [])
 
+  const commitCanvas = React.useCallback((nextCanvas: StudioCanvasTransform) => {
+    canvasRef.current = nextCanvas
+    setCanvas(nextCanvas)
+    replaceStudioCanvasUrlState(nextCanvas)
+  }, [])
+
   return {
+    canvas,
     frameStates,
+    onChangeCanvas: commitCanvas,
     onChangeCanvasViewportPreset(preset) {
       commitWorkspace((current) => changeStudioCanvasViewportPreset(current, preset))
     },
@@ -110,7 +171,7 @@ function useRealStudioShellScope(props: StudioShellProps): StudioShellScope {
       setUrlWarning(nextUrlState.warning)
       setWorkspace(nextUrlState.workspace)
       setFrameStates({})
-      pushStudioWorkspaceUrlState(nextUrlState.selection, nextUrlState.workspace)
+      pushStudioWorkspaceUrlState(nextUrlState.selection, nextUrlState.workspace, { canvas: canvasRef.current })
     },
     onChangeViewportPreset(component, preset) {
       commitWorkspace((current) => changeStudioViewportPreset(current, component.coordinate, preset))
@@ -125,8 +186,10 @@ function useRealStudioShellScope(props: StudioShellProps): StudioShellScope {
     onSelectComponent(component, frameState) {
       commitWorkspace((current) => selectStudioComponent(current, props.manifest, component.coordinate, frameState?.tree ?? []))
     },
+    previewCache,
     selection,
     urlWarning,
+    warmupTargets,
     workspace,
   }
 }
@@ -137,19 +200,46 @@ export default function StudioShell(props: StudioShellProps) {
   const scope = useStudioShellScope(props)
 
   return (
-    <StudioWorkspaceView
-      frameStates={scope.frameStates}
-      manifest={props.manifest}
-      onSelectComponent={scope.onSelectComponent}
-      onChangeCase={scope.onChangeCase}
-      onChangeCanvasViewportPreset={scope.onChangeCanvasViewportPreset}
-      onChangeSelection={scope.onChangeSelection}
-      onChangeViewportPreset={scope.onChangeViewportPreset}
-      onPreviewFrameMount={scope.onPreviewFrameMount}
-      selection={scope.selection}
-      urlWarning={scope.urlWarning}
-      workspace={scope.workspace}
-    />
+    <>
+      <StudioWorkspaceView
+        canvas={scope.canvas}
+        frameStates={scope.frameStates}
+        manifest={props.manifest}
+        onChangeCanvas={scope.onChangeCanvas}
+        onSelectComponent={scope.onSelectComponent}
+        onChangeCase={scope.onChangeCase}
+        onChangeCanvasViewportPreset={scope.onChangeCanvasViewportPreset}
+        onChangeSelection={scope.onChangeSelection}
+        onChangeViewportPreset={scope.onChangeViewportPreset}
+        onPreviewFrameMount={scope.onPreviewFrameMount}
+        previewCache={scope.previewCache}
+        selection={scope.selection}
+        urlWarning={scope.urlWarning}
+        workspace={scope.workspace}
+      />
+      <StudioPreviewWarmups targets={scope.warmupTargets} />
+    </>
+  )
+}
+
+function StudioPreviewWarmups(props: { targets: StudioPreviewWarmupTarget[] }) {
+  if (props.targets.length === 0) return null
+
+  return (
+    <div aria-hidden="true" data-gtsx-preview-warmups="true" style={{ height: 0, overflow: "hidden", position: "fixed", width: 0 }}>
+      {props.targets.map((target) => (
+        <div key={target.cacheKey} style={{ height: 0, overflow: "hidden", position: "relative", width: 0 }}>
+          <BufferedPreviewIframe
+            size={target.size}
+            slot={{
+              previewUrl: target.previewUrl,
+              sessionId: target.sessionId,
+              title: target.title,
+            }}
+          />
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -191,13 +281,16 @@ StudioShell.cases = {
       selection: "file:src/MultiExport.g.tsx",
     },
     scope: {
+      canvas: { x: 40, y: 40, scale: 1 },
       frameStates: {},
+      onChangeCanvas() {},
       onChangeCanvasViewportPreset() {},
       onChangeCase() {},
       onChangeSelection() {},
       onChangeViewportPreset() {},
       onPreviewFrameMount() {},
       onSelectComponent() {},
+      previewCache: {},
       selection: "file:src/MultiExport.g.tsx",
       workspace: {
         canvasViewportPreset: "tablet",
@@ -222,6 +315,7 @@ StudioShell.cases = {
         selectedRuntimeInstanceByCoordinate: {},
         selectedViewportPresetByCoordinate: {},
       },
+      warmupTargets: [],
     },
   },
 } satisfies GCases<StudioShellProps, StudioShellScope>
