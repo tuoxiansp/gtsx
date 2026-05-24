@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
-import { buildStudioManifest, selectStudioManifestProvider } from "../src/studio-manifest.js"
+import { buildGTSXProjectIndex } from "../src/project-index.js"
+import { buildStudioManifest, createStudioManifest, selectStudioManifestProvider } from "../src/studio-manifest.js"
 
 const fixtureRoot = join(import.meta.dirname, "fixtures/check-project")
 const tsProjectScopeRoot = join(import.meta.dirname, "fixtures/ts-project-scope")
@@ -86,6 +87,34 @@ describe("GTSX Studio manifest", () => {
       ],
       diagnostics: [],
     })
+  })
+
+  it("assembles Studio route and grouping concerns from a GTSX project index", () => {
+    const projectIndex = buildGTSXProjectIndex({ cwd: fixtureRoot, projectRoot: "src/corpus" })
+
+    const manifest = createStudioManifest(projectIndex, {
+      preview: {
+        urlTemplate: "https://preview.test/gtsx?entry={entry}&case={case}",
+      },
+      routes: {
+        studio: "/custom/studio",
+      },
+    })
+
+    expect(manifest.routes).toEqual({
+      preview: "/gtsx",
+      studio: "/custom/studio",
+      manifest: "/gtsx/studio/manifest",
+    })
+    expect(manifest.preview).toEqual({
+      urlTemplate: "https://preview.test/gtsx?entry={entry}&case={case}",
+      allUrlTemplate: "/gtsx?entry={entry}{gcase}",
+    })
+    expect(manifest.files.map((file) => file.groupId)).toEqual([
+      "file:src/corpus/Badge.g.tsx",
+      "file:src/corpus/StatusPanel.g.tsx",
+    ])
+    expect(manifest.diagnostics).toEqual(projectIndex.diagnostics)
   })
 
   it("builds files from the selected TypeScript project scope", () => {
@@ -194,6 +223,14 @@ describe("GTSX Studio manifest", () => {
     const packageJson = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"))
 
     expect(packageJson.exports).toMatchObject({
+      "./project-index": {
+        types: "./dist/project-index.d.ts",
+        import: "./dist/project-index.js",
+      },
+      "./studio/manifest": {
+        types: "./dist/studio-manifest-model.d.ts",
+        import: "./dist/studio-manifest-model.js",
+      },
       "./studio/server": {
         types: "./dist/studio-manifest.d.ts",
         import: "./dist/studio-manifest.js",

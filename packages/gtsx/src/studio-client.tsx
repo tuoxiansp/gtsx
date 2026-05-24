@@ -9,7 +9,7 @@ import {
   type GPreviewProtocolMessage,
   type GPreviewRequestValuesMessage,
 } from "./preview-protocol.js"
-import type { StudioManifest, StudioManifestComponent, StudioManifestFile } from "./studio-manifest.js"
+import type { StudioManifest, StudioManifestComponent, StudioManifestFile } from "./studio-manifest-model.js"
 import type { GBoundaryRect, GBoundaryTreeNode } from "./runtime.js"
 import type { GSerializedRuntimeValue } from "./runtime-values.js"
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { resolve } from "node:path"
 
 import { gtsxViteReact, transformGTSXComponentBoundaries } from "../src/index.js"
+import { buildGTSXProjectIndex } from "gtsx/project-index"
 import { buildStudioManifest } from "gtsx/studio/server"
 
 const root = "/repo"
@@ -106,6 +107,21 @@ export function PlainComponent() {
     expect(resolvedId).toBe("\0virtual:gtsx/studio-manifest")
     expect(manifest).toEqual(buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" }))
     expect(loaded.code).not.toContain("buildStudioManifest")
+  })
+
+  it("loads a low-level GTSX project index through a virtual module", () => {
+    const fixtureRoot = resolve(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
+    const plugin = gtsxViteReact({ root: fixtureRoot, projectRoot: "src" })
+    plugin.configResolved({ root: fixtureRoot })
+
+    const resolvedId = plugin.resolveId("virtual:gtsx/project-index")
+    const loaded = plugin.load(resolvedId)
+    const projectIndex = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
+
+    expect(resolvedId).toBe("\0virtual:gtsx/project-index")
+    expect(projectIndex).toEqual(buildGTSXProjectIndex({ cwd: fixtureRoot, projectRoot: "src" }))
+    expect(JSON.stringify(projectIndex)).not.toContain("/gtsx/studio")
+    expect(JSON.stringify(projectIndex)).not.toContain("urlTemplate")
   })
 
   it("loads virtual Studio manifests from a selected TypeScript project scope", () => {
