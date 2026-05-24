@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
-import { readdirSync, statSync } from "node:fs"
+import { readdirSync, realpathSync, statSync } from "node:fs"
 import { dirname, join, relative, resolve, sep } from "node:path"
 import { spawn } from "node:child_process"
+import { fileURLToPath } from "node:url"
 
 import { analyzeEntry, type GTSXAnalysisResult, type GTSXDiagnostic } from "./analyzer.js"
 import { capturePreviewPage } from "./browser-capture.js"
@@ -125,12 +126,13 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     }
 
     const port = readOption(args, "--port") ?? "4300"
-    const previewServer = await startPreviewServer(config.config.preview.serve, cwd, { port })
+    const studioUrl = expandUrl(config.config.preview.studioUrl, { entry: "", caseName: "", port })
+    const previewServer = await startPreviewServer(config.config.preview.serve, cwd, { port, readyUrl: studioUrl })
     if (previewServer.exitCode !== 0) return previewServer
 
     return {
       exitCode: 0,
-      stdout: `Studio: ${expandUrl(config.config.preview.studioUrl, { entry: "", caseName: "", port })}\n`,
+      stdout: `Studio: ${studioUrl}\n`,
       stderr: previewServer.stderr,
     }
   }
@@ -485,7 +487,7 @@ function outForDirectoryContactSheet(out: string, entry: string): string {
 async function startPreviewServer(
   serveCommand: string | undefined,
   cwd: string,
-  params: { port: string },
+  params: { port: string; readyUrl?: string },
 ): Promise<CLIResult & { stop(): void }> {
   if (!serveCommand) {
     return {
@@ -510,12 +512,37 @@ async function startPreviewServer(
   child.stderr.on("data", (chunk) => {
     stderr += String(chunk)
   })
-  const exitPromise = new Promise<void>((resolve) => {
+  const stop = () => {
+    if (exitCode === undefined) child.kill()
+  }
+  const exitPromise = new Promise<number>((resolve) => {
     child.on("exit", (code) => {
       exitCode = code ?? 0
-      resolve()
+      resolve(exitCode)
     })
   })
+
+  if (params.readyUrl) {
+    const ready = await waitForPreviewUrl(params.readyUrl, exitPromise)
+    if (ready === "ready") {
+      return {
+        exitCode: 0,
+        stdout,
+        stderr,
+        stop,
+      }
+    }
+
+    stop()
+    return {
+      exitCode: exitCode && exitCode !== 0 ? exitCode : 1,
+      stdout,
+      stderr:
+        stderr ||
+        `[adapter-configuration] preview-server-not-ready: Preview server did not make ${params.readyUrl} reachable before ${ready}.\n`,
+      stop() {},
+    }
+  }
 
   await Promise.race([exitPromise, new Promise((resolve) => setTimeout(resolve, 500))])
 
@@ -523,10 +550,25 @@ async function startPreviewServer(
     exitCode: exitCode && exitCode !== 0 ? exitCode : 0,
     stdout,
     stderr,
-    stop() {
-      if (exitCode === undefined) child.kill()
-    },
+    stop,
   }
+}
+
+async function waitForPreviewUrl(readyUrl: string, exitPromise: Promise<number>): Promise<"ready" | "exit" | "timeout"> {
+  const deadline = Date.now() + 10_000
+
+  while (Date.now() < deadline) {
+    const result = await Promise.race([
+      exitPromise.then(() => "exit" as const),
+      fetch(readyUrl, { redirect: "manual", signal: AbortSignal.timeout(500) })
+        .then((response) => (response.status >= 200 && response.status < 400 ? ("ready" as const) : ("retry" as const)))
+        .catch(() => "retry" as const),
+    ])
+    if (result === "ready" || result === "exit") return result
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+
+  return "timeout"
 }
 
 export function expandUrl(template: string, params: { entry: string; caseName: string; port: string; gcases?: string[] }): string {
@@ -571,7 +613,18 @@ function formatCheckResult(result: GTSXAnalysisResult): string {
   return `${lines.join("\n")}\n`
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+function isCLIEntrypoint(moduleUrl: string, argvPath: string | undefined): boolean {
+  if (!argvPath) return false
+
+  const modulePath = fileURLToPath(moduleUrl)
+  try {
+    return realpathSync(modulePath) === realpathSync(argvPath)
+  } catch {
+    return modulePath === resolve(argvPath)
+  }
+}
+
+if (isCLIEntrypoint(import.meta.url, process.argv[1])) {
   const result = await runCLI(process.argv.slice(2), {
     cwd: process.cwd(),
     stdout: "",

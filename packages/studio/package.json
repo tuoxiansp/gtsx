@@ -1,0 +1,24 @@
+{
+  "name": "@gtsx/studio",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "gtsx:check": "gtsx check src",
+    "gtsx:serve": "gtsx serve",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@gtsx/adapter-vite-react": "workspace:*",
+    "@vitejs/plugin-react": "^5.1.2",
+    "gtsx": "workspace:*",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "vite": "^8.0.14"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

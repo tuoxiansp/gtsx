@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "types": ["vite/client"],
+    "paths": {
+      "gtsx": ["../gtsx/src/index.ts"],
+      "gtsx/project-index": ["../gtsx/src/project-index.ts"],
+      "gtsx/studio/client": ["../gtsx/src/studio-client.tsx"],
+      "gtsx/studio/manifest": ["../gtsx/src/studio-manifest-model.ts"]
+    }
+  },
+  "include": ["src", "vite.config.ts", "gtsx.config.ts"]
+}
