@@ -1,31 +1,71 @@
 # GTSX Studio Installer Prompt
 
-You are integrating GTSX Studio into this project. Detect the framework and create thin project-local routes that delegate to official GTSX helpers instead of copying Studio implementation code.
+You are integrating GTSX Studio into this repository. Treat GTSX as a TypeScript project companion, not as an app/library/framework classifier.
 
-## Route Contract
+The setup model is:
 
-Install these development routes:
+```txt
+GTSX Project = selected TypeScript project + .g.tsx protocol
+GTSX Scope = .g.tsx files in the selected TypeScript Program
+Host = execution environment that renders that scope
+Adapter = bridge that makes the Host understand GTSX boundaries and preview URLs
+```
+
+The invariant is:
+
+> Scope follows TypeScript. Host does not expand scope.
+
+## Setup Flow
+
+1. Detect the package manager and workspace layout.
+2. Resolve the selected TypeScript project:
+   - Prefer an explicit user-provided `-p` / `--project` path.
+   - Otherwise use the nearest `tsconfig.json`.
+   - If the repository root is a solution config with references, identify the referenced projects and ask which one to integrate unless the user's intent is clear.
+3. Derive GTSX Scope from the selected TypeScript Program. Do not reimplement `include` / `exclude` as raw glob logic. Follow TypeScript semantics and then filter for `.g.tsx`.
+4. Check whether a usable Host already exists.
+5. If a Host exists, create thin Host-local Studio and preview routes.
+6. If no Host exists, configure a managed GTSX Host or ask the user to choose an external Host.
+7. Install the smallest useful adapter/host package set.
+8. Add local scripts and GTSX instructions.
+9. Verify typecheck, manifest, Studio, preview, and capture where practical.
+
+## Host Contract
+
+Install or configure these development routes in the selected Host:
 
 - `/gtsx`: lightweight preview route for rendering GTSX component cases in an iframe.
 - `/gtsx/studio`: Studio shell route.
-- `/gtsx/studio/manifest`: Studio manifest route.
+- `/gtsx/studio/manifest`: Studio manifest route when the Host supports an API or server route.
 
 The Studio shell route should import `StudioShell` from `gtsx/studio/client`. The manifest route should import `buildStudioManifest` from `gtsx/studio/server`.
 
+The Host may import CSS, setup files, providers, mocks, app shells, aliases, and other dependencies needed for rendering. Those imports do not expand the GTSX Scope. Studio entries come only from `.g.tsx` files in the selected TypeScript Program.
+
 ## Manifest Provider Preference
 
-Prefer a server/API route manifest provider. For frameworks with server routes, create a thin `/gtsx/studio/manifest` endpoint that returns `buildStudioManifest({ cwd, projectRoot })` as JSON.
+Prefer providers in this order:
 
-Use a virtual module fallback only when the adapter-supported stack cannot expose a project-local server/API route. The virtual module fallback must return the same static manifest shape as the server/API route manifest provider.
+1. Host-local API or server route.
+2. Adapter-provided virtual module.
+3. Managed Host provider.
+
+For Hosts with server routes, create a thin `/gtsx/studio/manifest` endpoint that returns the static manifest for the selected GTSX Project.
+
+Use a virtual module fallback only when the adapter-supported Host cannot expose a Host-local server/API route. The virtual module fallback must return the same static manifest shape as the server/API route manifest provider.
 
 Do not create a public manifest watcher fallback for the MVP. Do not write runtime props, scope, provider values, DOM rects, or serialized runtime snapshots into a public file.
 
 ## Verification
 
-After installing routes:
+After installing or configuring the Host:
 
-1. Run the project's typecheck.
-2. Open Studio at `/gtsx/studio`.
-3. Confirm the manifest endpoint at `/gtsx/studio/manifest` returns component entries.
-4. Open Studio and render at least one component card.
-5. Open the card's preview URL and confirm `/gtsx` renders the selected case.
+1. Run the selected TypeScript project's typecheck.
+2. Run `gtsx check -p <project>` against at least one `.g.tsx` file or scope directory.
+3. Open Studio at `/gtsx/studio`.
+4. Confirm the manifest provider returns component entries from the selected GTSX Scope.
+5. Open Studio and render at least one component card.
+6. Open the card's preview URL and confirm `/gtsx` renders the selected case.
+7. Run a capture command when browser capture is configured.
+
+If multiple TypeScript projects or multiple plausible Hosts are detected, stop and ask the user to choose. Do not guess by app/library/package shape.

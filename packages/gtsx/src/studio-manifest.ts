@@ -4,6 +4,7 @@ import ts from "typescript"
 
 import { analyzeEntry, type GTSXAnalysisResult, type GTSXDiagnostic } from "./analyzer.js"
 import { loadGTSXConfig } from "./config.js"
+import { discoverGTSXProgramFiles, findNearestTSConfig } from "./project-scope.js"
 
 export type StudioManifestRouteConfig = {
   preview: string
@@ -45,6 +46,7 @@ export type StudioManifest = {
 export type BuildStudioManifestOptions = {
   cwd: string
   projectRoot?: string
+  tsconfigPath?: string
   routes?: Partial<StudioManifestRouteConfig>
   preview?: Partial<StudioManifestPreviewConfig>
 }
@@ -80,7 +82,9 @@ const DEFAULT_PREVIEW: StudioManifestPreviewConfig = {
 
 export function buildStudioManifest(options: BuildStudioManifestOptions): StudioManifest {
   const projectRoot = options.projectRoot ?? "."
-  const files = discoverGTSXFiles(options.cwd, projectRoot).map((filePath) => buildManifestFile(options.cwd, filePath))
+  const files = discoverGTSXFiles(options.cwd, projectRoot, options.tsconfigPath).map((filePath) =>
+    buildManifestFile(options.cwd, filePath),
+  )
   const configuredPreview = readConfiguredPreview(options.cwd)
   const diagnostics = [...files.flatMap((file) => file.diagnostics), ...configuredPreview.diagnostics]
 
@@ -147,7 +151,12 @@ function buildManifestComponent(cwd: string, filePath: string, component: Export
   }
 }
 
-function discoverGTSXFiles(cwd: string, projectRoot: string): string[] {
+function discoverGTSXFiles(cwd: string, projectRoot: string, tsconfigPath?: string): string[] {
+  const selectedTSConfigPath = tsconfigPath ?? findNearestTSConfig(cwd)
+  if (selectedTSConfigPath) {
+    return discoverGTSXProgramFiles({ cwd, root: projectRoot, tsconfigPath: selectedTSConfigPath })
+  }
+
   const root = resolve(cwd, projectRoot)
   const files: string[] = []
 

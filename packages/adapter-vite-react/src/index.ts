@@ -14,6 +14,7 @@ type TransformResult = {
 type GTSXViteReactOptions = {
   projectRoot?: string
   root?: string
+  tsconfigPath?: string
 }
 
 type Replacement = {
@@ -55,6 +56,7 @@ export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
       const manifest = buildStudioManifest({
         cwd: root,
         projectRoot: options.projectRoot ?? "src",
+        tsconfigPath: options.tsconfigPath,
       })
       return {
         code: `export default ${JSON.stringify(manifest)}\n`,

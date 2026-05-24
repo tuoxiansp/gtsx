@@ -1,10 +1,16 @@
 # GTSX Playground
 
-This folder contains representative framework-shaped projects used to validate the
-GTSX protocol against realistic scaffolds without making GTSX own their bundlers.
+This folder contains representative Host/Adapter validation projects. The
+fixtures are shaped like real framework projects so GTSX can prove that the
+same `.g.tsx` protocol works through different execution environments without
+making GTSX own their bundlers.
 
-Each example records the upstream issue that motivated the shape of the fixture
-and exposes the same GTSX preview commands:
+Playground projects validate rendering and integration behavior. They do not
+define GTSX Scope by themselves. Scope should follow the selected TypeScript
+Project; the Host renders that scope but does not expand it.
+
+Each example records the upstream issue that motivated the Host shape and
+exposes the same GTSX preview commands:
 
 - `pnpm gtsx:check`
 - `pnpm gtsx:serve`
@@ -23,3 +29,9 @@ so full-chain test output is collected in one place.
   and route-handler structure.
 - `vite-react-ts-tanstack-router`: inspired by vitejs/vite#21614, where
   create-vite's React + TanStack Router flow failed for pnpm/bun users.
+
+## Planned Fixtures
+
+- `gtsx-self-studio`: a managed Host for the `packages/gtsx` TypeScript Project,
+  used to validate GTSX Studio developing itself while preserving normal tests
+  and examples as escape hatches.

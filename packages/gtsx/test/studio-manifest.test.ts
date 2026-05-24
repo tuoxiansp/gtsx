@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest"
 import { buildStudioManifest, selectStudioManifestProvider } from "../src/studio-manifest.js"
 
 const fixtureRoot = join(import.meta.dirname, "fixtures/check-project")
+const tsProjectScopeRoot = join(import.meta.dirname, "fixtures/ts-project-scope")
 const repositoryRoot = resolve(import.meta.dirname, "../../..")
 const packageRoot = join(repositoryRoot, "packages/gtsx")
 const examplesRoot = join(repositoryRoot, "examples")
@@ -85,6 +86,21 @@ describe("GTSX Studio manifest", () => {
       ],
       diagnostics: [],
     })
+  })
+
+  it("builds files from the selected TypeScript project scope", () => {
+    const manifest = buildStudioManifest({
+      cwd: tsProjectScopeRoot,
+      tsconfigPath: join(tsProjectScopeRoot, "tsconfig.json"),
+    })
+
+    expect(manifest.files.map((file) => file.path)).toEqual(["src/Included.g.tsx"])
+  })
+
+  it("builds files from the nearest TypeScript project scope by default", () => {
+    const manifest = buildStudioManifest({ cwd: tsProjectScopeRoot })
+
+    expect(manifest.files.map((file) => file.path)).toEqual(["src/Included.g.tsx"])
   })
 
   it("lists multiple component exports from one file", () => {

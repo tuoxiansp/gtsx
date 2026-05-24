@@ -11,10 +11,10 @@ describe("gtsx CLI", () => {
     const result = await runCLI(["--help"], { cwd: process.cwd(), stdout: "", stderr: "" })
 
     expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain("gtsx check <entry.g.tsx[#export]|dir>")
-    expect(result.stdout).toContain("gtsx serve [--port <port>]")
+    expect(result.stdout).toContain("gtsx check [-p <tsconfig-or-dir>] <entry.g.tsx[#export]|dir>")
+    expect(result.stdout).toContain("gtsx serve [-p <tsconfig-or-dir>] [--port <port>]")
     expect(result.stdout).toContain("--gcase <entry.g.tsx#export:case>")
-    expect(result.stdout).toContain("gtsx capture <entry.g.tsx[#export]|dir>")
+    expect(result.stdout).toContain("gtsx capture [-p <tsconfig-or-dir>] <entry.g.tsx[#export]|dir>")
   })
 
   it("serves the project Studio URL without requiring a component entry", async () => {
@@ -44,6 +44,54 @@ describe("gtsx CLI", () => {
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toContain("missing-studio-url")
     expect(result.stdout).toContain("Add preview.studioUrl")
+  })
+
+  it("checks directory entries from the selected TypeScript project scope", async () => {
+    const projectRoot = join(import.meta.dirname, "fixtures/ts-project-scope")
+
+    const result = await runCLI(["check", "-p", projectRoot, "."], { cwd: process.cwd(), stdout: "", stderr: "" })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain("GTSX pure entry: src/Included.g.tsx")
+    expect(result.stdout).not.toContain("stories/Outside.g.tsx")
+  })
+
+  it("checks directory entries from the nearest TypeScript project scope by default", async () => {
+    const projectRoot = join(import.meta.dirname, "fixtures/ts-project-scope")
+
+    const result = await runCLI(["check", "."], { cwd: projectRoot, stdout: "", stderr: "" })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain("GTSX pure entry: src/Included.g.tsx")
+    expect(result.stdout).not.toContain("stories/Outside.g.tsx")
+  })
+
+  it("rejects explicit entries outside the selected TypeScript project scope", async () => {
+    const projectRoot = join(import.meta.dirname, "fixtures/ts-project-scope")
+
+    const result = await runCLI(["check", "-p", projectRoot, "stories/Outside.g.tsx"], {
+      cwd: process.cwd(),
+      stdout: "",
+      stderr: "",
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("entry-outside-project-scope")
+    expect(result.stdout).toContain("stories/Outside.g.tsx is not in the selected TypeScript project scope")
+  })
+
+  it("rejects capture entries outside the selected TypeScript project scope before host setup", async () => {
+    const projectRoot = join(import.meta.dirname, "fixtures/ts-project-scope")
+
+    const result = await runCLI(["capture", "-p", projectRoot, "stories/Outside.g.tsx"], {
+      cwd: process.cwd(),
+      stdout: "",
+      stderr: "",
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("entry-outside-project-scope")
+    expect(result.stdout).not.toContain("missing-config")
   })
 
   it("expands child case overrides as query parameters", () => {

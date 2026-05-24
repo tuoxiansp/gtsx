@@ -2,36 +2,78 @@
 
 ## Problem Statement
 
-Modern React/TSX components are rarely self-contained. A production component may depend on theme providers, routers, query clients, browser APIs, global CSS, assets, aliases, feature flags, framework conventions, and a project-specific bundler. Engineers and AI agents can write a component quickly, but they often cannot open one component in a stable isolated state, switch loading/error/ready variants, capture screenshots, or diagnose failures without running the whole application.
+Modern React/TSX components are rarely self-contained. A production component may depend on theme providers, routers, query clients, browser APIs, global CSS, assets, aliases, feature flags, framework conventions, and a project-specific execution environment. Engineers and AI agents can write a component quickly, but they often cannot open one component in a stable isolated state, switch loading/error/ready variants, capture screenshots, or diagnose failures without first discovering which TypeScript project owns that component and which host can render it.
 
-The wrong product shape is to build a universal preview/build toolchain and then keep adding compatibility work for every frontend stack. Frontend projects are too diverse. A single external runtime cannot reliably duplicate every user's framework, CSS pipeline, asset handling, server behavior, and TypeScript setup.
+The wrong product shape is to classify projects first as app, library, monorepo, framework, or bundler variants and then special-case each category. Those categories are symptoms, not the boundary GTSX needs. The first-order boundary is the TypeScript project: the `tsconfig` and TypeScript Program decide which source files are in scope. A separate host decides whether those files can be rendered.
 
-GTSX takes the opposite path: it defines a small production TSX case protocol and integrates with the user's own local toolchain. GTSX owns authoring primitives, runtime/types, provider/scope helpers, pure TypeScript static analysis, adapter contracts, and a thin CLI. The user's project continues to own bundling, dev server behavior, CSS, routing, assets, and production build.
+GTSX takes the language-toolchain path: it defines a small production TSX case protocol on top of the selected TypeScript Program. GTSX owns authoring primitives, runtime/types, provider/scope helpers, pure TypeScript static analysis, project/scope resolution, host contracts, adapter contracts, and a thin CLI. The selected host continues to own rendering behavior, CSS, routing, assets, browser environment, and production build integration.
 
 One-line positioning:
 
-> GTSX is a production TSX case protocol and AI-assisted project integration layer that lets real React components carry typed, externally controllable preview states without replacing the user's existing frontend toolchain.
+> GTSX is a production TSX case protocol and AI-assisted language-toolchain layer that derives component preview scope from TypeScript projects and renders that scope through a project-native, managed, or external host.
 
 ## Product Positioning
 
 - GTSX is a standalone product for production React/TSX component preview, capture, and diagnosis.
-- GTSX is not a universal frontend bundler, framework runtime, router, CSS processor, asset pipeline, or test runner.
+- GTSX is not a universal frontend bundler, framework runtime, router, CSS processor, asset pipeline, app generator, or test runner.
 - GTSX is not a Storybook clone. It keeps cases on production components and uses explicit GTSX state boundaries instead of creating a parallel story registry.
-- GTSX's core assets are authoring protocol, runtime/types, provider/scope helpers, static contract analysis, adapter definitions, CLI orchestration, and AI installation instructions.
-- GTSX should prefer project-native tooling over generated external hosts whenever possible.
-- The primary user experience is prompt-driven installation: an AI agent recognizes the project, installs the package, selects an official adapter package when possible, adds minimal scripts/config, installs local GTSX instructions, and verifies the integration.
+- GTSX's core assets are authoring protocol, runtime/types, provider/scope helpers, TypeScript Program-based scope analysis, host contracts, adapter definitions, CLI orchestration, and AI installation instructions.
+- GTSX Scope follows TypeScript: the selected TypeScript Program decides which `.g.tsx` files Studio and analysis own.
+- GTSX Host is parallel to scope: it renders the selected scope but does not expand it.
+- GTSX should prefer an existing project-native host when one is available, and use a managed or external host when the selected TypeScript project has no renderable host of its own.
+- The primary user experience is prompt-driven setup: an AI agent selects or confirms a TypeScript project, resolves the GTSX scope, checks for a usable host, installs or configures the smallest adapter/host layer, adds local GTSX instructions, and verifies the integration.
 
 ## Core Product Experience
 
-1. A user asks an AI agent to install GTSX in an existing frontend project.
-2. The agent detects the package manager, framework, bundler, TypeScript config, dev/build/test scripts, CSS entry points, and any existing preview or browser-test tooling.
+1. A user asks an AI agent to install GTSX for a TypeScript project or workspace.
+2. The agent resolves the selected TypeScript project from `-p` / `--project`, the nearest `tsconfig`, or a workspace solution config with project references.
 3. The agent installs the `gtsx` package using the project's package manager.
-4. The agent selects and installs an adapter package, then applies the smallest useful diff: preview entry, wrappers, preview transform config, scripts, strip integration when available, and local instructions.
-5. The agent runs verification and reports the exact stage of success or failure.
-6. The user or agent adds `.g.tsx` cases to production component exports.
-7. GTSX static analysis reads the project's `tsconfig` and verifies the case contract without recreating the bundler.
-8. `gtsx` CLI commands call the selected adapter, and the adapter calls the user's local tooling for serve, capture, watch, strip, or diagnosis.
-9. Production builds continue to use the user's existing build command, with preview metadata stripped or explicitly warned about by the adapter.
+4. GTSX derives scope from the TypeScript Program and filters that Program for `.g.tsx` files.
+5. The agent checks whether the selected project already has a usable host. If it does not, the agent configures a managed GTSX host or an external host.
+6. The agent selects and installs an adapter package when useful, then applies the smallest useful diff: host route, managed host config, wrappers, preview transform config, scripts, strip integration when available, and local instructions.
+7. The agent runs verification and reports the exact stage of success or failure.
+8. The user or agent adds `.g.tsx` cases to production component exports.
+9. GTSX static analysis reads the selected TypeScript Program and verifies the case contract without recreating the host or bundler.
+10. Studio lists only `.g.tsx` files in the selected GTSX Scope. The host may load additional dependencies for rendering, but those dependencies do not become Studio entries unless they are also in the selected TypeScript Program.
+11. `gtsx` CLI commands call the selected host/adapter layer, and that layer calls the user's local tooling for serve, capture, watch, strip, or diagnosis.
+12. Production builds continue to use the user's existing build command, with preview metadata stripped or explicitly warned about by the adapter.
+
+## GTSX Project And Scope
+
+A GTSX Project is a TypeScript project plus the GTSX `.g.tsx` protocol. GTSX does not define scope by package type, framework, workspace layout, or current working directory alone.
+
+The selected TypeScript project should be resolved in this order:
+
+1. An explicit `-p` / `--project <tsconfig-or-directory>` CLI option.
+2. A `gtsx.config.ts` that points to a TypeScript project.
+3. The nearest `tsconfig.json` from the current working directory.
+4. A workspace or solution config that references one or more TypeScript projects.
+
+GTSX Scope is the set of `.g.tsx` source files in the selected TypeScript Program. This means GTSX should follow TypeScript config semantics rather than reinterpreting glob strings by hand:
+
+- `files` and `include` establish root file candidates.
+- `exclude` only filters files discovered through `include`; it is not a hard isolation wall.
+- Imports, `types`, triple-slash references, and explicit `files` entries can still bring files into the Program.
+- Project references define multiple TypeScript projects in a workspace. Each referenced project owns its own GTSX Scope.
+
+Single-project coordinates are relative to that project's coordinate root, normally the TypeScript project root:
+
+```txt
+src/studio/StudioShell.g.tsx#default
+```
+
+Workspace-level Studio may aggregate multiple GTSX Projects. In that case, cross-project coordinates include a project id:
+
+```txt
+gtsx:src/studio/StudioShell.g.tsx#default
+@repo/ui:src/Button.g.tsx#default
+```
+
+The invariant is:
+
+> Scope follows TypeScript. Host does not expand scope.
+
+Studio indexes the selected GTSX Scope. A Host can import extra app shells, setup files, CSS, providers, mocks, or dependencies to render a component, but those imports do not add entries to the selected GTSX Scope.
 
 ## Authoring Contract
 
@@ -207,21 +249,27 @@ A GTSX provider is a React provider component with normal production provider se
 
 Provider cases do not automatically form a Cartesian product with component cases. Component cases are the main axis. Each component case may select provider variants or provide provider overrides. Missing provider selection uses the provider default case.
 
-## Preview Environment
+## Host Environment
 
-A preview environment is a project-level shell, not the source of component cases. It may be a generated `gtsx.preview.tsx`, an adapter-owned route, an existing story/test harness, or a framework-specific preview entry.
+A Host is the execution environment that can render the selected GTSX Scope. It is not the source of component cases and it does not decide which `.g.tsx` files Studio owns. It may be a project-native app route, a generated managed Vite host, an adapter-owned route, an existing story/test harness, or an external application that can import the selected TypeScript project.
 
-It is responsible for:
+Hosts fall into three broad shapes:
 
-- Importing global CSS through the same path the project normally uses.
-- Installing project-level wrappers such as router, i18n, query client, feature flags, browser mocks, and theme providers.
-- Respecting project asset handling, aliases, environment variables, and browser defaults through the user's tooling.
+- Project-native Host: the selected TypeScript project already has a dev server or route system that can expose `/gtsx` and `/gtsx/studio`.
+- Managed Host: GTSX or an adapter provides a development-only host for a TypeScript project that has no renderable shell of its own.
+- External Host: another project renders the selected GTSX Scope, for example a design-system package rendered inside a consuming app.
+
+A Host is responsible for:
+
+- Importing global CSS through the same path the host normally uses.
+- Installing wrappers such as router, i18n, query client, feature flags, browser mocks, and theme providers.
+- Respecting asset handling, aliases, environment variables, and browser defaults through the host's tooling.
 - Declaring default viewport and browser options when the adapter supports capture.
-- Providing environment-level React wrappers needed to make production components render.
+- Providing React wrappers needed to make production components render.
 - Loading the preview-only GTSX transform for the selected adapter.
 - Passing root case selection and child component case overrides into the GTSX preview runtime.
 
-It should not become a central registry for all component cases. Cases stay close to the component export they describe.
+It should not become a central registry for all component cases. Cases stay close to the component export they describe, and Studio indexing remains tied to the selected TypeScript Program.
 
 ### Preview-Only Component Boundary Transform
 
@@ -279,27 +327,27 @@ Preview URLs should support a root component case and zero or more child compone
 - If a child component is not specified, the preview runtime uses that component's first statically enumerable case.
 - Child component case selection must not create a Cartesian product. It is a set of explicit overrides applied during one root render.
 
-## Project Integration Model
+## Host And Adapter Integration Model
 
-GTSX integration is adapter-based. An adapter is a small contract between the GTSX protocol and a user's existing project toolchain.
+GTSX integration is host-based and adapter-assisted. A Host renders the selected GTSX Scope. An Adapter is a small bridge between the GTSX protocol and a specific host or toolchain.
 
-The core `gtsx` package should remain small: protocol, runtime, types, analyzer, CLI, and adapter contract. Official toolchain support should live in independent adapter packages, for example `@gtsx/adapter-vite-react` and `@gtsx/adapter-next`.
+The core `gtsx` package should remain small: protocol, runtime, types, TypeScript Program-based analyzer, project/scope resolution, CLI, host contract, and adapter contract. Official host/toolchain support should live in independent adapter packages, for example `@gtsx/adapter-vite-react` and `@gtsx/adapter-next`.
 
 An adapter should declare:
 
-- `detect`: how to identify the stack from repo signals such as `package.json`, lockfile, framework config, tsconfig, scripts, and source layout.
-- `install`: which packages, files, scripts, and local instructions are required.
+- `detectHost`: how to identify an existing project-native host from repo signals such as scripts, framework config, route files, Vite config, and browser-test setup.
+- `installHost`: which packages, files, routes, scripts, and local instructions are required when the host needs setup.
 - `previewTransform`: how `.g.tsx` exports are wrapped with GTSX component boundaries in preview and capture builds.
-- `serve`: how to open a preview using the project's dev server, preview server, route system, story environment, or test harness.
+- `serve`: how to open Studio or preview using the selected host.
 - `capture`: how to render one case or all statically enumerable cases and capture screenshots.
 - `strip`: how preview metadata is removed or made unreachable in production builds.
-- `diagnose`: how to classify errors from contract extraction, TypeScript, bundler compilation, preview environment loading, case rendering, and browser capture.
+- `diagnose`: how to classify errors from TypeScript project resolution, contract extraction, host configuration, host compilation, preview loading, case rendering, and browser capture.
 
-Adapters may be framework-specific, but GTSX should not grow one monolithic compatibility layer. The shared product surface is the case protocol, static analyzer, runtime/types package, and CLI orchestration contract.
+Adapters may be framework-specific or host-specific, but GTSX should not grow one monolithic compatibility layer. The shared product surface is the case protocol, TypeScript Program scope model, static analyzer, runtime/types package, and CLI orchestration contract.
 
-The first production-quality adapter may target Vite + React because it is the smallest useful slice, but the product should not be defined as Vite-only. Vite is an adapter, not the architecture.
+The first production-quality managed host may use Vite + React because it is the smallest useful slice, but the product should not be defined as Vite-only. Vite is one host implementation, not the architecture.
 
-If an official adapter does not support an older or unusual project, the AI installer may generate a project-local adapter or transform based on the same adapter contract. That local integration should be clearly labeled, minimally scoped, and verified with `gtsx check`, preview, and capture commands.
+If an official adapter does not support a host, the AI installer may generate project-local host glue or a local transform based on the same adapter contract. That local integration should be clearly labeled, minimally scoped, and verified with `gtsx check`, Studio, preview, and capture commands.
 
 ## AI Installation Flow
 
@@ -307,49 +355,56 @@ The primary installation UX is a prompt, not a manual checklist.
 
 The AI installer should:
 
-1. Inspect the repo and explain the detected package manager, framework, bundler, tsconfig, scripts, and likely preview strategy.
+1. Inspect the repo and explain the detected package manager, TypeScript projects, project references, scripts, and likely host strategy.
 2. Install `gtsx` using the user's package manager.
-3. Install the matching official adapter package when one is available.
-4. Generate or patch the minimum files needed for the selected adapter.
-5. If no adapter fits, attempt a project-local adapter implementation only after explaining that it is local integration work.
-6. Add package scripts that use the project's local toolchain, for example `gtsx:serve`, `gtsx:capture`, `gtsx:check`, or project-conventional equivalents.
-7. Install or generate local GTSX instructions so future AI agents know the project's conventions.
-8. Run the adapter's verification command and report the exact success or failure stage.
+3. Resolve or ask the user to confirm the selected TypeScript project when multiple projects are plausible.
+4. Derive the GTSX Scope from the selected TypeScript Program and report how many `.g.tsx` files are in scope.
+5. Check whether a project-native Host exists. If none exists, propose a managed or external Host.
+6. Install the matching official adapter package when one is available.
+7. Generate or patch the minimum files needed for the selected host and adapter.
+8. If no adapter fits, attempt project-local host glue only after explaining that it is local integration work.
+9. Add package scripts that use the project's local toolchain, for example `gtsx:serve`, `gtsx:capture`, `gtsx:check`, or project-conventional equivalents.
+10. Install or generate local GTSX instructions so future AI agents know the project's conventions.
+11. Run verification and report the exact success or failure stage.
 
-The installer should avoid rewriting unrelated project structure. If multiple plausible stacks are detected, or if the project has unusual build constraints, it should ask for confirmation before editing scripts, lockfiles, config files, or generated preview entries.
+The installer should avoid rewriting unrelated project structure. If multiple TypeScript projects, multiple plausible hosts, or unusual build constraints are detected, it should ask for confirmation before editing scripts, lockfiles, config files, or generated host entries.
 
 ## CLI And Local Toolchain
 
-GTSX should expose a small CLI surface that feels consistent across projects while delegating real work to the selected adapter and the project's local commands.
+GTSX should expose a small CLI surface that feels consistent across TypeScript projects while delegating render work to the selected Host and Adapter.
 
 ```sh
-gtsx init
-gtsx check   <entry.g.tsx[#export]>
-gtsx serve   <entry.g.tsx[#export]> [--case <name>] [--gcase <entry.g.tsx#export:case>] [--port <port>]
-gtsx capture <entry.g.tsx[#export]> [--case <name>] [--gcase <entry.g.tsx#export:case>] [--viewport 1440x900] [--out <file.png>]
+gtsx init    [-p <tsconfig-or-directory>]
+gtsx check   [-p <tsconfig-or-directory>] <entry.g.tsx[#export]|dir>
+gtsx serve   [-p <tsconfig-or-directory>] [--port <port>]
+gtsx capture [-p <tsconfig-or-directory>] <entry.g.tsx[#export]|dir> [--case <name>|--all] [--gcase <entry.g.tsx#export:case>] [--viewport 1440x900] [--out <file.png|dir>]
 ```
 
 CLI responsibilities:
 
-- Find the project root and selected adapter configuration.
+- Resolve the selected TypeScript project and GTSX configuration.
+- Build or read the TypeScript Program and derive GTSX Scope.
 - Run static contract extraction before expensive preview work.
-- Invoke the local package manager and local project scripts rather than relying on bundled global tooling.
-- Pass entry coordinate, root case, child case overrides, viewport, and output options into the adapter.
-- Normalize diagnostics so users can tell whether a failure came from GTSX contract rules, TypeScript, the user's bundler, the preview environment, render code, or browser capture.
+- Invoke the selected Host and local package scripts rather than relying on bundled global tooling.
+- Pass entry coordinate, root case, child case overrides, viewport, and output options into the Host/Adapter.
+- Normalize diagnostics so users can tell whether a failure came from TypeScript project resolution, GTSX contract rules, host configuration, host compilation, preview loading, render code, or browser capture.
 
 CLI non-responsibilities:
 
 - Reimplement the user's bundler.
 - Reconstruct framework-specific routing or server behavior.
 - Duplicate CSS, asset, alias, or environment variable resolution.
-- Guarantee that a project can run without its own install/build/dev scripts.
+- Guess a GTSX Scope from package type when TypeScript project resolution is ambiguous.
+- Guarantee that a project can render without some configured Host.
 
 ## Static Analysis
 
-The analyzer is contract-only and should be implemented as a pure TypeScript toolchain. It should read the user's `tsconfig` and source files, but it should not need to run the user's bundler to answer protocol questions.
+The analyzer is contract-only and should be implemented as a pure TypeScript toolchain. It should resolve the selected TypeScript Program and source files, but it should not need to run the selected Host or bundler to answer protocol questions.
 
 It should verify:
 
+- The selected TypeScript project resolves to a Program.
+- The GTSX Scope is derived from `.g.tsx` files in that Program.
 - The requested entry coordinate resolves to a default or named React component export.
 - A `.g.tsx` file may expose multiple component coordinates.
 - Component cases are statically enumerable object literals.
@@ -361,7 +416,7 @@ It should verify:
 - `satisfies` type helpers connect props, optional scope, and providers.
 - Case names, missing cases, missing props, missing provider variants, and type mismatches produce clear diagnostics where TypeScript exposes enough information.
 - Child case override coordinates and case names resolve to known component cases.
-- Errors are classified by stage: contract extraction, TypeScript, adapter configuration, project compilation, preview environment loading, case rendering, and browser capture.
+- Errors are classified by stage: TypeScript project resolution, contract extraction, TypeScript diagnostics, host configuration, host compilation, preview loading, case rendering, and browser capture.
 
 It should not try to prove arbitrary JSX structure, React branch coverage, CSS behavior, or full UI completeness.
 
@@ -371,6 +426,7 @@ Out of scope for static analysis:
 - Proving `if` / `switch` / ternary coverage.
 - Inferring cases from runtime values.
 - Running framework-specific data loaders.
+- Letting a Host expand the selected GTSX Scope.
 - Proving transitive hook purity inside imported opaque dependencies.
 - Analyzing CSS cascade, CSS modules, Tailwind output, media queries, or CSS variables.
 
@@ -378,7 +434,7 @@ Out of scope for static analysis:
 
 Because `.g.tsx` files are production components, preview metadata must not accidentally ship.
 
-Production behavior is adapter-owned. The same adapter package that owns preview transform also owns production strip responsibility. Depending on the project stack, stripping may be implemented through a Vite plugin, Babel/SWC transform, framework compiler hook, build-time define, package export split, or another project-native mechanism.
+Production behavior is host/adapter-owned. The same adapter package that owns preview transform should also own production strip responsibility when possible. Depending on the selected TypeScript project and production toolchain, stripping may be implemented through a Vite plugin, Babel/SWC transform, framework compiler hook, build-time define, package export split, or another project-native mechanism.
 
 At minimum, the integration must have a clear answer for:
 
@@ -393,28 +449,31 @@ Initial adapters may leave strip unimplemented, but they must report that explic
 
 Tests should prioritize external behavior and adapter contracts:
 
+- A GTSX Scope can be derived from a selected TypeScript Program.
+- A workspace or solution config can expose multiple GTSX Projects without merging their scopes.
 - A `.g.tsx` production component can be discovered by `file#export` coordinate and rendered through component-owned cases.
 - A pure component can be rendered through component cases with props and provider selections.
 - A stateful component can be rendered through component cases with props, providers, and scope.
 - Provider cases can be selected per component case.
 - Preview transform wraps exported components so nested stateful components receive their selected local case.
 - URL `gcase` overrides can select child component cases without creating a Cartesian product.
-- A preview environment can import global CSS and wrap the preview tree through project-native tooling.
-- `gtsx check` reports contract diagnostics without invoking the bundler.
-- `gtsx serve` opens a case switcher for statically enumerable cases through the selected adapter.
-- `gtsx capture` captures one case and all cases through the selected adapter.
+- A Host can import global CSS and wrap the preview tree through host-native tooling.
+- `gtsx check` derives scope from the nearest TypeScript project by default, and `-p <project>` can select one explicitly.
+- `gtsx serve` opens Studio through the selected Host without requiring a component entry.
+- `gtsx capture` captures one case and all cases through the selected Host/Adapter.
 - Production strip integration removes or isolates component and provider `.cases`.
 - Missing component coordinates, missing cases, multiple primary GScope hooks, non-GTSX hooks, malformed cases, and missing provider cases produce useful diagnostics.
 - Case render failures are localized to the failing case and distinguished from compile or environment failures.
 
 Tests should avoid asserting internal AST traversal details unless they are part of the public contract.
 
-Playground closure should be an adapter validation matrix. Each environment should define its own canonical install, serve, capture, build, and test entry, but the observed behavior should match the same GTSX protocol.
+Playground closure should be a Host/Adapter validation matrix. Each environment should define its own canonical install, serve, capture, build, and test entry, but the observed behavior should match the same GTSX protocol and TypeScript Program scope model.
 
 ## Out Of Scope
 
 - Owning a universal frontend build system.
 - Guaranteeing that one generated preview host can run every user project.
+- Classifying scope by app/library/package shape instead of the selected TypeScript Program.
 - Rebuilding Storybook.
 - Serializing live case values across process boundaries.
 - Automatically generating complete cases from arbitrary component code.
@@ -428,7 +487,9 @@ Playground closure should be an adapter validation matrix. Each environment shou
 ## Open Questions
 
 - Whether `.g.tsx` should remain the only recommended filename convention, or whether normal `.tsx` files with GTSX metadata should also be accepted.
-- Whether adapter selection should be entirely AI-driven, stored in project config, or both.
+- Whether Host and Adapter selection should be entirely AI-driven, stored in project config, or both.
+- Whether root workspace Studio should be implemented as a solution-level aggregator or as explicit multi-project selection.
+- Whether `-p` should accept only `tsconfig` paths or also package/workspace directory selectors.
 - Whether future versions should support static replacement of imported hooks for lower-intrusion adoption.
 - Whether provider override syntax should use provider names, provider object identity, or a typed helper to avoid string keys.
 - How much adapter-local AI-generated code should be promoted back into official adapter packages.
@@ -439,10 +500,11 @@ Playground closure should be an adapter validation matrix. Each environment shou
 GTSX succeeds if real projects can:
 
 - Install GTSX through a prompt-driven AI flow with a small, reviewable diff.
-- Keep their existing package manager, framework, bundler, CSS pipeline, and build scripts.
+- Select a TypeScript project and derive the same GTSX Scope that TypeScript would see.
+- Keep their existing package manager, host, framework, bundler, CSS pipeline, and build scripts when those exist.
 - Add GTSX metadata to production TSX component exports without changing normal runtime behavior.
-- Serve those components through a project-native preview path.
+- Serve those components through a project-native, managed, or external Host.
 - Switch loading, error, empty, ready, theme, and other important states through typed cases.
 - Capture screenshots from the same cases used for preview.
 - Strip or isolate preview metadata from production builds, or receive explicit diagnostics when that is not safe.
-- Diagnose failures by stage instead of collapsing all failures into generic preview errors.
+- Diagnose failures by stage instead of collapsing TypeScript project resolution, host setup, preview, render, and capture failures into generic preview errors.

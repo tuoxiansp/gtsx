@@ -6,11 +6,34 @@ GTSX Studio is the human-facing workspace for browsing and decomposing GTSX comp
 
 ## Goals
 
-- Let humans open a project-level Studio and see the available GTSX components.
+- Let humans open Studio for a selected GTSX Project and see the `.g.tsx` components in that project's TypeScript Program.
 - Let humans choose a file group or component and drill through the rendered GTSX component hierarchy.
 - Make component composition visible without becoming a React DevTools clone.
 - Keep preview and capture URL behavior lightweight and backwards compatible.
-- Support project-local framework integration through thin generated routes or adapter-provided hooks.
+- Support project-native, managed, and external Hosts through thin generated routes or adapter-provided hooks.
+
+## Project And Host Model
+
+Studio indexes a GTSX Scope, not a package shape. The selected TypeScript Program decides which `.g.tsx` files Studio owns. App, library, monorepo, package, and framework categories are secondary signals for Host setup; they do not define scope.
+
+The invariant is:
+
+> Scope follows TypeScript. Host does not expand scope.
+
+A Host renders the selected scope. The Host can import CSS, providers, mocks, setup files, and other runtime dependencies, but those imports do not add Studio entries unless they are also `.g.tsx` files in the selected TypeScript Program.
+
+Single-project Studio uses coordinates relative to that project's coordinate root:
+
+```txt
+src/AppShell.g.tsx#default
+```
+
+Workspace-level Studio may aggregate multiple GTSX Projects. Cross-project coordinates must include a project id:
+
+```txt
+gtsx:src/studio/StudioShell.g.tsx#default
+@repo/ui:src/Button.g.tsx#default
+```
 
 ## Route Contract
 
@@ -18,9 +41,9 @@ Default routes:
 
 - `/gtsx`: lightweight preview renderer.
 - `/gtsx/studio`: Studio app.
-- `/gtsx/studio/manifest`: Studio manifest provider when the framework supports an API or server route.
+- `/gtsx/studio/manifest`: Studio manifest provider when the Host supports an API or server route.
 
-Projects may override these routes when they conflict with an existing app route, but the defaults should be used in docs, installer prompts, and CLI output.
+Hosts may override these routes when they conflict with an existing app route, but the defaults should be used in docs, installer prompts, and CLI output.
 
 The preview renderer remains URL-driven:
 
@@ -32,7 +55,7 @@ Studio may embed the preview renderer, but preview must not depend on Studio or 
 
 ## CLI Contract
 
-`gtsx serve` is project-level. It should start or delegate to the project GTSX preview environment and print only the Studio URL.
+`gtsx serve -p <project>` is GTSX Project-level. It should resolve the selected TypeScript project, start or delegate to the selected Host, and print only the Studio URL.
 
 It should not automatically open a browser.
 
@@ -48,14 +71,14 @@ Official packages should provide stable client and server building blocks, for e
 - `@gtsx/studio/server`: manifest builder and framework-neutral helpers.
 - GTSX runtime hooks for boundary tree, resize, and value reporting.
 
-The project-local AI installer creates thin framework-specific routes:
+The AI installer first resolves the selected TypeScript project and then checks whether a Host already exists. If a Host exists, the installer creates thin Host-specific routes:
 
 - A Studio page at `/gtsx/studio`.
 - A manifest API/server route at `/gtsx/studio/manifest` when supported.
 - A preview renderer at `/gtsx`.
 - Adapter transform wiring for GTSX component boundaries.
 
-The project-local route code should mostly import official GTSX packages and pass the project cwd/config. The user's agent owns the thin framework glue.
+If no Host exists, the installer configures a managed Host or asks the user to choose an external Host. The generated code should mostly import official GTSX packages and pass the selected GTSX Project and Host config. The user's agent owns the thin Host glue.
 
 ## Manifest Provider Order
 
@@ -63,16 +86,18 @@ Studio needs a static manifest for navigation. The manifest is only for Studio a
 
 Provider order:
 
-1. Project-local API or server route.
+1. Host-local API or server route.
 2. Adapter-provided virtual module.
-3. No automatic Studio support. The installer or user's AI agent must create a project-local provider.
+3. Managed Host manifest provider.
+4. No automatic Studio support. The installer or user's AI agent must create or configure a Host provider.
 
-Do not build a public-file or watcher fallback into the MVP. That path is less reliable than a framework-native server route and can pollute the project surface.
+Do not build a public-file or watcher fallback into the MVP. That path is less reliable than a Host-native provider and can pollute the project surface.
 
 The manifest API returns static JSON only:
 
 - version
 - route configuration
+- selected GTSX Project identity
 - files and file groups
 - component exports and coordinates
 - component names
@@ -98,7 +123,7 @@ The center canvas supports pan and zoom. Cards are laid out by columns; users ca
 
 ## Left Sidebar
 
-The sidebar is a component index, not a raw file explorer.
+The sidebar is a component index for the selected GTSX Scope, not a raw file explorer and not a Host import graph.
 
 Default grouping:
 
@@ -157,7 +182,7 @@ The boundary tree is generated by GTSX runtime context, not DOM nesting or stati
 
 ## Preview Iframes
 
-Studio renders real components in iframes to isolate project CSS, route behavior, and render failures from the Studio shell.
+Studio renders real components in iframes through the selected Host to isolate CSS, route behavior, and render failures from the Studio shell.
 
 Iframe sizing uses a hybrid policy:
 
@@ -234,7 +259,7 @@ The selected error card should expose:
 - error message and stack summary
 - copyable preview URL for reproduction
 
-Only configuration failure, missing Studio route integration, or dev server startup failure should prevent Studio from loading.
+Only TypeScript project resolution failure, Host configuration failure, missing Studio route integration, or dev server startup failure should prevent Studio from loading.
 
 ## Capture Relationship
 
@@ -247,8 +272,10 @@ Studio may expose a "capture this state" action, but that action should generate
 MVP includes:
 
 - fixed default routes with config override
-- project-local server route manifest provider first
+- selected GTSX Project scope derived from TypeScript
+- Host-local server route manifest provider first
 - virtual module manifest provider second
+- managed Host manifest provider when no project-native Host exists
 - official AI installer prompt for thin project routes
 - static Studio manifest JSON
 - left component index with file grouping
@@ -265,10 +292,10 @@ MVP excludes:
 
 - ordinary React component inspection
 - DOM node inspection
+- Host imports expanding GTSX Scope
 - free card positioning
 - visual diffing
 - screenshot thumbnail cache
 - public manifest watcher fallback
 - manifest-time component execution
 - capturing Studio itself
-

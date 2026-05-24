@@ -107,4 +107,28 @@ export function PlainComponent() {
     expect(manifest).toEqual(buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" }))
     expect(loaded.code).not.toContain("buildStudioManifest")
   })
+
+  it("loads virtual Studio manifests from a selected TypeScript project scope", () => {
+    const fixtureRoot = resolve(import.meta.dirname, "../../gtsx/test/fixtures/ts-project-scope")
+    const plugin = gtsxViteReact({ root: fixtureRoot, projectRoot: ".", tsconfigPath: "tsconfig.json" })
+    plugin.configResolved({ root: fixtureRoot })
+
+    const resolvedId = plugin.resolveId("virtual:gtsx/studio-manifest")
+    const loaded = plugin.load(resolvedId)
+    const manifest = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
+
+    expect(manifest.files.map((file) => file.path)).toEqual(["src/Included.g.tsx"])
+  })
+
+  it("loads virtual Studio manifests from the nearest TypeScript project scope by default", () => {
+    const fixtureRoot = resolve(import.meta.dirname, "../../gtsx/test/fixtures/ts-project-scope")
+    const plugin = gtsxViteReact({ root: fixtureRoot, projectRoot: "." })
+    plugin.configResolved({ root: fixtureRoot })
+
+    const resolvedId = plugin.resolveId("virtual:gtsx/studio-manifest")
+    const loaded = plugin.load(resolvedId)
+    const manifest = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
+
+    expect(manifest.files.map((file) => file.path)).toEqual(["src/Included.g.tsx"])
+  })
 })

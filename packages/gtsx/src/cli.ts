@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 
 import { readdirSync, statSync } from "node:fs"
-import { join, relative, resolve, sep } from "node:path"
+import { dirname, join, relative, resolve, sep } from "node:path"
 import { spawn } from "node:child_process"
 
 import { analyzeEntry, type GTSXAnalysisResult, type GTSXDiagnostic } from "./analyzer.js"
 import { capturePreviewPage } from "./browser-capture.js"
 import { loadGTSXConfig } from "./config.js"
 import { initGTSX } from "./init.js"
+import { discoverGTSXProgramFiles, findNearestTSConfig } from "./project-scope.js"
 import { expandCommand, runScriptAdapter } from "./script-adapter.js"
 
 export type CLIContext = {
@@ -22,13 +23,20 @@ export type CLIResult = {
   stderr: string
 }
 
+type ProjectSelection = {
+  args: string[]
+  cwd: string
+  tsconfigPath?: string
+  diagnostics: GTSXDiagnostic[]
+}
+
 const HELP = `gtsx
 
 Usage:
   gtsx init [--dry-run]
-  gtsx check <entry.g.tsx[#export]|dir> [--json]
-  gtsx serve [--port <port>]
-  gtsx capture <entry.g.tsx[#export]|dir> [--case <name>|--all] [--gcase <entry.g.tsx#export:case>] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
+  gtsx check [-p <tsconfig-or-dir>] <entry.g.tsx[#export]|dir> [--json]
+  gtsx serve [-p <tsconfig-or-dir>] [--port <port>]
+  gtsx capture [-p <tsconfig-or-dir>] <entry.g.tsx[#export]|dir> [--case <name>|--all] [--gcase <entry.g.tsx#export:case>] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
   gtsx strip [--check]
   gtsx diagnose
 `
@@ -38,9 +46,16 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     return { exitCode: 0, stdout: HELP, stderr: context.stderr }
   }
 
+  const projectSelection = resolveProjectSelection(args, context.cwd)
+  if (projectSelection.diagnostics.length > 0) {
+    return diagnosticsResult(projectSelection.diagnostics)
+  }
+  args = projectSelection.args
+  const cwd = projectSelection.cwd
+
   if (args[0] === "init") {
     return initGTSX({
-      cwd: context.cwd,
+      cwd,
       dryRun: args.includes("--dry-run"),
     })
   }
@@ -51,12 +66,12 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       return { exitCode: 1, stdout: context.stdout, stderr: "Missing entry for gtsx check.\n" }
     }
 
-    if (isDirectory(context.cwd, entry)) {
+    if (isDirectory(cwd, entry)) {
       if (args.includes("--json")) {
         return { exitCode: 1, stdout: context.stdout, stderr: "Directory JSON output is not supported yet.\n" }
       }
 
-      const entries = discoverGTSXEntries(context.cwd, entry)
+      const entries = discoverGTSXEntries(cwd, entry, projectSelection.tsconfigPath)
       if (entries.length === 0) {
         return diagnosticsResult([
           {
@@ -68,7 +83,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
         ])
       }
 
-      const results = entries.map((candidate) => analyzeEntry({ cwd: context.cwd, entry: candidate }))
+      const results = entries.map((candidate) => analyzeEntry({ cwd, entry: candidate }))
       return {
         exitCode: results.some((result) => result.diagnostics.length > 0) ? 1 : 0,
         stdout: results.map(formatCheckResult).join("\n"),
@@ -76,7 +91,11 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       }
     }
 
-    const result = analyzeEntry({ cwd: context.cwd, entry })
+    if (projectSelection.tsconfigPath && !isEntryInGTSXScope(cwd, entry, projectSelection.tsconfigPath)) {
+      return entryOutsideProjectScopeResult(entry)
+    }
+
+    const result = analyzeEntry({ cwd, entry })
     if (args.includes("--json")) {
       return {
         exitCode: result.diagnostics.length === 0 ? 0 : 1,
@@ -93,7 +112,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
   }
 
   if (args[0] === "serve") {
-    const config = loadGTSXConfig(context.cwd)
+    const config = loadGTSXConfig(cwd)
     if (!config.config) return diagnosticsResult(config.diagnostics)
     if (!config.config.preview.studioUrl) {
       return diagnosticsResult([
@@ -106,7 +125,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     }
 
     const port = readOption(args, "--port") ?? "4300"
-    const previewServer = await startPreviewServer(config.config.preview.serve, context.cwd, { port })
+    const previewServer = await startPreviewServer(config.config.preview.serve, cwd, { port })
     if (previewServer.exitCode !== 0) return previewServer
 
     return {
@@ -120,7 +139,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     const entry = args[1]
     if (!entry) return { exitCode: 1, stdout: context.stdout, stderr: "Missing entry for gtsx capture.\n" }
 
-    if (isDirectory(context.cwd, entry)) {
+    if (isDirectory(cwd, entry)) {
       if (!args.includes("--all")) {
         return diagnosticsResult([
           {
@@ -132,7 +151,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
         ])
       }
 
-      const entries = discoverGTSXEntries(context.cwd, entry)
+      const entries = discoverGTSXEntries(cwd, entry, projectSelection.tsconfigPath)
       if (entries.length === 0) {
         return diagnosticsResult([
           {
@@ -144,7 +163,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
         ])
       }
 
-      const checks = entries.map((candidate) => analyzeEntry({ cwd: context.cwd, entry: candidate }))
+      const checks = entries.map((candidate) => analyzeEntry({ cwd, entry: candidate }))
       if (checks.some((check) => check.diagnostics.length > 0)) {
         return {
           exitCode: 1,
@@ -153,7 +172,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
         }
       }
 
-      const config = loadGTSXConfig(context.cwd)
+      const config = loadGTSXConfig(cwd)
       if (!config.config) return diagnosticsResult(config.diagnostics)
 
       if (!config.config.preview.allUrl) {
@@ -180,7 +199,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       const port = readOption(args, "--port") ?? "4300"
       const viewport = readOption(args, "--viewport") ?? "1440x900"
       const gcases = readOptions(args, "--gcase")
-      const previewServer = await startPreviewServer(config.config.preview.serve, context.cwd, { port })
+      const previewServer = await startPreviewServer(config.config.preview.serve, cwd, { port })
       if (previewServer.exitCode !== 0) return previewServer
 
       try {
@@ -188,7 +207,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
         for (const candidate of entries) {
           const outPath = outForDirectoryContactSheet(out, candidate)
           await capturePreviewPage({
-            cwd: context.cwd,
+            cwd,
             url: expandUrl(config.config.preview.allUrl, { entry: candidate, caseName: "", port, gcases }),
             viewport,
             out: outPath,
@@ -209,12 +228,16 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       }
     }
 
-    const check = analyzeEntry({ cwd: context.cwd, entry })
+    if (projectSelection.tsconfigPath && !isEntryInGTSXScope(cwd, entry, projectSelection.tsconfigPath)) {
+      return entryOutsideProjectScopeResult(entry)
+    }
+
+    const check = analyzeEntry({ cwd, entry })
     if (check.diagnostics.length > 0) {
       return { exitCode: 1, stdout: formatCheckResult(check), stderr: context.stderr }
     }
 
-    const config = loadGTSXConfig(context.cwd)
+    const config = loadGTSXConfig(cwd)
     if (!config.config) return diagnosticsResult(config.diagnostics)
 
     const port = readOption(args, "--port") ?? "4300"
@@ -244,14 +267,14 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       ])
     }
 
-    const previewServer = await startPreviewServer(config.config.preview.serve, context.cwd, { port })
+    const previewServer = await startPreviewServer(config.config.preview.serve, cwd, { port })
     if (previewServer.exitCode !== 0) return previewServer
 
     try {
       if (captureAllCases) {
         const outPath = outForEntryContactSheet(out, entry)
         await capturePreviewPage({
-          cwd: context.cwd,
+          cwd,
           url: expandUrl(config.config.preview.allUrl ?? "", { entry, caseName: "", port, gcases }),
           viewport,
           out: outPath,
@@ -271,7 +294,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       }
 
       await capturePreviewPage({
-        cwd: context.cwd,
+        cwd,
         url: expandUrl(config.config.preview.url ?? "", { entry, caseName: selectedCase, port, gcases }),
         viewport,
         out,
@@ -291,11 +314,11 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
   }
 
   if (args[0] === "strip") {
-    const config = loadGTSXConfig(context.cwd)
+    const config = loadGTSXConfig(cwd)
     if (!config.config) return diagnosticsResult(config.diagnostics)
 
     const adapter = await runScriptAdapter(config.config, "strip", {
-      cwd: context.cwd,
+      cwd,
       check: args.includes("--check"),
     })
     return adapterResult(adapter)
@@ -310,6 +333,64 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
 
 const IGNORED_DISCOVERY_DIRS = new Set(["node_modules", "dist", ".vite", ".next", ".git"])
 
+function resolveProjectSelection(args: string[], cwd: string): ProjectSelection {
+  const projectOptionIndex = args.findIndex((arg) => arg === "-p" || arg === "--project")
+  if (projectOptionIndex < 0) {
+    const tsconfigPath = findNearestTSConfig(cwd)
+    if (!tsconfigPath) {
+      return { args, cwd, diagnostics: [] }
+    }
+
+    return {
+      args,
+      cwd: dirname(tsconfigPath),
+      tsconfigPath,
+      diagnostics: [],
+    }
+  }
+
+  const projectValue = args[projectOptionIndex + 1]
+  if (!projectValue) {
+    return {
+      args,
+      cwd,
+      diagnostics: [
+        {
+          stage: "typescript",
+          code: "missing-project-option-value",
+          message: "Missing value for -p/--project.",
+        },
+      ],
+    }
+  }
+
+  const nextArgs = [...args.slice(0, projectOptionIndex), ...args.slice(projectOptionIndex + 2)]
+  const projectPath = resolve(cwd, projectValue)
+  const projectStat = statOrUndefined(projectPath)
+  const tsconfigPath = projectStat?.isDirectory() ? findNearestTSConfig(projectPath) : projectPath
+
+  if (!tsconfigPath || !statOrUndefined(tsconfigPath)?.isFile()) {
+    return {
+      args: nextArgs,
+      cwd,
+      diagnostics: [
+        {
+          stage: "typescript",
+          code: "missing-tsconfig",
+          message: `Could not resolve a TypeScript project from ${projectValue}.`,
+        },
+      ],
+    }
+  }
+
+  return {
+    args: nextArgs,
+    cwd: dirname(tsconfigPath),
+    tsconfigPath,
+    diagnostics: [],
+  }
+}
+
 function isDirectory(cwd: string, target: string): boolean {
   try {
     return statSync(resolve(cwd, target)).isDirectory()
@@ -318,7 +399,19 @@ function isDirectory(cwd: string, target: string): boolean {
   }
 }
 
-function discoverGTSXEntries(cwd: string, targetDirectory: string): string[] {
+function statOrUndefined(path: string) {
+  try {
+    return statSync(path)
+  } catch {
+    return undefined
+  }
+}
+
+function discoverGTSXEntries(cwd: string, targetDirectory: string, tsconfigPath?: string): string[] {
+  if (tsconfigPath) {
+    return discoverGTSXProgramFiles({ cwd, root: targetDirectory, tsconfigPath })
+  }
+
   const root = resolve(cwd, targetDirectory)
   const entries: string[] = []
 
@@ -341,6 +434,26 @@ function discoverGTSXEntries(cwd: string, targetDirectory: string): string[] {
       }
     }
   }
+}
+
+function isEntryInGTSXScope(cwd: string, entry: string, tsconfigPath: string): boolean {
+  const file = entryFile(entry)
+  return discoverGTSXProgramFiles({ cwd, root: ".", tsconfigPath }).includes(file)
+}
+
+function entryFile(entry: string): string {
+  return entry.split("#", 1)[0] ?? entry
+}
+
+function entryOutsideProjectScopeResult(entry: string): CLIResult {
+  return diagnosticsResult([
+    {
+      stage: "typescript",
+      code: "entry-outside-project-scope",
+      message: `${entryFile(entry)} is not in the selected TypeScript project scope.`,
+      file: entryFile(entry),
+    },
+  ])
 }
 
 function readOption(args: string[], optionName: string): string | undefined {
