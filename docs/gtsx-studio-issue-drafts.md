@@ -268,3 +268,24 @@ Add a second manifest provider path for stacks where an adapter can expose a vir
 - STUDIO-01
 - STUDIO-03
 
+## STUDIO-14: Simplify Studio canvas chrome and card interactions
+
+Type: AFK
+
+## What to build
+
+Reduce visual noise and fix the primary canvas interaction model in Studio. The canvas should focus on previewing and drilling into UI components, with minimal card chrome, no redundant hierarchy metadata, browser gesture containment for trackpad navigation, and direct card selection from anywhere inside the card surface.
+
+## Acceptance criteria
+
+- [ ] The Studio canvas no longer renders the top bar or top-level canvas action controls.
+- [ ] Each UI card shows only a concise title above or within the preview area.
+- [ ] Redundant card wrappers and metadata labels such as component counts, `Root`, `level1`, and `level2` are removed from the canvas.
+- [ ] Trackpad pinch and two-finger horizontal gestures on the canvas do not trigger page zoom, browser back, or browser forward while the user is interacting with Studio.
+- [ ] Clicking anywhere on a UI card selects that card and triggers the existing drilldown behavior when children are available.
+- [ ] Existing inspector and case-switching behavior still works after the card chrome is simplified.
+
+## Blocked by
+
+- STUDIO-06
+
