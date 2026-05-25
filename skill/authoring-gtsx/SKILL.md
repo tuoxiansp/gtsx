@@ -5,9 +5,17 @@ description: Write .g.tsx components with static preview cases and verify them w
 
 # Authoring GTSX Components
 
-## Quick start
+## Core idea
 
-A `.g.tsx` file = React component + static `Component.cases` describing preview states.
+`.g.tsx` is TSX with a protocol. You write normal React components, but each exported component carries a static `Component.cases` declaring its visual states. The data flow is:
+
+```
+(props, context) → scope → view
+```
+
+Cases inject at the `scope` seam — preview renders any state without executing production hooks. The hook boundary (`createGScope` / `useGContext` only) exists to guarantee this injection point.
+
+## Quick start
 
 ```tsx
 import type { GCases } from "gtsx"
