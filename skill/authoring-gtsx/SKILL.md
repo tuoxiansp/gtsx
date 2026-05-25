@@ -1,6 +1,6 @@
 ---
 name: authoring-gtsx
-description: Write .g.tsx components with static preview cases and verify them with the gtsx toolchain. Covers pure-props, createGScope stateful, and useGContext provider patterns. Use when creating or editing .g.tsx files, adding component cases, fixing gtsx check diagnostics, or integrating GTSX into a React component.
+description: "Write .g.tsx components with static preview cases and verify them with the gtsx toolchain. "
 ---
 
 # Authoring GTSX Components
@@ -49,12 +49,14 @@ Verify: `gtsx check src/Badge.g.tsx`
 
 ## Diagnostics quick-fix
 
-| Code | Fix |
-|------|-----|
-| `missing-cases` | Add `Component.cases = { ... } satisfies GCases<…>` |
-| `non-static-case-key` | Replace computed key with a string literal |
-| `non-gtsx-hook` | Wrap the hook with `createGScope(useRealHook)`, call only the returned GTSX hook |
-| `scope-hook-cases-unsupported` | Move `.cases` from the scope hook to the component export |
+
+| Code                           | Fix                                                                              |
+| ------------------------------ | -------------------------------------------------------------------------------- |
+| `missing-cases`                | Add `Component.cases = { ... } satisfies GCases<…>`                              |
+| `non-static-case-key`          | Replace computed key with a string literal                                       |
+| `non-gtsx-hook`                | Wrap the hook with `createGScope(useRealHook)`, call only the returned GTSX hook |
+| `scope-hook-cases-unsupported` | Move `.cases` from the scope hook to the component export                        |
+
 
 ## CLI reference
 
