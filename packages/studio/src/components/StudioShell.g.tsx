@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScope, type GCases, type GPreviewProtocolMessage } from "gtsx"
+import { createGScopeHook, type GCases, type GPreviewProtocolMessage } from "gtsx"
 
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import {
@@ -194,7 +194,7 @@ function useRealStudioShellScope(props: StudioShellProps): StudioShellScope {
   }
 }
 
-const useStudioShellScope = createGScope(useRealStudioShellScope)
+const useStudioShellScope = createGScopeHook(useRealStudioShellScope)
 
 export default function StudioShell(props: StudioShellProps) {
   const scope = useStudioShellScope(props)

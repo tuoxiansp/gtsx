@@ -1,4 +1,4 @@
-import { createGScope, type GCases } from "gtsx"
+import { createGScopeHook, type GCases } from "gtsx"
 
 type UserCardProps = {
   userId: string
@@ -13,7 +13,7 @@ function useRealUserCardScope(_props: UserCardProps): UserCardScope {
   return { status: "loading" }
 }
 
-const useUserCardGScope = createGScope(useRealUserCardScope)
+const useUserCardGScope = createGScopeHook(useRealUserCardScope)
 
 export default function UserCard(props: UserCardProps) {
   const scope = useUserCardGScope(props)

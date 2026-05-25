@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScope, type GBoundaryRect, type GCases } from "gtsx"
+import { createGScopeHook, type GBoundaryRect, type GCases } from "gtsx"
 
 import BufferedPreviewIframe from "./BufferedPreviewIframe.g"
 import ComponentBoundsHitTarget from "./ComponentBoundsHitTarget.g"
@@ -64,7 +64,7 @@ function useRealLazyPreviewFrameScope(): LazyPreviewFrameScope {
   }
 }
 
-const useLazyPreviewFrameScope = createGScope(useRealLazyPreviewFrameScope)
+const useLazyPreviewFrameScope = createGScopeHook(useRealLazyPreviewFrameScope)
 
 export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
   const scope = useLazyPreviewFrameScope()

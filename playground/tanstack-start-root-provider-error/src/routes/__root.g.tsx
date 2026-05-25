@@ -1,9 +1,9 @@
 import {
-  createGScope,
-  useGContext,
+  createGProvider,
+  createGScopeHook,
   type GCases,
-  type GProviderCases,
 } from "gtsx"
+import React from "react"
 
 export type RootProps = {
   requestId: string
@@ -19,27 +19,20 @@ export type RootScope =
   | { status: "recovering"; message: string }
   | { status: "ready"; userName: string }
 
-export function QueryClientGTSXProvider(props: {
-  value?: QueryClientScope
-  children: React.ReactNode
-}) {
-  return <>{props.children}</>
-}
+export const QueryClientProvider = createGProvider((_props: Record<string, never>) =>
+  React.useState<QueryClientScope>({ apiBaseUrl: "https://api.example.test" }),
+)
 
-QueryClientGTSXProvider.cases = {
-  healthy: { value: { apiBaseUrl: "https://api.example.test" } },
-  booting: { value: { apiBaseUrl: "https://api.example.test", retryAfterMs: 5000 } },
-} satisfies GProviderCases<QueryClientScope>
+const providers = [QueryClientProvider] as const
 
-function useRootProviderScope(_props: RootProps, _queryClient: QueryClientScope): RootScope {
+function useRootProviderScope(_props: RootProps, [_queryClient]: [QueryClientScope]): RootScope {
   return { status: "ready", userName: "Production User" }
 }
 
-const useRootProviderGScope = createGScope(useRootProviderScope)
+const useRootProviderGScope = createGScopeHook(useRootProviderScope, providers)
 
 export default function RootRouteShell(props: RootProps) {
-  const queryClient = useGContext(QueryClientGTSXProvider)
-  const scope = useRootProviderGScope(props, queryClient)
+  const scope = useRootProviderGScope(props)
 
   if (scope.status === "apiDown") {
     return (
@@ -70,7 +63,7 @@ export default function RootRouteShell(props: RootProps) {
 RootRouteShell.cases = {
   apiDown: {
     props: { requestId: "req_tanstack_7133" },
-    providers: { QueryClientGTSXProvider: "booting" },
+    providers: [[QueryClientProvider, { apiBaseUrl: "https://api.example.test", retryAfterMs: 5000 }]],
     scope: {
       status: "apiDown",
       message: "HTTPError while root providers boot.",
@@ -79,12 +72,12 @@ RootRouteShell.cases = {
   },
   recovering: {
     props: { requestId: "req_tanstack_7133" },
-    providers: { QueryClientGTSXProvider: "booting" },
+    providers: [[QueryClientProvider, { apiBaseUrl: "https://api.example.test", retryAfterMs: 5000 }]],
     scope: { status: "recovering", message: "Retrying provider query." },
   },
   ready: {
     props: { requestId: "req_tanstack_7133" },
-    providers: { QueryClientGTSXProvider: "healthy" },
+    providers: [[QueryClientProvider, { apiBaseUrl: "https://api.example.test" }]],
     scope: { status: "ready", userName: "Ada Lovelace" },
   },
-} satisfies GCases<RootProps, RootScope, [typeof QueryClientGTSXProvider]>
+} satisfies GCases<RootProps, RootScope, typeof providers>

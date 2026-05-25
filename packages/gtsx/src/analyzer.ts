@@ -22,7 +22,7 @@ export type GTSXDiagnostic = {
 export type GTSXCaseSummary = {
   kind: "pure" | "scope"
   name: string
-  providers?: Record<string, string>
+  providers?: string[]
 }
 
 export type GTSXProviderSummary = {
@@ -76,7 +76,9 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
   const sourceFile = ts.createSourceFile(entryPath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const componentExportName = getComponentExportName(sourceFile, entryCoordinate.exportName)
   const scopeHookNames = getScopeHookNames(sourceFile)
-  const providerCases: Record<string, GTSXProviderSummary> = {}
+  const providerCases: Record<string, GTSXProviderSummary> = Object.fromEntries(
+    [...getGProviderNames(sourceFile)].map((name) => [name, { name, cases: [] }]),
+  )
   const componentAssignments: CasesAssignment[] = []
   const scopeAssignments: CasesAssignment[] = []
 
@@ -86,11 +88,6 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
 
     if (scopeHookNames.has(assignment.targetName)) {
       scopeAssignments.push(assignment)
-    } else if (looksLikeProviderCases(assignment.targetName, statement)) {
-      providerCases[assignment.targetName] = {
-        name: assignment.targetName,
-        cases: assignment.cases.map((testCase) => testCase.name),
-      }
     } else if (!componentExportName || assignment.targetName === componentExportName) {
       componentAssignments.push(assignment)
     }
@@ -121,7 +118,7 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
       diagnostics.push({
         stage: "contract-extraction",
         code: "non-gtsx-hook",
-        message: `GTSX components may only call GTSX hooks; found "${hookName}".`,
+        message: `GTSX components may only call GTSX hooks; found "${hookName}". Wrap production hooks with createGScopeHook(...).`,
         file: options.entry,
       })
     }
@@ -167,26 +164,7 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
   }
 
   for (const testCase of selectedCases) {
-    for (const [providerName, providerCaseName] of Object.entries(testCase.providers ?? {})) {
-      const provider = providerCases[providerName]
-      if (!provider) {
-        diagnostics.push({
-          stage: "contract-extraction",
-          code: "missing-provider",
-          message: `Case "${testCase.name}" selects unknown provider "${providerName}".`,
-          file: options.entry,
-          caseName: testCase.name,
-        })
-      } else if (!provider.cases.includes(providerCaseName)) {
-        diagnostics.push({
-          stage: "contract-extraction",
-          code: "missing-provider-case",
-          message: `Case "${testCase.name}" selects missing provider case "${providerName}.${providerCaseName}".`,
-          file: options.entry,
-          caseName: testCase.name,
-        })
-      }
-    }
+    validateProviderSelections(testCase, providerCases, diagnostics, options.entry)
   }
 
   return {
@@ -255,6 +233,44 @@ function getScopeHookNames(sourceFile: ts.SourceFile): Set<string> {
   }
 
   return names
+}
+
+function getGProviderNames(sourceFile: ts.SourceFile): Set<string> {
+  const names = new Set<string>()
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) continue
+
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue
+      if (isCreateGProviderCall(unwrapExpression(declaration.initializer))) {
+        names.add(declaration.name.text)
+      }
+    }
+  }
+
+  return names
+}
+
+function validateProviderSelections(
+  testCase: GTSXCaseSummary,
+  providerCases: Record<string, GTSXProviderSummary>,
+  diagnostics: GTSXDiagnostic[],
+  file: string,
+) {
+  if (!testCase.providers) return
+
+  for (const providerName of testCase.providers) {
+    if (!providerCases[providerName]) {
+      diagnostics.push({
+        stage: "contract-extraction",
+        code: "missing-provider",
+        message: `Case "${testCase.name}" selects unknown provider "${providerName}".`,
+        file,
+        caseName: testCase.name,
+      })
+    }
+  }
 }
 
 function getNonGTSXHookCalls(
@@ -430,7 +446,7 @@ function readCasesObject(
   return cases
 }
 
-function readProviderSelections(caseValue: ts.ObjectLiteralExpression): Record<string, string> | undefined {
+function readProviderSelections(caseValue: ts.ObjectLiteralExpression): string[] | undefined {
   const providersProperty = caseValue.properties.find(
     (property): property is ts.PropertyAssignment =>
       ts.isPropertyAssignment(property) && getStaticPropertyName(property.name) === "providers",
@@ -438,16 +454,16 @@ function readProviderSelections(caseValue: ts.ObjectLiteralExpression): Record<s
   if (!providersProperty) return undefined
 
   const providersValue = unwrapExpression(providersProperty.initializer)
-  if (!ts.isObjectLiteralExpression(providersValue)) return undefined
+  if (!ts.isArrayLiteralExpression(providersValue)) return undefined
 
-  const providers: Record<string, string> = {}
-  for (const property of providersValue.properties) {
-    if (!ts.isPropertyAssignment(property)) continue
+  const providers: string[] = []
+  for (const element of providersValue.elements) {
+    const entry = unwrapExpression(element)
+    if (!ts.isArrayLiteralExpression(entry)) continue
 
-    const providerName = getStaticPropertyName(property.name)
-    const providerCase = unwrapExpression(property.initializer)
-    if (providerName && ts.isStringLiteral(providerCase)) {
-      providers[providerName] = providerCase.text
+    const providerExpression = entry.elements[0] ? unwrapExpression(entry.elements[0]) : undefined
+    if (providerExpression && ts.isIdentifier(providerExpression)) {
+      providers.push(providerExpression.text)
     }
   }
 
@@ -471,7 +487,11 @@ function unwrapExpression(expression: ts.Expression): ts.Expression {
 }
 
 function isCreateGScopeCall(expression: ts.Expression): boolean {
-  return ts.isCallExpression(expression) && ts.isIdentifier(expression.expression) && expression.expression.text === "createGScope"
+  return ts.isCallExpression(expression) && ts.isIdentifier(expression.expression) && expression.expression.text === "createGScopeHook"
+}
+
+function isCreateGProviderCall(expression: ts.Expression): boolean {
+  return ts.isCallExpression(expression) && ts.isIdentifier(expression.expression) && expression.expression.text === "createGProvider"
 }
 
 function hasStaticProperty(objectLiteral: ts.ObjectLiteralExpression, propertyName: string): boolean {
@@ -484,6 +504,3 @@ function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
   return Boolean(ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((modifier) => modifier.kind === kind))
 }
 
-function looksLikeProviderCases(targetName: string, statement: ts.Statement): boolean {
-  return targetName.endsWith("Provider") || statement.getText().includes("GProviderCases")
-}

@@ -24,15 +24,15 @@ describe("GTSX analyzer", () => {
       {
         kind: "scope",
         name: "loading",
-        providers: { ThemeGTSXProvider: "light" },
+        providers: ["ThemeProvider"],
       },
       {
         kind: "scope",
         name: "ready",
-        providers: { ThemeGTSXProvider: "dark" },
+        providers: ["ThemeProvider"],
       },
     ])
-    expect(result.providers.ThemeGTSXProvider.cases).toEqual(["light", "dark"])
+    expect(result.providers.ThemeProvider.cases).toEqual([])
   })
 
   it("discovers named component cases by file export coordinate", () => {

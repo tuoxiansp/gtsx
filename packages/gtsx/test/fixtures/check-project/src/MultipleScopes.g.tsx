@@ -1,11 +1,11 @@
-import { createGScope, type GCases } from "gtsx"
+import { createGScopeHook, type GCases } from "gtsx"
 
 type Props = {
   id: string
 }
 
-const useFirstScope = createGScope((_props: Props) => ({ label: "first" }))
-const useSecondScope = createGScope((_props: Props) => ({ label: "second" }))
+const useFirstScope = createGScopeHook((_props: Props) => ({ label: "first" }))
+const useSecondScope = createGScopeHook((_props: Props) => ({ label: "second" }))
 
 export default function MultipleScopes(props: Props) {
   const first = useFirstScope(props)

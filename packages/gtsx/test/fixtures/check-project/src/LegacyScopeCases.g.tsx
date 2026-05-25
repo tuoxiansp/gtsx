@@ -1,4 +1,4 @@
-import { createGScope, type GCases } from "gtsx"
+import { createGScopeHook, type GCases } from "gtsx"
 
 type Props = {
   id: string
@@ -8,7 +8,7 @@ type Scope = {
   label: string
 }
 
-const useLegacyGScope = createGScope((_props: Props): Scope => ({ label: "real" }))
+const useLegacyGScope = createGScopeHook((_props: Props): Scope => ({ label: "real" }))
 
 useLegacyGScope.cases = {
   ready: { props: { id: "1" }, scope: { label: "legacy" } },

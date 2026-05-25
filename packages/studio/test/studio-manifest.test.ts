@@ -192,9 +192,9 @@ describe("GTSX Studio manifest", () => {
 
     expect(userCardFile?.components.map((component) => component.coordinate)).toEqual(["src/UserCard.g.tsx#default"])
     expect(userCardFile?.components[0]?.providers).toEqual({
-      ThemeGTSXProvider: {
-        name: "ThemeGTSXProvider",
-        cases: ["light", "dark"],
+      ThemeProvider: {
+        name: "ThemeProvider",
+        cases: [],
       },
     })
   })

@@ -13,7 +13,7 @@ description: "Write .g.tsx components with static preview cases and verify them 
 (props, context) → scope → view
 ```
 
-Cases inject at the `scope` seam — preview renders any state without executing production hooks. The hook boundary (`createGScope` / `useGContext` only) exists to guarantee this injection point.
+Cases inject at the `scope` seam — preview renders any state without executing production hooks. The hook boundary (`createGScopeHook` / `useGContext` only) exists to guarantee this injection point.
 
 ## Quick start
 
@@ -34,7 +34,7 @@ Verify: `gtsx check src/Badge.g.tsx`
 
 ## Workflow
 
-1. **Decide component kind** — pure (props only), stateful (needs `createGScope`), or contextual (needs `useGContext`).
+1. **Decide component kind** — pure (props only), stateful (needs `createGScopeHook`), or contextual (needs `createGProvider` / `useGContext`).
 2. **Write the `.g.tsx` file** following the patterns in [REFERENCE.md](./REFERENCE.md).
 3. **Attach `Component.cases`** as a static object literal with `satisfies GCases<…>`.
 4. **Run `gtsx check`** — fix any diagnostics before proceeding.
@@ -42,10 +42,10 @@ Verify: `gtsx check src/Badge.g.tsx`
 
 ## Rules (non-negotiable)
 
-- Only call GTSX hooks (`useGContext`, hooks from `createGScope`) inside `.g.tsx` component bodies. Never call `useState`, `useEffect`, or other React hooks directly.
+- Only call GTSX hooks (`useGContext`, hooks from `createGScopeHook`) inside `.g.tsx` component bodies. Never call `useState`, `useEffect`, or other React hooks directly.
 - Cases must be static object literals. No computed keys, no dynamic generation, no async loading.
 - Do not put secrets, credentials, tokens, or customer data in cases.
-- Use `satisfies GCases<Props>` (pure) or `satisfies GCases<Props, Scope>` (stateful) or `satisfies GCases<Props, Scope, [typeof Provider]>` (contextual).
+- Use `satisfies GCases<Props>` (pure), `satisfies GCases<Props, Scope>` (stateful), or `satisfies GCases<Props, Scope, typeof providers>` (contextual).
 
 ## Diagnostics quick-fix
 
@@ -54,7 +54,7 @@ Verify: `gtsx check src/Badge.g.tsx`
 | ------------------------------ | -------------------------------------------------------------------------------- |
 | `missing-cases`                | Add `Component.cases = { ... } satisfies GCases<…>`                              |
 | `non-static-case-key`          | Replace computed key with a string literal                                       |
-| `non-gtsx-hook`                | Wrap the hook with `createGScope(useRealHook)`, call only the returned GTSX hook |
+| `non-gtsx-hook`                | Wrap the hook with `createGScopeHook(useRealHook)`, call only the returned GTSX hook |
 | `scope-hook-cases-unsupported` | Move `.cases` from the scope hook to the component export                        |
 
 

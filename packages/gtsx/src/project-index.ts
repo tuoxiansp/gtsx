@@ -112,7 +112,6 @@ function discoverGTSXFiles(cwd: string, projectRoot: string, tsconfigPath?: stri
 function readExportedComponents(filePath: string): ExportedComponent[] {
   const sourceText = readFileSync(filePath, "utf8")
   const sourceFile = ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-  const providerCaseTargets = getProviderCaseTargets(sourceFile)
   const components: ExportedComponent[] = []
 
   for (const statement of sourceFile.statements) {
@@ -139,40 +138,7 @@ function readExportedComponents(filePath: string): ExportedComponent[] {
     }
   }
 
-  return components.filter((component) => !providerCaseTargets.has(component.componentName))
-}
-
-function getProviderCaseTargets(sourceFile: ts.SourceFile): Set<string> {
-  const providerNames = new Set<string>()
-
-  for (const statement of sourceFile.statements) {
-    const targetName = getCasesAssignmentTargetName(statement)
-    if (targetName && looksLikeProviderCases(targetName, statement)) {
-      providerNames.add(targetName)
-    }
-  }
-
-  return providerNames
-}
-
-function getCasesAssignmentTargetName(statement: ts.Statement): string | undefined {
-  if (!ts.isExpressionStatement(statement)) return undefined
-
-  const expression = statement.expression
-  if (!ts.isBinaryExpression(expression) || expression.operatorToken.kind !== ts.SyntaxKind.EqualsToken) {
-    return undefined
-  }
-
-  if (!ts.isPropertyAccessExpression(expression.left) || expression.left.name.text !== "cases") {
-    return undefined
-  }
-
-  if (!ts.isIdentifier(expression.left.expression)) return undefined
-  return expression.left.expression.text
-}
-
-function looksLikeProviderCases(targetName: string, statement: ts.Statement): boolean {
-  return targetName.endsWith("Provider") || statement.getText().includes("GProviderCases")
+  return components
 }
 
 function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {

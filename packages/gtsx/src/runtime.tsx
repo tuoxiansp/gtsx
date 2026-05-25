@@ -1,8 +1,18 @@
 import React from "react"
+import { createContainer } from "react-tracked"
 
 import type { GRuntimeValuesSnapshot } from "./preview-protocol.js"
 import { serializeGRuntimeValue } from "./runtime-values.js"
-import type { AnyGProvider, GCases, GCase, GProvider, GScopeHook } from "./types.js"
+import type {
+  AnyGProvider,
+  GCases,
+  GCase,
+  GProvider,
+  GProviderStates,
+  GProviderUpdate,
+  GProviderUpdateFn,
+  GProviderUseValue,
+} from "./types.js"
 
 type PreviewRuntimeValue = {
   scope?: unknown
@@ -16,6 +26,13 @@ type AnyComponentCases<Props> = Record<string, GCase<Props> | GCase<Props, unkno
 const PreviewRuntimeContext = React.createContext<PreviewRuntimeValue | null>(null)
 const ActiveComponentCaseContext = React.createContext<GCase<unknown, unknown> | null>(null)
 const BoundaryParentContext = React.createContext<string | null>(null)
+const noopUpdate = () => {}
+
+type ManagedGProvider<State = unknown, Update extends GProviderUpdateFn = GProviderUpdateFn> = GProvider<State, Update> & {
+  readonly __gtsxPresenceContext: React.Context<boolean>
+  readonly __gtsxUseTrackedState: () => State
+  readonly __gtsxUseUpdate: () => Update
+}
 
 type FlatBoundaryNode = {
   id: string
@@ -57,16 +74,15 @@ export type GPreviewProviderProps = {
 
 export function GPreviewProvider(props: GPreviewProviderProps) {
   props.boundaryCollector?.reset()
+  const previewValue: PreviewRuntimeValue = {
+    ...(Object.prototype.hasOwnProperty.call(props, "scope") ? { scope: props.scope } : {}),
+    providerValues: props.providerValues ?? new Map(),
+    caseOverrides: props.caseOverrides ?? new Map(),
+    boundaryCollector: props.boundaryCollector,
+  }
 
   return (
-    <PreviewRuntimeContext.Provider
-      value={{
-        scope: props.scope,
-        providerValues: props.providerValues ?? new Map(),
-        caseOverrides: props.caseOverrides ?? new Map(),
-        boundaryCollector: props.boundaryCollector,
-      }}
-    >
+    <PreviewRuntimeContext.Provider value={previewValue}>
       {props.children}
     </PreviewRuntimeContext.Provider>
   )
@@ -128,33 +144,127 @@ export function createGBoundaryCollector(): GBoundaryCollector {
   }
 }
 
-export function createGScope<Args extends unknown[], Scope>(
-  useRealScope: (...args: Args) => Scope,
-): GScopeHook<Args, Scope> {
-  const useScope = ((...args: Args): Scope => {
-    const activeCase = readActiveComponentCaseIfRendering()
+export function createGProvider<Props extends object, State, Update extends GProviderUpdateFn>(
+  useValue: GProviderUseValue<Props, State, Update>,
+): GProvider<State, Update, Props> {
+  const PresenceContext = React.createContext(false)
+  const container = createContainer<State, Update, Props & { children?: React.ReactNode }>(useValue)
+  const TrackedProvider = container.Provider
+
+  const Provider = ((props: Props & { children?: React.ReactNode }) => {
+    return (
+      <PresenceContext.Provider value={true}>
+        <TrackedProvider {...props}>{props.children}</TrackedProvider>
+      </PresenceContext.Provider>
+    )
+  }) as GProvider<State, Update, Props> & {
+    __gtsxPresenceContext: React.Context<boolean>
+    __gtsxUseTrackedState: () => State
+    __gtsxUseUpdate: () => Update
+  }
+
+  Provider.useUpdate = () => useGContextUpdate(Provider)
+  Object.defineProperties(Provider, {
+    __gtsxPresenceContext: { value: PresenceContext },
+    __gtsxUseTrackedState: { value: container.useTrackedState },
+    __gtsxUseUpdate: { value: container.useUpdate },
+  })
+
+  return Provider
+}
+
+export function useGContextUpdate<Provider extends GProvider<any, any, any>>(
+  provider: Provider,
+): GProviderUpdate<Provider> {
+  if (isManagedGProvider(provider)) {
+    const hasProvider = React.useContext(provider.__gtsxPresenceContext)
+    if (hasProvider) {
+      return provider.__gtsxUseUpdate() as GProviderUpdate<Provider>
+    }
+  }
+
+  const preview = React.useContext(PreviewRuntimeContext)
+  const activeCase = React.useContext(ActiveComponentCaseContext)
+  if (preview && readCaseProviderValue(activeCase, provider).found) {
+    return noopUpdate as GProviderUpdate<Provider>
+  }
+
+  throw new Error(`No GTSX provider update is active for ${provider.name || "anonymous provider"}.`)
+}
+
+export function createGScopeHook<Scope>(useRealScope: () => Scope): () => Scope
+export function createGScopeHook<Props, Scope>(useRealScope: (props: Props) => Scope): (props: Props) => Scope
+export function createGScopeHook<Props, Providers extends readonly GProvider<any, any, any>[], Scope>(
+  useRealScope: (props: Props, providers: GProviderStates<Providers>) => Scope,
+  providers: Providers,
+): (props: Props) => Scope
+export function createGScopeHook<Props, Providers extends readonly GProvider<any, any, any>[], Scope>(
+  useRealScope: (() => Scope) | ((props: Props) => Scope) | ((props: Props, providers: GProviderStates<Providers>) => Scope),
+  providers?: Providers,
+): ((props: Props) => Scope) | (() => Scope) {
+  return ((props?: Props): Scope => {
+    const providerStates = providers?.map((provider) => useGContext(provider)) as GProviderStates<Providers> | undefined
+    const activeCase = React.useContext(ActiveComponentCaseContext)
     if (activeCase && "scope" in activeCase) {
       return activeCase.scope as Scope
     }
 
-    const preview = readPreviewContextIfRendering()
+    const preview = React.useContext(PreviewRuntimeContext)
     if (preview && "scope" in preview) {
       return preview.scope as Scope
     }
 
-    return useRealScope(...args)
-  }) as GScopeHook<Args, Scope>
+    if (providers) {
+      return (useRealScope as (props: Props, providers: GProviderStates<Providers>) => Scope)(props as Props, providerStates!)
+    }
 
-  return useScope
+    return (useRealScope as (props?: Props) => Scope)(props)
+  }) as ((props: Props) => Scope) | (() => Scope)
 }
 
-export function useGContext<Value>(provider: GProvider<Value>): Value {
-  const preview = React.useContext(PreviewRuntimeContext)
-  if (!preview?.providerValues.has(provider)) {
-    throw new Error(`No GTSX provider value is active for ${provider.name || "anonymous provider"}.`)
+export function useGContext<Value>(provider: GProvider<Value> | AnyGProvider): Value {
+  if (isManagedGProvider<Value, GProviderUpdateFn>(provider)) {
+    const hasProvider = React.useContext(provider.__gtsxPresenceContext)
+    if (hasProvider) {
+      return provider.__gtsxUseTrackedState()
+    }
   }
 
-  return preview.providerValues.get(provider) as Value
+  const preview = React.useContext(PreviewRuntimeContext)
+  if (preview?.providerValues.has(provider)) {
+    return preview.providerValues.get(provider) as Value
+  }
+
+  const activeCase = React.useContext(ActiveComponentCaseContext)
+  const caseValue = readCaseProviderValue(activeCase, provider)
+  if (caseValue.found) {
+    return caseValue.value as Value
+  }
+
+  throw new Error(`No GTSX provider value is active for ${provider.name || "anonymous provider"}.`)
+}
+
+function isManagedGProvider<State, Update extends GProviderUpdateFn>(
+  provider: GProvider<State, Update> | AnyGProvider,
+): provider is ManagedGProvider<State, Update> {
+  return "__gtsxPresenceContext" in provider && "__gtsxUseTrackedState" in provider && "__gtsxUseUpdate" in provider
+}
+
+function readCaseProviderValue(
+  activeCase: GCase<unknown, unknown> | null,
+  provider: AnyGProvider,
+): { found: true; value: unknown } | { found: false } {
+  if (!activeCase || !Array.isArray(activeCase.providers)) {
+    return { found: false }
+  }
+
+  for (const [entryProvider, value] of activeCase.providers) {
+    if (entryProvider === provider) {
+      return { found: true, value }
+    }
+  }
+
+  return { found: false }
 }
 
 export function defineGComponent<Props extends object>(

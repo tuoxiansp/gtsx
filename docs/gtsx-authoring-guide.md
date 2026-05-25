@@ -8,7 +8,7 @@ This guide covers authoring only. It does not replace the agent-driven installat
 
 ## What `gtsx check` Validates
 
-`gtsx check` validates the GTSX contract inside `.g.tsx` files: component exports, statically enumerable `Component.cases`, pure versus scope cases, provider case names, and the GTSX hook boundary.
+`gtsx check` validates the GTSX contract inside `.g.tsx` files: component exports, statically enumerable `Component.cases`, pure versus scope cases, provider entries, and the GTSX hook boundary.
 
 It does not replace TypeScript. Prop types, scope types, JSX types, imports, and ordinary TypeScript errors remain the TypeScript compiler's job. Run the target project's normal typecheck alongside `gtsx check`.
 
@@ -54,11 +54,11 @@ GTSX pure entry: src/Badge.g.tsx
 
 ## Quickstart: Stateful UI
 
-Use `createGScope` when UI needs application state. A normal hook may live in the same `.g.tsx` file, but no React component in a `.g.tsx` file may call that normal hook directly. Components may call only GTSX hooks: `useGContext(...)` and hooks returned by `createGScope(...)`.
+Use `createGScopeHook` when UI needs application state. A normal hook may live in the same `.g.tsx` file, but no React component in a `.g.tsx` file may call that normal hook directly. Components may call only GTSX hooks: `useGContext(...)` and hooks returned by `createGScopeHook(...)`.
 
 ```tsx
 import { useState } from "react"
-import { createGScope, type GCases } from "gtsx"
+import { createGScopeHook, type GCases } from "gtsx"
 
 type CounterProps = {
   title: string
@@ -80,7 +80,7 @@ function useRealCounterScope(): CounterScope {
   }
 }
 
-const useCounterScope = createGScope(useRealCounterScope)
+const useCounterScope = createGScopeHook(useRealCounterScope)
 
 export default function Counter(props: CounterProps) {
   const scope = useCounterScope()
@@ -129,8 +129,8 @@ The `.g.tsx` file is the UI model. It can contain:
 - React JSX.
 - UI prop types.
 - Scope types used by the UI.
-- Provider components and provider cases.
-- Production hooks that are wrapped by `createGScope`.
+- GTSX providers created with `createGProvider`.
+- Production hooks that are wrapped by `createGScopeHook`.
 - Component cases on `Component.cases`.
 
 You do not need to split a `.ts` file out just because the component is stateful.
@@ -148,7 +148,7 @@ props + provider context -> GTSX scope -> view
 Inside any React component in a `.g.tsx` file, call only GTSX hooks:
 
 - `useGContext(Provider)` for GTSX provider values.
-- Hooks returned by `createGScope(useRealScope)`.
+- Hooks returned by `createGScopeHook(useRealScope)`.
 
 Do not call ordinary hooks directly inside any `.g.tsx` component render path:
 
@@ -173,7 +173,7 @@ Counter.cases = {
 If a normal hook is needed for production behavior, wrap it at module scope:
 
 ```tsx
-const useCounterScope = createGScope(useRealCounterScope)
+const useCounterScope = createGScopeHook(useRealCounterScope)
 ```
 
 Then call only the returned GTSX hook from `.g.tsx` components:
@@ -216,39 +216,35 @@ Avoid computed case keys, dynamic case generation, and async case loading. GTSX 
 Use a GTSX provider when cases need controlled context.
 
 ```tsx
-import { useGContext, type GCases, type GProviderCases } from "gtsx"
+import React from "react"
+import { createGProvider, useGContext, type GCases } from "gtsx"
 
 type ThemeScope = {
   mode: "light" | "dark"
 }
 
-function ThemeGProvider(props: { value?: ThemeScope; children: React.ReactNode }) {
-  return <>{props.children}</>
-}
-
-ThemeGProvider.cases = {
-  light: { value: { mode: "light" } },
-  dark: { value: { mode: "dark" } },
-} satisfies GProviderCases<ThemeScope>
+const ThemeProvider = createGProvider((_props: Record<string, never>) =>
+  React.useState<ThemeScope>({ mode: "light" }),
+)
 
 type PanelProps = {
   title: string
 }
 
 export default function Panel(props: PanelProps) {
-  const theme = useGContext(ThemeGProvider)
+  const theme = useGContext(ThemeProvider)
   return <section data-theme={theme.mode}>{props.title}</section>
 }
 
 Panel.cases = {
   light: {
     props: { title: "Settings" },
-    providers: { ThemeGProvider: "light" },
+    providers: [[ThemeProvider, { mode: "light" }]],
   },
-} satisfies GCases<PanelProps, never, [typeof ThemeGProvider]>
+} satisfies GCases<PanelProps, never, [typeof ThemeProvider]>
 ```
 
-Provider cases live on provider components. Component cases select provider cases by provider name.
+`createGProvider(useValue)` follows the `react-tracked` mental model: the Provider owns state and update, `useGContext(Provider)` reads tracked state, and `useGContextUpdate(Provider)` reads the update function. Component cases provide preview fallback state with ordered provider entries.
 
 ## Multiple Exports
 
@@ -274,7 +270,7 @@ Common diagnostics:
 
 - `missing-cases`: add `Component.cases`.
 - `non-static-case-key`: use literal case keys.
-- `non-gtsx-hook`: move ordinary hook calls behind `createGScope`, then call only the returned GTSX hook from the component.
+- `non-gtsx-hook`: move ordinary hook calls behind `createGScopeHook`, then call only the returned GTSX hook from the component.
 - `scope-hook-cases-unsupported`: put cases on the component export, not on the GScope hook.
 
 Repository examples:

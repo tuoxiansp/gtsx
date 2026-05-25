@@ -1,15 +1,18 @@
+import React from "react"
 import { renderToStaticMarkup } from "react-dom/server"
+import { act, create, type ReactTestRenderer } from "react-test-renderer"
 import { describe, expect, it } from "vitest"
 
 import {
   GPreviewProvider,
   createGBoundaryCollector,
-  createGScope,
+  createGProvider,
+  createGScopeHook,
   defineGComponent,
   readGBoundaryElementRect,
   useGContext,
+  useGContextUpdate,
   type GCases,
-  type GProviderCases,
 } from "../src/index.js"
 
 type Props = {
@@ -20,32 +23,71 @@ type ThemeScope = {
   mode: "light" | "dark"
 }
 
-function ThemeGTSXProvider(_props: { value?: ThemeScope; children: React.ReactNode }) {
-  return null
-}
-
-ThemeGTSXProvider.cases = {
-  light: { value: { mode: "light" } },
-  dark: { value: { mode: "dark" } },
-} satisfies GProviderCases<ThemeScope>
+const PreviewThemeProvider = createGProvider((_props: Record<string, never>) =>
+  React.useState<ThemeScope>({ mode: "light" }),
+)
+PreviewThemeProvider.displayName = "PreviewThemeProvider"
 
 describe("GTSX runtime", () => {
-  it("delegates a GTSX scope hook to the real hook by default", () => {
-    const useScope = createGScope((props: Props) => ({ title: `user:${props.userId}` }))
+  it("creates a provider with readable state and an update hook", () => {
+    type ThemeState = {
+      mode: "light" | "dark"
+    }
 
-    expect(useScope({ userId: "user_1" })).toEqual({ title: "user:user_1" })
+    const ThemeProvider = createGProvider((props: { initialState: ThemeState }) =>
+      React.useState<ThemeState>(props.initialState),
+    )
+
+    function ThemeButton() {
+      const theme = useGContext(ThemeProvider)
+      const setTheme = useGContextUpdate(ThemeProvider)
+
+      return (
+        <button onClick={() => setTheme((prev) => ({ ...prev, mode: "dark" }))}>
+          {theme.mode}
+        </button>
+      )
+    }
+
+    let renderer: ReactTestRenderer | undefined
+    act(() => {
+      renderer = create(
+        <ThemeProvider initialState={{ mode: "light" }}>
+          <ThemeButton />
+        </ThemeProvider>,
+      )
+    })
+
+    expect(renderer?.toJSON()).toMatchObject({ type: "button", children: ["light"] })
+
+    act(() => {
+      renderer?.root.findByType("button").props.onClick()
+    })
+
+    expect(renderer?.toJSON()).toMatchObject({ type: "button", children: ["dark"] })
+  })
+
+  it("delegates a GTSX scope hook to the real hook by default", () => {
+    const useScope = createGScopeHook((props: Props) => ({ title: `user:${props.userId}` }))
+
+    function Card(props: Props) {
+      const scope = useScope(props)
+      return <span>{scope.title}</span>
+    }
+
+    expect(renderToStaticMarkup(<Card userId="user_1" />)).toBe("<span>user:user_1</span>")
   })
 
   it("returns the active preview case scope inside a preview provider", () => {
-    const useScope = createGScope((props: Props) => ({ title: `real:${props.userId}` }))
+    const useScope = createGScopeHook((props: Props) => ({ title: `real:${props.userId}` }))
 
     const cases = {
       ready: {
         props: { userId: "user_1" },
-        providers: { ThemeGTSXProvider: "dark" },
+        providers: [[PreviewThemeProvider, { mode: "dark" }]],
         scope: { title: "Ada Lovelace" },
       },
-    } satisfies GCases<Props, { title: string }, [typeof ThemeGTSXProvider]>
+    } satisfies GCases<Props, { title: string }, [typeof PreviewThemeProvider]>
 
     function Card(props: Props) {
       const scope = useScope(props)
@@ -53,10 +95,7 @@ describe("GTSX runtime", () => {
     }
 
     const html = renderToStaticMarkup(
-      <GPreviewProvider
-        scope={cases.ready.scope}
-        providerValues={new Map([[ThemeGTSXProvider, ThemeGTSXProvider.cases.dark.value]])}
-      >
+      <GPreviewProvider scope={cases.ready.scope} providerValues={new Map([[PreviewThemeProvider, { mode: "dark" }]])}>
         <Card userId="user_1" />
       </GPreviewProvider>,
     )
@@ -64,14 +103,91 @@ describe("GTSX runtime", () => {
     expect(html).toBe("<span>Ada Lovelace</span>")
   })
 
+  it("derives scope from provider states declared on a GScope hook", () => {
+    type ThemeState = {
+      color: string
+    }
+
+    const ThemeProvider = createGProvider((props: { initialState: ThemeState }) =>
+      React.useState<ThemeState>(props.initialState),
+    )
+    const CounterProvider = createGProvider((props: { initialState: number }) =>
+      React.useState<number>(props.initialState),
+    )
+    const providers = [ThemeProvider, CounterProvider] as const
+
+    const useScope = createGScopeHook(
+      (props: Props, [theme, counter]) => ({
+        title: `${props.userId}:${theme.color}:${counter}`,
+      }),
+      providers,
+    )
+
+    function Card(props: Props) {
+      const scope = useScope(props)
+      return <span>{scope.title}</span>
+    }
+
+    const html = renderToStaticMarkup(
+      <ThemeProvider initialState={{ color: "#0af" }}>
+        <CounterProvider initialState={42}>
+          <Card userId="user_1" />
+        </CounterProvider>
+      </ThemeProvider>,
+    )
+
+    expect(html).toBe("<span>user_1:#0af:42</span>")
+  })
+
+  it("derives preview scope from active case provider entries when no real provider exists", () => {
+    type ThemeState = {
+      color: string
+    }
+
+    const ThemeProvider = createGProvider((_props: Record<string, never>) =>
+      React.useState<ThemeState>({ color: "#111" }),
+    )
+    const CounterProvider = createGProvider((_props: Record<string, never>) => React.useState(0))
+    const providers = [ThemeProvider, CounterProvider] as const
+
+    const useScope = createGScopeHook(
+      (props: Props, [theme, counter]) => ({
+        title: `${props.userId}:${theme.color}:${counter}`,
+      }),
+      providers,
+    )
+
+    const Card = defineGComponent("src/Card.g.tsx#default", function CardImpl(props: Props) {
+      const scope = useScope(props)
+      return <span>{scope.title}</span>
+    })
+    Card.cases = {
+      preview: {
+        props: { userId: "user_1" },
+        providers: [
+          [ThemeProvider, { color: "#f0a" }],
+          [CounterProvider, 7],
+        ],
+      },
+    } satisfies GCases<Props, { title: string }, typeof providers>
+
+    const html = renderToStaticMarkup(
+      <GPreviewProvider>
+        <Card userId="user_1" />
+      </GPreviewProvider>,
+    )
+
+    expect(html).toBe("<span>user_1:#f0a:7</span>")
+  })
+
   it("reads provider values selected by the active preview case", () => {
     function ThemeLabel() {
-      const theme = useGContext(ThemeGTSXProvider)
+      const theme = useGContext(PreviewThemeProvider)
       return <span>{theme.mode}</span>
     }
 
     const html = renderToStaticMarkup(
-      <GPreviewProvider providerValues={new Map([[ThemeGTSXProvider, { mode: "dark" }]])}>
+      <GPreviewProvider providerValues={new Map([[PreviewThemeProvider, { mode: "dark" }]])}>
         <ThemeLabel />
       </GPreviewProvider>,
     )
@@ -79,8 +195,81 @@ describe("GTSX runtime", () => {
     expect(html).toBe("<span>dark</span>")
   })
 
+  it("falls back to the active component case provider entries in preview", () => {
+    type ThemeState = {
+      mode: "light" | "dark"
+    }
+
+    const ThemeProvider = createGProvider((_props: Record<string, never>) =>
+      React.useState<ThemeState>({ mode: "light" }),
+    )
+
+    const ThemeLabel = defineGComponent("src/ThemeLabel.g.tsx#default", function ThemeLabelImpl() {
+      const theme = useGContext(ThemeProvider)
+      return <span>{theme.mode}</span>
+    })
+    ThemeLabel.cases = {
+      dark: {
+        props: {},
+        providers: [[ThemeProvider, { mode: "dark" }]],
+      },
+    } satisfies GCases<Record<string, never>>
+
+    const html = renderToStaticMarkup(
+      <GPreviewProvider>
+        <ThemeLabel />
+      </GPreviewProvider>,
+    )
+
+    expect(html).toBe("<span>dark</span>")
+  })
+
+  it("returns a noop update for preview case provider entries without a real provider", () => {
+    type ThemeState = {
+      mode: "light" | "dark"
+    }
+
+    const ThemeProvider = createGProvider((_props: Record<string, never>) =>
+      React.useState<ThemeState>({ mode: "light" }),
+    )
+
+    const ThemeButton = defineGComponent("src/ThemeButton.g.tsx#default", function ThemeButtonImpl() {
+      const theme = useGContext(ThemeProvider)
+      const setTheme = useGContextUpdate(ThemeProvider)
+
+      return (
+        <button onClick={() => setTheme((prev) => ({ ...prev, mode: "dark" }))}>
+          {theme.mode}
+        </button>
+      )
+    })
+    ThemeButton.cases = {
+      preview: {
+        props: {},
+        providers: [[ThemeProvider, { mode: "light" }]],
+      },
+    } satisfies GCases<Record<string, never>>
+
+    let renderer: ReactTestRenderer | undefined
+    act(() => {
+      renderer = create(
+        <GPreviewProvider>
+          <ThemeButton />
+        </GPreviewProvider>,
+      )
+    })
+
+    expect(renderer?.toJSON()).toMatchObject({ type: "button", children: ["light"] })
+
+    act(() => {
+      renderer?.root.findByType("button").props.onClick()
+    })
+
+    expect(renderer?.toJSON()).toMatchObject({ type: "button", children: ["light"] })
+  })
+
   it("selects a nested component case by component coordinate", () => {
-    const useChildScope = createGScope(() => ({ label: "real" }))
+    const useChildScope = createGScopeHook(() => ({ label: "real" }))
 
     function ChildImpl() {
       const scope = useChildScope()
@@ -260,7 +449,7 @@ describe("GTSX runtime", () => {
     } satisfies GCases<{ user: { name: string }; onOpen: () => void }, { selectedUserId: string }>
 
     renderToStaticMarkup(
-      <GPreviewProvider boundaryCollector={collector} providerValues={new Map([[ThemeGTSXProvider, { mode: "dark" }]])}>
+      <GPreviewProvider boundaryCollector={collector} providerValues={new Map([[PreviewThemeProvider, { mode: "dark" }]])}>
         <ProfileCard user={{ name: "Ada" }} onOpen={onOpen} />
       </GPreviewProvider>,
     )
@@ -289,7 +478,7 @@ describe("GTSX runtime", () => {
       },
       providerValues: [
         {
-          providerName: "ThemeGTSXProvider",
+          providerName: "PreviewThemeProvider",
           value: {
             type: "object",
             constructorName: "Object",

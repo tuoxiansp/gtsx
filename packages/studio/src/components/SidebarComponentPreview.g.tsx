@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScope, type GBoundaryRect, type GBoundaryTreeNode, type GCases, type GPreviewProtocolMessage } from "gtsx"
+import { createGScopeHook, type GBoundaryRect, type GBoundaryTreeNode, type GCases, type GPreviewProtocolMessage } from "gtsx"
 
 import type { StudioPreviewFrameState } from "../client"
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
@@ -62,7 +62,7 @@ function useRealSidebarComponentPreviewScope(component: StudioManifestComponent)
   return { boundaryRect, setContainerElement, shouldLoad }
 }
 
-const useSidebarComponentPreviewScope = createGScope(useRealSidebarComponentPreviewScope)
+const useSidebarComponentPreviewScope = createGScopeHook(useRealSidebarComponentPreviewScope)
 
 export default function SidebarComponentPreview(props: SidebarComponentPreviewProps) {
   const previewUrl = sidebarPreviewUrlForComponent(props.manifest, props.component)

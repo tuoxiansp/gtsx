@@ -32,13 +32,13 @@ Alert.cases = {
 } satisfies GCases<AlertProps>
 ```
 
-## Pattern 2: Stateful Scope (createGScope)
+## Pattern 2: Stateful Scope (createGScopeHook)
 
 Use when the component depends on application state (hooks, stores, queries, routers).
 
 ```tsx
 import { useState } from "react"
-import { createGScope, type GCases } from "gtsx"
+import { createGScopeHook, type GCases } from "gtsx"
 
 type SearchProps = { placeholder: string }
 
@@ -54,7 +54,7 @@ function useRealSearchScope(): SearchScope {
   return { query, results: [], onSearch: setQuery }
 }
 
-const useSearchScope = createGScope(useRealSearchScope)
+const useSearchScope = createGScopeHook(useRealSearchScope)
 
 export default function Search(props: SearchProps) {
   const scope = useSearchScope()
@@ -83,7 +83,7 @@ Search.cases = {
 
 Key points:
 - The real hook (`useRealSearchScope`) can call any React hooks.
-- `createGScope(useRealHook)` returns a GTSX hook that the component calls.
+- `createGScopeHook(useRealHook)` returns a GTSX hook that the component calls.
 - Cases supply `scope` values, bypassing the real hook during preview.
 
 ## Pattern 3: Discriminated Union Scope
@@ -91,7 +91,7 @@ Key points:
 Model multi-state components with a discriminated union. Each case represents one branch.
 
 ```tsx
-import { createGScope, type GCases } from "gtsx"
+import { createGScopeHook, type GCases } from "gtsx"
 
 type Props = { resourceId: string }
 
@@ -104,7 +104,7 @@ function useRealScope(_props: Props): Scope {
   return { status: "loading" }
 }
 
-const useScope = createGScope(useRealScope)
+const useScope = createGScopeHook(useRealScope)
 
 export default function Resource(props: Props) {
   const scope = useScope(props)
@@ -140,41 +140,37 @@ Resource.cases = {
 Use when the component reads from a shared context (theme, locale, auth, feature flags).
 
 ```tsx
-import { useGContext, type GCases, type GProviderCases } from "gtsx"
+import React from "react"
+import { createGProvider, useGContext, type GCases } from "gtsx"
 
 type ThemeValue = { mode: "light" | "dark"; accent: string }
 
-function ThemeGProvider(props: { value?: ThemeValue; children: React.ReactNode }) {
-  return <>{props.children}</>
-}
-
-ThemeGProvider.cases = {
-  light: { value: { mode: "light", accent: "#0066cc" } },
-  dark:  { value: { mode: "dark",  accent: "#66ccff" } },
-} satisfies GProviderCases<ThemeValue>
+const ThemeProvider = createGProvider((_props: Record<string, never>) =>
+  React.useState<ThemeValue>({ mode: "light", accent: "#0066cc" }),
+)
 
 type CardProps = { title: string }
 
 export default function Card(props: CardProps) {
-  const theme = useGContext(ThemeGProvider)
+  const theme = useGContext(ThemeProvider)
   return <div data-mode={theme.mode} style={{ color: theme.accent }}>{props.title}</div>
 }
 
 Card.cases = {
   lightCard: {
     props: { title: "Settings" },
-    providers: { ThemeGProvider: "light" },
+    providers: [[ThemeProvider, { mode: "light", accent: "#0066cc" }]],
   },
   darkCard: {
     props: { title: "Settings" },
-    providers: { ThemeGProvider: "dark" },
+    providers: [[ThemeProvider, { mode: "dark", accent: "#66ccff" }]],
   },
-} satisfies GCases<CardProps, never, [typeof ThemeGProvider]>
+} satisfies GCases<CardProps, never, [typeof ThemeProvider]>
 ```
 
 Key points:
-- Provider components have `Provider.cases` with `satisfies GProviderCases<Value>`.
-- Component cases reference provider case names via `providers: { ProviderName: "caseName" }`.
+- Providers are created with `createGProvider(useValue)`.
+- Component cases provide preview fallback state with ordered entries: `providers: [[Provider, state]]`.
 - The third type parameter of `GCases` lists providers as a tuple.
 
 ## Pattern 5: Multiple Exports
@@ -210,7 +206,7 @@ Coordinates: `src/Buttons.g.tsx#default`, `src/Buttons.g.tsx#PrimaryButton`.
 The scope hook can accept props as an argument when the state depends on prop values.
 
 ```tsx
-import { createGScope, type GCases } from "gtsx"
+import { createGScopeHook, type GCases } from "gtsx"
 
 type Props = { userId: string }
 type Scope = { name: string; online: boolean }
@@ -220,7 +216,7 @@ function useRealScope(props: Props): Scope {
   return { name: "Loading…", online: false }
 }
 
-const useScope = createGScope(useRealScope)
+const useScope = createGScopeHook(useRealScope)
 
 export default function UserStatus(props: Props) {
   const scope = useScope(props)
@@ -238,31 +234,29 @@ UserStatus.cases = {
 When a component has both internal state and external context.
 
 ```tsx
-import { createGScope, useGContext, type GCases, type GProviderCases } from "gtsx"
+import React from "react"
+import { createGProvider, createGScopeHook, type GCases } from "gtsx"
 
 type AuthValue = { role: "admin" | "viewer" }
 
-function AuthGProvider(props: { value?: AuthValue; children: React.ReactNode }) {
-  return <>{props.children}</>
-}
+const AuthProvider = createGProvider((_props: Record<string, never>) =>
+  React.useState<AuthValue>({ role: "viewer" }),
+)
 
-AuthGProvider.cases = {
-  admin:  { value: { role: "admin" } },
-  viewer: { value: { role: "viewer" } },
-} satisfies GProviderCases<AuthValue>
+const providers = [AuthProvider] as const
 
 type Props = { pageId: string }
 type Scope = { title: string; canEdit: boolean }
 
-function useRealScope(_props: Props, _auth: AuthValue): Scope {
+function useRealScope(_props: Props, [auth]: [AuthValue]): Scope {
+  void auth
   return { title: "Loading…", canEdit: false }
 }
 
-const useScope = createGScope(useRealScope)
+const useScope = createGScopeHook(useRealScope, providers)
 
 export default function Page(props: Props) {
-  const auth = useGContext(AuthGProvider)
-  const scope = useScope(props, auth)
+  const scope = useScope(props)
 
   return (
     <article>
@@ -275,15 +269,15 @@ export default function Page(props: Props) {
 Page.cases = {
   adminView: {
     props: { pageId: "p1" },
-    providers: { AuthGProvider: "admin" },
+    providers: [[AuthProvider, { role: "admin" }]],
     scope: { title: "Dashboard", canEdit: true },
   },
   viewerView: {
     props: { pageId: "p1" },
-    providers: { AuthGProvider: "viewer" },
+    providers: [[AuthProvider, { role: "viewer" }]],
     scope: { title: "Dashboard", canEdit: false },
   },
-} satisfies GCases<Props, Scope, [typeof AuthGProvider]>
+} satisfies GCases<Props, Scope, typeof providers>
 ```
 
 ## Case Design Guidelines
@@ -337,7 +331,7 @@ scope: { count: 0, increment() {}, reset() {} }
 
 | Mistake | Fix |
 |---------|-----|
-| Calling `useState` directly in component body | Wrap in `createGScope` |
+| Calling `useState` directly in component body | Wrap in `createGScopeHook` |
 | Putting `.cases` on the scope hook | Move to the component export |
 | Using template literals as case keys | Use plain string literal keys |
 | Forgetting `satisfies GCases<…>` | Always add for type safety |

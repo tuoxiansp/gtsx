@@ -1,4 +1,4 @@
-import { createGScope, type GCases } from "gtsx"
+import { createGScopeHook, type GCases } from "gtsx"
 
 type NotificationBellProps = {
   label: string
@@ -13,7 +13,7 @@ function useRealNotificationBellScope(): NotificationBellScope {
   return { unread: 0, expanded: false }
 }
 
-const useNotificationBellGScope = createGScope(useRealNotificationBellScope)
+const useNotificationBellGScope = createGScopeHook(useRealNotificationBellScope)
 
 export default function NotificationBell(props: NotificationBellProps) {
   const scope = useNotificationBellGScope()

@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScope, type GCases } from "gtsx"
+import { createGScopeHook, type GCases } from "gtsx"
 
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import {
@@ -187,7 +187,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   }
 }
 
-const useStudioWorkspaceViewScope = createGScope(useRealStudioWorkspaceViewScope)
+const useStudioWorkspaceViewScope = createGScopeHook(useRealStudioWorkspaceViewScope)
 
 export default function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
   const scope = useStudioWorkspaceViewScope(props)
