@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs"
-import { join, relative, resolve, sep } from "node:path"
+import { dirname, join, relative, resolve, sep } from "node:path"
 import ts from "typescript"
 
 import { analyzeEntry, type GTSXAnalysisResult, type GTSXDiagnostic } from "./analyzer.js"
@@ -13,6 +13,7 @@ export type GTSXProjectIndexComponent = {
   mode: GTSXAnalysisResult["mode"]
   cases: GTSXAnalysisResult["cases"]
   providers: GTSXAnalysisResult["providers"]
+  dependencies?: string[]
   diagnostics: GTSXDiagnostic[]
 }
 
@@ -37,15 +38,31 @@ export type BuildGTSXProjectIndexOptions = {
 type ExportedComponent = {
   exportName: string
   componentName: string
+  localName: string
+}
+
+type ProjectIndexFileContext = {
+  filePath: string
+  sourceFile: ts.SourceFile
+  exportedComponents: ExportedComponent[]
+}
+
+type ComponentImportBindings = {
+  names: Map<string, string>
+  namespaces: Map<string, Map<string, string>>
 }
 
 const IGNORED_DISCOVERY_DIRS = new Set(["node_modules", "dist", ".vite", ".next", ".git"])
 
 export function buildGTSXProjectIndex(options: BuildGTSXProjectIndexOptions): GTSXProjectIndex {
   const projectRoot = options.projectRoot ?? "."
-  const files = discoverGTSXFiles(options.cwd, projectRoot, options.tsconfigPath).map((filePath) =>
-    buildProjectIndexFile(options.cwd, filePath),
+  const fileContexts = discoverGTSXFiles(options.cwd, projectRoot, options.tsconfigPath).map((filePath) =>
+    buildProjectIndexFileContext(options.cwd, filePath),
   )
+  const exportedComponentsByFilePath = new Map(
+    fileContexts.map((context) => [context.filePath, context.exportedComponents] as const),
+  )
+  const files = fileContexts.map((context) => buildProjectIndexFile(options.cwd, context, exportedComponentsByFilePath))
 
   return {
     version: 1,
@@ -54,18 +71,42 @@ export function buildGTSXProjectIndex(options: BuildGTSXProjectIndexOptions): GT
   }
 }
 
-function buildProjectIndexFile(cwd: string, filePath: string): GTSXProjectIndexFile {
-  const exportedComponents = readExportedComponents(resolve(cwd, filePath))
-  const components = exportedComponents.map((component) => buildProjectIndexComponent(cwd, filePath, component))
+function buildProjectIndexFileContext(cwd: string, filePath: string): ProjectIndexFileContext {
+  const sourceFile = readGTSXSourceFile(resolve(cwd, filePath))
+  return {
+    filePath,
+    sourceFile,
+    exportedComponents: readExportedComponents(sourceFile),
+  }
+}
+
+function buildProjectIndexFile(
+  cwd: string,
+  context: ProjectIndexFileContext,
+  exportedComponentsByFilePath: Map<string, ExportedComponent[]>,
+): GTSXProjectIndexFile {
+  const components = context.exportedComponents.map((component) =>
+    buildProjectIndexComponent(
+      cwd,
+      context.filePath,
+      component,
+      dependencyCoordinatesForComponent(context, component, exportedComponentsByFilePath),
+    ),
+  )
 
   return {
-    path: filePath,
+    path: context.filePath,
     components,
     diagnostics: components.flatMap((component) => component.diagnostics),
   }
 }
 
-function buildProjectIndexComponent(cwd: string, filePath: string, component: ExportedComponent): GTSXProjectIndexComponent {
+function buildProjectIndexComponent(
+  cwd: string,
+  filePath: string,
+  component: ExportedComponent,
+  dependencies: string[],
+): GTSXProjectIndexComponent {
   const coordinate = `${filePath}#${component.exportName}`
   const analysis = analyzeEntry({ cwd, entry: coordinate })
 
@@ -77,6 +118,7 @@ function buildProjectIndexComponent(cwd: string, filePath: string, component: Ex
     mode: analysis.mode,
     cases: analysis.cases,
     providers: analysis.providers,
+    ...(dependencies.length > 0 ? { dependencies } : {}),
     diagnostics: analysis.diagnostics,
   }
 }
@@ -109,9 +151,12 @@ function discoverGTSXFiles(cwd: string, projectRoot: string, tsconfigPath?: stri
   }
 }
 
-function readExportedComponents(filePath: string): ExportedComponent[] {
+function readGTSXSourceFile(filePath: string): ts.SourceFile {
   const sourceText = readFileSync(filePath, "utf8")
-  const sourceFile = ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  return ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+}
+
+function readExportedComponents(sourceFile: ts.SourceFile): ExportedComponent[] {
   const components: ExportedComponent[] = []
 
   for (const statement of sourceFile.statements) {
@@ -120,7 +165,7 @@ function readExportedComponents(filePath: string): ExportedComponent[] {
       statement.name &&
       hasModifier(statement, ts.SyntaxKind.DefaultKeyword)
     ) {
-      components.push({ exportName: "default", componentName: statement.name.text })
+      components.push({ exportName: "default", componentName: statement.name.text, localName: statement.name.text })
       continue
     }
 
@@ -129,16 +174,158 @@ function readExportedComponents(filePath: string): ExportedComponent[] {
       statement.name &&
       hasModifier(statement, ts.SyntaxKind.ExportKeyword)
     ) {
-      components.push({ exportName: statement.name.text, componentName: statement.name.text })
+      components.push({ exportName: statement.name.text, componentName: statement.name.text, localName: statement.name.text })
       continue
     }
 
     if (ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression)) {
-      components.push({ exportName: "default", componentName: statement.expression.text })
+      components.push({ exportName: "default", componentName: statement.expression.text, localName: statement.expression.text })
     }
   }
 
   return components
+}
+
+function dependencyCoordinatesForComponent(
+  context: ProjectIndexFileContext,
+  component: ExportedComponent,
+  exportedComponentsByFilePath: Map<string, ExportedComponent[]>,
+): string[] {
+  const declaration = findComponentDeclaration(context.sourceFile, component.localName)
+  if (!declaration) return []
+
+  const localBindings = localComponentBindings(context.filePath, context.exportedComponents)
+  const importBindings = componentImportBindingsForFile(context.filePath, context.sourceFile, exportedComponentsByFilePath)
+  const ownCoordinate = `${context.filePath}#${component.exportName}`
+  const dependencies: string[] = []
+  const seen = new Set<string>()
+
+  const addDependency = (coordinate: string | undefined) => {
+    if (!coordinate || coordinate === ownCoordinate || seen.has(coordinate)) return
+    seen.add(coordinate)
+    dependencies.push(coordinate)
+  }
+
+  const visit = (node: ts.Node) => {
+    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      addDependency(componentCoordinateForJsxTag(node.tagName, importBindings, localBindings))
+    }
+
+    ts.forEachChild(node, visit)
+  }
+
+  visit(declaration)
+  return dependencies
+}
+
+function findComponentDeclaration(sourceFile: ts.SourceFile, localName: string): ts.Node | undefined {
+  for (const statement of sourceFile.statements) {
+    if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name?.text === localName) {
+      return statement
+    }
+
+    if (!ts.isVariableStatement(statement)) continue
+    for (const declaration of statement.declarationList.declarations) {
+      if (ts.isIdentifier(declaration.name) && declaration.name.text === localName) {
+        return declaration.initializer ?? declaration
+      }
+    }
+  }
+
+  return undefined
+}
+
+function localComponentBindings(filePath: string, exportedComponents: ExportedComponent[]): Map<string, string> {
+  return new Map(exportedComponents.map((component) => [component.localName, `${filePath}#${component.exportName}`] as const))
+}
+
+function componentImportBindingsForFile(
+  filePath: string,
+  sourceFile: ts.SourceFile,
+  exportedComponentsByFilePath: Map<string, ExportedComponent[]>,
+): ComponentImportBindings {
+  const bindings: ComponentImportBindings = {
+    names: new Map(),
+    namespaces: new Map(),
+  }
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || !statement.importClause) continue
+    if (!ts.isStringLiteral(statement.moduleSpecifier) || !statement.moduleSpecifier.text.startsWith(".")) continue
+
+    const targetFilePath = resolveImportedGTSXFilePath(filePath, statement.moduleSpecifier.text, exportedComponentsByFilePath)
+    if (!targetFilePath) continue
+
+    const exportsByName = componentExportsByName(targetFilePath, exportedComponentsByFilePath.get(targetFilePath) ?? [])
+    const importClause = statement.importClause
+
+    if (importClause.name) {
+      const defaultCoordinate = exportsByName.get("default")
+      if (defaultCoordinate) bindings.names.set(importClause.name.text, defaultCoordinate)
+    }
+
+    if (!importClause.namedBindings) continue
+    if (ts.isNamedImports(importClause.namedBindings)) {
+      for (const element of importClause.namedBindings.elements) {
+        const importedName = element.propertyName?.text ?? element.name.text
+        const coordinate = exportsByName.get(importedName)
+        if (coordinate) bindings.names.set(element.name.text, coordinate)
+      }
+    } else if (ts.isNamespaceImport(importClause.namedBindings)) {
+      bindings.namespaces.set(importClause.namedBindings.name.text, exportsByName)
+    }
+  }
+
+  return bindings
+}
+
+function componentExportsByName(filePath: string, exportedComponents: ExportedComponent[]): Map<string, string> {
+  return new Map(exportedComponents.map((component) => [component.exportName, `${filePath}#${component.exportName}`] as const))
+}
+
+function resolveImportedGTSXFilePath(
+  filePath: string,
+  moduleSpecifier: string,
+  exportedComponentsByFilePath: Map<string, ExportedComponent[]>,
+): string | undefined {
+  const basePath = normalizeProjectPath(join(dirname(filePath), moduleSpecifier))
+  for (const candidate of importedGTSXFilePathCandidates(basePath)) {
+    if (exportedComponentsByFilePath.has(candidate)) return candidate
+  }
+
+  return undefined
+}
+
+function importedGTSXFilePathCandidates(basePath: string): string[] {
+  const candidates = [
+    basePath,
+    basePath.replace(/\.jsx?$/, ".tsx"),
+    `${basePath}.tsx`,
+    `${basePath}.g.tsx`,
+    `${basePath}/index.g.tsx`,
+  ]
+
+  return [...new Set(candidates.filter((candidate) => candidate.endsWith(".g.tsx")))]
+}
+
+function normalizeProjectPath(filePath: string): string {
+  return filePath.split(sep).join("/")
+}
+
+function componentCoordinateForJsxTag(
+  tagName: ts.JsxTagNameExpression,
+  importBindings: ComponentImportBindings,
+  localBindings: Map<string, string>,
+): string | undefined {
+  if (ts.isIdentifier(tagName)) {
+    return importBindings.names.get(tagName.text) ?? localBindings.get(tagName.text)
+  }
+
+  if (ts.isPropertyAccessExpression(tagName) && ts.isIdentifier(tagName.expression)) {
+    return importBindings.namespaces.get(tagName.expression.text)?.get(tagName.name.text)
+  }
+
+  return undefined
 }
 
 function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {

@@ -6,6 +6,7 @@ import { buildGTSXProjectIndex } from "../src/project-index.js"
 
 const fixtureRoot = join(import.meta.dirname, "fixtures/check-project")
 const tsProjectScopeRoot = join(import.meta.dirname, "fixtures/ts-project-scope")
+const examplesRoot = join(import.meta.dirname, "../../../examples")
 
 describe("GTSX project index", () => {
   it("describes the selected GTSX project without Studio route or preview concerns", () => {
@@ -66,5 +67,14 @@ describe("GTSX project index", () => {
     })
 
     expect(index.files.map((file) => file.path)).toEqual(["src/Included.g.tsx"])
+  })
+
+  it("records static GTSX component dependencies from JSX imports", () => {
+    const index = buildGTSXProjectIndex({ cwd: examplesRoot, projectRoot: "src/cases" })
+    const dashboard = index.files
+      .flatMap((file) => file.components)
+      .find((component) => component.coordinate === "src/cases/stateful/DashboardShell.g.tsx#default")
+
+    expect(dashboard?.dependencies).toEqual(["src/cases/stateful/NotificationBell.g.tsx#default"])
   })
 })

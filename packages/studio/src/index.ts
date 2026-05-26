@@ -28,6 +28,8 @@ export {
   mergeStudioPreviewFrameState,
   previewSessionId,
   replaceStudioCanvasUrlState,
+  resolveStudioSelection,
+  rootStudioManifestComponents,
   selectedStudioCaseName,
   selectStudioComponent,
   selectStudioRuntimeInstance,

@@ -26,6 +26,7 @@ export type StudioPreviewFrameState = {
 
 export type StudioWorkspaceColumn = {
   components: StudioManifestComponent[]
+  parentCoordinate?: string
 }
 
 export type StudioWorkspaceState = {
@@ -101,6 +102,8 @@ export type StudioWorkspaceUrlState = {
   warning?: string
 }
 
+const studioRootSelectionId = "roots"
+
 export function applyStudioPreviewMessage(
   state: StudioPreviewFrameState,
   message: GPreviewProtocolMessage,
@@ -157,7 +160,7 @@ export function applyStudioPreviewMessageToFrameStates(
 }
 
 export function createStudioWorkspaceState(manifest: StudioManifest, selection?: string): StudioWorkspaceState {
-  const selected = resolveSelection(manifest, selection)
+  const selected = resolveStudioSelection(manifest, selection)
   return {
     canvasViewportPreset: "tablet",
     columns: [{ components: selected.components }],
@@ -187,7 +190,7 @@ export function selectStudioComponent(
   const selectedPath = [...state.selectedCoordinatePath.slice(0, selectedColumnIndex), coordinate]
   const childComponents = directChildComponentsForCoordinate(manifest, tree, coordinate)
   if (childComponents.length > 0) {
-    nextColumns.push({ components: childComponents })
+    nextColumns.push({ components: childComponents, parentCoordinate: coordinate })
   }
 
   return {
@@ -280,7 +283,7 @@ export function createStudioWorkspaceUrlSearchParams(
   canvas?: StudioCanvasTransform,
 ): URLSearchParams {
   const params = new URLSearchParams()
-  if (selection) params.set("selection", selection)
+  if (selection && selection !== studioRootSelectionId) params.set("selection", selection)
   const canvasViewportPreset = canvasViewportPresetForWorkspace(workspace)
   if (canvasViewportPreset !== "tablet") params.set("canvasViewport", canvasViewportPreset)
   setStudioCanvasTransformUrlParams(params, canvas)
@@ -309,7 +312,7 @@ export function createStudioWorkspaceStateFromUrl(
 ): StudioWorkspaceUrlState {
   const selection = params.get("selection") ?? undefined
   const canvas = createStudioCanvasTransformFromUrl(params)
-  const resolvedSelection = resolveSelection(manifest, selection)
+  const resolvedSelection = resolveStudioSelection(manifest, selection)
   const rawPath = params.getAll("path")
   const selectedCoordinatePath = rawPath.filter((coordinate) => Boolean(findManifestComponent(manifest, coordinate)))
   const pathCoordinates = new Set(selectedCoordinatePath)
@@ -350,7 +353,11 @@ export function createStudioWorkspaceStateFromUrl(
         { components: resolvedSelection.components },
         ...selectedCoordinatePath.slice(1).map((coordinate) => {
           const component = findManifestComponent(manifest, coordinate)
-          return { components: component ? [component] : [] }
+          const columnIndex = selectedCoordinatePath.indexOf(coordinate)
+          return {
+            components: component ? [component] : [],
+            parentCoordinate: columnIndex > 0 ? selectedCoordinatePath[columnIndex - 1] : undefined,
+          }
         }),
       ],
       selectedCaseByCoordinate,
@@ -856,10 +863,14 @@ export function isGPreviewProtocolMessage(value: unknown): value is GPreviewProt
   )
 }
 
-function resolveSelection(
+export function resolveStudioSelection(
   manifest: StudioManifest,
   selection: string | undefined,
 ): { id: string; components: StudioManifestComponent[] } {
+  if (!selection || selection === studioRootSelectionId) {
+    return { id: studioRootSelectionId, components: rootStudioManifestComponents(manifest) }
+  }
+
   if (selection?.startsWith("component:")) {
     const coordinate = selection.slice("component:".length)
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === coordinate)
@@ -872,6 +883,12 @@ function resolveSelection(
     if (file) return { id: selection, components: file.components }
   }
 
-  const firstFile = manifest.files[0]
-  return { id: firstFile ? `file:${firstFile.path}` : "", components: firstFile?.components ?? [] }
+  return { id: studioRootSelectionId, components: rootStudioManifestComponents(manifest) }
+}
+
+export function rootStudioManifestComponents(manifest: StudioManifest): StudioManifestComponent[] {
+  const components = manifest.files.flatMap((file) => file.components)
+  const childCoordinates = new Set(components.flatMap((component) => component.dependencies ?? []))
+  const roots = components.filter((component) => !childCoordinates.has(component.coordinate))
+  return roots.length > 0 ? roots : components
 }

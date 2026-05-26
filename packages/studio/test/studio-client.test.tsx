@@ -24,6 +24,7 @@ import {
   mergeStudioPreviewFrameState,
   previewSessionId,
   replaceStudioCanvasUrlState,
+  rootStudioManifestComponents,
   selectedStudioCaseName,
   selectStudioRuntimeInstance,
   selectStudioComponent,
@@ -35,6 +36,8 @@ import PreviewMessage from "../src/components/PreviewMessage.g.js"
 import SelectedComponentCasesSidebar from "../src/components/SelectedComponentCasesSidebar.g.js"
 
 const fixtureRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
+const examplesRoot = join(import.meta.dirname, "../../../examples")
+const studioRoot = join(import.meta.dirname, "..")
 
 type CreateStudioManifestOptions = NonNullable<Parameters<typeof createStudioManifest>[1]>
 
@@ -101,13 +104,36 @@ describe("GTSX Studio shell", () => {
     expect(cardCoordinates(html)).toEqual(["src/MultiExport.g.tsx#NamedBadge"])
   })
 
-  it("renders sidebar component entries as scaled tablet previews", () => {
+  it("renders root components in the first column by default", () => {
+    const manifest = buildStudioManifest({ cwd: examplesRoot, projectRoot: "src/cases", routes: { preview: "/gtsx" } })
+    const expectedRootCoordinates = [
+      "src/cases/language/PrimitiveProps.g.tsx#default",
+      "src/cases/stateful/DashboardShell.g.tsx#default",
+      "src/cases/stateful/MultiExportPanel.g.tsx#NamedPanel",
+      "src/cases/stateful/MultiExportPanel.g.tsx#default",
+      "src/cases/stateful/UserCard.g.tsx#default",
+      "src/cases/ui/NotificationCenter.g.tsx#default",
+    ]
+
+    expect(rootStudioManifestComponents(manifest).map((component) => component.coordinate)).toEqual(expectedRootCoordinates)
+    expect(cardCoordinates(renderToStaticMarkup(<StudioShell manifest={manifest} />))).toEqual(expectedRootCoordinates)
+  })
+
+  it("names the Studio package's outer visual root as Studio", () => {
+    const manifest = buildStudioManifest({ cwd: studioRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const roots = rootStudioManifestComponents(manifest)
+
+    expect(roots.map((component) => component.componentName)).toContain("Studio")
+    expect(roots.map((component) => component.componentName)).not.toContain("ViewportPresetTabs")
+  })
+
+  it("renders the canvas without the component index sidebar", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="file:src/MultiExport.g.tsx" />)
 
-    expect(html).toContain('data-gtsx-sidebar-preview-coordinate="src/MultiExport.g.tsx#NamedBadge"')
+    expect(html).not.toContain("GTSX component index")
+    expect(html).not.toContain("data-gtsx-sidebar-preview-coordinate")
     expect(html).toContain('data-gtsx-viewport-preset="tablet"')
-    expect(sidebarIframeSources(html)).toEqual([])
   })
 
   it("renders the canvas without top chrome or redundant card metadata", () => {
@@ -792,6 +818,7 @@ describe("GTSX Studio shell", () => {
       ["src/UserCard.g.tsx#default"],
       ["src/MultiExport.g.tsx#NamedBadge", "src/MultiExport.g.tsx#default"],
     ])
+    expect(nextState.columns[1]?.parentCoordinate).toBe("src/UserCard.g.tsx#default")
     expect(nextState.selectedCoordinatePath).toEqual(["src/UserCard.g.tsx#default"])
   })
 
@@ -855,6 +882,7 @@ describe("GTSX Studio shell", () => {
 
     expect(columnCount(html)).toBe(2)
     expect(cardCoordinates(html)).toEqual(["src/UserCard.g.tsx#default", "src/MultiExport.g.tsx#NamedBadge"])
+    expect(html).toContain('data-gtsx-column-parent-coordinate="src/UserCard.g.tsx#default"')
   })
 
   it("uses the first statically enumerable case by default", () => {
@@ -1285,7 +1313,7 @@ describe("GTSX Studio shell", () => {
     )
 
     expect(restored.warning).toBe("Invalid Studio URL state was ignored.")
-    expect(restored.selection).toBe("file:src/Badge.g.tsx")
+    expect(restored.selection).toBe("roots")
     expect(restored.workspace.selectedCoordinatePath).toEqual(["src/UserCard.g.tsx#default"])
     expect(restored.workspace.selectedCaseByCoordinate).toEqual({})
     expect(restored.workspace.selectedRuntimeInstanceByCoordinate).toEqual({})

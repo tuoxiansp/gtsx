@@ -20,6 +20,7 @@ export type StudioManifestComponent = {
   mode: GTSXProjectIndexComponent["mode"]
   cases: GTSXProjectIndexComponent["cases"]
   providers: GTSXProjectIndexComponent["providers"]
+  dependencies?: GTSXProjectIndexComponent["dependencies"]
   diagnostics: GTSXDiagnostic[]
 }
 

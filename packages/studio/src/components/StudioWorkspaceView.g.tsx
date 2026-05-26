@@ -12,6 +12,7 @@ import {
   findManifestComponent,
   mergeStudioPreviewFrameState,
   previewSessionId,
+  resolveStudioSelection,
   selectedStudioCaseName,
   studioPreviewCacheKey,
   type StudioPreviewCacheEntry,
@@ -22,7 +23,6 @@ import {
   type StudioWorkspaceState,
 } from "../client"
 import ComponentCard from "./ComponentCard.g"
-import FileGroupLink from "./FileGroupLink.g"
 import SelectedComponentCasesSidebar from "./SelectedComponentCasesSidebar.g"
 import ViewportPresetTabs from "./ViewportPresetTabs.g"
 
@@ -51,6 +51,8 @@ type StudioWorkspaceViewScope = {
   onCanvasPointerMove: React.PointerEventHandler<HTMLDivElement>
   onCanvasPointerUp: React.PointerEventHandler<HTMLDivElement>
   onChangeSelection?: (selection: string) => void
+  setCanvasSurfaceElement: (element: HTMLDivElement | null) => void
+  setCardElement: (coordinate: string, element: HTMLDivElement | null) => void
   onSelectCard: (
     component: StudioManifestComponent,
     frameState: StudioPreviewFrameState | undefined,
@@ -62,10 +64,13 @@ type StudioWorkspaceViewScope = {
   selectedCardComponent?: StudioManifestComponent
   selectedCaseName?: string
   setCanvasViewportElement: (element: HTMLDivElement | null) => void
+  columnOffsetsByIndex: Record<number, number>
 }
 
+const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
+
 function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): StudioWorkspaceViewScope {
-  const selected = resolveSelection(props.manifest, props.selection)
+  const selected = resolveStudioSelection(props.manifest, props.selection)
   const [selectedCardCoordinate, setSelectedCardCoordinate] = React.useState<string | undefined>()
   const canvasViewportPreset = canvasViewportPresetForWorkspace(props.workspace)
   const [uncontrolledCanvas, setUncontrolledCanvas] = React.useState<StudioCanvasTransform>(() => defaultStudioCanvasTransform())
@@ -73,6 +78,9 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   const canvasRef = React.useRef(canvas)
   const panRef = React.useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null)
   const [canvasViewportElement, setCanvasViewportElement] = React.useState<HTMLDivElement | null>(null)
+  const [canvasSurfaceElement, setCanvasSurfaceElement] = React.useState<HTMLDivElement | null>(null)
+  const [columnOffsetsByIndex, setColumnOffsetsByIndex] = React.useState<Record<number, number>>({})
+  const cardElements = React.useRef(new Map<string, HTMLDivElement>())
   const selectedCardComponent = selectedCardCoordinate ? findManifestComponent(props.manifest, selectedCardCoordinate) : undefined
   const selectedCaseName = selectedCardComponent ? selectedStudioCaseName(props.workspace, selectedCardComponent) : undefined
 
@@ -122,9 +130,37 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     return () => canvasViewportElement.removeEventListener("wheel", handleWheel)
   }, [canvasViewportElement, setCanvas])
 
+  const setCardElement = React.useCallback((coordinate: string, element: HTMLDivElement | null) => {
+    if (element) {
+      cardElements.current.set(coordinate, element)
+    } else {
+      cardElements.current.delete(coordinate)
+    }
+  }, [])
+
+  useStudioLayoutEffect(() => {
+    if (!canvasSurfaceElement) return
+
+    const surfaceTop = canvasSurfaceElement.getBoundingClientRect().top
+    const nextOffsets: Record<number, number> = {}
+
+    props.workspace.columns.forEach((column, columnIndex) => {
+      if (columnIndex === 0 || !column.parentCoordinate) return
+
+      const parentElement = cardElements.current.get(column.parentCoordinate)
+      if (!parentElement) return
+
+      const parentTop = parentElement.getBoundingClientRect().top
+      nextOffsets[columnIndex] = Math.max(0, Math.round((parentTop - surfaceTop) / canvasRef.current.scale))
+    })
+
+    setColumnOffsetsByIndex((current) => (sameNumberRecord(current, nextOffsets) ? current : nextOffsets))
+  }, [canvas.scale, canvasSurfaceElement, canvasViewportPreset, props.frameStates, props.previewCache, props.workspace.columns])
+
   return {
     canvas,
     canvasViewportPreset,
+    columnOffsetsByIndex,
     onCanvasPointerCancel(event) {
       if (panRef.current?.pointerId === event.pointerId) panRef.current = null
     },
@@ -183,20 +219,21 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     selectedCardComponent,
     selectedCardCoordinate,
     selectedCaseName,
+    setCanvasSurfaceElement,
     setCanvasViewportElement,
+    setCardElement,
   }
 }
 
 const useStudioWorkspaceViewScope = createGScopeHook(useRealStudioWorkspaceViewScope)
 
-export default function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
+export default function Studio(props: StudioWorkspaceViewProps) {
   const scope = useStudioWorkspaceViewScope(props)
 
   return (
     <main
       style={{
         display: "grid",
-        gridTemplateColumns: "210px minmax(0, 1fr)",
         height: "100vh",
         overflow: "hidden",
         background: "#f5f6f8",
@@ -204,53 +241,9 @@ export default function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
         fontFamily: "ui-sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
       }}
     >
-      <aside
-        style={{
-          background: "#fbfcfe",
-          borderRight: "1px solid #d8dee8",
-          boxShadow: "1px 0 0 rgba(255,255,255,0.8) inset",
-          minHeight: 0,
-          overflow: "auto",
-          padding: "18px 12px",
-        }}
-      >
-        <div style={{ display: "grid", gap: 3, marginBottom: 22 }}>
-          <h1 style={{ fontSize: 18, letterSpacing: -0.2, lineHeight: 1.1, margin: 0 }}>GTSX Studio</h1>
-          <p style={{ color: "#6b7280", fontSize: 12, margin: 0 }}>Component workspace</p>
-        </div>
-        {props.urlWarning ? (
-          <p
-            role="status"
-            style={{
-              background: "#fff8c5",
-              border: "1px solid #d4a72c",
-              borderRadius: 10,
-              color: "#5a1e02",
-              fontSize: 12,
-              lineHeight: 1.45,
-              padding: 10,
-            }}
-          >
-            {props.urlWarning}
-          </p>
-        ) : null}
-        <nav aria-label="GTSX component index" style={{ display: "grid", gap: 16 }}>
-          {props.manifest.files.map((file) => (
-            <FileGroupLink
-              file={file}
-              key={file.path}
-              manifest={props.manifest}
-              onChangeSelection={scope.onChangeSelection}
-              previewCache={props.previewCache}
-              selectedId={scope.selected.id}
-            />
-          ))}
-        </nav>
-      </aside>
-
       <section style={{ display: "grid", minHeight: 0, minWidth: 0 }}>
         <div
-          aria-label="GTSX canvas viewport"
+          aria-label="GTSX Studio canvas viewport"
           data-gtsx-canvas-viewport
           onPointerDown={scope.onCanvasPointerDown}
           onPointerMove={scope.onCanvasPointerMove}
@@ -273,8 +266,31 @@ export default function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
           tabIndex={0}
         >
           <ViewportPresetTabs floating onChange={scope.onViewportPresetChange} selectedPreset={scope.canvasViewportPreset} />
+          {props.urlWarning ? (
+            <p
+              role="status"
+              style={{
+                background: "#fff8c5",
+                border: "1px solid #d4a72c",
+                borderRadius: 8,
+                color: "#5a1e02",
+                fontSize: 12,
+                left: 16,
+                lineHeight: 1.45,
+                margin: 0,
+                maxWidth: 280,
+                padding: "8px 10px",
+                position: "absolute",
+                top: 16,
+                zIndex: 3,
+              }}
+            >
+              {props.urlWarning}
+            </p>
+          ) : null}
           <div
             data-gtsx-canvas-surface
+            ref={scope.setCanvasSurfaceElement}
             style={{
               alignItems: "flex-start",
               display: "flex",
@@ -288,7 +304,17 @@ export default function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
             }}
           >
             {props.workspace.columns.map((column, columnIndex) => (
-              <section data-gtsx-column-index={columnIndex} key={columnIndex} style={{ display: "grid", gap: 10, width: "max-content" }}>
+              <section
+                data-gtsx-column-index={columnIndex}
+                data-gtsx-column-parent-coordinate={column.parentCoordinate}
+                key={columnIndex}
+                style={{
+                  display: "grid",
+                  gap: 10,
+                  marginTop: columnIndex === 0 ? 0 : (scope.columnOffsetsByIndex[columnIndex] ?? 0),
+                  width: "max-content",
+                }}
+              >
                 {column.components.map((component) => {
                   const caseName = selectedStudioCaseName(props.workspace, component)
                   const sessionId = previewSessionId(component, caseName, scope.canvasViewportPreset)
@@ -299,17 +325,22 @@ export default function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
                     props.previewCache?.[cacheKey]?.frameState,
                   )
                   return (
-                    <ComponentCard
-                      component={component}
-                      frameState={frameState}
+                    <div
                       key={component.coordinate}
-                      manifest={props.manifest}
-                      onPreviewFrameMount={props.onPreviewFrameMount}
-                      onSelect={scope.onSelectCard}
-                      selected={scope.selectedCardCoordinate === component.coordinate}
-                      selectedCaseName={caseName}
-                      viewportPreset={scope.canvasViewportPreset}
-                    />
+                      ref={(element) => scope.setCardElement(component.coordinate, element)}
+                      style={{ display: "grid" }}
+                    >
+                      <ComponentCard
+                        component={component}
+                        frameState={frameState}
+                        manifest={props.manifest}
+                        onPreviewFrameMount={props.onPreviewFrameMount}
+                        onSelect={scope.onSelectCard}
+                        selected={scope.selectedCardCoordinate === component.coordinate}
+                        selectedCaseName={caseName}
+                        viewportPreset={scope.canvasViewportPreset}
+                      />
+                    </div>
                   )
                 })}
               </section>
@@ -331,7 +362,7 @@ export default function StudioWorkspaceView(props: StudioWorkspaceViewProps) {
   )
 }
 
-StudioWorkspaceView.cases = {
+Studio.cases = {
   multiExportFile: {
     props: {
       manifest: {
@@ -393,6 +424,7 @@ StudioWorkspaceView.cases = {
     scope: {
       canvas: { x: 40, y: 40, scale: 1 },
       canvasViewportPreset: "tablet",
+      columnOffsetsByIndex: {},
       onCanvasPointerCancel() {},
       onCanvasPointerDown() {},
       onCanvasPointerMove() {},
@@ -400,24 +432,17 @@ StudioWorkspaceView.cases = {
       onSelectCard() {},
       onViewportPresetChange() {},
       selected: { id: "file:src/MultiExport.g.tsx", components: [] },
+      setCanvasSurfaceElement() {},
       setCanvasViewportElement() {},
+      setCardElement() {},
     },
   },
 } satisfies GCases<StudioWorkspaceViewProps, StudioWorkspaceViewScope>
 
-function resolveSelection(manifest: StudioManifest, selection: string | undefined): { id: string; components: StudioManifestComponent[] } {
-  if (selection?.startsWith("component:")) {
-    const coordinate = selection.slice("component:".length)
-    const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === coordinate)
-    if (component) return { id: selection, components: [component] }
-  }
+function sameNumberRecord(left: Record<number, number>, right: Record<number, number>): boolean {
+  const leftKeys = Object.keys(left)
+  const rightKeys = Object.keys(right)
+  if (leftKeys.length !== rightKeys.length) return false
 
-  if (selection?.startsWith("file:")) {
-    const filePath = selection.slice("file:".length)
-    const file = manifest.files.find((candidate) => candidate.path === filePath)
-    if (file) return { id: selection, components: file.components }
-  }
-
-  const firstFile = manifest.files[0]
-  return { id: firstFile ? `file:${firstFile.path}` : "", components: firstFile?.components ?? [] }
+  return leftKeys.every((key) => left[Number(key)] === right[Number(key)])
 }
