@@ -28,17 +28,22 @@ describe("Studio package", () => {
     expect(check.stdout).toContain("GTSX pure entry: src/components/ComponentCard.g.tsx")
     expect(check.stdout).toContain("GTSX pure entry: src/components/FileGroupLink.g.tsx")
     expect(check.stdout).toContain("GTSX scope entry: src/components/LazyPreviewFrame.g.tsx")
+    expect(check.stdout).toContain("GTSX pure entry: src/components/PreviewCaseSheet.g.tsx")
     expect(check.stdout).toContain("GTSX pure entry: src/components/PreviewError.g.tsx")
+    expect(check.stdout).toContain("GTSX pure entry: src/components/PreviewMessage.g.tsx")
     expect(check.stdout).toContain("GTSX pure entry: src/components/SelectedBoundaryOutline.g.tsx")
     expect(check.stdout).toContain("GTSX pure entry: src/components/SelectedComponentCasesSidebar.g.tsx")
     expect(check.stdout).toContain("GTSX scope entry: src/components/SidebarComponentPreview.g.tsx")
     expect(check.stdout).toContain("GTSX pure entry: src/components/StudioEmptyState.g.tsx")
-    expect(check.stdout).toContain("GTSX scope entry: src/components/StudioShell.g.tsx")
     expect(check.stdout).toContain("GTSX scope entry: src/components/StudioWorkspaceView.g.tsx")
     expect(check.stdout).toContain("GTSX pure entry: src/components/ViewportPresetTabs.g.tsx")
     expect(check.stdout).toContain("- active")
+    expect(check.stdout).toContain("- chromeHidden")
+    expect(check.stdout).toContain("- chromeVisible")
     expect(check.stdout).toContain("- empty")
     expect(check.stdout).toContain("- loadedPhone")
+    expect(check.stdout).toContain("- loading")
+    expect(check.stdout).toContain("- missingEntry")
     expect(check.stdout).toContain("- readySelected")
     expect(check.stdout).toContain("- renderFailure")
     expect(check.stdout).toContain("- selectedComponent")
@@ -46,6 +51,7 @@ describe("Studio package", () => {
     expect(check.stdout).toContain("- tabletLoaded")
     expect(check.stdout).toContain("- userCardBounds")
     expect(check.stdout).toContain("- userCardSelected")
+    expect(check.stdout).toContain("- unknownCase")
     expect(check.stdout).toContain("- tabletSelected")
   })
 
@@ -63,12 +69,13 @@ describe("Studio package", () => {
       "src/components/ComponentCard.g.tsx",
       "src/components/FileGroupLink.g.tsx",
       "src/components/LazyPreviewFrame.g.tsx",
+      "src/components/PreviewCaseSheet.g.tsx",
       "src/components/PreviewError.g.tsx",
+      "src/components/PreviewMessage.g.tsx",
       "src/components/SelectedBoundaryOutline.g.tsx",
       "src/components/SelectedComponentCasesSidebar.g.tsx",
       "src/components/SidebarComponentPreview.g.tsx",
       "src/components/StudioEmptyState.g.tsx",
-      "src/components/StudioShell.g.tsx",
       "src/components/StudioWorkspaceView.g.tsx",
       "src/components/ViewportPresetTabs.g.tsx",
     ])
@@ -79,12 +86,13 @@ describe("Studio package", () => {
       "src/components/ComponentCard.g.tsx#default",
       "src/components/FileGroupLink.g.tsx#default",
       "src/components/LazyPreviewFrame.g.tsx#default",
+      "src/components/PreviewCaseSheet.g.tsx#default",
       "src/components/PreviewError.g.tsx#default",
+      "src/components/PreviewMessage.g.tsx#default",
       "src/components/SelectedBoundaryOutline.g.tsx#default",
       "src/components/SelectedComponentCasesSidebar.g.tsx#default",
       "src/components/SidebarComponentPreview.g.tsx#default",
       "src/components/StudioEmptyState.g.tsx#default",
-      "src/components/StudioShell.g.tsx#default",
       "src/components/StudioWorkspaceView.g.tsx#default",
       "src/components/ViewportPresetTabs.g.tsx#default",
     ])

@@ -30,6 +30,8 @@ import {
   studioPreviewWarmupTargets,
 } from "../src/index.js"
 import ComponentCard from "../src/components/ComponentCard.g.js"
+import PreviewCaseSheet from "../src/components/PreviewCaseSheet.g.js"
+import PreviewMessage from "../src/components/PreviewMessage.g.js"
 import SelectedComponentCasesSidebar from "../src/components/SelectedComponentCasesSidebar.g.js"
 
 const fixtureRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
@@ -48,6 +50,39 @@ function buildStudioManifest(
 }
 
 describe("GTSX Studio shell", () => {
+  it("renders preview route messages from a GTSX visual component", () => {
+    const html = renderToStaticMarkup(<PreviewMessage title="Missing entry" detail="Pass an entry query parameter." />)
+
+    expect(html).toContain('data-gtsx-preview-message="true"')
+    expect(html).toContain("Missing entry")
+    expect(html).toContain("Pass an entry query parameter.")
+  })
+
+  it("renders preview case sheets from real case data", () => {
+    function ExamplePreviewComponent(props: { label: string }) {
+      return <div data-example-preview>{props.label}</div>
+    }
+
+    const html = renderToStaticMarkup(
+      <PreviewCaseSheet
+        component={ExamplePreviewComponent}
+        entry="src/Example.g.tsx#default"
+        selectedCases={[
+          {
+            name: "ready",
+            testCase: {
+              props: { label: "Ready preview" },
+            },
+          },
+        ]}
+      />,
+    )
+
+    expect(html).toContain('data-gtsx-preview-case="ready"')
+    expect(html).toContain("src/Example.g.tsx#default / ready")
+    expect(html).toContain("Ready preview")
+  })
+
   it("renders every exported component from the selected file group in the first column", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="file:src/MultiExport.g.tsx" />)

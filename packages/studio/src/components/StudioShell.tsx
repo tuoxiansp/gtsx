@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GCases, type GPreviewProtocolMessage } from "gtsx"
+import type { GPreviewProtocolMessage } from "gtsx"
 
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import {
@@ -53,7 +53,7 @@ type StudioShellScope = {
   workspace: StudioWorkspaceState
 }
 
-function useRealStudioShellScope(props: StudioShellProps): StudioShellScope {
+function useStudioShellScope(props: StudioShellProps): StudioShellScope {
   const initialUrlState = React.useMemo(
     () => createStudioWorkspaceStateFromUrl(props.manifest, initialStudioUrlSearchParams(props.selection, props.urlSearch)),
     [props.manifest, props.selection, props.urlSearch],
@@ -194,8 +194,6 @@ function useRealStudioShellScope(props: StudioShellProps): StudioShellScope {
   }
 }
 
-const useStudioShellScope = createGScopeHook(useRealStudioShellScope)
-
 export default function StudioShell(props: StudioShellProps) {
   const scope = useStudioShellScope(props)
 
@@ -242,80 +240,3 @@ function StudioPreviewWarmups(props: { targets: StudioPreviewWarmupTarget[] }) {
     </div>
   )
 }
-
-StudioShell.cases = {
-  multiExportFile: {
-    props: {
-      manifest: {
-        version: 1,
-        routes: {
-          preview: "/gtsx",
-          studio: "/gtsx/studio",
-          manifest: "/gtsx/studio/manifest",
-        },
-        preview: {
-          urlTemplate: "/gtsx?entry={entry}&case={case}{gcase}",
-          allUrlTemplate: "/gtsx?entry={entry}{gcase}",
-        },
-        files: [
-          {
-            path: "src/MultiExport.g.tsx",
-            groupId: "file:src/MultiExport.g.tsx",
-            components: [
-              {
-                coordinate: "src/MultiExport.g.tsx#NamedBadge",
-                filePath: "src/MultiExport.g.tsx",
-                exportName: "NamedBadge",
-                componentName: "NamedBadge",
-                mode: "pure",
-                cases: [{ kind: "pure", name: "ready" }],
-                providers: {},
-                diagnostics: [],
-              },
-            ],
-            diagnostics: [],
-          },
-        ],
-        diagnostics: [],
-      },
-      selection: "file:src/MultiExport.g.tsx",
-    },
-    scope: {
-      canvas: { x: 40, y: 40, scale: 1 },
-      frameStates: {},
-      onChangeCanvas() {},
-      onChangeCanvasViewportPreset() {},
-      onChangeCase() {},
-      onChangeSelection() {},
-      onChangeViewportPreset() {},
-      onPreviewFrameMount() {},
-      onSelectComponent() {},
-      previewCache: {},
-      selection: "file:src/MultiExport.g.tsx",
-      workspace: {
-        canvasViewportPreset: "tablet",
-        columns: [
-          {
-            components: [
-              {
-                coordinate: "src/MultiExport.g.tsx#NamedBadge",
-                filePath: "src/MultiExport.g.tsx",
-                exportName: "NamedBadge",
-                componentName: "NamedBadge",
-                mode: "pure",
-                cases: [{ kind: "pure", name: "ready" }],
-                providers: {},
-                diagnostics: [],
-              },
-            ],
-          },
-        ],
-        selectedCaseByCoordinate: {},
-        selectedCoordinatePath: [],
-        selectedRuntimeInstanceByCoordinate: {},
-        selectedViewportPresetByCoordinate: {},
-      },
-      warmupTargets: [],
-    },
-  },
-} satisfies GCases<StudioShellProps, StudioShellScope>

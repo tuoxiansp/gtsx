@@ -1,7 +1,6 @@
 import React from "react"
 
 import {
-  GPreviewProvider,
   createGBoundaryCollector,
   createGPreviewErrorMessage,
   createGPreviewReadyMessage,
@@ -14,14 +13,8 @@ import {
   type GPreviewProtocolMessage,
 } from "gtsx"
 
-type PreviewCase<Props> = {
-  props: Props
-  scope?: unknown
-}
-
-type PreviewComponent<Props = Record<string, unknown>> = React.ComponentType<Props> & {
-  cases?: Record<string, PreviewCase<Props>>
-}
+import PreviewCaseSheet, { type PreviewComponent, type PreviewRenderableCase } from "./components/PreviewCaseSheet.g"
+import PreviewMessage, { type PreviewMessageProps } from "./components/PreviewMessage.g"
 
 type GTSXModule = Record<string, unknown> & {
   default: PreviewComponent
@@ -39,7 +32,7 @@ export function GTSXPreviewApp() {
 
   if (!entry) {
     return (
-      <PreviewMessage
+      <PreviewRouteMessage
         detail="Pass ?entry=src/components/.../*.g.tsx to render a Studio package case."
         sessionId={sessionId}
         title="Missing entry"
@@ -61,7 +54,7 @@ function GTSXEntryPreview(props: {
   const loader = modules[toModuleKey(entryCoordinate.file)]
 
   if (!loader) {
-    return <PreviewMessage title="Unknown entry" detail={props.entry} sessionId={props.sessionId} />
+    return <PreviewRouteMessage title="Unknown entry" detail={props.entry} sessionId={props.sessionId} />
   }
 
   const LazyPreview = React.lazy(async () => {
@@ -69,7 +62,7 @@ function GTSXEntryPreview(props: {
     const component = moduleValue[entryCoordinate.exportName]
     if (!isPreviewComponent(component)) {
       return {
-        default: () => <PreviewMessage title="Unknown component export" detail={props.entry} sessionId={props.sessionId} />,
+        default: () => <PreviewRouteMessage title="Unknown component export" detail={props.entry} sessionId={props.sessionId} />,
       }
     }
 
@@ -88,7 +81,7 @@ function GTSXEntryPreview(props: {
   })
 
   return (
-    <React.Suspense fallback={props.showChrome ? <PreviewMessage title="Loading" detail={props.entry} /> : null}>
+    <React.Suspense fallback={props.showChrome ? <PreviewRouteMessage title="Loading" detail={props.entry} /> : null}>
       <LazyPreview />
     </React.Suspense>
   )
@@ -105,49 +98,36 @@ function LoadedEntryPreview(props: {
   const collector = React.useMemo(() => createGBoundaryCollector(), [])
   const cases = props.component.cases ?? {}
   const selectedCases = props.caseName ? [[props.caseName, cases[props.caseName]] as const] : Object.entries(cases)
-  const hasRenderableCases = selectedCases.length > 0 && selectedCases.every(([, testCase]) => testCase)
+  const renderableCases: PreviewRenderableCase[] = selectedCases.flatMap(([name, testCase]) =>
+    testCase ? [{ name, testCase }] : [],
+  )
+  const hasRenderableCases = selectedCases.length > 0 && renderableCases.length === selectedCases.length
 
   usePreviewProtocolMessages(props.sessionId, collector, hasRenderableCases)
 
   if (!hasRenderableCases) {
-    return <PreviewMessage title="Unknown case" detail={props.caseName ?? "No cases declared"} sessionId={props.sessionId} />
+    return <PreviewRouteMessage title="Unknown case" detail={props.caseName ?? "No cases declared"} sessionId={props.sessionId} />
   }
 
-  const Component = props.component
   return (
-    <main style={{ display: "grid", gap: 16, padding: props.showChrome ? 24 : 0 }}>
-      {selectedCases.map(([name, testCase]) => (
-        <section key={name}>
-          {props.showChrome ? (
-            <header style={{ color: "#64748b", font: "12px ui-monospace, SFMono-Regular, Menlo, monospace", marginBottom: 8 }}>
-              {props.entry} / {name}
-            </header>
-          ) : null}
-          <GPreviewProvider
-            boundaryCollector={collector}
-            caseOverrides={caseOverridesForFrame(props.entry, name, props.caseOverrides)}
-            scope={testCase.scope}
-          >
-            <Component {...testCase.props} />
-          </GPreviewProvider>
-        </section>
-      ))}
-    </main>
+    <PreviewCaseSheet
+      boundaryCollector={collector}
+      caseOverrides={props.caseOverrides}
+      component={props.component}
+      entry={props.entry}
+      selectedCases={renderableCases}
+      showChrome={props.showChrome}
+    />
   )
 }
 
-function PreviewMessage(props: { title: string; detail: string; sessionId?: string | null }) {
+function PreviewRouteMessage(props: PreviewMessageProps & { sessionId?: string | null }) {
   React.useEffect(() => {
     if (!props.sessionId) return
     window.parent.postMessage(createGPreviewErrorMessage(props.sessionId, new Error(`${props.title}: ${props.detail}`)), "*")
   }, [props.detail, props.sessionId, props.title])
 
-  return (
-    <main style={{ color: "#172033", fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", padding: 24 }}>
-      <h1>{props.title}</h1>
-      <p>{props.detail}</p>
-    </main>
-  )
+  return <PreviewMessage detail={props.detail} title={props.title} />
 }
 
 function usePreviewProtocolMessages(
@@ -260,14 +240,6 @@ function readCaseOverrides(params: URLSearchParams): Map<string, string> {
     }
   }
   return overrides
-}
-
-function caseOverridesForFrame(entry: string, caseName: string, childOverrides: Map<string, string>): Map<string, string> {
-  return new Map([...childOverrides, [toComponentCoordinate(entry), caseName]])
-}
-
-function toComponentCoordinate(entry: string): string {
-  return entry.includes("#") ? entry : `${entry}#default`
 }
 
 function parseEntryCoordinate(entry: string): { file: string; exportName: string } {
