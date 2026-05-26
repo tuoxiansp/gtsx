@@ -465,7 +465,7 @@ describe("GTSX Studio shell", () => {
 
     expect(cardCoordinates(html)).toEqual(["src/UserCard.g.tsx#default"])
     expect(previewSources(html)).toEqual([
-      "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0&sessionId=src%2FUserCard.g.tsx%23default%3Aready",
+      "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0&sessionId=src%2FUserCard.g.tsx%23default%3Aready&static=1",
     ])
   })
 
@@ -478,8 +478,8 @@ describe("GTSX Studio shell", () => {
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="file:src/MultiExport.g.tsx" />)
 
     expect(previewSources(html)).toEqual([
-      "/gtsx?entry=src%2FMultiExport.g.tsx%23NamedBadge&case=ready&chrome=0&sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready",
-      "/gtsx?entry=src%2FMultiExport.g.tsx%23default&case=defaultReady&chrome=0&sessionId=src%2FMultiExport.g.tsx%23default%3AdefaultReady",
+      "/gtsx?entry=src%2FMultiExport.g.tsx%23NamedBadge&case=ready&chrome=0&sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready&static=1",
+      "/gtsx?entry=src%2FMultiExport.g.tsx%23default&case=defaultReady&chrome=0&sessionId=src%2FMultiExport.g.tsx%23default%3AdefaultReady&static=1",
     ])
     expect(iframeSources(html)).toEqual([])
     expect(html).not.toContain("Preview will load when visible.")
@@ -510,7 +510,7 @@ describe("GTSX Studio shell", () => {
       "src/MultiExport.g.tsx#NamedBadge:ready",
     ])
     expect(warmupTargets.map((target) => target.previewUrl)).toContain(
-      "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0&sessionId=warmup%3Atablet%0Asrc%2FUserCard.g.tsx%23default%0Aready",
+      "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0&sessionId=warmup%3Atablet%0Asrc%2FUserCard.g.tsx%23default%0Aready&static=1",
     )
     expect(warmupTargets.map((target) => target.sessionId)).not.toContain("src/UserCard.g.tsx#default:loading")
     expect(warmupTargets.map((target) => target.sessionId)).not.toContain("src/MultiExport.g.tsx#NamedBadge:ready")
@@ -826,10 +826,10 @@ describe("GTSX Studio shell", () => {
     expect(html).toContain("Cannot read properties of undefined")
     expect(html).toContain("TypeError: Cannot read properties of undefined")
     expect(html).toContain(
-      "/gtsx?entry=src%2FMultiExport.g.tsx%23NamedBadge&amp;case=ready&amp;chrome=0&amp;sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready",
+      "/gtsx?entry=src%2FMultiExport.g.tsx%23NamedBadge&amp;case=ready&amp;chrome=0&amp;sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready&amp;static=1",
     )
     expect(previewSources(html)).toContain(
-      "/gtsx?entry=src%2FMultiExport.g.tsx%23default&case=defaultReady&chrome=0&sessionId=src%2FMultiExport.g.tsx%23default%3AdefaultReady",
+      "/gtsx?entry=src%2FMultiExport.g.tsx%23default&case=defaultReady&chrome=0&sessionId=src%2FMultiExport.g.tsx%23default%3AdefaultReady&static=1",
     )
   })
 
@@ -1096,7 +1096,7 @@ describe("GTSX Studio shell", () => {
     const html = renderToStaticMarkup(<StudioWorkspaceView manifest={manifest} workspace={state} />)
 
     expect(previewSources(html)).toEqual([
-      "/gtsx?entry=src%2FBadge.g.tsx%23default&case=warning&chrome=0&sessionId=src%2FBadge.g.tsx%23default%3Awarning",
+      "/gtsx?entry=src%2FBadge.g.tsx%23default&case=warning&chrome=0&sessionId=src%2FBadge.g.tsx%23default%3Awarning&static=1",
     ])
   })
 
@@ -1128,7 +1128,7 @@ describe("GTSX Studio shell", () => {
     expect(sources[0]).not.toContain("gcase=")
     expect(sources[0]).toContain("sessionId=src%2FUserCard.g.tsx%23default%3Aloading")
     expect(sources[1]).toBe(
-      "/gtsx?entry=src%2FMultiExport.g.tsx%23NamedBadge&case=ready&chrome=0&sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready",
+      "/gtsx?entry=src%2FMultiExport.g.tsx%23NamedBadge&case=ready&chrome=0&sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready&static=1",
     )
     expect(createStudioRuntimeValuesRequest(manifest, childState, "child")?.sessionId).toBe(
       "src/UserCard.g.tsx#default:loading",

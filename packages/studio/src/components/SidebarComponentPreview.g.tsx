@@ -166,6 +166,7 @@ function sidebarPreviewUrlForComponent(manifest: StudioManifest, component: Stud
     case: caseName,
     chrome: "0",
     sessionId: sidebarPreviewSessionId(component),
+    static: "1",
   })
   return `${manifest.routes.preview}?${params.toString()}`
 }

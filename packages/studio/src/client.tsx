@@ -887,6 +887,7 @@ export function createStudioPreviewUrl(
   component: StudioManifestComponent,
   caseName: string,
   sessionId = previewSessionId(component, caseName),
+  options: { static?: boolean } = {},
 ): string {
   const params = new URLSearchParams({
     entry: component.coordinate,
@@ -894,6 +895,7 @@ export function createStudioPreviewUrl(
     chrome: "0",
     sessionId,
   })
+  if (options.static) params.set("static", "1")
   return `${manifest.routes.preview}?${params.toString()}`
 }
 
@@ -1013,7 +1015,7 @@ function studioPreviewTarget(
 ): StudioPreviewWarmupTarget {
   return {
     cacheKey: studioPreviewCacheKey(component, caseName, viewportPreset),
-    previewUrl: createStudioPreviewUrl(manifest, component, caseName, sessionId),
+    previewUrl: createStudioPreviewUrl(manifest, component, caseName, sessionId, { static: true }),
     sessionId,
     size: studioPreviewFrameSize(viewportPreset, undefined) as { width: number; height: number },
     title: `${component.componentName} ${caseName} warmup`,

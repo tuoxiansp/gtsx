@@ -35,7 +35,7 @@ export default function ComponentCard(props: ComponentCardProps) {
   const previewError = getPreviewError(props.component)
   const sessionId = previewSessionId(props.component, defaultCase, props.viewportPreset)
   const displaySize = studioPreviewFrameSize(props.viewportPreset, props.frameState?.size)
-  const previewUrl = createStudioPreviewUrl(props.manifest, props.component, defaultCase, sessionId)
+  const previewUrl = createStudioPreviewUrl(props.manifest, props.component, defaultCase, sessionId, { static: true })
   const boundaryRect = selectedBoundaryRectForComponent(props.frameState?.tree, props.component.coordinate)
   const visibleBoundaryRect = clipPreviewBoundaryRectToViewport(boundaryRect, displaySize)
   const cardWidth = componentCardLayoutWidth(displaySize, props.frameState?.tree, props.component.coordinate)
@@ -170,4 +170,3 @@ function findBoundaryNode(tree: GBoundaryTreeNode[], coordinate: string): GBound
 
   return undefined
 }
-

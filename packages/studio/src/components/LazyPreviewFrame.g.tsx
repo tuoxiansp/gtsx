@@ -33,7 +33,7 @@ type LazyPreviewFrameScope = {
   setContainerElement: (element: HTMLDivElement | null) => void
 }
 
-const studioPreviewPreloadMargin = 1200
+const studioPreviewPreloadMargin = 360
 
 function useRealLazyPreviewFrameScope(): LazyPreviewFrameScope {
   const [containerElement, setContainerElement] = React.useState<HTMLDivElement | null>(null)
@@ -89,6 +89,9 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
       data-gtsx-viewport-preset={props.viewportPreset}
       ref={scope.setContainerElement}
       style={{
+        contain: "layout paint style",
+        containIntrinsicSize: `${layoutWidth}px ${layoutHeight}px`,
+        contentVisibility: "auto",
         height: layoutHeight,
         overflow: "visible",
         position: "relative",

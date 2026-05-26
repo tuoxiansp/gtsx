@@ -17,6 +17,7 @@ type BufferedPreviewIframeProps = {
 export default function BufferedPreviewIframe(props: BufferedPreviewIframeProps) {
   return (
     <iframe
+      aria-hidden="true"
       loading="eager"
       ref={(frame) => props.onPreviewFrameMount?.(props.slot.sessionId, frame)}
       src={props.slot.previewUrl}
@@ -31,6 +32,7 @@ export default function BufferedPreviewIframe(props: BufferedPreviewIframeProps)
         width: props.size.width,
         zIndex: 1,
       }}
+      tabIndex={-1}
       title={props.slot.title}
     />
   )

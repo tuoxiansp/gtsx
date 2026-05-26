@@ -53,7 +53,7 @@ type StudioShellScope = {
   workspace: StudioWorkspaceState
 }
 
-const studioPreviewWarmupLimit = 4
+const studioPreviewWarmupLimit = 2
 
 function useStudioShellScope(props: StudioShellProps): StudioShellScope {
   const initialUrlState = React.useMemo(

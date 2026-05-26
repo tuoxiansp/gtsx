@@ -29,6 +29,7 @@ export function GTSXPreviewApp() {
   const sessionId = params.get("sessionId")
   const caseOverrides = readCaseOverrides(params)
   const showChrome = params.get("chrome") !== "0"
+  const staticMode = params.get("static") === "1"
 
   if (!entry) {
     return (
@@ -40,7 +41,16 @@ export function GTSXPreviewApp() {
     )
   }
 
-  return <GTSXEntryPreview entry={entry} caseName={caseName} caseOverrides={caseOverrides} sessionId={sessionId} showChrome={showChrome} />
+  return (
+    <GTSXEntryPreview
+      entry={entry}
+      caseName={caseName}
+      caseOverrides={caseOverrides}
+      sessionId={sessionId}
+      showChrome={showChrome}
+      staticMode={staticMode}
+    />
+  )
 }
 
 function GTSXEntryPreview(props: {
@@ -49,6 +59,7 @@ function GTSXEntryPreview(props: {
   caseOverrides: Map<string, string>
   sessionId: string | null
   showChrome: boolean
+  staticMode: boolean
 }) {
   const entryCoordinate = parseEntryCoordinate(props.entry)
   const loader = modules[toModuleKey(entryCoordinate.file)]
@@ -75,6 +86,7 @@ function GTSXEntryPreview(props: {
           caseOverrides={props.caseOverrides}
           sessionId={props.sessionId}
           showChrome={props.showChrome}
+          staticMode={props.staticMode}
         />
       ),
     }
@@ -94,6 +106,7 @@ function LoadedEntryPreview(props: {
   caseOverrides: Map<string, string>
   sessionId: string | null
   showChrome: boolean
+  staticMode: boolean
 }) {
   const collector = React.useMemo(() => createGBoundaryCollector(), [])
   const cases = props.component.cases ?? {}
@@ -103,7 +116,7 @@ function LoadedEntryPreview(props: {
   )
   const hasRenderableCases = selectedCases.length > 0 && renderableCases.length === selectedCases.length
 
-  usePreviewProtocolMessages(props.sessionId, collector, hasRenderableCases)
+  usePreviewProtocolMessages(props.sessionId, collector, hasRenderableCases, { staticMode: props.staticMode })
 
   if (!hasRenderableCases) {
     return <PreviewRouteMessage title="Unknown case" detail={props.caseName ?? "No cases declared"} sessionId={props.sessionId} />
@@ -134,19 +147,40 @@ function usePreviewProtocolMessages(
   sessionId: string | null,
   collector: ReturnType<typeof createGBoundaryCollector>,
   enabled: boolean,
+  options: { staticMode?: boolean } = {},
 ) {
   React.useEffect(() => {
     if (!sessionId || !enabled) return
     let scheduledFrame = 0
+    let settleTimer = 0
+    let settled = false
+    let resizeObserver: ResizeObserver | undefined
+
+    const settleStaticPreview = () => {
+      settled = true
+      window.removeEventListener("message", handleMessage)
+      window.removeEventListener("resize", scheduleLayoutPublish)
+      resizeObserver?.disconnect()
+      if (scheduledFrame) window.cancelAnimationFrame(scheduledFrame)
+      if (settleTimer) window.clearTimeout(settleTimer)
+      scheduledFrame = 0
+      settleTimer = 0
+    }
 
     const publishLayout = () => {
       updateBoundaryRects(collector)
       const tree = collector.getTree()
       window.parent.postMessage(createGPreviewTreeMessage(sessionId, tree), "*")
       window.parent.postMessage(createGPreviewResizeMessage(sessionId, previewContentSize(tree)), "*")
+
+      if (options.staticMode) {
+        if (settleTimer) window.clearTimeout(settleTimer)
+        settleTimer = window.setTimeout(settleStaticPreview, 400)
+      }
     }
 
     const scheduleLayoutPublish = () => {
+      if (settled) return
       if (scheduledFrame) return
       scheduledFrame = window.requestAnimationFrame(() => {
         scheduledFrame = 0
@@ -165,7 +199,7 @@ function usePreviewProtocolMessages(
 
     window.addEventListener("message", handleMessage)
     window.addEventListener("resize", scheduleLayoutPublish)
-    const resizeObserver = "ResizeObserver" in window ? new ResizeObserver(scheduleLayoutPublish) : undefined
+    resizeObserver = "ResizeObserver" in window ? new ResizeObserver(scheduleLayoutPublish) : undefined
     resizeObserver?.observe(document.documentElement)
     if (document.body) resizeObserver?.observe(document.body)
     window.parent.postMessage(createGPreviewReadyMessage(sessionId), "*")
@@ -174,9 +208,10 @@ function usePreviewProtocolMessages(
       window.removeEventListener("message", handleMessage)
       window.removeEventListener("resize", scheduleLayoutPublish)
       resizeObserver?.disconnect()
+      if (settleTimer) window.clearTimeout(settleTimer)
       if (scheduledFrame) window.cancelAnimationFrame(scheduledFrame)
     }
-  }, [collector, enabled, sessionId])
+  }, [collector, enabled, options.staticMode, sessionId])
 }
 
 function previewContentSize(tree: ReturnType<GBoundaryCollector["getTree"]>): { width: number; height: number } {

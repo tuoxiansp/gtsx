@@ -69,7 +69,7 @@ const useCasePreviewCardScope = createGScopeHook(useRealCasePreviewCardScope)
 
 export default function CasePreviewCard(props: CasePreviewCardProps) {
   const scope = useCasePreviewCardScope({ selected: props.selected })
-  const previewUrl = createStudioPreviewUrl(props.manifest, props.component, props.testCaseName)
+  const previewUrl = createStudioPreviewUrl(props.manifest, props.component, props.testCaseName, undefined, { static: true })
   const boundaryRect = selectedBoundaryRectForComponent(props.frameState?.tree, props.component.coordinate)
   const frameSize = studioPreviewFrameSize("tablet", props.frameState?.size)
   const height = boundaryRect ? Math.max(64, Math.ceil(boundaryRect.height * studioCasePreviewScale) + 32) : 112
