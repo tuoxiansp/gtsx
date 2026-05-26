@@ -1,5 +1,6 @@
 import { join } from "node:path"
 import { renderToStaticMarkup } from "react-dom/server"
+import { GPreviewProvider } from "gtsx"
 import { buildGTSXProjectIndex } from "gtsx/project-index"
 import { describe, expect, it, vi } from "vitest"
 
@@ -33,6 +34,7 @@ import {
   studioPreviewWarmupTargets,
 } from "../src/index.js"
 import ComponentCard from "../src/components/ComponentCard.g.js"
+import LazyPreviewFrame from "../src/components/LazyPreviewFrame.g.js"
 import PreviewCaseSheet from "../src/components/PreviewCaseSheet.g.js"
 import PreviewMessage from "../src/components/PreviewMessage.g.js"
 import SelectedComponentCasesSidebar from "../src/components/SelectedComponentCasesSidebar.g.js"
@@ -384,6 +386,34 @@ describe("GTSX Studio shell", () => {
     expect(selectionOutlineHtml(html)).toContain("width:390px")
     expect(boundsHitTargetHtml(html)).toContain("width:390px")
     expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("width:390px")
+    expect(previewFrameTagHtml(html, "src/UserCard.g.tsx#default:loading@phone")).not.toContain("content-visibility:auto")
+    expect(previewFrameTagHtml(html, "src/UserCard.g.tsx#default:loading@phone")).not.toContain("contain:layout paint style")
+  })
+
+  it("keeps preview rendering containment below selection overlays", () => {
+    const html = renderToStaticMarkup(
+      <GPreviewProvider scope={{ shouldLoad: true, setContainerElement() {} }}>
+        <LazyPreviewFrame
+          data-gtsx-preview-session-id="src/Icon.g.tsx#default:ready@phone"
+          boundaryRect={{ x: 0, y: 0, width: 96, height: 96 }}
+          coordinate="src/Icon.g.tsx#default"
+          previewUrl="/gtsx?entry=src%2FIcon.g.tsx%23default&case=ready&chrome=0"
+          selectedBoundaryRect={{ x: 0, y: 0, width: 96, height: 96 }}
+          size={{ width: 390, height: 844 }}
+          sessionId="src/Icon.g.tsx#default:ready"
+          title="Icon preview"
+          viewportPreset="phone"
+        />
+      </GPreviewProvider>,
+    )
+
+    expect(previewFrameTagHtml(html, "src/Icon.g.tsx#default:ready@phone")).toContain("overflow:visible")
+    expect(previewFrameTagHtml(html, "src/Icon.g.tsx#default:ready@phone")).not.toContain("content-visibility:auto")
+    expect(previewFrameTagHtml(html, "src/Icon.g.tsx#default:ready@phone")).not.toContain("contain:layout paint style")
+    expect(previewClipHtml(html)).toContain("content-visibility:auto")
+    expect(previewClipHtml(html)).toContain("contain:layout paint style")
+    expect(previewClipHtml(html)).toContain("overflow:hidden")
+    expect(selectionOutlineHtml(html)).toContain('data-gtsx-selection-outline="true"')
   })
 
   it("does not enter card selected state from sidebar or drilldown state alone", () => {
@@ -1493,6 +1523,14 @@ function selectedCardCoordinates(html: string): string[] {
 
 function selectionOutlineHtml(html: string): string {
   return html.match(/<div[^>]+data-gtsx-selection-outline="true"[^>]*>/)?.[0] ?? ""
+}
+
+function previewClipHtml(html: string): string {
+  return html.match(/<div[^>]+data-gtsx-preview-clip="true"[^>]*>/)?.[0] ?? ""
+}
+
+function previewFrameTagHtml(html: string, sessionId: string): string {
+  return html.match(new RegExp(`<div[^>]+data-gtsx-preview-session-id="${escapeRegExp(sessionId)}"[^>]*>`))?.[0] ?? ""
 }
 
 function cardHtml(html: string, coordinate: string): string {

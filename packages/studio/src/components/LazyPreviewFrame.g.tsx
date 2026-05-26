@@ -89,9 +89,6 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
       data-gtsx-viewport-preset={props.viewportPreset}
       ref={scope.setContainerElement}
       style={{
-        contain: "layout paint style",
-        containIntrinsicSize: `${layoutWidth}px ${layoutHeight}px`,
-        contentVisibility: "auto",
         height: layoutHeight,
         overflow: "visible",
         position: "relative",
@@ -102,6 +99,9 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
         <div
           data-gtsx-preview-clip="true"
           style={{
+            contain: "layout paint style",
+            containIntrinsicSize: `${layoutWidth}px ${layoutHeight}px`,
+            contentVisibility: "auto",
             height: layoutHeight,
             left: 0,
             overflow: "hidden",
