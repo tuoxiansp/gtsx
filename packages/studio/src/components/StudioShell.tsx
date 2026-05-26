@@ -54,6 +54,8 @@ type StudioShellScope = {
 }
 
 const studioPreviewWarmupLimit = 2
+const studioCanvasCommitDelayMs = 120
+const studioPreviewCacheLimit = 96
 
 function useStudioShellScope(props: StudioShellProps): StudioShellScope {
   const initialUrlState = React.useMemo(
@@ -69,6 +71,8 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
   const [warmupsEnabled, setWarmupsEnabled] = React.useState(false)
   const previewFrames = React.useRef(new Map<string, HTMLIFrameElement>())
   const previewFrameMountedAt = React.useRef(new Map<string, number>())
+  const pendingCanvasCommit = React.useRef<StudioCanvasTransform | null>(null)
+  const pendingCanvasCommitTimer = React.useRef(0)
   const sessionIds = React.useMemo(() => currentPreviewSessionIds(workspace), [workspace])
   const currentTargets = React.useMemo(() => currentStudioPreviewTargets(props.manifest, workspace), [props.manifest, workspace])
   const warmupTargets = React.useMemo(
@@ -96,6 +100,48 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
   }, [canvas])
 
   React.useEffect(() => {
+    setFrameStates({})
+    setPreviewCache({})
+  }, [props.manifest])
+
+  React.useEffect(() => {
+    return () => {
+      if (pendingCanvasCommitTimer.current) window.clearTimeout(pendingCanvasCommitTimer.current)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    type PendingPreviewMessage = {
+      message: GPreviewProtocolMessage
+      target: StudioPreviewWarmupTarget
+    }
+
+    let pendingMessages: PendingPreviewMessage[] = []
+    let scheduledFrame = 0
+
+    const flushPreviewMessages = () => {
+      scheduledFrame = 0
+      const messages = pendingMessages
+      pendingMessages = []
+      if (messages.length === 0) return
+
+      React.startTransition(() => {
+        setFrameStates((current) =>
+          messages.reduce(
+            (nextFrameStates, pending) =>
+              applyStudioPreviewMessageToFrameStates(nextFrameStates, pending.message, sessionIds),
+            current,
+          ),
+        )
+        setPreviewCache((current) => pruneStudioPreviewCache(applyStudioPreviewMessagesToCache(current, messages)))
+      })
+    }
+
+    const schedulePreviewMessageFlush = () => {
+      if (scheduledFrame) return
+      scheduledFrame = window.requestAnimationFrame(flushPreviewMessages)
+    }
+
     const handleMessage = (event: MessageEvent) => {
       const message = event.data as GPreviewProtocolMessage
       if (!isGPreviewProtocolMessage(message)) return
@@ -103,33 +149,31 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
       const target = targetsBySessionId.get(message.sessionId)
       if (!target) return
 
-      if (sessionIds.has(message.sessionId)) {
-        setFrameStates((current) => applyStudioPreviewMessageToFrameStates(current, message, sessionIds))
-      }
       dispatchStudioPreviewTiming(target, message, previewFrameMountedAt.current.get(message.sessionId))
-      setPreviewCache((current) => {
-        const currentEntry = current[target.cacheKey]
-        const currentFrameState = currentEntry?.frameState ?? {
-          expectedSessionId: message.sessionId,
-          ready: false,
-        }
-        return {
-          ...current,
-          [target.cacheKey]: {
-            frameState: applyStudioPreviewMessage(currentFrameState, message),
-            lastUsedAt: Date.now(),
-          },
-        }
-      })
+      pendingMessages.push({ message, target })
+      schedulePreviewMessageFlush()
     }
 
     window.addEventListener("message", handleMessage)
-    return () => window.removeEventListener("message", handleMessage)
+    return () => {
+      window.removeEventListener("message", handleMessage)
+      if (scheduledFrame) window.cancelAnimationFrame(scheduledFrame)
+    }
   }, [sessionIds, targetsBySessionId])
+
+  const clearPendingCanvasCommit = React.useCallback(() => {
+    pendingCanvasCommit.current = null
+    if (pendingCanvasCommitTimer.current) {
+      window.clearTimeout(pendingCanvasCommitTimer.current)
+      pendingCanvasCommitTimer.current = 0
+    }
+  }, [])
 
   React.useEffect(() => {
     const handlePopState = () => {
       const restored = createStudioWorkspaceStateFromUrl(props.manifest, new URLSearchParams(window.location.search))
+      clearPendingCanvasCommit()
+      canvasRef.current = restored.canvas
       setSelection(restored.selection)
       setCanvas(restored.canvas)
       setUrlWarning(restored.warning)
@@ -139,7 +183,7 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
 
     window.addEventListener("popstate", handlePopState)
     return () => window.removeEventListener("popstate", handlePopState)
-  }, [props.manifest])
+  }, [clearPendingCanvasCommit, props.manifest])
 
   const commitWorkspace = React.useCallback((updater: (current: StudioWorkspaceState) => StudioWorkspaceState) => {
     setWorkspace((current) => {
@@ -149,11 +193,21 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
     })
   }, [])
 
-  const commitCanvas = React.useCallback((nextCanvas: StudioCanvasTransform) => {
-    canvasRef.current = nextCanvas
+  const flushCanvasCommit = React.useCallback(() => {
+    pendingCanvasCommitTimer.current = 0
+    const nextCanvas = pendingCanvasCommit.current
+    if (!nextCanvas) return
+    pendingCanvasCommit.current = null
     setCanvas(nextCanvas)
     replaceStudioCanvasUrlState(nextCanvas)
   }, [])
+
+  const commitCanvas = React.useCallback((nextCanvas: StudioCanvasTransform) => {
+    canvasRef.current = nextCanvas
+    pendingCanvasCommit.current = nextCanvas
+    if (pendingCanvasCommitTimer.current) window.clearTimeout(pendingCanvasCommitTimer.current)
+    pendingCanvasCommitTimer.current = window.setTimeout(flushCanvasCommit, studioCanvasCommitDelayMs)
+  }, [flushCanvasCommit])
 
   return {
     canvas,
@@ -245,6 +299,42 @@ function StudioPreviewWarmups(props: { targets: StudioPreviewWarmupTarget[] }) {
         </div>
       ))}
     </div>
+  )
+}
+
+function applyStudioPreviewMessagesToCache(
+  current: Record<string, StudioPreviewCacheEntry>,
+  messages: { message: GPreviewProtocolMessage; target: StudioPreviewWarmupTarget }[],
+): Record<string, StudioPreviewCacheEntry> {
+  const now = Date.now()
+  let next = current
+
+  for (const { message, target } of messages) {
+    const currentEntry = next[target.cacheKey]
+    const currentFrameState = currentEntry?.frameState ?? {
+      expectedSessionId: message.sessionId,
+      ready: false,
+    }
+    if (next === current) next = { ...current }
+    next[target.cacheKey] = {
+      frameState: applyStudioPreviewMessage(currentFrameState, message),
+      lastUsedAt: now,
+    }
+  }
+
+  return next
+}
+
+function pruneStudioPreviewCache(
+  cache: Record<string, StudioPreviewCacheEntry>,
+): Record<string, StudioPreviewCacheEntry> {
+  const entries = Object.entries(cache)
+  if (entries.length <= studioPreviewCacheLimit) return cache
+
+  return Object.fromEntries(
+    entries
+      .sort((left, right) => right[1].lastUsedAt - left[1].lastUsedAt)
+      .slice(0, studioPreviewCacheLimit),
   )
 }
 

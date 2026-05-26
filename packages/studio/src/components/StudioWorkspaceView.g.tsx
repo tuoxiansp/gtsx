@@ -99,22 +99,35 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   const columnElements = React.useRef(new Map<number, HTMLElement>())
   const selectedCardComponent = selectedCardCoordinate ? findManifestComponent(props.manifest, selectedCardCoordinate) : undefined
   const selectedCaseName = selectedCardComponent ? selectedStudioCaseName(props.workspace, selectedCardComponent) : undefined
+  const layoutMeasurementKey = React.useMemo(
+    () => studioWorkspaceLayoutMeasurementKey(props.workspace, canvasViewportPreset, props.frameStates, props.previewCache),
+    [canvasViewportPreset, props.frameStates, props.previewCache, props.workspace],
+  )
+
+  const applyCanvasSurfaceTransform = React.useCallback(
+    (nextCanvas: StudioCanvasTransform) => {
+      if (canvasSurfaceElement) canvasSurfaceElement.style.transform = studioCanvasTransformStyle(nextCanvas)
+    },
+    [canvasSurfaceElement],
+  )
 
   React.useEffect(() => {
     canvasRef.current = canvas
-  }, [canvas])
+    applyCanvasSurfaceTransform(canvas)
+  }, [applyCanvasSurfaceTransform, canvas])
 
   const setCanvas = React.useCallback(
     (updater: (current: StudioCanvasTransform) => StudioCanvasTransform) => {
       const next = updater(canvasRef.current)
       canvasRef.current = next
+      applyCanvasSurfaceTransform(next)
       if (props.onChangeCanvas) {
         props.onChangeCanvas(next)
       } else {
         setUncontrolledCanvas(next)
       }
     },
-    [props.onChangeCanvas],
+    [applyCanvasSurfaceTransform, props.onChangeCanvas],
   )
 
   React.useEffect(() => {
@@ -231,7 +244,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     })
 
     setColumnLayoutByIndex((current) => (sameColumnLayoutRecord(current, nextLayoutByIndex) ? current : nextLayoutByIndex))
-  }, [canvas.scale, canvasSurfaceElement, canvasViewportPreset, props.frameStates, props.previewCache, props.workspace.columns])
+  }, [canvasSurfaceElement, layoutMeasurementKey, props.workspace.columns])
 
   return {
     canvas,
@@ -380,7 +393,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
               padding: "0 80px 80px 0",
               position: "absolute",
               top: 0,
-              transform: `translate(${scope.canvas.x}px, ${scope.canvas.y}px) scale(${scope.canvas.scale})`,
+              transform: studioCanvasTransformStyle(scope.canvas),
               transformOrigin: "0 0",
             }}
           >
@@ -464,6 +477,53 @@ function domRectToLocalStudioCanvasScreenRect(rect: DOMRect, originRect: DOMRect
     right: (rect.right - originRect.left) / scale,
     top: (rect.top - originRect.top) / scale,
   }
+}
+
+function studioCanvasTransformStyle(canvas: StudioCanvasTransform): string {
+  return `translate(${canvas.x}px, ${canvas.y}px) scale(${canvas.scale})`
+}
+
+function studioWorkspaceLayoutMeasurementKey(
+  workspace: StudioWorkspaceState,
+  viewportPreset: StudioViewportPreset,
+  frameStates: Record<string, StudioPreviewFrameState> | undefined,
+  previewCache: Record<string, StudioPreviewCacheEntry> | undefined,
+): string {
+  return workspace.columns
+    .map((column) =>
+      column.components
+        .map((component) => {
+          const caseName = selectedStudioCaseName(workspace, component)
+          const sessionId = previewSessionId(component, caseName, viewportPreset)
+          const cacheKey = studioPreviewCacheKey(component, caseName, viewportPreset)
+          const frameState = mergeStudioPreviewFrameState(
+            sessionId,
+            frameStates?.[sessionId],
+            previewCache?.[cacheKey]?.frameState,
+          )
+          return `${component.coordinate}:${caseName}:${studioPreviewLayoutSignature(frameState)}`
+        })
+        .join(","),
+    )
+    .join("|")
+}
+
+function studioPreviewLayoutSignature(frameState: StudioPreviewFrameState | undefined): string {
+  if (!frameState) return "pending"
+  const size = frameState.size ? `${frameState.size.width}x${frameState.size.height}` : "-"
+  return `${size}:${boundaryTreeLayoutSignature(frameState.tree)}`
+}
+
+function boundaryTreeLayoutSignature(tree: StudioPreviewFrameState["tree"]): string {
+  if (!tree) return "-"
+  const parts: string[] = []
+  const visit = (node: NonNullable<StudioPreviewFrameState["tree"]>[number]) => {
+    const rect = node.rect ? `${node.rect.x},${node.rect.y},${node.rect.width},${node.rect.height}` : "-"
+    parts.push(`${node.coordinate}@${rect}`)
+    for (const child of node.children) visit(child)
+  }
+  for (const node of tree) visit(node)
+  return parts.join(";")
 }
 
 function columnCardElementKey(columnIndex: number, coordinate: string): string {

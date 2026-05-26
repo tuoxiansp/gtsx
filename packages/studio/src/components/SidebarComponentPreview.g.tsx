@@ -18,6 +18,8 @@ type SidebarComponentPreviewScope = {
   shouldLoad: boolean
 }
 
+const studioSidebarPreviewPreloadMargin = 280
+
 function useRealSidebarComponentPreviewScope(component: StudioManifestComponent): SidebarComponentPreviewScope {
   const sessionId = sidebarPreviewSessionId(component)
   const [containerElement, setContainerElement] = React.useState<HTMLDivElement | null>(null)
@@ -39,7 +41,7 @@ function useRealSidebarComponentPreviewScope(component: StudioManifestComponent)
           observer.disconnect()
         }
       },
-      { rootMargin: "500px" },
+      { rootMargin: `${studioSidebarPreviewPreloadMargin}px` },
     )
     observer.observe(containerElement)
     return () => observer.disconnect()

@@ -17,7 +17,7 @@ type CasePreviewCardProps = {
 
 const studioCasePreviewScale = 0.25
 const studioCasePreviewWidth = 192
-const studioCasePreviewPreloadMargin = 600
+const studioCasePreviewPreloadMargin = 280
 
 type CasePreviewCardScope = {
   setFrameElement: (element: HTMLDivElement | null) => void
