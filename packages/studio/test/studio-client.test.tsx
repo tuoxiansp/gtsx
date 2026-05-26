@@ -15,6 +15,7 @@ import {
   changeStudioCanvasViewportPreset,
   changeStudioViewportPreset,
   componentCardLayoutWidth,
+  computeStudioColumnLayout,
   createStudioCanvasTransformFromUrl,
   createStudioRuntimeValuesRequest,
   createStudioWorkspaceStateFromUrl,
@@ -237,6 +238,87 @@ describe("GTSX Studio shell", () => {
         },
       ),
     ).toEqual({ x: 40, y: 40, scale: 1 })
+  })
+
+  it("places drilldown columns from the right edge of the local vertical band", () => {
+    expect(
+      computeStudioColumnLayout({
+        columns: [
+          {
+            componentCoordinates: ["root-wide", "root-parent"],
+          },
+          {
+            componentCoordinates: ["child"],
+            parentCoordinate: "root-parent",
+          },
+        ],
+        margin: 40,
+        measurementsByIndex: {
+          0: {
+            height: 760,
+            cardRectsByCoordinate: {
+              "root-wide": { left: 0, right: 900, top: 0, bottom: 260 },
+              "root-parent": { left: 0, right: 280, top: 500, bottom: 620 },
+            },
+          },
+          1: {
+            height: 220,
+            cardRectsByCoordinate: {
+              child: { left: 0, right: 320, top: 0, bottom: 160 },
+            },
+          },
+        },
+      }),
+    ).toEqual({
+      0: { x: 0, y: 0 },
+      1: { x: 320, y: 500 },
+    })
+  })
+
+  it("keeps a drilldown column clear of earlier columns in the same vertical band", () => {
+    expect(
+      computeStudioColumnLayout({
+        columns: [
+          {
+            componentCoordinates: ["root"],
+          },
+          {
+            componentCoordinates: ["middle", "lower"],
+            parentCoordinate: "root",
+          },
+          {
+            componentCoordinates: ["leaf"],
+            parentCoordinate: "middle",
+          },
+        ],
+        margin: 40,
+        measurementsByIndex: {
+          0: {
+            height: 240,
+            cardRectsByCoordinate: {
+              root: { left: 0, right: 300, top: 0, bottom: 120 },
+            },
+          },
+          1: {
+            height: 460,
+            cardRectsByCoordinate: {
+              middle: { left: 0, right: 240, top: 0, bottom: 120 },
+              lower: { left: 0, right: 520, top: 180, bottom: 300 },
+            },
+          },
+          2: {
+            height: 300,
+            cardRectsByCoordinate: {
+              leaf: { left: 0, right: 160, top: 0, bottom: 120 },
+            },
+          },
+        },
+      }),
+    ).toEqual({
+      0: { x: 0, y: 0 },
+      1: { x: 340, y: 0 },
+      2: { x: 900, y: 0 },
+    })
   })
 
   it("uses normalized rendered component bounds as the component selection target", () => {

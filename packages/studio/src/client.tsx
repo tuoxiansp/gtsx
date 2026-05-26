@@ -52,6 +52,16 @@ export type StudioCanvasScreenRect = {
   top: number
 }
 
+export type StudioColumnLayout = {
+  x: number
+  y: number
+}
+
+export type StudioColumnLayoutMeasurement = {
+  cardRectsByCoordinate: Record<string, StudioCanvasScreenRect>
+  height: number
+}
+
 export type StudioCanvasWheelInput = {
   clientX: number
   clientY: number
@@ -664,6 +674,44 @@ export function revealStudioCanvasRect(
   }
 }
 
+export function computeStudioColumnLayout(input: {
+  columns: { componentCoordinates: string[]; parentCoordinate?: string }[]
+  margin?: number
+  measurementsByIndex: Record<number, StudioColumnLayoutMeasurement>
+}): Record<number, StudioColumnLayout> {
+  const margin = input.margin ?? 40
+  const layoutsByIndex: Record<number, StudioColumnLayout> = {}
+  const absoluteCardRectsByIndex: Record<number, Record<string, StudioCanvasScreenRect>> = {}
+
+  input.columns.forEach((column, columnIndex) => {
+    if (columnIndex === 0 || !column.parentCoordinate) {
+      layoutsByIndex[columnIndex] = { x: 0, y: 0 }
+    } else {
+      const parentRect = findPreviousColumnCardRect(absoluteCardRectsByIndex, columnIndex, column.parentCoordinate)
+      if (!parentRect) {
+        layoutsByIndex[columnIndex] = { x: columnIndex * margin, y: 0 }
+      } else {
+        const columnHeight = input.measurementsByIndex[columnIndex]?.height ?? 0
+        const bandTop = parentRect.top
+        const bandBottom = bandTop + columnHeight
+        const rightEdge = rightmostCardEdgeInBand(absoluteCardRectsByIndex, columnIndex, bandTop, bandBottom) ?? parentRect.right
+        layoutsByIndex[columnIndex] = {
+          x: rightEdge + margin,
+          y: parentRect.top,
+        }
+      }
+    }
+
+    absoluteCardRectsByIndex[columnIndex] = absoluteColumnCardRects(
+      input.measurementsByIndex[columnIndex]?.cardRectsByCoordinate ?? {},
+      layoutsByIndex[columnIndex] ?? { x: 0, y: 0 },
+      column.componentCoordinates,
+    )
+  })
+
+  return layoutsByIndex
+}
+
 export function applyStudioCardSelectionAction(
   current: string | undefined,
   action: StudioCardSelectionAction,
@@ -726,6 +774,57 @@ function revealIntervalDelta(rectStart: number, rectEnd: number, visibleStart: n
   if (rectStart < visibleStart) return visibleStart - rectStart
   if (rectEnd > visibleEnd) return visibleEnd - rectEnd
   return 0
+}
+
+function absoluteColumnCardRects(
+  cardRectsByCoordinate: Record<string, StudioCanvasScreenRect>,
+  layout: StudioColumnLayout,
+  componentCoordinates: string[],
+): Record<string, StudioCanvasScreenRect> {
+  const absoluteRects: Record<string, StudioCanvasScreenRect> = {}
+
+  for (const coordinate of componentCoordinates) {
+    const rect = cardRectsByCoordinate[coordinate]
+    if (!rect) continue
+    absoluteRects[coordinate] = {
+      bottom: rect.bottom + layout.y,
+      left: rect.left + layout.x,
+      right: rect.right + layout.x,
+      top: rect.top + layout.y,
+    }
+  }
+
+  return absoluteRects
+}
+
+function findPreviousColumnCardRect(
+  cardRectsByIndex: Record<number, Record<string, StudioCanvasScreenRect>>,
+  beforeColumnIndex: number,
+  coordinate: string,
+): StudioCanvasScreenRect | undefined {
+  for (let columnIndex = beforeColumnIndex - 1; columnIndex >= 0; columnIndex -= 1) {
+    const rect = cardRectsByIndex[columnIndex]?.[coordinate]
+    if (rect) return rect
+  }
+  return undefined
+}
+
+function rightmostCardEdgeInBand(
+  cardRectsByIndex: Record<number, Record<string, StudioCanvasScreenRect>>,
+  beforeColumnIndex: number,
+  bandTop: number,
+  bandBottom: number,
+): number | undefined {
+  let rightEdge: number | undefined
+
+  for (let columnIndex = 0; columnIndex < beforeColumnIndex; columnIndex += 1) {
+    for (const rect of Object.values(cardRectsByIndex[columnIndex] ?? {})) {
+      if (rect.bottom <= bandTop || rect.top >= bandBottom) continue
+      rightEdge = rightEdge === undefined ? rect.right : Math.max(rightEdge, rect.right)
+    }
+  }
+
+  return rightEdge
 }
 
 export function componentCardLayoutWidth(

@@ -8,6 +8,7 @@ import {
   applyStudioCanvasWheel,
   applyStudioCardSelectionAction,
   canvasViewportPresetForWorkspace,
+  computeStudioColumnLayout,
   defaultStudioCanvasTransform,
   findManifestComponent,
   mergeStudioPreviewFrameState,
@@ -18,6 +19,8 @@ import {
   studioPreviewCacheKey,
   type StudioPreviewCacheEntry,
   type StudioCanvasScreenRect,
+  type StudioColumnLayout,
+  type StudioColumnLayoutMeasurement,
   visibleWorkspaceComponents,
   type StudioCanvasTransform,
   type StudioPreviewFrameState,
@@ -55,7 +58,8 @@ type StudioWorkspaceViewScope = {
   onChangeSelection?: (selection: string) => void
   onChangeCase?: (component: StudioManifestComponent, caseName: string, options?: { keepDrilldown?: boolean }) => void
   setCanvasSurfaceElement: (element: HTMLDivElement | null) => void
-  setCardElement: (coordinate: string, element: HTMLDivElement | null) => void
+  setCardElement: (columnIndex: number, coordinate: string, element: HTMLDivElement | null) => void
+  setColumnElement: (columnIndex: number, element: HTMLElement | null) => void
   onSelectCard: (
     component: StudioManifestComponent,
     frameState: StudioPreviewFrameState | undefined,
@@ -67,11 +71,12 @@ type StudioWorkspaceViewScope = {
   selectedCardComponent?: StudioManifestComponent
   selectedCaseName?: string
   setCanvasViewportElement: (element: HTMLDivElement | null) => void
-  columnOffsetsByIndex: Record<number, number>
+  columnLayoutByIndex: Record<number, StudioColumnLayout>
 }
 
 const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
 const canvasWheelExemptSelector = "[data-gtsx-canvas-wheel-exempt]"
+const studioColumnGap = 40
 const studioCanvasRevealMargin = 24
 
 function shouldHandleCanvasWheelTarget(target: EventTarget | null): boolean {
@@ -88,8 +93,10 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   const panRef = React.useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null)
   const [canvasViewportElement, setCanvasViewportElement] = React.useState<HTMLDivElement | null>(null)
   const [canvasSurfaceElement, setCanvasSurfaceElement] = React.useState<HTMLDivElement | null>(null)
-  const [columnOffsetsByIndex, setColumnOffsetsByIndex] = React.useState<Record<number, number>>({})
+  const [columnLayoutByIndex, setColumnLayoutByIndex] = React.useState<Record<number, StudioColumnLayout>>({})
   const cardElements = React.useRef(new Map<string, HTMLDivElement>())
+  const columnCardElements = React.useRef(new Map<string, HTMLDivElement>())
+  const columnElements = React.useRef(new Map<number, HTMLElement>())
   const selectedCardComponent = selectedCardCoordinate ? findManifestComponent(props.manifest, selectedCardCoordinate) : undefined
   const selectedCaseName = selectedCardComponent ? selectedStudioCaseName(props.workspace, selectedCardComponent) : undefined
 
@@ -140,11 +147,22 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     return () => canvasViewportElement.removeEventListener("wheel", handleWheel)
   }, [canvasViewportElement, setCanvas])
 
-  const setCardElement = React.useCallback((coordinate: string, element: HTMLDivElement | null) => {
+  const setCardElement = React.useCallback((columnIndex: number, coordinate: string, element: HTMLDivElement | null) => {
+    const key = columnCardElementKey(columnIndex, coordinate)
     if (element) {
       cardElements.current.set(coordinate, element)
+      columnCardElements.current.set(key, element)
     } else {
-      cardElements.current.delete(coordinate)
+      if (cardElements.current.get(coordinate) === columnCardElements.current.get(key)) cardElements.current.delete(coordinate)
+      columnCardElements.current.delete(key)
+    }
+  }, [])
+
+  const setColumnElement = React.useCallback((columnIndex: number, element: HTMLElement | null) => {
+    if (element) {
+      columnElements.current.set(columnIndex, element)
+    } else {
+      columnElements.current.delete(columnIndex)
     }
   }, [])
 
@@ -180,26 +198,45 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   useStudioLayoutEffect(() => {
     if (!canvasSurfaceElement) return
 
-    const surfaceTop = canvasSurfaceElement.getBoundingClientRect().top
-    const nextOffsets: Record<number, number> = {}
+    const nextMeasurementsByIndex: Record<number, StudioColumnLayoutMeasurement> = {}
 
     props.workspace.columns.forEach((column, columnIndex) => {
-      if (columnIndex === 0 || !column.parentCoordinate) return
+      const columnElement = columnElements.current.get(columnIndex)
+      if (!columnElement) return
 
-      const parentElement = cardElements.current.get(column.parentCoordinate)
-      if (!parentElement) return
-
-      const parentTop = parentElement.getBoundingClientRect().top
-      nextOffsets[columnIndex] = Math.max(0, Math.round((parentTop - surfaceTop) / canvasRef.current.scale))
+      const columnRect = columnElement.getBoundingClientRect()
+      const cardRectsByCoordinate: Record<string, StudioCanvasScreenRect> = {}
+      for (const component of column.components) {
+        const cardElement = columnCardElements.current.get(columnCardElementKey(columnIndex, component.coordinate))
+        if (!cardElement) continue
+        cardRectsByCoordinate[component.coordinate] = domRectToLocalStudioCanvasScreenRect(
+          cardElement.getBoundingClientRect(),
+          columnRect,
+          canvasRef.current.scale,
+        )
+      }
+      nextMeasurementsByIndex[columnIndex] = {
+        cardRectsByCoordinate,
+        height: columnRect.height / canvasRef.current.scale,
+      }
     })
 
-    setColumnOffsetsByIndex((current) => (sameNumberRecord(current, nextOffsets) ? current : nextOffsets))
+    const nextLayoutByIndex = computeStudioColumnLayout({
+      columns: props.workspace.columns.map((column) => ({
+        componentCoordinates: column.components.map((component) => component.coordinate),
+        parentCoordinate: column.parentCoordinate,
+      })),
+      margin: studioColumnGap,
+      measurementsByIndex: nextMeasurementsByIndex,
+    })
+
+    setColumnLayoutByIndex((current) => (sameColumnLayoutRecord(current, nextLayoutByIndex) ? current : nextLayoutByIndex))
   }, [canvas.scale, canvasSurfaceElement, canvasViewportPreset, props.frameStates, props.previewCache, props.workspace.columns])
 
   return {
     canvas,
     canvasViewportPreset,
-    columnOffsetsByIndex,
+    columnLayoutByIndex,
     onCanvasPointerCancel(event) {
       if (panRef.current?.pointerId === event.pointerId) panRef.current = null
     },
@@ -267,6 +304,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     setCanvasSurfaceElement,
     setCanvasViewportElement,
     setCardElement,
+    setColumnElement,
   }
 }
 
@@ -337,9 +375,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
             data-gtsx-canvas-surface
             ref={scope.setCanvasSurfaceElement}
             style={{
-              alignItems: "flex-start",
-              display: "flex",
-              gap: 40,
+              display: "block",
               left: 0,
               padding: "0 80px 80px 0",
               position: "absolute",
@@ -351,12 +387,17 @@ export default function Studio(props: StudioWorkspaceViewProps) {
             {props.workspace.columns.map((column, columnIndex) => (
               <section
                 data-gtsx-column-index={columnIndex}
+                data-gtsx-column-layout-x={scope.columnLayoutByIndex[columnIndex]?.x ?? 0}
+                data-gtsx-column-layout-y={scope.columnLayoutByIndex[columnIndex]?.y ?? 0}
                 data-gtsx-column-parent-coordinate={column.parentCoordinate}
                 key={columnIndex}
+                ref={(element) => scope.setColumnElement(columnIndex, element)}
                 style={{
                   display: "grid",
                   gap: 10,
-                  marginTop: columnIndex === 0 ? 0 : (scope.columnOffsetsByIndex[columnIndex] ?? 0),
+                  left: scope.columnLayoutByIndex[columnIndex]?.x ?? 0,
+                  position: "absolute",
+                  top: scope.columnLayoutByIndex[columnIndex]?.y ?? 0,
                   width: "max-content",
                 }}
               >
@@ -372,7 +413,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                   return (
                     <div
                       key={component.coordinate}
-                      ref={(element) => scope.setCardElement(component.coordinate, element)}
+                      ref={(element) => scope.setCardElement(columnIndex, component.coordinate, element)}
                       style={{ display: "grid" }}
                     >
                       <ComponentCard
@@ -414,6 +455,19 @@ function domRectToStudioCanvasScreenRect(rect: DOMRect): StudioCanvasScreenRect 
     right: rect.right,
     top: rect.top,
   }
+}
+
+function domRectToLocalStudioCanvasScreenRect(rect: DOMRect, originRect: DOMRect, scale: number): StudioCanvasScreenRect {
+  return {
+    bottom: (rect.bottom - originRect.top) / scale,
+    left: (rect.left - originRect.left) / scale,
+    right: (rect.right - originRect.left) / scale,
+    top: (rect.top - originRect.top) / scale,
+  }
+}
+
+function columnCardElementKey(columnIndex: number, coordinate: string): string {
+  return `${columnIndex}\n${coordinate}`
 }
 
 Studio.cases = {
@@ -478,7 +532,7 @@ Studio.cases = {
     scope: {
       canvas: { x: 40, y: 40, scale: 1 },
       canvasViewportPreset: "tablet",
-      columnOffsetsByIndex: {},
+      columnLayoutByIndex: {},
       onCanvasPointerCancel() {},
       onCanvasPointerDown() {},
       onCanvasPointerMove() {},
@@ -489,14 +543,19 @@ Studio.cases = {
       setCanvasSurfaceElement() {},
       setCanvasViewportElement() {},
       setCardElement() {},
+      setColumnElement() {},
     },
   },
 } satisfies GCases<StudioWorkspaceViewProps, StudioWorkspaceViewScope>
 
-function sameNumberRecord(left: Record<number, number>, right: Record<number, number>): boolean {
+function sameColumnLayoutRecord(left: Record<number, StudioColumnLayout>, right: Record<number, StudioColumnLayout>): boolean {
   const leftKeys = Object.keys(left)
   const rightKeys = Object.keys(right)
   if (leftKeys.length !== rightKeys.length) return false
 
-  return leftKeys.every((key) => left[Number(key)] === right[Number(key)])
+  return leftKeys.every((key) => {
+    const leftLayout = left[Number(key)]
+    const rightLayout = right[Number(key)]
+    return leftLayout?.x === rightLayout?.x && leftLayout?.y === rightLayout?.y
+  })
 }
