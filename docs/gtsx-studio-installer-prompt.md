@@ -46,6 +46,8 @@ The Studio shell route should import `StudioShell` and `createStudioManifest` fr
 
 The Host may import CSS, setup files, providers, mocks, app shells, aliases, and other dependencies needed for rendering. Those imports do not expand the GTSX Scope. Studio entries come only from `.g.tsx` files in the selected TypeScript Program.
 
+For Next.js Hosts using `@gtsx/adapter-next-react`, do not hand-maintain a `previewEntries` object. The adapter generates a lazy module registry at `.gtsx/preview-entries.ts` and aliases `@gtsx/adapter-next-react/preview-entries` to it. The `/gtsx` preview route should import `loadGTSXPreviewComponent` from that module and load only the requested `entry`. If the selected GTSX project is not under `src`, pass `projectRoot` to `gtsxNextReact({ projectRoot: "components" })`.
+
 ## Manifest Provider Preference
 
 Prefer project index providers in this order:
