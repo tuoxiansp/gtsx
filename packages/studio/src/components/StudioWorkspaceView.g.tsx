@@ -469,7 +469,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                     <div
                       key={component.coordinate}
                       ref={(element) => scope.setCardElement(columnIndex, component.coordinate, element)}
-                      style={{ display: "grid" }}
+                      style={{ display: "grid", justifySelf: "start", width: "max-content" }}
                     >
                       <ComponentCard
                         component={component}
