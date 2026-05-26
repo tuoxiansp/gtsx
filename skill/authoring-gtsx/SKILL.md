@@ -1,19 +1,21 @@
 ---
 name: authoring-gtsx
-description: "Write .g.tsx components with static preview cases and verify them with the gtsx toolchain. "
+description: "Write .g.tsx components with best-practice UI models, static preview cases, and gtsx verification."
 ---
 
 # Authoring GTSX Components
 
 ## Core idea
 
-`.g.tsx` is TSX with a protocol. You write normal React components, but each exported component carries a static `Component.cases` declaring its visual states. The data flow is:
+`.g.tsx` is TSX with a protocol and a UI-model boundary. You write normal React components, but each exported component owns real visual JSX and carries a static `Component.cases` declaring its visual states. The data flow is:
 
 ```
 (props, context) → scope → view
 ```
 
 Cases inject at the `scope` seam — preview renders any state without executing production hooks. The hook boundary (`createGScopeHook` / `useGContext` only) exists to guarantee this injection point.
+
+This skill is for authoring `.g.tsx` well. If the user is converting existing TSX into GTSX, first use `refactor-to-gtsx`, then return here for authoring patterns.
 
 ## Quick start
 
@@ -42,8 +44,12 @@ Verify: `gtsx check src/Badge.g.tsx`
 
 ## Rules (non-negotiable)
 
+- `.g.tsx` must own real visual UI. Do not create a file that only wraps `<ExistingComponent {...props} />`.
+- Author visual surfaces, not route/provider/layout orchestration. If a component has no independent visual surface, descend or skip it.
 - Only call GTSX hooks (`useGContext`, hooks from `createGScopeHook`) inside `.g.tsx` component bodies. Never call `useState`, `useEffect`, or other React hooks directly.
 - Cases must be static object literals. No computed keys, no dynamic generation, no async loading.
+- Cases must name meaningful visual states. Use `default`, `disabled`, `open`, `empty`, `overflowing`, `loading`, `errorRetryable`, etc. as appropriate to the component kind.
+- Do not hide the old UI behind `scope: { node: <OldComponent /> }` unless a React node slot is the component's real public contract.
 - Do not put secrets, credentials, tokens, or customer data in cases.
 - Use `satisfies GCases<Props>` (pure), `satisfies GCases<Props, Scope>` (stateful), or `satisfies GCases<Props, Scope, typeof providers>` (contextual).
 
@@ -69,4 +75,4 @@ gtsx capture <file.g.tsx> --all     # screenshot all cases
 
 ## Advanced
 
-See [REFERENCE.md](./REFERENCE.md) for full patterns: stateful scope, providers, multiple exports, discriminated unions, composition, and case design guidelines.
+See [REFERENCE.md](./REFERENCE.md) for full patterns: stateful scope, providers, multiple exports, discriminated unions, composition, and case design guidelines. For existing TSX migrations, see `../../docs/gtsx-refactor-guide.md`.

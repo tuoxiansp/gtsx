@@ -89,5 +89,6 @@ preview URLs from the selected project root or the current host boundary.
 ## Docs
 
 - [GTSX Authoring Guide](docs/gtsx-authoring-guide.md)
+- [GTSX Refactor Guide](docs/gtsx-refactor-guide.md)
 - [Studio Installer Prompt](docs/gtsx-studio-installer-prompt.md)
 - [Open Issues](issues)

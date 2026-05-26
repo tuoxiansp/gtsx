@@ -1,16 +1,38 @@
 # GTSX Authoring Guide
 
-This guide shows how to write `.g.tsx` components that GTSX can statically check, preview, and capture.
+This is a best-practices guide, not just an API reference. Use it to decide what belongs in `.g.tsx`, how to model visual states, and how to avoid `.g.tsx` files that pass `gtsx check` but do not own real UI.
 
-Start here when adding cases to a React component. If the target project has not been wired for GTSX preview and Studio yet, first give the official [Studio Installer Prompt](./gtsx-studio-installer-prompt.md) to an AI coding agent inside that project.
+Start here when writing a new GTSX component or improving an existing `.g.tsx` file. If you are converting existing TSX into GTSX, start with the [GTSX Refactor Guide](./gtsx-refactor-guide.md), then use this guide while authoring the resulting `.g.tsx` component. If the target project has not been wired for GTSX preview and Studio yet, first give the official [Studio Installer Prompt](./gtsx-studio-installer-prompt.md) to an AI coding agent inside that project.
 
-This guide covers authoring only. It does not replace the agent-driven installation flow.
+This guide covers authoring best practices. It does not replace the agent-driven installation flow or the existing-TSX refactor workflow.
 
 ## What `gtsx check` Validates
 
 `gtsx check` validates the GTSX contract inside `.g.tsx` files: component exports, statically enumerable `Component.cases`, pure versus scope cases, provider entries, and the GTSX hook boundary.
 
 It does not replace TypeScript. Prop types, scope types, JSX types, imports, and ordinary TypeScript errors remain the TypeScript compiler's job. Run the target project's normal typecheck alongside `gtsx check`.
+
+## Core Authoring Principles
+
+`.g.tsx` is the UI model. It should own real visual JSX and enumerable visual states, not act as a preview wrapper around an existing TSX component.
+
+Good GTSX authoring follows these principles:
+
+- Author visual surfaces, not orchestration. Route glue, provider nesting, layout slots, permission gates, and data plumbing usually belong outside `.g.tsx` unless they render their own meaningful visual surface.
+- Model visual states through `props`, `scope`, and `providers`. A case should describe what the user can see.
+- Use `scope` for UI state and event callbacks, not for entire routers, query clients, stores, API clients, or hidden React nodes.
+- Prefer a real state model over `scope: { node: <Something /> }`. A React node is appropriate only when slots are the component's actual public contract.
+- Skip or descend when a component has no independent visual surface. Do not create a `.g.tsx` file just to mirror the project structure.
+
+Thin wrappers are not successful GTSX components:
+
+```tsx
+export default function BadgePreview(props: BadgeProps) {
+  return <Badge {...props} />
+}
+```
+
+If the real visual UI remains in `Badge.tsx`, this is only a wrapper, even if `gtsx check` passes.
 
 ## Quickstart: Pure UI
 
@@ -137,6 +159,8 @@ You do not need to split a `.ts` file out just because the component is stateful
 
 Use separate `.ts` files only for shared business code or data supply that is not part of the UI model. If a type only describes the UI props of one GTSX component, keep it in the `.g.tsx` file.
 
+When migrating existing components, keep component names and props contracts stable where practical, but update local imports to the `.g` module. For example, `import { Badge } from "./Badge"` can become `import { Badge } from "./Badge.g"`. A barrel may preserve a public API by re-exporting from the `.g` module.
+
 ## Hook Boundary
 
 GTSX controls component state through this path:
@@ -211,6 +235,14 @@ Case values are live JavaScript values. They can include functions and imported 
 
 Avoid computed case keys, dynamic case generation, and async case loading. GTSX expects cases to be statically enumerable.
 
+Name cases by visual state, not implementation detail. The right vocabulary depends on the component:
+
+- Basic UI: `default`, `disabled`, `danger`, `open`, `selected`, `longLabel`, `withIcon`.
+- Composite UI: `empty`, `populated`, `overflowing`, `permissionDenied`.
+- Page or feature UI: `loading`, `errorRetryable`, `ready`, `empty`, `unauthorized`.
+
+Use at least two meaningful cases unless the component truly has only one stable visual state.
+
 ## Providers
 
 Use a GTSX provider when cases need controlled context.
@@ -272,6 +304,8 @@ Common diagnostics:
 - `non-static-case-key`: use literal case keys.
 - `non-gtsx-hook`: move ordinary hook calls behind `createGScopeHook`, then call only the returned GTSX hook from the component.
 - `scope-hook-cases-unsupported`: put cases on the component export, not on the GScope hook.
+
+`gtsx check` is necessary but not sufficient. Also inspect whether the `.g.tsx` file owns the real visual UI, whether cases describe meaningful visual states, and whether stateful cases use concrete scope values instead of wrapper nodes.
 
 Repository examples:
 
