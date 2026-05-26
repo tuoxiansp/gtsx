@@ -8,11 +8,18 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./project-index": {
       "types": "./dist/project-index.d.ts",
-      "import": "./dist/project-index.js"
+      "import": "./dist/project-index.js",
+      "default": "./dist/project-index.js"
+    },
+    "./react-transform": {
+      "types": "./dist/react-transform.d.ts",
+      "import": "./dist/react-transform.js",
+      "default": "./dist/react-transform.js"
     }
   },
   "files": [

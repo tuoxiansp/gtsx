@@ -57,7 +57,7 @@ export type GBoundaryTreeNode = {
 
 export type GBoundaryCollector = {
   reset(): void
-  registerBoundary(coordinate: string, parentId: string | null): string
+  registerBoundary(coordinate: string, parentId: string | null, id?: string): string
   updateBoundaryRect(id: string, rect: GBoundaryRect): void
   updateBoundaryValues(id: string, values: Omit<GRuntimeValuesSnapshot, "boundaryId">): void
   getValues(id: string): GRuntimeValuesSnapshot | undefined
@@ -97,8 +97,15 @@ export function createGBoundaryCollector(): GBoundaryCollector {
       nodes = []
       valuesByBoundaryId = new Map()
     },
-    registerBoundary(coordinate, parentId) {
-      const id = `gtsx-boundary:${nodes.length}`
+    registerBoundary(coordinate, parentId, requestedId) {
+      const id = requestedId ?? `gtsx-boundary:${nodes.length}`
+      const existing = nodes.find((candidate) => candidate.id === id)
+      if (existing) {
+        existing.coordinate = coordinate
+        existing.parentId = parentId
+        return id
+      }
+
       nodes.push({ id, coordinate, parentId })
       return id
     },
@@ -272,9 +279,10 @@ export function defineGComponent<Props extends object>(
   Component: React.ComponentType<Props>,
 ): React.ComponentType<Props> & { cases?: AnyComponentCases<Props> } {
   const GComponentBoundary = ((props: Props) => {
+    const stableBoundaryId = `gtsx-boundary:${React.useId()}`
     const preview = React.useContext(PreviewRuntimeContext)
     const parentBoundaryId = React.useContext(BoundaryParentContext)
-    const boundaryId = preview?.boundaryCollector?.registerBoundary(coordinate, parentBoundaryId) ?? null
+    const boundaryId = preview?.boundaryCollector?.registerBoundary(coordinate, parentBoundaryId, stableBoundaryId) ?? null
     const activeCase = preview ? resolveComponentCase(coordinate, GComponentBoundary.cases, preview) : null
     if (preview && boundaryId) {
       preview.boundaryCollector?.updateBoundaryValues(boundaryId, {

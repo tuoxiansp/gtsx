@@ -1,0 +1,33 @@
+{
+  "name": "@gtsx/adapter-next-react",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./index.cjs",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js",
+      "default": "./dist/client.js"
+    },
+    "./loader": "./loader.cjs"
+  },
+  "files": [
+    "dist",
+    "index.cjs",
+    "loader.cjs"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "gtsx": "workspace:*",
+    "next": ">=13"
+  }
+}

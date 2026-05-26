@@ -19,8 +19,5 @@
   "peerDependencies": {
     "gtsx": "workspace:*",
     "vite": ">=5"
-  },
-  "dependencies": {
-    "typescript": "^6.0.3"
   }
 }

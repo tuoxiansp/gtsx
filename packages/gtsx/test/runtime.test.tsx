@@ -340,13 +340,19 @@ describe("GTSX runtime", () => {
       </GPreviewProvider>,
     )
 
+    const tree = collector.getTree()
+    const parentId = tree[0]?.id
+    const childId = tree[0]?.children[0]?.id
+
+    expect(parentId).toMatch(/^gtsx-boundary:/)
+    expect(childId).toMatch(/^gtsx-boundary:/)
     expect(collector.getTree()).toEqual([
       {
-        id: "gtsx-boundary:0",
+        id: parentId,
         coordinate: "src/Parent.g.tsx#default",
         children: [
           {
-            id: "gtsx-boundary:1",
+            id: childId,
             coordinate: "src/Child.g.tsx#default",
             children: [],
           },
@@ -454,8 +460,10 @@ describe("GTSX runtime", () => {
       </GPreviewProvider>,
     )
 
-    expect(collector.getValues("gtsx-boundary:0")).toEqual({
-      boundaryId: "gtsx-boundary:0",
+    const boundaryId = collector.getTree()[0]?.id
+    expect(boundaryId).toMatch(/^gtsx-boundary:/)
+    expect(collector.getValues(boundaryId!)).toEqual({
+      boundaryId,
       props: {
         type: "object",
         constructorName: "Object",
