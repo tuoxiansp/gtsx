@@ -203,7 +203,7 @@ describe("GTSX Studio shell", () => {
     ).toEqual({ x: 16, y: 52, scale: 1 })
   })
 
-  it("uses only the rendered component bounds as the component selection target", () => {
+  it("uses normalized rendered component bounds as the component selection target", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
     const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
     const html = renderToStaticMarkup(
@@ -230,7 +230,7 @@ describe("GTSX Studio shell", () => {
     expect(cardSelectTargets(html)).toEqual(["src/UserCard.g.tsx#default"])
     expect(cardHtml(html, "src/UserCard.g.tsx#default")).not.toContain('data-gtsx-card-select-target="card"')
     expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("left:10px")
-    expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("top:20px")
+    expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("top:16px")
     expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("width:100px")
     expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("height:32px")
     expect(cardHtml(html, "src/UserCard.g.tsx#default")).not.toContain("<button")
@@ -597,7 +597,7 @@ describe("GTSX Studio shell", () => {
     ])
   })
 
-  it("uses component bounds height instead of viewport height for canvas card layout", () => {
+  it("uses component bounds height instead of viewport position for canvas card layout", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
     const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
 
@@ -622,10 +622,10 @@ describe("GTSX Studio shell", () => {
       />,
     )
 
-    expect(previewFrameHtml(html, "src/UserCard.g.tsx#default:loading")).toContain("height:100px")
+    expect(previewFrameHtml(html, "src/UserCard.g.tsx#default:loading")).toContain("height:88px")
   })
 
-  it("uses component bounds instead of desktop viewport width for card column layout", () => {
+  it("uses component bounds width instead of viewport position for card column layout", () => {
     expect(
       componentCardLayoutWidth(
         { width: 1280 },
@@ -639,7 +639,22 @@ describe("GTSX Studio shell", () => {
         ],
         "src/UserCard.g.tsx#default",
       ),
-    ).toBe(520)
+    ).toBe(536)
+
+    expect(
+      componentCardLayoutWidth(
+        { width: 1280 },
+        [
+          {
+            id: "root",
+            coordinate: "src/UserCard.g.tsx#default",
+            rect: { x: 420, y: 0, width: 360, height: 240 },
+            children: [],
+          },
+        ],
+        "src/UserCard.g.tsx#default",
+      ),
+    ).toBe(392)
 
     expect(componentCardLayoutWidth({ width: 1280 }, undefined, "src/UserCard.g.tsx#default")).toBe(1308)
   })

@@ -66,7 +66,19 @@ describe("GTSX project index", () => {
       tsconfigPath: join(tsProjectScopeRoot, "tsconfig.json"),
     })
 
-    expect(index.files.map((file) => file.path)).toEqual(["src/Included.g.tsx"])
+    expect(index.files.map((file) => file.path)).toEqual(["src/Child.g.tsx", "src/Included.g.tsx"])
+  })
+
+  it("records static GTSX component dependencies from TypeScript path aliases", () => {
+    const index = buildGTSXProjectIndex({
+      cwd: tsProjectScopeRoot,
+      tsconfigPath: join(tsProjectScopeRoot, "tsconfig.json"),
+    })
+    const included = index.files
+      .flatMap((file) => file.components)
+      .find((component) => component.coordinate === "src/Included.g.tsx#default")
+
+    expect(included?.dependencies).toEqual(["src/Child.g.tsx#default"])
   })
 
   it("records static GTSX component dependencies from JSX imports", () => {

@@ -1,11 +1,13 @@
 import type { GCases } from "gtsx"
 
+import { Child } from "@fixture/Child.g"
+
 type Props = {
   label: string
 }
 
 export default function Included(props: Props) {
-  return <span>{props.label}</span>
+  return <Child label={props.label} />
 }
 
 Included.cases = {

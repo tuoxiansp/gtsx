@@ -140,13 +140,13 @@ describe("GTSX Studio manifest", () => {
       tsconfigPath: join(tsProjectScopeRoot, "tsconfig.json"),
     })
 
-    expect(manifest.files.map((file) => file.path)).toEqual(["src/Included.g.tsx"])
+    expect(manifest.files.map((file) => file.path)).toEqual(["src/Child.g.tsx", "src/Included.g.tsx"])
   })
 
   it("builds files from the nearest TypeScript project scope by default", () => {
     const manifest = buildStudioManifest({ cwd: tsProjectScopeRoot })
 
-    expect(manifest.files.map((file) => file.path)).toEqual(["src/Included.g.tsx"])
+    expect(manifest.files.map((file) => file.path)).toEqual(["src/Child.g.tsx", "src/Included.g.tsx"])
   })
 
   it("lists multiple component exports from one file", () => {

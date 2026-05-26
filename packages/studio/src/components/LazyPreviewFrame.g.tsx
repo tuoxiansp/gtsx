@@ -6,6 +6,13 @@ import { createGScopeHook, type GBoundaryRect, type GCases } from "gtsx"
 import BufferedPreviewIframe from "./BufferedPreviewIframe.g"
 import ComponentBoundsHitTarget from "./ComponentBoundsHitTarget.g"
 import SelectedBoundaryOutline from "./SelectedBoundaryOutline.g"
+import {
+  normalizeBoundaryRect,
+  previewFrameLayoutHeight,
+  previewFrameLayoutWidth,
+  previewFrameViewportOffset,
+  previewFrameVisualBleed,
+} from "../preview-frame-layout"
 
 type LazyPreviewFrameProps = {
   "data-gtsx-preview-session-id": string
@@ -69,6 +76,11 @@ const useLazyPreviewFrameScope = createGScopeHook(useRealLazyPreviewFrameScope)
 export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
   const scope = useLazyPreviewFrameScope()
   const layoutHeight = previewFrameLayoutHeight(props.size, props.boundaryRect)
+  const layoutWidth = previewFrameLayoutWidth(props.size, props.boundaryRect)
+  const visualBleed = previewFrameVisualBleed(props.size, props.boundaryRect)
+  const viewportOffset = previewFrameViewportOffset(props.boundaryRect, visualBleed)
+  const overlayRect = normalizeBoundaryRect(props.boundaryRect, visualBleed)
+  const selectedOverlayRect = normalizeBoundaryRect(props.selectedBoundaryRect, visualBleed)
 
   return (
     <div
@@ -80,22 +92,46 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
         height: layoutHeight,
         overflow: "visible",
         position: "relative",
-        width: props.size.width,
+        width: layoutWidth,
       }}
     >
       {scope.shouldLoad ? (
-        <BufferedPreviewIframe
-          onPreviewFrameMount={props.onPreviewFrameMount}
-          size={props.size}
-          slot={{
-            previewUrl: props.previewUrl,
-            sessionId: props.sessionId,
-            title: props.title,
+        <div
+          data-gtsx-preview-clip="true"
+          style={{
+            height: layoutHeight,
+            left: 0,
+            overflow: "hidden",
+            pointerEvents: "none",
+            position: "absolute",
+            top: 0,
+            width: layoutWidth,
+            zIndex: 1,
           }}
-        />
+        >
+          <div
+            style={{
+              height: props.size.height,
+              left: -viewportOffset.x,
+              position: "absolute",
+              top: -viewportOffset.y,
+              width: props.size.width,
+            }}
+          >
+            <BufferedPreviewIframe
+              onPreviewFrameMount={props.onPreviewFrameMount}
+              size={props.size}
+              slot={{
+                previewUrl: props.previewUrl,
+                sessionId: props.sessionId,
+                title: props.title,
+              }}
+            />
+          </div>
+        </div>
       ) : null}
-      {props.boundaryRect ? <ComponentBoundsHitTarget coordinate={props.coordinate} onSelect={props.onSelect} rect={props.boundaryRect} /> : null}
-      {props.selectedBoundaryRect ? <SelectedBoundaryOutline rect={props.selectedBoundaryRect} /> : null}
+      {overlayRect ? <ComponentBoundsHitTarget coordinate={props.coordinate} onSelect={props.onSelect} rect={overlayRect} /> : null}
+      {selectedOverlayRect ? <SelectedBoundaryOutline rect={selectedOverlayRect} /> : null}
     </div>
   )
 }
@@ -119,11 +155,6 @@ LazyPreviewFrame.cases = {
     },
   },
 } satisfies GCases<LazyPreviewFrameProps, LazyPreviewFrameScope>
-
-function previewFrameLayoutHeight(displaySize: { height: number }, rect: GBoundaryRect | undefined): number {
-  if (!rect) return displaySize.height
-  return Math.max(1, Math.ceil(Math.max(0, rect.y) + rect.height))
-}
 
 function isElementNearViewport(element: HTMLElement, margin: number): boolean {
   const rect = element.getBoundingClientRect()

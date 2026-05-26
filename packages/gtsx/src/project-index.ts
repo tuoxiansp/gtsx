@@ -52,17 +52,28 @@ type ComponentImportBindings = {
   namespaces: Map<string, Map<string, string>>
 }
 
+type ProjectModuleResolution = {
+  compilerOptions: ts.CompilerOptions
+  cwd: string
+  host: ts.ModuleResolutionHost
+}
+
 const IGNORED_DISCOVERY_DIRS = new Set(["node_modules", "dist", ".vite", ".next", ".git"])
 
 export function buildGTSXProjectIndex(options: BuildGTSXProjectIndexOptions): GTSXProjectIndex {
   const projectRoot = options.projectRoot ?? "."
-  const fileContexts = discoverGTSXFiles(options.cwd, projectRoot, options.tsconfigPath).map((filePath) =>
+  const selectedTSConfigPath = options.tsconfigPath ?? findNearestTSConfig(options.cwd)
+  const moduleResolution = createProjectModuleResolution(options.cwd, selectedTSConfigPath)
+  const fileContexts = discoverGTSXFiles(options.cwd, projectRoot, selectedTSConfigPath).map((filePath) =>
     buildProjectIndexFileContext(options.cwd, filePath),
   )
+  const fileContextsByFilePath = new Map(fileContexts.map((context) => [context.filePath, context] as const))
   const exportedComponentsByFilePath = new Map(
     fileContexts.map((context) => [context.filePath, context.exportedComponents] as const),
   )
-  const files = fileContexts.map((context) => buildProjectIndexFile(options.cwd, context, exportedComponentsByFilePath))
+  const files = fileContexts.map((context) =>
+    buildProjectIndexFile(options.cwd, context, exportedComponentsByFilePath, fileContextsByFilePath, moduleResolution),
+  )
 
   return {
     version: 1,
@@ -84,13 +95,15 @@ function buildProjectIndexFile(
   cwd: string,
   context: ProjectIndexFileContext,
   exportedComponentsByFilePath: Map<string, ExportedComponent[]>,
+  fileContextsByFilePath: Map<string, ProjectIndexFileContext>,
+  moduleResolution: ProjectModuleResolution,
 ): GTSXProjectIndexFile {
   const components = context.exportedComponents.map((component) =>
     buildProjectIndexComponent(
       cwd,
       context.filePath,
       component,
-      dependencyCoordinatesForComponent(context, component, exportedComponentsByFilePath),
+      dependencyCoordinatesForComponent(context, component, exportedComponentsByFilePath, fileContextsByFilePath, moduleResolution),
     ),
   )
 
@@ -156,6 +169,17 @@ function readGTSXSourceFile(filePath: string): ts.SourceFile {
   return ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
 }
 
+function createProjectModuleResolution(cwd: string, tsconfigPath: string | undefined): ProjectModuleResolution {
+  if (!tsconfigPath) return { compilerOptions: {}, cwd, host: ts.sys }
+
+  const configPath = resolve(cwd, tsconfigPath)
+  const configFile = ts.readConfigFile(configPath, ts.sys.readFile)
+  if (configFile.error) return { compilerOptions: {}, cwd, host: ts.sys }
+
+  const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, dirname(configPath))
+  return { compilerOptions: parsed.options, cwd, host: ts.sys }
+}
+
 function readExportedComponents(sourceFile: ts.SourceFile): ExportedComponent[] {
   const components: ExportedComponent[] = []
 
@@ -190,12 +214,20 @@ function dependencyCoordinatesForComponent(
   context: ProjectIndexFileContext,
   component: ExportedComponent,
   exportedComponentsByFilePath: Map<string, ExportedComponent[]>,
+  fileContextsByFilePath: Map<string, ProjectIndexFileContext>,
+  moduleResolution: ProjectModuleResolution,
 ): string[] {
   const declaration = findComponentDeclaration(context.sourceFile, component.localName)
   if (!declaration) return []
 
   const localBindings = localComponentBindings(context.filePath, context.exportedComponents)
-  const importBindings = componentImportBindingsForFile(context.filePath, context.sourceFile, exportedComponentsByFilePath)
+  const importBindings = componentImportBindingsForFile(
+    context.filePath,
+    context.sourceFile,
+    exportedComponentsByFilePath,
+    fileContextsByFilePath,
+    moduleResolution,
+  )
   const ownCoordinate = `${context.filePath}#${component.exportName}`
   const dependencies: string[] = []
   const seen = new Set<string>()
@@ -243,6 +275,8 @@ function componentImportBindingsForFile(
   filePath: string,
   sourceFile: ts.SourceFile,
   exportedComponentsByFilePath: Map<string, ExportedComponent[]>,
+  fileContextsByFilePath: Map<string, ProjectIndexFileContext>,
+  moduleResolution: ProjectModuleResolution,
 ): ComponentImportBindings {
   const bindings: ComponentImportBindings = {
     names: new Map(),
@@ -251,12 +285,22 @@ function componentImportBindingsForFile(
 
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement) || !statement.importClause) continue
-    if (!ts.isStringLiteral(statement.moduleSpecifier) || !statement.moduleSpecifier.text.startsWith(".")) continue
+    if (!ts.isStringLiteral(statement.moduleSpecifier)) continue
 
-    const targetFilePath = resolveImportedGTSXFilePath(filePath, statement.moduleSpecifier.text, exportedComponentsByFilePath)
+    const targetFilePath = resolveImportedGTSXFilePath(
+      filePath,
+      statement.moduleSpecifier.text,
+      exportedComponentsByFilePath,
+      moduleResolution,
+    )
     if (!targetFilePath) continue
 
-    const exportsByName = componentExportsByName(targetFilePath, exportedComponentsByFilePath.get(targetFilePath) ?? [])
+    const targetContext = fileContextsByFilePath.get(targetFilePath)
+    const exportsByName = componentImportCoordinatesByExportName(
+      targetFilePath,
+      targetContext?.sourceFile,
+      exportedComponentsByFilePath.get(targetFilePath) ?? [],
+    )
     const importClause = statement.importClause
 
     if (importClause.name) {
@@ -279,20 +323,59 @@ function componentImportBindingsForFile(
   return bindings
 }
 
-function componentExportsByName(filePath: string, exportedComponents: ExportedComponent[]): Map<string, string> {
-  return new Map(exportedComponents.map((component) => [component.exportName, `${filePath}#${component.exportName}`] as const))
+function componentImportCoordinatesByExportName(
+  filePath: string,
+  sourceFile: ts.SourceFile | undefined,
+  exportedComponents: ExportedComponent[],
+): Map<string, string> {
+  const coordinatesByExportName = new Map(
+    exportedComponents.map((component) => [component.exportName, `${filePath}#${component.exportName}`] as const),
+  )
+  if (!sourceFile) return coordinatesByExportName
+
+  const coordinatesByLocalName = new Map(
+    exportedComponents.map((component) => [component.localName, `${filePath}#${component.exportName}`] as const),
+  )
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isExportDeclaration(statement) || !statement.exportClause || !ts.isNamedExports(statement.exportClause)) continue
+    if (statement.moduleSpecifier) continue
+
+    for (const element of statement.exportClause.elements) {
+      const localName = element.propertyName?.text ?? element.name.text
+      const coordinate = coordinatesByLocalName.get(localName)
+      if (coordinate) coordinatesByExportName.set(element.name.text, coordinate)
+    }
+  }
+
+  return coordinatesByExportName
 }
 
 function resolveImportedGTSXFilePath(
   filePath: string,
   moduleSpecifier: string,
   exportedComponentsByFilePath: Map<string, ExportedComponent[]>,
+  moduleResolution: ProjectModuleResolution,
 ): string | undefined {
+  const containingFilePath = resolve(moduleResolution.cwd, filePath)
+  const resolvedModule = ts.resolveModuleName(
+    moduleSpecifier,
+    containingFilePath,
+    moduleResolution.compilerOptions,
+    moduleResolution.host,
+  ).resolvedModule
+
+  if (resolvedModule) {
+    const resolvedProjectPath = normalizeProjectPath(relative(moduleResolution.cwd, resolvedModule.resolvedFileName))
+    if (exportedComponentsByFilePath.has(resolvedProjectPath)) return resolvedProjectPath
+  }
+
+  if (!moduleSpecifier.startsWith(".")) return undefined
+
   const basePath = normalizeProjectPath(join(dirname(filePath), moduleSpecifier))
   for (const candidate of importedGTSXFilePathCandidates(basePath)) {
     if (exportedComponentsByFilePath.has(candidate)) return candidate
   }
-
   return undefined
 }
 

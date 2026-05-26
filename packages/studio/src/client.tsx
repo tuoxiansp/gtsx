@@ -8,6 +8,7 @@ import {
   type GPreviewRequestValuesMessage,
 } from "gtsx"
 import type { StudioManifest, StudioManifestComponent } from "./manifest"
+import { previewFrameLayoutWidth } from "./preview-frame-layout"
 
 export type StudioPreviewFrameState = {
   expectedSessionId: string
@@ -656,7 +657,7 @@ export function componentCardLayoutWidth(
   coordinate: string,
 ): number {
   const rect = tree ? findBoundaryNode(tree, coordinate)?.rect : undefined
-  if (rect) return Math.max(280, Math.ceil(boundaryRightWithinPreviewViewport(rect, displaySize.width)))
+  if (rect) return Math.max(280, Math.ceil(Number(previewFrameLayoutWidth(displaySize, rect))))
   return typeof displaySize.width === "number" ? displaySize.width + 28 : 520
 }
 
@@ -680,12 +681,6 @@ export function clipPreviewBoundaryRectToViewport(
     width: right - left,
     height: bottom - top,
   }
-}
-
-function boundaryRightWithinPreviewViewport(rect: GBoundaryRect, viewportWidth: number | string): number {
-  const right = Math.max(0, rect.x + rect.width)
-  if (typeof viewportWidth !== "number") return right
-  return Math.min(viewportWidth, right)
 }
 
 export function canvasViewportPresetForWorkspace(workspace: StudioWorkspaceState): StudioViewportPreset {

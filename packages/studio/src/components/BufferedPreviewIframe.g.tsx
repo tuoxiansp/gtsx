@@ -24,8 +24,10 @@ export default function BufferedPreviewIframe(props: BufferedPreviewIframeProps)
         background: "transparent",
         border: 0,
         height: props.size.height,
+        left: 0,
         pointerEvents: "none",
         position: "absolute",
+        top: 0,
         width: props.size.width,
         zIndex: 1,
       }}
