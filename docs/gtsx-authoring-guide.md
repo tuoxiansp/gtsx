@@ -241,6 +241,8 @@ Name cases by visual state, not implementation detail. The right vocabulary depe
 - Composite UI: `empty`, `populated`, `overflowing`, `permissionDenied`.
 - Page or feature UI: `loading`, `errorRetryable`, `ready`, `empty`, `unauthorized`.
 
+Put the happy-path case first when the component has one. It should be the normal state a reviewer wants to see before edge states like loading, empty, error, overflow, or disabled.
+
 Use at least two meaningful cases unless the component truly has only one stable visual state.
 
 ## Providers

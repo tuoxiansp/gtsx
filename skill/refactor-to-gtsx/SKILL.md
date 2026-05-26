@@ -47,6 +47,7 @@ Before finishing, confirm:
 
 - The `.g.tsx` file owns the migrated visual JSX and visual branches.
 - Cases describe meaningful visual states.
+- The happy-path case appears first when the component has one.
 - Stateful cases use concrete scope data and no-op callbacks.
 - The old TSX no longer owns the migrated visual branches.
 - `gtsx check` passes.

@@ -49,6 +49,7 @@ Verify: `gtsx check src/Badge.g.tsx`
 - Only call GTSX hooks (`useGContext`, hooks from `createGScopeHook`) inside `.g.tsx` component bodies. Never call `useState`, `useEffect`, or other React hooks directly.
 - Cases must be static object literals. No computed keys, no dynamic generation, no async loading.
 - Cases must name meaningful visual states. Use `default`, `disabled`, `open`, `empty`, `overflowing`, `loading`, `errorRetryable`, etc. as appropriate to the component kind.
+- Put the happy-path case first when the component has one, then add edge and variant states.
 - Do not hide the old UI behind `scope: { node: <OldComponent /> }` unless a React node slot is the component's real public contract.
 - Do not put secrets, credentials, tokens, or customer data in cases.
 - Use `satisfies GCases<Props>` (pure), `satisfies GCases<Props, Scope>` (stateful), or `satisfies GCases<Props, Scope, typeof providers>` (contextual).
