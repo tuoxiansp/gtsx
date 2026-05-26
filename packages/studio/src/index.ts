@@ -29,6 +29,7 @@ export {
   previewSessionId,
   replaceStudioCanvasUrlState,
   resolveStudioSelection,
+  revealStudioCanvasRect,
   rootStudioManifestComponents,
   selectedStudioCaseName,
   selectStudioComponent,
@@ -39,6 +40,7 @@ export {
 } from "./client"
 export type {
   StudioCanvasTransform,
+  StudioCanvasScreenRect,
   StudioCanvasWheelInput,
   StudioCardSelectionAction,
   StudioCardSelectionSource,

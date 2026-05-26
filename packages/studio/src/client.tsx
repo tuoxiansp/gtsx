@@ -45,6 +45,13 @@ export type StudioCanvasTransform = {
   scale: number
 }
 
+export type StudioCanvasScreenRect = {
+  bottom: number
+  left: number
+  right: number
+  top: number
+}
+
 export type StudioCanvasWheelInput = {
   clientX: number
   clientY: number
@@ -635,6 +642,28 @@ export function applyStudioCanvasWheel(current: StudioCanvasTransform, input: St
   }
 }
 
+export function revealStudioCanvasRect(
+  current: StudioCanvasTransform,
+  input: {
+    blockerRects?: StudioCanvasScreenRect[]
+    margin?: number
+    rect: StudioCanvasScreenRect
+    viewportRect: StudioCanvasScreenRect
+  },
+): StudioCanvasTransform {
+  const margin = input.margin ?? 24
+  const visibleRect = visibleStudioCanvasRect(input.viewportRect, input.blockerRects ?? [], margin)
+  const deltaX = revealIntervalDelta(input.rect.left, input.rect.right, visibleRect.left, visibleRect.right)
+  const deltaY = revealIntervalDelta(input.rect.top, input.rect.bottom, visibleRect.top, visibleRect.bottom)
+
+  if (deltaX === 0 && deltaY === 0) return current
+  return {
+    ...current,
+    x: current.x + deltaX,
+    y: current.y + deltaY,
+  }
+}
+
 export function applyStudioCardSelectionAction(
   current: string | undefined,
   action: StudioCardSelectionAction,
@@ -649,6 +678,54 @@ function wheelDeltaModeMultiplier(deltaMode: number): number {
   if (deltaMode === 1) return 0.05
   if (deltaMode === 2) return 1
   return 0.002
+}
+
+function visibleStudioCanvasRect(
+  viewportRect: StudioCanvasScreenRect,
+  blockerRects: StudioCanvasScreenRect[],
+  margin: number,
+): StudioCanvasScreenRect {
+  let left = viewportRect.left + margin
+  let right = viewportRect.right - margin
+  let top = viewportRect.top + margin
+  let bottom = viewportRect.bottom - margin
+
+  for (const blockerRect of blockerRects) {
+    const overlapsVertically = blockerRect.bottom > top && blockerRect.top < bottom
+    const overlapsHorizontally = blockerRect.right > left && blockerRect.left < right
+    if (!overlapsVertically || !overlapsHorizontally) continue
+
+    const touchesRightEdge = blockerRect.right >= viewportRect.right - 1
+    const touchesLeftEdge = blockerRect.left <= viewportRect.left + 1
+    const touchesBottomEdge = blockerRect.bottom >= viewportRect.bottom - 1
+    const touchesTopEdge = blockerRect.top <= viewportRect.top + 1
+
+    if (touchesRightEdge || touchesLeftEdge) {
+      if (touchesRightEdge) right = Math.min(right, blockerRect.left - margin)
+      if (touchesLeftEdge) left = Math.max(left, blockerRect.right + margin)
+      continue
+    }
+
+    if (touchesBottomEdge) bottom = Math.min(bottom, blockerRect.top - margin)
+    if (touchesTopEdge) top = Math.max(top, blockerRect.bottom + margin)
+  }
+
+  return { bottom: Math.max(top, bottom), left, right: Math.max(left, right), top }
+}
+
+function revealIntervalDelta(rectStart: number, rectEnd: number, visibleStart: number, visibleEnd: number): number {
+  const rectSize = rectEnd - rectStart
+  const visibleSize = visibleEnd - visibleStart
+
+  if (rectSize > visibleSize) {
+    if (rectEnd < visibleStart) return visibleStart - rectStart
+    if (rectStart > visibleEnd) return visibleEnd - rectEnd
+    return 0
+  }
+
+  if (rectStart < visibleStart) return visibleStart - rectStart
+  if (rectEnd > visibleEnd) return visibleEnd - rectEnd
+  return 0
 }
 
 export function componentCardLayoutWidth(

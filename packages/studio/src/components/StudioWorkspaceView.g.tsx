@@ -12,10 +12,12 @@ import {
   findManifestComponent,
   mergeStudioPreviewFrameState,
   previewSessionId,
+  revealStudioCanvasRect,
   resolveStudioSelection,
   selectedStudioCaseName,
   studioPreviewCacheKey,
   type StudioPreviewCacheEntry,
+  type StudioCanvasScreenRect,
   visibleWorkspaceComponents,
   type StudioCanvasTransform,
   type StudioPreviewFrameState,
@@ -51,6 +53,7 @@ type StudioWorkspaceViewScope = {
   onCanvasPointerMove: React.PointerEventHandler<HTMLDivElement>
   onCanvasPointerUp: React.PointerEventHandler<HTMLDivElement>
   onChangeSelection?: (selection: string) => void
+  onChangeCase?: (component: StudioManifestComponent, caseName: string, options?: { keepDrilldown?: boolean }) => void
   setCanvasSurfaceElement: (element: HTMLDivElement | null) => void
   setCardElement: (coordinate: string, element: HTMLDivElement | null) => void
   onSelectCard: (
@@ -69,6 +72,7 @@ type StudioWorkspaceViewScope = {
 
 const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
 const canvasWheelExemptSelector = "[data-gtsx-canvas-wheel-exempt]"
+const studioCanvasRevealMargin = 24
 
 function shouldHandleCanvasWheelTarget(target: EventTarget | null): boolean {
   return !(typeof Element !== "undefined" && target instanceof Element && target.closest(canvasWheelExemptSelector))
@@ -144,6 +148,35 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     }
   }, [])
 
+  const revealCardOnCanvas = React.useCallback(
+    (coordinate: string) => {
+      if (!canvasViewportElement) return
+      const cardElement = cardElements.current.get(coordinate)
+      if (!cardElement) return
+
+      const caseSidebarElement = canvasViewportElement.querySelector("[data-gtsx-case-sidebar]")
+      const blockerRects: StudioCanvasScreenRect[] =
+        caseSidebarElement instanceof Element ? [domRectToStudioCanvasScreenRect(caseSidebarElement.getBoundingClientRect())] : []
+      const nextCanvas = revealStudioCanvasRect(canvasRef.current, {
+        blockerRects,
+        margin: studioCanvasRevealMargin,
+        rect: domRectToStudioCanvasScreenRect(cardElement.getBoundingClientRect()),
+        viewportRect: domRectToStudioCanvasScreenRect(canvasViewportElement.getBoundingClientRect()),
+      })
+      if (nextCanvas !== canvasRef.current) setCanvas(() => nextCanvas)
+    },
+    [canvasViewportElement, setCanvas],
+  )
+
+  const scheduleRevealCardOnCanvas = React.useCallback(
+    (coordinate: string) => {
+      revealCardOnCanvas(coordinate)
+      if (typeof window === "undefined") return
+      window.requestAnimationFrame(() => revealCardOnCanvas(coordinate))
+    },
+    [revealCardOnCanvas],
+  )
+
   useStudioLayoutEffect(() => {
     if (!canvasSurfaceElement) return
 
@@ -202,6 +235,12 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
       ? (nextSelection) => {
           setSelectedCardCoordinate((current) => applyStudioCardSelectionAction(current, { type: "clear" }))
           props.onChangeSelection?.(nextSelection)
+        }
+      : undefined,
+    onChangeCase: props.onChangeCase
+      ? (component, caseName, options) => {
+          props.onChangeCase?.(component, caseName, options)
+          scheduleRevealCardOnCanvas(component.coordinate)
         }
       : undefined,
     onSelectCard(component, frameState, source) {
@@ -356,7 +395,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
             <SelectedComponentCasesSidebar
               component={scope.selectedCardComponent}
               manifest={props.manifest}
-              onChangeCase={props.onChangeCase}
+              onChangeCase={scope.onChangeCase}
               previewCache={props.previewCache}
               selectedCaseName={scope.selectedCaseName}
               viewportPreset={scope.canvasViewportPreset}
@@ -366,6 +405,15 @@ export default function Studio(props: StudioWorkspaceViewProps) {
       </section>
     </main>
   )
+}
+
+function domRectToStudioCanvasScreenRect(rect: DOMRect): StudioCanvasScreenRect {
+  return {
+    bottom: rect.bottom,
+    left: rect.left,
+    right: rect.right,
+    top: rect.top,
+  }
 }
 
 Studio.cases = {

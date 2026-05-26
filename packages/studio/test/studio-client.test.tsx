@@ -24,6 +24,7 @@ import {
   mergeStudioPreviewFrameState,
   previewSessionId,
   replaceStudioCanvasUrlState,
+  revealStudioCanvasRect,
   rootStudioManifestComponents,
   selectedStudioCaseName,
   selectStudioRuntimeInstance,
@@ -201,6 +202,41 @@ describe("GTSX Studio shell", () => {
         },
       ),
     ).toEqual({ x: 16, y: 52, scale: 1 })
+  })
+
+  it("reveals a canvas card outside the unobstructed viewport", () => {
+    expect(
+      revealStudioCanvasRect(
+        { x: 40, y: 40, scale: 1 },
+        {
+          blockerRects: [{ left: 1056, right: 1280, top: 0, bottom: 720 }],
+          rect: { left: 980, right: 1220, top: 80, bottom: 220 },
+          viewportRect: { left: 0, right: 1280, top: 0, bottom: 720 },
+        },
+      ),
+    ).toEqual({ x: -148, y: 40, scale: 1 })
+
+    expect(
+      revealStudioCanvasRect(
+        { x: 40, y: 40, scale: 1 },
+        {
+          rect: { left: -260, right: -20, top: 760, bottom: 920 },
+          viewportRect: { left: 0, right: 1280, top: 0, bottom: 720 },
+        },
+      ),
+    ).toEqual({ x: 324, y: -184, scale: 1 })
+  })
+
+  it("leaves an oversized canvas card alone while it intersects the viewport", () => {
+    expect(
+      revealStudioCanvasRect(
+        { x: 40, y: 40, scale: 1 },
+        {
+          rect: { left: 80, right: 1180, top: -120, bottom: 900 },
+          viewportRect: { left: 0, right: 1280, top: 0, bottom: 720 },
+        },
+      ),
+    ).toEqual({ x: 40, y: 40, scale: 1 })
   })
 
   it("uses normalized rendered component bounds as the component selection target", () => {
@@ -466,6 +502,9 @@ describe("GTSX Studio shell", () => {
     expect(casePreviewFrameHtml(html, "ready")).toContain("height:64px")
     expect(casePreviewCardHtml(html, "ready")).toContain("width:192px")
     expect(html).toContain('data-gtsx-canvas-wheel-exempt="true"')
+    expect(html).toContain("height:100%")
+    expect(html).toContain("top:0")
+    expect(html).not.toContain("max-height:calc(100% - 96px)")
     expect(html).toContain("overscroll-behavior:contain")
   })
 

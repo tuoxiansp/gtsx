@@ -21,19 +21,22 @@ export default function SelectedComponentCasesSidebar(props: SelectedComponentCa
       data-gtsx-canvas-wheel-exempt="true"
       onPointerDown={(event) => event.stopPropagation()}
       style={{
+        alignContent: "start",
         background: "transparent",
         border: 0,
+        bottom: 0,
+        boxSizing: "border-box",
         boxShadow: "none",
         display: "grid",
         gap: 14,
-        maxHeight: "calc(100% - 96px)",
+        height: "100%",
         overscrollBehavior: "contain",
         overflow: "auto",
-        padding: 0,
+        padding: 12,
         position: "absolute",
-        right: 12,
-        top: 72,
-        width: 200,
+        right: 0,
+        top: 0,
+        width: 224,
         zIndex: 4,
       }}
     >
