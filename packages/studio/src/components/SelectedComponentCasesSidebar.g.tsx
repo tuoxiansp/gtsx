@@ -18,6 +18,7 @@ export default function SelectedComponentCasesSidebar(props: SelectedComponentCa
     <aside
       aria-label={`${props.component.componentName} cases`}
       data-gtsx-case-sidebar={props.component.coordinate}
+      data-gtsx-canvas-wheel-exempt="true"
       onPointerDown={(event) => event.stopPropagation()}
       style={{
         background: "transparent",
@@ -26,6 +27,7 @@ export default function SelectedComponentCasesSidebar(props: SelectedComponentCa
         display: "grid",
         gap: 14,
         maxHeight: "calc(100% - 96px)",
+        overscrollBehavior: "contain",
         overflow: "auto",
         padding: 0,
         position: "absolute",

@@ -465,6 +465,8 @@ describe("GTSX Studio shell", () => {
 
     expect(casePreviewFrameHtml(html, "ready")).toContain("height:64px")
     expect(casePreviewCardHtml(html, "ready")).toContain("width:192px")
+    expect(html).toContain('data-gtsx-canvas-wheel-exempt="true"')
+    expect(html).toContain("overscroll-behavior:contain")
   })
 
   it("uses tablet viewport sizing by default", () => {

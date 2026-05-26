@@ -68,6 +68,11 @@ type StudioWorkspaceViewScope = {
 }
 
 const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
+const canvasWheelExemptSelector = "[data-gtsx-canvas-wheel-exempt]"
+
+function shouldHandleCanvasWheelTarget(target: EventTarget | null): boolean {
+  return !(typeof Element !== "undefined" && target instanceof Element && target.closest(canvasWheelExemptSelector))
+}
 
 function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): StudioWorkspaceViewScope {
   const selected = resolveStudioSelection(props.manifest, props.selection)
@@ -109,6 +114,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     if (!canvasViewportElement) return
 
     const handleWheel = (event: WheelEvent) => {
+      if (!shouldHandleCanvasWheelTarget(event.target)) return
       event.preventDefault()
       const rect = canvasViewportElement.getBoundingClientRect()
       setCanvas((current) =>
