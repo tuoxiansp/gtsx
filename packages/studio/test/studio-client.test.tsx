@@ -240,6 +240,21 @@ describe("GTSX Studio shell", () => {
     ).toEqual({ x: 40, y: 40, scale: 1 })
   })
 
+  it("can align an oversized canvas target before an edge blocker", () => {
+    expect(
+      revealStudioCanvasRect(
+        { x: -812, y: 40, scale: 1 },
+        {
+          blockerRects: [{ left: 199, right: 423, top: 0, bottom: 859 }],
+          margin: 24,
+          oversizedAlignment: { x: "end" },
+          rect: { left: 24, right: 304, top: 40, bottom: 217 },
+          viewportRect: { left: 0, right: 423, top: 0, bottom: 859 },
+        },
+      ),
+    ).toEqual({ x: -941, y: 40, scale: 1 })
+  })
+
   it("places drilldown columns from the right edge of the local vertical band", () => {
     expect(
       computeStudioColumnLayout({

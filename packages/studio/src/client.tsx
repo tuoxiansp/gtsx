@@ -52,6 +52,8 @@ export type StudioCanvasScreenRect = {
   top: number
 }
 
+type StudioCanvasOversizedRevealAlignment = "nearest" | "start" | "end"
+
 export type StudioColumnLayout = {
   x: number
   y: number
@@ -60,6 +62,7 @@ export type StudioColumnLayout = {
 export type StudioColumnLayoutMeasurement = {
   cardRectsByCoordinate: Record<string, StudioCanvasScreenRect>
   height: number
+  width?: number
 }
 
 export type StudioCanvasWheelInput = {
@@ -657,14 +660,30 @@ export function revealStudioCanvasRect(
   input: {
     blockerRects?: StudioCanvasScreenRect[]
     margin?: number
+    oversizedAlignment?: {
+      x?: StudioCanvasOversizedRevealAlignment
+      y?: StudioCanvasOversizedRevealAlignment
+    }
     rect: StudioCanvasScreenRect
     viewportRect: StudioCanvasScreenRect
   },
 ): StudioCanvasTransform {
   const margin = input.margin ?? 24
   const visibleRect = visibleStudioCanvasRect(input.viewportRect, input.blockerRects ?? [], margin)
-  const deltaX = revealIntervalDelta(input.rect.left, input.rect.right, visibleRect.left, visibleRect.right)
-  const deltaY = revealIntervalDelta(input.rect.top, input.rect.bottom, visibleRect.top, visibleRect.bottom)
+  const deltaX = revealIntervalDelta(
+    input.rect.left,
+    input.rect.right,
+    visibleRect.left,
+    visibleRect.right,
+    input.oversizedAlignment?.x,
+  )
+  const deltaY = revealIntervalDelta(
+    input.rect.top,
+    input.rect.bottom,
+    visibleRect.top,
+    visibleRect.bottom,
+    input.oversizedAlignment?.y,
+  )
 
   if (deltaX === 0 && deltaY === 0) return current
   return {
@@ -761,11 +780,19 @@ function visibleStudioCanvasRect(
   return { bottom: Math.max(top, bottom), left, right: Math.max(left, right), top }
 }
 
-function revealIntervalDelta(rectStart: number, rectEnd: number, visibleStart: number, visibleEnd: number): number {
+function revealIntervalDelta(
+  rectStart: number,
+  rectEnd: number,
+  visibleStart: number,
+  visibleEnd: number,
+  oversizedAlignment: StudioCanvasOversizedRevealAlignment = "nearest",
+): number {
   const rectSize = rectEnd - rectStart
   const visibleSize = visibleEnd - visibleStart
 
   if (rectSize > visibleSize) {
+    if (oversizedAlignment === "start") return visibleStart - rectStart
+    if (oversizedAlignment === "end") return visibleEnd - rectEnd
     if (rectEnd < visibleStart) return visibleStart - rectStart
     if (rectStart > visibleEnd) return visibleEnd - rectEnd
     return 0

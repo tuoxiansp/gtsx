@@ -97,8 +97,10 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   const cardElements = React.useRef(new Map<string, HTMLDivElement>())
   const columnCardElements = React.useRef(new Map<string, HTMLDivElement>())
   const columnElements = React.useRef(new Map<number, HTMLElement>())
+  const lastRevealedColumnSignatureRef = React.useRef<string | undefined>(undefined)
   const selectedCardComponent = selectedCardCoordinate ? findManifestComponent(props.manifest, selectedCardCoordinate) : undefined
   const selectedCaseName = selectedCardComponent ? selectedStudioCaseName(props.workspace, selectedCardComponent) : undefined
+  const selectedCoordinatePathKey = props.workspace.selectedCoordinatePath.join("\n")
 
   React.useEffect(() => {
     canvasRef.current = canvas
@@ -195,6 +197,33 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     [revealCardOnCanvas],
   )
 
+  const revealMeasuredColumnOnCanvas = React.useCallback(
+    (column: { height: number; layout: StudioColumnLayout; width: number }) => {
+      if (!canvasViewportElement) return
+
+      const caseSidebarElement = canvasViewportElement.querySelector("[data-gtsx-case-sidebar]")
+      const blockerRects: StudioCanvasScreenRect[] =
+        caseSidebarElement instanceof Element ? [domRectToStudioCanvasScreenRect(caseSidebarElement.getBoundingClientRect())] : []
+      const nextCanvas = revealStudioCanvasRect(canvasRef.current, {
+        blockerRects,
+        margin: studioCanvasRevealMargin,
+        oversizedAlignment: { x: "end" },
+        rect: canvasRectToScreenRect(
+          {
+            bottom: column.layout.y + column.height,
+            left: column.layout.x,
+            right: column.layout.x + column.width,
+            top: column.layout.y,
+          },
+          canvasRef.current,
+        ),
+        viewportRect: domRectToStudioCanvasScreenRect(canvasViewportElement.getBoundingClientRect()),
+      })
+      if (nextCanvas !== canvasRef.current) setCanvas(() => nextCanvas)
+    },
+    [canvasViewportElement, setCanvas],
+  )
+
   useStudioLayoutEffect(() => {
     if (!canvasSurfaceElement) return
 
@@ -218,6 +247,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
       nextMeasurementsByIndex[columnIndex] = {
         cardRectsByCoordinate,
         height: columnRect.height / canvasRef.current.scale,
+        width: columnRect.width / canvasRef.current.scale,
       }
     })
 
@@ -231,7 +261,32 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     })
 
     setColumnLayoutByIndex((current) => (sameColumnLayoutRecord(current, nextLayoutByIndex) ? current : nextLayoutByIndex))
-  }, [canvas.scale, canvasSurfaceElement, canvasViewportPreset, props.frameStates, props.previewCache, props.workspace.columns])
+
+    const lastColumnIndex = props.workspace.columns.length - 1
+    const lastLayout = nextLayoutByIndex[lastColumnIndex]
+    const lastMeasurement = nextMeasurementsByIndex[lastColumnIndex]
+    if (lastColumnIndex > 0 && lastLayout && lastMeasurement?.width !== undefined) {
+      const signature = `${selectedCoordinatePathKey}\n${selectedCardCoordinate ?? ""}\n${lastColumnIndex}\n${lastLayout.x}\n${lastLayout.y}\n${lastMeasurement.width}\n${lastMeasurement.height}`
+      if (lastRevealedColumnSignatureRef.current !== signature) {
+        lastRevealedColumnSignatureRef.current = signature
+        revealMeasuredColumnOnCanvas({
+          height: lastMeasurement.height,
+          layout: lastLayout,
+          width: lastMeasurement.width,
+        })
+      }
+    }
+  }, [
+    canvas.scale,
+    canvasSurfaceElement,
+    canvasViewportPreset,
+    props.frameStates,
+    props.previewCache,
+    props.workspace.columns,
+    revealMeasuredColumnOnCanvas,
+    selectedCardCoordinate,
+    selectedCoordinatePathKey,
+  ])
 
   return {
     canvas,
@@ -463,6 +518,15 @@ function domRectToLocalStudioCanvasScreenRect(rect: DOMRect, originRect: DOMRect
     left: (rect.left - originRect.left) / scale,
     right: (rect.right - originRect.left) / scale,
     top: (rect.top - originRect.top) / scale,
+  }
+}
+
+function canvasRectToScreenRect(rect: StudioCanvasScreenRect, canvas: StudioCanvasTransform): StudioCanvasScreenRect {
+  return {
+    bottom: canvas.y + rect.bottom * canvas.scale,
+    left: canvas.x + rect.left * canvas.scale,
+    right: canvas.x + rect.right * canvas.scale,
+    top: canvas.y + rect.top * canvas.scale,
   }
 }
 
