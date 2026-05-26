@@ -86,7 +86,12 @@ export function gtsxNextReact(options: GTSXNextReactOptions = {}) {
         })
         return resolvedConfig
       },
-      turbopack: withGTSXTurbopackConfig(nextConfig.turbopack, loaderPath, root, transformPath, previewEntries),
+      turbopack: withGTSXTurbopackConfig(
+        nextConfig.turbopack,
+        loaderPath,
+        root,
+        transformPath,
+      ),
     } as Config & NextConfigLike
   }
 }
@@ -96,21 +101,15 @@ function withGTSXTurbopackConfig(
   loaderPath: string,
   root: string,
   transformPath: string,
-  previewEntries: ResolvedGTSXNextPreviewEntriesOptions | undefined,
 ): NonNullable<NextConfigLike["turbopack"]> {
   const gtsxRule: TurbopackRuleConfigItem = {
     loaders: [{ loader: loaderPath, options: { root, transformPath } }],
     as: "*.tsx",
   }
   const rules = turbopack?.rules ?? {}
-  const resolveAlias = turbopack?.resolveAlias ?? {}
 
   return {
     ...turbopack,
-    resolveAlias: {
-      ...resolveAlias,
-      ...(previewEntries ? { [previewEntries.moduleId]: previewEntries.outputPath } : {}),
-    },
     rules: {
       ...rules,
       "*.g.tsx": prependRule(gtsxRule, rules["*.g.tsx"]),

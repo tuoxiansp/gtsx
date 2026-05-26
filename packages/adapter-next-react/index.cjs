@@ -38,25 +38,25 @@ function gtsxNextReact(options = {}) {
         })
         return resolvedConfig
       },
-      turbopack: withGTSXTurbopackConfig(nextConfig.turbopack, loaderPath, root, transformPath, previewEntries),
+      turbopack: withGTSXTurbopackConfig(
+        nextConfig.turbopack,
+        loaderPath,
+        root,
+        transformPath,
+      ),
     }
   }
 }
 
-function withGTSXTurbopackConfig(turbopack, loaderPath, root, transformPath, previewEntries) {
+function withGTSXTurbopackConfig(turbopack, loaderPath, root, transformPath) {
   const gtsxRule = {
     loaders: [{ loader: loaderPath, options: { root, transformPath } }],
     as: "*.tsx",
   }
   const rules = turbopack?.rules ?? {}
-  const resolveAlias = turbopack?.resolveAlias ?? {}
 
   return {
     ...turbopack,
-    resolveAlias: {
-      ...resolveAlias,
-      ...(previewEntries ? { [previewEntries.moduleId]: previewEntries.outputPath } : {}),
-    },
     rules: {
       ...rules,
       "*.g.tsx": prependRule(gtsxRule, rules["*.g.tsx"]),
