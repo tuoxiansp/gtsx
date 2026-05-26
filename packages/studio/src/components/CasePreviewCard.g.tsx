@@ -1,6 +1,7 @@
 "use client"
 
-import { type GBoundaryRect, type GBoundaryTreeNode, type GCases } from "gtsx"
+import React from "react"
+import { createGScopeHook, type GBoundaryRect, type GBoundaryTreeNode, type GCases } from "gtsx"
 
 import { createStudioPreviewUrl, studioPreviewFrameSize, type StudioPreviewFrameState } from "../client"
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
@@ -16,8 +17,58 @@ type CasePreviewCardProps = {
 
 const studioCasePreviewScale = 0.25
 const studioCasePreviewWidth = 192
+const studioCasePreviewPreloadMargin = 600
+
+type CasePreviewCardScope = {
+  setFrameElement: (element: HTMLDivElement | null) => void
+  shouldLoad: boolean
+}
+
+function useRealCasePreviewCardScope(props: { selected: boolean }): CasePreviewCardScope {
+  const [frameElement, setFrameElement] = React.useState<HTMLDivElement | null>(null)
+  const [shouldLoad, setShouldLoad] = React.useState(props.selected)
+
+  React.useEffect(() => {
+    if (props.selected) {
+      setShouldLoad(true)
+      return
+    }
+
+    if (!frameElement || shouldLoad) return
+
+    if (!("IntersectionObserver" in window)) {
+      setShouldLoad(true)
+      return
+    }
+
+    if (isElementNearViewport(frameElement, studioCasePreviewPreloadMargin)) {
+      setShouldLoad(true)
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setShouldLoad(true)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: `${studioCasePreviewPreloadMargin}px` },
+    )
+    observer.observe(frameElement)
+    return () => observer.disconnect()
+  }, [frameElement, props.selected, shouldLoad])
+
+  return {
+    setFrameElement,
+    shouldLoad,
+  }
+}
+
+const useCasePreviewCardScope = createGScopeHook(useRealCasePreviewCardScope)
 
 export default function CasePreviewCard(props: CasePreviewCardProps) {
+  const scope = useCasePreviewCardScope({ selected: props.selected })
   const previewUrl = createStudioPreviewUrl(props.manifest, props.component, props.testCaseName)
   const boundaryRect = selectedBoundaryRectForComponent(props.frameState?.tree, props.component.coordinate)
   const frameSize = studioPreviewFrameSize("tablet", props.frameState?.size)
@@ -58,6 +109,7 @@ export default function CasePreviewCard(props: CasePreviewCardProps) {
       <div
         aria-hidden="true"
         data-gtsx-case-preview-frame={props.testCaseName}
+        ref={scope.setFrameElement}
         style={{
           background: "#ffffff",
           border: "1px solid",
@@ -70,23 +122,26 @@ export default function CasePreviewCard(props: CasePreviewCardProps) {
           width: studioCasePreviewWidth,
         }}
       >
-        <iframe
-          src={previewUrl}
-          style={{
-            background: "transparent",
-            border: 0,
-            height: frameSize.height,
-            left: iframeOffset.left,
-            pointerEvents: "none",
-            position: "absolute",
-            top: iframeOffset.top,
-            transform: `scale(${studioCasePreviewScale})`,
-            transformOrigin: "0 0",
-            width: frameSize.width,
-          }}
-          tabIndex={-1}
-          title={`${props.component.componentName} ${props.testCaseName} preview`}
-        />
+        {scope.shouldLoad ? (
+          <iframe
+            data-gtsx-sidebar-preview-frame="true"
+            src={previewUrl}
+            style={{
+              background: "transparent",
+              border: 0,
+              height: frameSize.height,
+              left: iframeOffset.left,
+              pointerEvents: "none",
+              position: "absolute",
+              top: iframeOffset.top,
+              transform: `scale(${studioCasePreviewScale})`,
+              transformOrigin: "0 0",
+              width: frameSize.width,
+            }}
+            tabIndex={-1}
+            title={`${props.component.componentName} ${props.testCaseName} preview`}
+          />
+        ) : null}
       </div>
     </div>
   )
@@ -135,10 +190,15 @@ CasePreviewCard.cases = {
       testCaseName: "ready",
     },
   },
-} satisfies GCases<CasePreviewCardProps>
+} satisfies GCases<CasePreviewCardProps, CasePreviewCardScope>
 
 function selectedBoundaryRectForComponent(tree: GBoundaryTreeNode[] | undefined, coordinate: string): GBoundaryRect | undefined {
   return tree ? findBoundaryNode(tree, coordinate)?.rect : undefined
+}
+
+function isElementNearViewport(element: HTMLElement, margin: number): boolean {
+  const rect = element.getBoundingClientRect()
+  return rect.bottom >= -margin && rect.right >= -margin && rect.top <= window.innerHeight + margin && rect.left <= window.innerWidth + margin
 }
 
 function findBoundaryNode(tree: GBoundaryTreeNode[], coordinate: string): GBoundaryTreeNode | undefined {
@@ -150,4 +210,3 @@ function findBoundaryNode(tree: GBoundaryTreeNode[], coordinate: string): GBound
 
   return undefined
 }
-

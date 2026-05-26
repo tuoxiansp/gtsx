@@ -35,6 +35,10 @@ export type BuildGTSXProjectIndexOptions = {
   tsconfigPath?: string
 }
 
+export type GTSXProjectIndexCacheOptions = {
+  ttlMs?: number
+}
+
 type ExportedComponent = {
   exportName: string
   componentName: string
@@ -59,6 +63,7 @@ type ProjectModuleResolution = {
 }
 
 const IGNORED_DISCOVERY_DIRS = new Set(["node_modules", "dist", ".vite", ".next", ".git"])
+const DEFAULT_PROJECT_INDEX_CACHE_TTL_MS = 1000
 
 export function buildGTSXProjectIndex(options: BuildGTSXProjectIndexOptions): GTSXProjectIndex {
   const projectRoot = options.projectRoot ?? "."
@@ -82,6 +87,26 @@ export function buildGTSXProjectIndex(options: BuildGTSXProjectIndexOptions): GT
   }
 }
 
+export function createCachedGTSXProjectIndexBuilder(cacheOptions: GTSXProjectIndexCacheOptions = {}) {
+  const ttlMs = cacheOptions.ttlMs ?? DEFAULT_PROJECT_INDEX_CACHE_TTL_MS
+  let cachedKey: string | undefined
+  let cachedAt = 0
+  let cachedIndex: GTSXProjectIndex | undefined
+
+  return (options: BuildGTSXProjectIndexOptions): GTSXProjectIndex => {
+    const key = projectIndexCacheKey(options)
+    const now = Date.now()
+    if (cachedIndex && cachedKey === key && now - cachedAt <= ttlMs) {
+      return cachedIndex
+    }
+
+    cachedKey = key
+    cachedAt = now
+    cachedIndex = buildGTSXProjectIndex(options)
+    return cachedIndex
+  }
+}
+
 function buildProjectIndexFileContext(cwd: string, filePath: string): ProjectIndexFileContext {
   const sourceFile = readGTSXSourceFile(resolve(cwd, filePath))
   return {
@@ -89,6 +114,14 @@ function buildProjectIndexFileContext(cwd: string, filePath: string): ProjectInd
     sourceFile,
     exportedComponents: readExportedComponents(sourceFile),
   }
+}
+
+function projectIndexCacheKey(options: BuildGTSXProjectIndexOptions): string {
+  return JSON.stringify({
+    cwd: resolve(options.cwd),
+    projectRoot: options.projectRoot ?? ".",
+    tsconfigPath: options.tsconfigPath ? resolve(options.cwd, options.tsconfigPath) : undefined,
+  })
 }
 
 function buildProjectIndexFile(

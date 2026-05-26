@@ -48,6 +48,8 @@ The Host may import CSS, setup files, providers, mocks, app shells, aliases, and
 
 For Next.js Hosts using `@gtsx/adapter-next-react`, do not hand-maintain a `previewEntries` object. The adapter generates a lazy module registry at `.gtsx/preview-entries.ts` and aliases `@gtsx/adapter-next-react/preview-entries` to it. The `/gtsx` preview route should import `loadGTSXPreviewComponent` from that module and load only the requested `entry`. If the selected GTSX project is not under `src`, pass `projectRoot` to `gtsxNextReact({ projectRoot: "components" })`.
 
+For high-frequency server-rendered Studio routes, prefer `createCachedGTSXProjectIndexBuilder` from `gtsx/project-index` over calling `buildGTSXProjectIndex` directly on every request. Keep this cache Host-local and short-lived so new `.g.tsx` files are discovered quickly during development.
+
 ## Manifest Provider Preference
 
 Prefer project index providers in this order:

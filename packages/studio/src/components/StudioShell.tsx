@@ -53,6 +53,8 @@ type StudioShellScope = {
   workspace: StudioWorkspaceState
 }
 
+const studioPreviewWarmupLimit = 4
+
 function useStudioShellScope(props: StudioShellProps): StudioShellScope {
   const initialUrlState = React.useMemo(
     () => createStudioWorkspaceStateFromUrl(props.manifest, initialStudioUrlSearchParams(props.selection, props.urlSearch)),
@@ -66,10 +68,11 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
   const [previewCache, setPreviewCache] = React.useState<Record<string, StudioPreviewCacheEntry>>({})
   const [warmupsEnabled, setWarmupsEnabled] = React.useState(false)
   const previewFrames = React.useRef(new Map<string, HTMLIFrameElement>())
+  const previewFrameMountedAt = React.useRef(new Map<string, number>())
   const sessionIds = React.useMemo(() => currentPreviewSessionIds(workspace), [workspace])
   const currentTargets = React.useMemo(() => currentStudioPreviewTargets(props.manifest, workspace), [props.manifest, workspace])
   const warmupTargets = React.useMemo(
-    () => (warmupsEnabled ? studioPreviewWarmupTargets(props.manifest, workspace) : []),
+    () => (warmupsEnabled ? studioPreviewWarmupTargets(props.manifest, workspace, { limit: studioPreviewWarmupLimit }) : []),
     [props.manifest, warmupsEnabled, workspace],
   )
   const targetsBySessionId = React.useMemo(
@@ -80,8 +83,9 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
   const selectionRef = React.useRef(selection)
 
   React.useEffect(() => {
-    setWarmupsEnabled(true)
-  }, [])
+    setWarmupsEnabled(false)
+    return scheduleStudioPreviewWarmups(() => setWarmupsEnabled(true))
+  }, [workspace])
 
   React.useEffect(() => {
     selectionRef.current = selection
@@ -102,6 +106,7 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
       if (sessionIds.has(message.sessionId)) {
         setFrameStates((current) => applyStudioPreviewMessageToFrameStates(current, message, sessionIds))
       }
+      dispatchStudioPreviewTiming(target, message, previewFrameMountedAt.current.get(message.sessionId))
       setPreviewCache((current) => {
         const currentEntry = current[target.cacheKey]
         const currentFrameState = currentEntry?.frameState ?? {
@@ -179,8 +184,10 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
     onPreviewFrameMount(sessionId, frame) {
       if (frame) {
         previewFrames.current.set(sessionId, frame)
+        previewFrameMountedAt.current.set(sessionId, performance.now())
       } else {
         previewFrames.current.delete(sessionId)
+        previewFrameMountedAt.current.delete(sessionId)
       }
     },
     onSelectComponent(component, frameState) {
@@ -238,5 +245,41 @@ function StudioPreviewWarmups(props: { targets: StudioPreviewWarmupTarget[] }) {
         </div>
       ))}
     </div>
+  )
+}
+
+function scheduleStudioPreviewWarmups(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {}
+
+  const idleWindow = window as typeof window & {
+    cancelIdleCallback?: (handle: number) => void
+    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+  }
+
+  if (idleWindow.requestIdleCallback && idleWindow.cancelIdleCallback) {
+    const handle = idleWindow.requestIdleCallback(callback, { timeout: 1500 })
+    return () => idleWindow.cancelIdleCallback?.(handle)
+  }
+
+  const handle = window.setTimeout(callback, 600)
+  return () => window.clearTimeout(handle)
+}
+
+function dispatchStudioPreviewTiming(
+  target: StudioPreviewWarmupTarget,
+  message: GPreviewProtocolMessage,
+  mountedAt: number | undefined,
+) {
+  if (message.type !== "gtsx:ready" && message.type !== "gtsx:error") return
+
+  window.dispatchEvent(
+    new CustomEvent("gtsx:preview-timing", {
+      detail: {
+        cacheKey: target.cacheKey,
+        sessionId: message.sessionId,
+        type: message.type,
+        ...(typeof mountedAt === "number" ? { elapsedMs: Math.round((performance.now() - mountedAt) * 10) / 10 } : {}),
+      },
+    }),
   )
 }

@@ -2,7 +2,7 @@ import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { buildGTSXProjectIndex } from "../src/project-index.js"
+import { buildGTSXProjectIndex, createCachedGTSXProjectIndexBuilder } from "../src/project-index.js"
 
 const fixtureRoot = join(import.meta.dirname, "fixtures/check-project")
 const tsProjectScopeRoot = join(import.meta.dirname, "fixtures/ts-project-scope")
@@ -88,5 +88,15 @@ describe("GTSX project index", () => {
       .find((component) => component.coordinate === "src/cases/stateful/DashboardShell.g.tsx#default")
 
     expect(dashboard?.dependencies).toEqual(["src/cases/stateful/NotificationBell.g.tsx#default"])
+  })
+
+  it("can reuse a project index briefly for high-frequency Studio route reads", () => {
+    const buildProjectIndex = createCachedGTSXProjectIndexBuilder({ ttlMs: 60_000 })
+    const first = buildProjectIndex({ cwd: fixtureRoot, projectRoot: "src/corpus" })
+    const second = buildProjectIndex({ cwd: fixtureRoot, projectRoot: "src/corpus" })
+    const differentScope = buildProjectIndex({ cwd: fixtureRoot, projectRoot: "src" })
+
+    expect(second).toBe(first)
+    expect(differentScope).not.toBe(first)
   })
 })
