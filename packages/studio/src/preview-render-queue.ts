@@ -1,5 +1,7 @@
 import {
-  shouldRenderStudioPreview,
+  isRectNearViewport,
+  studioPreviewPreloadMargin,
+  studioPreviewRetainMargin,
   studioCanvasRectToViewportRect,
   type StudioCanvasPreviewVisibilityItem,
   type StudioViewportRect,
@@ -11,6 +13,8 @@ export const defaultStudioPreviewRenderQueueMaxLength = 18
 export type StudioPreviewRenderQueueOptions = {
   maxActive?: number
   maxLength?: number
+  preloadMargin?: number
+  retainMargin?: number
 }
 
 export type StudioPreviewRenderQueueInput = StudioPreviewRenderQueueOptions & {
@@ -23,6 +27,7 @@ export type StudioPreviewRenderQueueInput = StudioPreviewRenderQueueOptions & {
 
 type StudioPreviewRenderQueueCandidate = {
   cardIndex: number
+  completed: boolean
   currentlyMounted: boolean
   distance: number
   intersectionArea: number
@@ -34,12 +39,17 @@ type StudioPreviewRenderQueueCandidate = {
 export function queuedStudioPreviewSessionIds(input: StudioPreviewRenderQueueInput): Set<string> {
   const selected = new Set<string>()
   let activeTasks = 0
-  const maxActive = positiveQueueLimit(input.maxActive, defaultStudioPreviewRenderQueueMaxActive)
-  const maxLength = Math.max(maxActive, positiveQueueLimit(input.maxLength, defaultStudioPreviewRenderQueueMaxLength))
+  let queuedTasks = 0
+  const maxLength = positiveQueueLimit(input.maxLength, defaultStudioPreviewRenderQueueMaxLength)
+  const maxActive = Math.min(positiveQueueLimit(input.maxActive, defaultStudioPreviewRenderQueueMaxActive), maxLength)
 
   for (const candidate of studioPreviewRenderQueueCandidates(input)) {
-    if (selected.size >= maxLength) break
-    if (candidate.needsRenderTask && activeTasks >= maxActive) continue
+    if (selected.has(candidate.sessionId)) continue
+    if (candidate.needsRenderTask) {
+      if (queuedTasks >= maxLength) continue
+      queuedTasks += 1
+      if (activeTasks >= maxActive) continue
+    }
 
     selected.add(candidate.sessionId)
     if (candidate.needsRenderTask) activeTasks += 1
@@ -52,36 +62,54 @@ export function studioPreviewRenderQueueOptionsFromParams(params: URLSearchParam
   return {
     maxActive: positiveIntegerParam(params, ["previewQueueActive", "queueActive"]),
     maxLength: positiveIntegerParam(params, ["previewQueueLength", "queueLength"]),
+    preloadMargin: positiveIntegerParam(params, ["previewQueueBuffer", "queueBuffer", "previewBuffer"]),
+    retainMargin: positiveIntegerParam(params, ["previewQueueRetain", "queueRetain", "previewRetain"]),
   }
 }
 
 function studioPreviewRenderQueueCandidates(input: StudioPreviewRenderQueueInput): StudioPreviewRenderQueueCandidate[] {
   const currentSessionIds = input.currentSessionIds ?? new Set<string>()
   const completedSessionIds = input.completedSessionIds ?? new Set<string>()
-  const candidates: StudioPreviewRenderQueueCandidate[] = []
+  const preloadMargin = positiveQueueLimit(input.preloadMargin, studioPreviewPreloadMargin)
+  const retainMargin = Math.max(preloadMargin, positiveQueueLimit(input.retainMargin, studioPreviewRetainMargin))
+  const visibleCards: StudioPreviewRenderQueueCandidate[][] = []
+  const bufferedCards: StudioPreviewRenderQueueCandidate[][] = []
 
   input.items.forEach((item, cardIndex) => {
     const currentlyRendered = item.sessionIds.some((sessionId) => currentSessionIds.has(sessionId))
     const viewportRect = studioCanvasRectToViewportRect(input.canvas, item.rect)
-    if (!shouldRenderStudioPreview(currentlyRendered, viewportRect, input.viewport)) return
+    const margin = currentlyRendered ? retainMargin : preloadMargin
+    if (!isRectNearViewport(viewportRect, input.viewport, margin)) return
 
     const distance = viewportRectDistance(viewportRect, input.viewport)
     const intersectionArea = viewportRectIntersectionArea(viewportRect, input.viewport)
-    item.sessionIds.forEach((sessionId, sessionIndex) => {
+    const cardCandidates = item.sessionIds.map((sessionId, sessionIndex) => {
       const currentlyMounted = currentSessionIds.has(sessionId)
-      candidates.push({
+      const completed = completedSessionIds.has(sessionId)
+      return {
         cardIndex,
+        completed,
         currentlyMounted,
         distance,
         intersectionArea,
-        needsRenderTask: !currentlyMounted || !completedSessionIds.has(sessionId),
+        needsRenderTask: !currentlyMounted || !completed,
         sessionId,
         sessionIndex,
-      })
+      }
     })
+    if (cardCandidates.length === 0) return
+
+    if (intersectionArea > 0) {
+      visibleCards.push(cardCandidates)
+    } else {
+      bufferedCards.push(cardCandidates)
+    }
   })
 
-  return candidates.sort(compareStudioPreviewRenderQueueCandidates)
+  return [
+    ...roundRobinStudioPreviewRenderQueueCandidates(visibleCards),
+    ...roundRobinStudioPreviewRenderQueueCandidates(bufferedCards),
+  ]
 }
 
 function compareStudioPreviewRenderQueueCandidates(
@@ -92,9 +120,29 @@ function compareStudioPreviewRenderQueueCandidates(
     left.distance - right.distance ||
     right.intersectionArea - left.intersectionArea ||
     Number(right.currentlyMounted) - Number(left.currentlyMounted) ||
+    Number(right.completed) - Number(left.completed) ||
     left.cardIndex - right.cardIndex ||
     left.sessionIndex - right.sessionIndex
   )
+}
+
+function roundRobinStudioPreviewRenderQueueCandidates(
+  cards: StudioPreviewRenderQueueCandidate[][],
+): StudioPreviewRenderQueueCandidate[] {
+  const sortedCards = cards.sort((left, right) =>
+    compareStudioPreviewRenderQueueCandidates(left[0] as StudioPreviewRenderQueueCandidate, right[0] as StudioPreviewRenderQueueCandidate),
+  )
+  const candidates: StudioPreviewRenderQueueCandidate[] = []
+  const maxSessionCount = Math.max(0, ...sortedCards.map((card) => card.length))
+
+  for (let sessionIndex = 0; sessionIndex < maxSessionCount; sessionIndex += 1) {
+    for (const card of sortedCards) {
+      const candidate = card[sessionIndex]
+      if (candidate) candidates.push(candidate)
+    }
+  }
+
+  return candidates
 }
 
 function viewportRectDistance(rect: StudioViewportRect, viewport: StudioViewportRect): number {

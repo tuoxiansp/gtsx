@@ -752,7 +752,28 @@ describe("GTSX Studio shell", () => {
         maxLength: 3,
         viewport: { bottom: 100, left: 0, right: 100, top: 0 },
       })],
-    ).toEqual(["done", "new-a", "new-b"])
+    ).toEqual(["new-a", "new-b", "done"])
+  })
+
+  it("spreads active render work across visible cards before deeper case rounds", () => {
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        canvas: { x: 0, y: 0, scale: 1 },
+        items: [
+          {
+            rect: { bottom: 100, left: 0, right: 100, top: 0 },
+            sessionIds: ["top-a", "top-b"],
+          },
+          {
+            rect: { bottom: 100, left: 140, right: 240, top: 0 },
+            sessionIds: ["bottom-a", "bottom-b"],
+          },
+        ],
+        maxActive: 2,
+        maxLength: 4,
+        viewport: { bottom: 100, left: 0, right: 240, top: 0 },
+      })],
+    ).toEqual(["top-a", "bottom-a"])
   })
 
   it("reorders the preview render queue when the canvas moves", () => {
@@ -779,7 +800,7 @@ describe("GTSX Studio shell", () => {
     ])
   })
 
-  it("caps the retained preview queue length separately from active render work", () => {
+  it("caps pending preview queue length without dropping completed mounted previews", () => {
     expect(
       [...queuedStudioPreviewSessionIds({
         canvas: { x: 0, y: 0, scale: 1 },
@@ -795,7 +816,39 @@ describe("GTSX Studio shell", () => {
         maxLength: 2,
         viewport: { bottom: 100, left: 0, right: 100, top: 0 },
       })],
+    ).toEqual(["a", "b", "c"])
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        canvas: { x: 0, y: 0, scale: 1 },
+        items: [
+          {
+            rect: { bottom: 100, left: 0, right: 100, top: 0 },
+            sessionIds: ["a", "b", "c", "d"],
+          },
+        ],
+        maxActive: 4,
+        maxLength: 2,
+        viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      })],
     ).toEqual(["a", "b"])
+  })
+
+  it("uses an adjustable preload buffer for near-canvas preview work", () => {
+    const input = {
+      canvas: { x: 0, y: 0, scale: 1 },
+      items: [
+        {
+          rect: { bottom: 550, left: 0, right: 100, top: 450 },
+          sessionIds: ["buffered"],
+        },
+      ],
+      maxActive: 2,
+      maxLength: 4,
+      viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+    }
+
+    expect([...queuedStudioPreviewSessionIds({ ...input, preloadMargin: 100 })]).toEqual([])
+    expect([...queuedStudioPreviewSessionIds({ ...input, preloadMargin: 500 })]).toEqual(["buffered"])
   })
 
   it("creates stable pooled iframe URLs and render targets for preview slots", () => {
@@ -1053,17 +1106,27 @@ describe("GTSX Studio shell", () => {
   })
 
   it("reads preview render queue limits from URL params", () => {
-    expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("previewQueueActive=3&previewQueueLength=9"))).toEqual({
+    expect(
+      studioPreviewRenderQueueOptionsFromParams(
+        new URLSearchParams("previewQueueActive=3&previewQueueLength=9&previewQueueBuffer=640&previewQueueRetain=1800"),
+      ),
+    ).toEqual({
       maxActive: 3,
       maxLength: 9,
+      preloadMargin: 640,
+      retainMargin: 1800,
     })
-    expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("queueActive=4&queueLength=12"))).toEqual({
+    expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("queueActive=4&queueLength=12&queueBuffer=700"))).toEqual({
       maxActive: 4,
       maxLength: 12,
+      preloadMargin: 700,
+      retainMargin: undefined,
     })
     expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("queueActive=0&queueLength=nope"))).toEqual({
       maxActive: undefined,
       maxLength: undefined,
+      preloadMargin: undefined,
+      retainMargin: undefined,
     })
   })
 
