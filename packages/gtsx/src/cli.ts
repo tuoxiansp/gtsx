@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readdirSync, realpathSync, statSync } from "node:fs"
+import { realpathSync, statSync } from "node:fs"
 import { dirname, join, relative, resolve, sep } from "node:path"
 import { spawn } from "node:child_process"
 import { fileURLToPath } from "node:url"
@@ -9,6 +9,7 @@ import { analyzeEntry, type GTSXAnalysisResult, type GTSXDiagnostic } from "./an
 import { capturePreviewPage } from "./browser-capture.js"
 import { loadGTSXConfig } from "./config.js"
 import { initGTSX } from "./init.js"
+import { buildGTSXProjectIndex } from "./project-index.js"
 import { discoverGTSXProgramFiles, findNearestTSConfig } from "./project-scope.js"
 import { expandCommand, runScriptAdapter } from "./script-adapter.js"
 
@@ -28,6 +29,11 @@ type ProjectSelection = {
   args: string[]
   cwd: string
   tsconfigPath?: string
+  diagnostics: GTSXDiagnostic[]
+}
+
+type EntryResolution = {
+  entries: string[]
   diagnostics: GTSXDiagnostic[]
 }
 
@@ -72,44 +78,22 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
         return { exitCode: 1, stdout: context.stdout, stderr: "Directory JSON output is not supported yet.\n" }
       }
 
-      const entries = discoverGTSXEntries(cwd, entry, projectSelection.tsconfigPath)
-      if (entries.length === 0) {
-        return diagnosticsResult([
-          {
-            stage: "contract-extraction",
-            code: "no-entries-found",
-            message: `No .g.tsx entries found under ${entry}.`,
-            file: entry,
-          },
-        ])
-      }
-
-      const results = entries.map((candidate) => analyzeEntry({ cwd, entry: candidate }))
-      return {
-        exitCode: results.some((result) => result.diagnostics.length > 0) ? 1 : 0,
-        stdout: results.map(formatCheckResult).join("\n"),
+      return checkResolvedEntries(cwd, discoverGTSXEntryCoordinates(cwd, entry, projectSelection.tsconfigPath), {
+        fallbackFile: entry,
+        json: false,
         stderr: context.stderr,
-      }
+      })
     }
 
     if (projectSelection.tsconfigPath && !isEntryInGTSXScope(cwd, entry, projectSelection.tsconfigPath)) {
       return entryOutsideProjectScopeResult(entry)
     }
 
-    const result = analyzeEntry({ cwd, entry })
-    if (args.includes("--json")) {
-      return {
-        exitCode: result.diagnostics.length === 0 ? 0 : 1,
-        stdout: `${JSON.stringify(result, null, 2)}\n`,
-        stderr: context.stderr,
-      }
-    }
-
-    return {
-      exitCode: result.diagnostics.length === 0 ? 0 : 1,
-      stdout: formatCheckResult(result),
+    return checkResolvedEntries(cwd, resolveGTSXEntryCoordinates(cwd, entry, projectSelection.tsconfigPath), {
+      fallbackFile: entry,
+      json: args.includes("--json"),
       stderr: context.stderr,
-    }
+    })
   }
 
   if (args[0] === "serve") {
@@ -153,23 +137,16 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
         ])
       }
 
-      const entries = discoverGTSXEntries(cwd, entry, projectSelection.tsconfigPath)
-      if (entries.length === 0) {
-        return diagnosticsResult([
-          {
-            stage: "contract-extraction",
-            code: "no-entries-found",
-            message: `No .g.tsx entries found under ${entry}.`,
-            file: entry,
-          },
-        ])
+      const resolvedEntries = discoverGTSXEntryCoordinates(cwd, entry, projectSelection.tsconfigPath)
+      if (resolvedEntries.entries.length === 0) {
+        return diagnosticsResult(nonEmptyDiagnostics(resolvedEntries.diagnostics, entry))
       }
 
-      const checks = entries.map((candidate) => analyzeEntry({ cwd, entry: candidate }))
-      if (checks.some((check) => check.diagnostics.length > 0)) {
+      const checks = resolvedEntries.entries.map((candidate) => analyzeEntry({ cwd, entry: candidate }))
+      if (resolvedEntries.diagnostics.length > 0 || checks.some((check) => check.diagnostics.length > 0)) {
         return {
           exitCode: 1,
-          stdout: checks.map(formatCheckResult).join("\n"),
+          stdout: [checks.map(formatCheckResult).join("\n"), formatDiagnostics(resolvedEntries.diagnostics)].join(""),
           stderr: context.stderr,
         }
       }
@@ -206,7 +183,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
 
       try {
         const outputs: string[] = []
-        for (const candidate of entries) {
+        for (const candidate of resolvedEntries.entries) {
           const outPath = outForDirectoryContactSheet(out, candidate)
           await capturePreviewPage({
             cwd,
@@ -234,7 +211,23 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       return entryOutsideProjectScopeResult(entry)
     }
 
-    const check = analyzeEntry({ cwd, entry })
+    const resolvedEntry = resolveGTSXEntryCoordinates(cwd, entry, projectSelection.tsconfigPath)
+    if (resolvedEntry.entries.length === 0) {
+      return diagnosticsResult(nonEmptyDiagnostics(resolvedEntry.diagnostics, entry))
+    }
+    if (resolvedEntry.entries.length > 1) {
+      return diagnosticsResult([
+        {
+          stage: "contract-extraction",
+          code: "ambiguous-entry-coordinate",
+          message: `${entry} contains multiple GTSX component exports; pass one explicit coordinate such as ${resolvedEntry.entries[0]}.`,
+          file: entry,
+        },
+      ])
+    }
+
+    const selectedEntry = resolvedEntry.entries[0] ?? entry
+    const check = analyzeEntry({ cwd, entry: selectedEntry })
     if (check.diagnostics.length > 0) {
       return { exitCode: 1, stdout: formatCheckResult(check), stderr: context.stderr }
     }
@@ -274,14 +267,14 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
 
     try {
       if (captureAllCases) {
-        const outPath = outForEntryContactSheet(out, entry)
+        const outPath = outForEntryContactSheet(out, selectedEntry)
         await capturePreviewPage({
           cwd,
-          url: expandUrl(config.config.preview.allUrl ?? "", { entry, caseName: "", port, gcases }),
+          url: expandUrl(config.config.preview.allUrl ?? "", { entry: selectedEntry, caseName: "", port, gcases }),
           viewport,
           out: outPath,
         })
-        return { exitCode: 0, stdout: `Captured ${entry} contact sheet to ${outPath}\n`, stderr: context.stderr }
+        return { exitCode: 0, stdout: `Captured ${selectedEntry} contact sheet to ${outPath}\n`, stderr: context.stderr }
       }
 
       if (!selectedCase) {
@@ -297,7 +290,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
 
       await capturePreviewPage({
         cwd,
-        url: expandUrl(config.config.preview.url ?? "", { entry, caseName: selectedCase, port, gcases }),
+        url: expandUrl(config.config.preview.url ?? "", { entry: selectedEntry, caseName: selectedCase, port, gcases }),
         viewport,
         out,
       })
@@ -332,8 +325,6 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     stderr: `Unknown command: ${args[0] ?? ""}\n`,
   }
 }
-
-const IGNORED_DISCOVERY_DIRS = new Set(["node_modules", "dist", ".vite", ".next", ".git"])
 
 function resolveProjectSelection(args: string[], cwd: string): ProjectSelection {
   const projectOptionIndex = args.findIndex((arg) => arg === "-p" || arg === "--project")
@@ -409,33 +400,58 @@ function statOrUndefined(path: string) {
   }
 }
 
-function discoverGTSXEntries(cwd: string, targetDirectory: string, tsconfigPath?: string): string[] {
-  if (tsconfigPath) {
-    return discoverGTSXProgramFiles({ cwd, root: targetDirectory, tsconfigPath })
+function resolveGTSXEntryCoordinates(cwd: string, entry: string, tsconfigPath?: string): EntryResolution {
+  if (hasExplicitExportCoordinate(entry)) {
+    return { entries: [entry], diagnostics: [] }
   }
 
-  const root = resolve(cwd, targetDirectory)
-  const entries: string[] = []
+  return discoverGTSXFileEntryCoordinates(cwd, entry, tsconfigPath)
+}
 
-  walk(root)
-  return entries
-    .map((entryPath) => relative(cwd, entryPath).split(sep).join("/"))
-    .sort((left, right) => left.localeCompare(right))
+function discoverGTSXEntryCoordinates(cwd: string, targetDirectory: string, tsconfigPath?: string): EntryResolution {
+  const index = buildGTSXProjectIndex({ cwd, projectRoot: targetDirectory, tsconfigPath })
+  return {
+    entries: index.files.flatMap((file) => file.components.map((component) => component.coordinate)),
+    diagnostics: index.files.filter((file) => file.components.length === 0).flatMap((file) => file.diagnostics),
+  }
+}
 
-  function walk(directory: string) {
-    for (const dirent of readdirSync(directory, { withFileTypes: true })) {
-      if (dirent.isDirectory()) {
-        if (!IGNORED_DISCOVERY_DIRS.has(dirent.name)) {
-          walk(join(directory, dirent.name))
-        }
-        continue
-      }
+function discoverGTSXFileEntryCoordinates(cwd: string, entry: string, tsconfigPath?: string): EntryResolution {
+  const file = normalizeProjectPath(entryFile(entry))
+  const projectRoot = dirname(file)
+  const index = buildGTSXProjectIndex({
+    cwd,
+    projectRoot: projectRoot === "." ? "." : projectRoot,
+    tsconfigPath,
+  })
+  const indexedFile = index.files.find((candidate) => candidate.path === file)
 
-      if (dirent.isFile() && dirent.name.endsWith(".g.tsx")) {
-        entries.push(join(directory, dirent.name))
-      }
+  if (!indexedFile) {
+    return {
+      entries: [],
+      diagnostics: [
+        {
+          stage: "contract-extraction",
+          code: "entry-not-found",
+          message: `GTSX entry does not exist: ${entry}.`,
+          file: entry,
+        },
+      ],
     }
   }
+
+  return {
+    entries: indexedFile.components.map((component) => component.coordinate),
+    diagnostics: indexedFile.components.length === 0 ? indexedFile.diagnostics : [],
+  }
+}
+
+function hasExplicitExportCoordinate(entry: string): boolean {
+  return entry.includes("#")
+}
+
+function normalizeProjectPath(filePath: string): string {
+  return filePath.split(sep).join("/")
 }
 
 function isEntryInGTSXScope(cwd: string, entry: string, tsconfigPath: string): boolean {
@@ -458,6 +474,50 @@ function entryOutsideProjectScopeResult(entry: string): CLIResult {
   ])
 }
 
+function checkResolvedEntries(
+  cwd: string,
+  resolution: EntryResolution,
+  options: { fallbackFile: string; json: boolean; stderr: string },
+): CLIResult {
+  if (resolution.entries.length === 0) {
+    return diagnosticsResult(nonEmptyDiagnostics(resolution.diagnostics, options.fallbackFile))
+  }
+
+  const results = resolution.entries.map((candidate) => analyzeEntry({ cwd, entry: candidate }))
+  const diagnostics = [...resolution.diagnostics, ...results.flatMap((result) => result.diagnostics)]
+  if (options.json) {
+    const stdout =
+      results.length === 1 && resolution.diagnostics.length === 0
+        ? `${JSON.stringify(results[0], null, 2)}\n`
+        : `${JSON.stringify({ entries: results, diagnostics }, null, 2)}\n`
+
+    return {
+      exitCode: diagnostics.length === 0 ? 0 : 1,
+      stdout,
+      stderr: options.stderr,
+    }
+  }
+
+  return {
+    exitCode: diagnostics.length === 0 ? 0 : 1,
+    stdout: [results.map(formatCheckResult).join("\n"), formatDiagnostics(resolution.diagnostics)].join(""),
+    stderr: options.stderr,
+  }
+}
+
+function nonEmptyDiagnostics(diagnostics: GTSXDiagnostic[], target: string): GTSXDiagnostic[] {
+  if (diagnostics.length > 0) return diagnostics
+
+  return [
+    {
+      stage: "contract-extraction",
+      code: "no-entries-found",
+      message: `No .g.tsx entries found under ${target}.`,
+      file: target,
+    },
+  ]
+}
+
 function readOption(args: string[], optionName: string): string | undefined {
   const index = args.indexOf(optionName)
   return index >= 0 ? args[index + 1] : undefined
@@ -476,12 +536,27 @@ function readOptions(args: string[], optionName: string): string[] {
 function outForEntryContactSheet(out: string, entry: string): string {
   if (out.endsWith(".png")) return out
 
-  const fileName = entry.split(/[\\/]/).pop()?.replace(/\.g\.tsx$/, ".png") ?? "gtsx-capture.png"
+  const fileName = outputPathForEntry(entry).split(/[\\/]/).pop() ?? "gtsx-capture.png"
   return join(out, fileName)
 }
 
 function outForDirectoryContactSheet(out: string, entry: string): string {
-  return join(out, entry.replace(/\.g\.tsx$/, ".png"))
+  return join(out, outputPathForEntry(entry))
+}
+
+function outputPathForEntry(entry: string): string {
+  const coordinate = parseEntryCoordinate(entry)
+  const suffix = coordinate.exportName === "default" ? ".png" : `.${sanitizeFilePathSegment(coordinate.exportName)}.png`
+  return coordinate.file.replace(/\.g\.tsx$/, suffix)
+}
+
+function parseEntryCoordinate(entry: string): { file: string; exportName: string } {
+  const [file, exportName] = entry.split("#", 2)
+  return { file, exportName: exportName || "default" }
+}
+
+function sanitizeFilePathSegment(value: string): string {
+  return value.replace(/[^A-Za-z0-9._-]/g, "_")
 }
 
 async function startPreviewServer(
@@ -587,9 +662,14 @@ export function expandUrl(template: string, params: { entry: string; caseName: s
 function diagnosticsResult(diagnostics: GTSXDiagnostic[]): CLIResult {
   return {
     exitCode: diagnostics.some((diagnostic) => diagnostic.code.startsWith("missing-strip-script")) ? 0 : 1,
-    stdout: diagnostics.map((diagnostic) => `[${diagnostic.stage}] ${diagnostic.code}: ${diagnostic.message}`).join("\n") + "\n",
+    stdout: formatDiagnostics(diagnostics),
     stderr: "",
   }
+}
+
+function formatDiagnostics(diagnostics: GTSXDiagnostic[]): string {
+  if (diagnostics.length === 0) return ""
+  return diagnostics.map((diagnostic) => `[${diagnostic.stage}] ${diagnostic.code}: ${diagnostic.message}`).join("\n") + "\n"
 }
 
 function adapterResult(adapter: Awaited<ReturnType<typeof runScriptAdapter>>): CLIResult {

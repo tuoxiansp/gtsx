@@ -322,7 +322,8 @@ scope: { count: 0, increment() {}, reset() {} }
 
 ## File Organization
 
-- One primary component per `.g.tsx` file (default export).
+- Export at least one component per `.g.tsx` file. A default export is optional; named-only files are valid.
+- Keep one primary visual surface per file unless multiple small sibling components naturally share props, fixtures, or provider setup.
 - Co-locate the provider with the component if it's only used by that component.
 - Share providers across files by exporting from a dedicated `providers.g.tsx`.
 - Keep prop/scope types in the same `.g.tsx` file unless shared across multiple components.

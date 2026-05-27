@@ -280,9 +280,11 @@ Panel.cases = {
 
 `createGProvider(useValue)` follows the `react-tracked` mental model: the Provider owns state and update, `useGContext(Provider)` reads tracked state, and `useGContextUpdate(Provider)` reads the update function. Component cases provide preview fallback state with ordered provider entries.
 
-## Multiple Exports
+## Exports And Coordinates
 
-A `.g.tsx` file may export multiple components. Each exported component has a coordinate:
+A `.g.tsx` file must export at least one component, but it does not need a default export. Default exports and named exports are both valid GTSX entries.
+
+Each exported component has a coordinate:
 
 ```txt
 src/MultiExport.g.tsx#default
@@ -290,6 +292,8 @@ src/MultiExport.g.tsx#NamedBadge
 ```
 
 Each exported component owns its own `Component.cases`.
+
+When you pass a bare file path such as `src/MultiExport.g.tsx` to `gtsx check`, GTSX checks every exported component in that file. Use an explicit coordinate such as `src/MultiExport.g.tsx#NamedBadge` when a command needs one concrete component.
 
 ## Verification
 

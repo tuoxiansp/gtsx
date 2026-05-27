@@ -45,6 +45,7 @@ Verify: `gtsx check src/Badge.g.tsx`
 ## Rules (non-negotiable)
 
 - `.g.tsx` must own real visual UI. Do not create a file that only wraps `<ExistingComponent {...props} />`.
+- `.g.tsx` must export at least one component. Default exports are optional; named-only component files are valid.
 - Author visual surfaces, not route/provider/layout orchestration. If a component has no independent visual surface, descend or skip it.
 - Only call GTSX hooks (`useGContext`, hooks from `createGScopeHook`) inside `.g.tsx` component bodies. Never call `useState`, `useEffect`, or other React hooks directly.
 - Cases must be static object literals. No computed keys, no dynamic generation, no async loading.

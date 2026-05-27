@@ -43,8 +43,16 @@ describe("GTSX analyzer", () => {
     expect(result.cases.map((testCase) => testCase.name)).toEqual(["ready"])
   })
 
+  it("accepts named-only component files without requiring a default export", () => {
+    const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/MissingDefault.g.tsx" })
+
+    expect(result.diagnostics).toEqual([])
+    expect(result.mode).toBe("pure")
+    expect(result.cases.map((testCase) => testCase.name)).toEqual(["ready"])
+  })
+
   it("reports contract diagnostics for malformed entries", () => {
-    const missingDefault = analyzeEntry({ cwd: fixtureRoot, entry: "src/MissingDefault.g.tsx" })
+    const missingDefault = analyzeEntry({ cwd: fixtureRoot, entry: "src/MissingDefault.g.tsx#default" })
     const multipleScopes = analyzeEntry({ cwd: fixtureRoot, entry: "src/MultipleScopes.g.tsx" })
     const dynamicCases = analyzeEntry({ cwd: fixtureRoot, entry: "src/DynamicCases.g.tsx" })
     const legacyScopeCases = analyzeEntry({ cwd: fixtureRoot, entry: "src/LegacyScopeCases.g.tsx" })

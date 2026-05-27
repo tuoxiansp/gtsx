@@ -49,6 +49,12 @@ type CasesAssignment = {
   cases: GTSXCaseSummary[]
 }
 
+type EntryCoordinate = {
+  file: string
+  exportName?: string
+  explicitExportName: boolean
+}
+
 export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
   const entryCoordinate = parseEntryCoordinate(options.entry)
   const entryPath = resolve(options.cwd, entryCoordinate.file)
@@ -96,11 +102,16 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
   if (!componentExportName) {
     diagnostics.push({
       stage: "contract-extraction",
-      code: entryCoordinate.exportName === "default" ? "missing-default-export" : "missing-component-export",
+      code:
+        entryCoordinate.explicitExportName && entryCoordinate.exportName === "default"
+          ? "missing-default-export"
+          : "missing-component-export",
       message:
-        entryCoordinate.exportName === "default"
+        entryCoordinate.explicitExportName && entryCoordinate.exportName === "default"
           ? "A .g.tsx entry must have a default React component export."
-          : `A .g.tsx entry must export component "${entryCoordinate.exportName}".`,
+          : entryCoordinate.explicitExportName
+            ? `A .g.tsx entry must export component "${entryCoordinate.exportName}".`
+            : "A .g.tsx entry must export at least one React component.",
       file: options.entry,
     })
   } else {
@@ -177,12 +188,21 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
   }
 }
 
-function parseEntryCoordinate(entry: string): { file: string; exportName: string } {
-  const [file, exportName] = entry.split("#", 2)
-  return { file, exportName: exportName || "default" }
+function parseEntryCoordinate(entry: string): EntryCoordinate {
+  const separatorIndex = entry.indexOf("#")
+  if (separatorIndex < 0) {
+    return { file: entry, explicitExportName: false }
+  }
+
+  return {
+    file: entry.slice(0, separatorIndex),
+    exportName: entry.slice(separatorIndex + 1) || "default",
+    explicitExportName: true,
+  }
 }
 
-function getComponentExportName(sourceFile: ts.SourceFile, exportName: string): string | undefined {
+function getComponentExportName(sourceFile: ts.SourceFile, exportName: string | undefined): string | undefined {
+  if (!exportName) return getDefaultExportName(sourceFile) ?? getFirstNamedExportName(sourceFile)
   if (exportName === "default") return getDefaultExportName(sourceFile)
   return getNamedExportName(sourceFile, exportName)
 }
@@ -212,6 +232,20 @@ function getNamedExportName(sourceFile: ts.SourceFile, exportName: string): stri
       hasModifier(statement, ts.SyntaxKind.ExportKeyword)
     ) {
       return exportName
+    }
+  }
+
+  return undefined
+}
+
+function getFirstNamedExportName(sourceFile: ts.SourceFile): string | undefined {
+  for (const statement of sourceFile.statements) {
+    if (
+      (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+      statement.name &&
+      hasModifier(statement, ts.SyntaxKind.ExportKeyword)
+    ) {
+      return statement.name.text
     }
   }
 
@@ -503,4 +537,3 @@ function hasStaticProperty(objectLiteral: ts.ObjectLiteralExpression, propertyNa
 function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
   return Boolean(ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((modifier) => modifier.kind === kind))
 }
-

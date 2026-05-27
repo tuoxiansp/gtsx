@@ -139,11 +139,22 @@ function buildProjectIndexFile(
       dependencyCoordinatesForComponent(context, component, exportedComponentsByFilePath, fileContextsByFilePath, moduleResolution),
     ),
   )
+  const fileDiagnostics: GTSXDiagnostic[] =
+    context.exportedComponents.length === 0
+      ? [
+          {
+            stage: "contract-extraction",
+            code: "missing-component-export",
+            message: "A .g.tsx file must export at least one React component.",
+            file: context.filePath,
+          },
+        ]
+      : []
 
   return {
     path: context.filePath,
     components,
-    diagnostics: components.flatMap((component) => component.diagnostics),
+    diagnostics: [...fileDiagnostics, ...components.flatMap((component) => component.diagnostics)],
   }
 }
 

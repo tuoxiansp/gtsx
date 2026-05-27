@@ -98,6 +98,39 @@ describe("gtsx CLI", () => {
     expect(result.stdout).not.toContain("stories/Outside.g.tsx")
   })
 
+  it("checks named-only component files without requiring a default export", async () => {
+    const projectRoot = join(import.meta.dirname, "fixtures/check-project")
+
+    const result = await runCLI(["check", "src/MissingDefault.g.tsx"], { cwd: projectRoot, stdout: "", stderr: "" })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain("GTSX pure entry: src/MissingDefault.g.tsx#MissingDefault")
+    expect(result.stdout).toContain("- ready")
+  })
+
+  it("checks every exported component in a file when no coordinate is specified", async () => {
+    const projectRoot = join(import.meta.dirname, "fixtures/check-project")
+
+    const result = await runCLI(["check", "src/MultiExport.g.tsx"], { cwd: projectRoot, stdout: "", stderr: "" })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain("GTSX pure entry: src/MultiExport.g.tsx#NamedBadge")
+    expect(result.stdout).toContain("GTSX pure entry: src/MultiExport.g.tsx#default")
+  })
+
+  it("still requires a default export when the explicit default coordinate is requested", async () => {
+    const projectRoot = join(import.meta.dirname, "fixtures/check-project")
+
+    const result = await runCLI(["check", "src/MissingDefault.g.tsx#default"], {
+      cwd: projectRoot,
+      stdout: "",
+      stderr: "",
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("missing-default-export")
+  })
+
   it("rejects explicit entries outside the selected TypeScript project scope", async () => {
     const projectRoot = join(import.meta.dirname, "fixtures/ts-project-scope")
 
