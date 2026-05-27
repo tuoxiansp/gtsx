@@ -99,6 +99,7 @@ const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : 
 const canvasWheelExemptSelector = "[data-gtsx-canvas-wheel-exempt]"
 const studioColumnGap = 40
 const studioCanvasRevealMargin = 24
+const studioPreviewRenderIdleDelayMs = 120
 
 function shouldHandleCanvasWheelTarget(target: EventTarget | null): boolean {
   return !(typeof Element !== "undefined" && target instanceof Element && target.closest(canvasWheelExemptSelector))
@@ -125,9 +126,10 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   const canvasViewportPresetRef = React.useRef(canvasViewportPreset)
   const frameStatesRef = React.useRef(props.frameStates)
   const previewRenderQueueRef = React.useRef(props.previewRenderQueue)
-  const previewVisibilityFrame = React.useRef(0)
-  const previewVisibilityScheduledCanvas = React.useRef<StudioCanvasTransform | null>(null)
-  const previewVisibilityTimeout = React.useRef(0)
+  const previewRenderActiveTimeout = React.useRef(0)
+  const previewRenderFrame = React.useRef(0)
+  const previewRenderIdleTimeout = React.useRef(0)
+  const previewRenderScheduledCanvas = React.useRef<StudioCanvasTransform | null>(null)
   const renderPreviewSessionMountedAt = React.useRef(new Map<string, number>())
   const renderPreviewSessionIdsRef = React.useRef(renderPreviewSessionIds)
   const workspaceRef = React.useRef(props.workspace)
@@ -140,7 +142,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   previewRenderQueueRef.current = props.previewRenderQueue
   workspaceRef.current = props.workspace
 
-  const updatePreviewVisibility = React.useCallback(
+  const runPreviewRenderQueue = React.useCallback(
     (nextCanvas: StudioCanvasTransform = canvasRef.current) => {
       if (!canvasViewportElement) return
 
@@ -180,40 +182,76 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     [canvasViewportElement],
   )
 
-  const schedulePreviewVisibilityUpdate = React.useCallback(
+  const requestPreviewRender = React.useCallback(
     (nextCanvas: StudioCanvasTransform = canvasRef.current) => {
-      previewVisibilityScheduledCanvas.current = nextCanvas
+      previewRenderScheduledCanvas.current = nextCanvas
       if (typeof window === "undefined") return
-      if (previewVisibilityFrame.current) return
+      if (previewRenderFrame.current) return
 
-      previewVisibilityFrame.current = window.requestAnimationFrame(() => {
-        previewVisibilityFrame.current = 0
-        const scheduledCanvas = previewVisibilityScheduledCanvas.current ?? canvasRef.current
-        previewVisibilityScheduledCanvas.current = null
-        updatePreviewVisibility(scheduledCanvas)
+      previewRenderFrame.current = window.requestAnimationFrame(() => {
+        previewRenderFrame.current = 0
+        const scheduledCanvas = previewRenderScheduledCanvas.current ?? canvasRef.current
+        previewRenderScheduledCanvas.current = null
+        runPreviewRenderQueue(scheduledCanvas)
       })
     },
-    [updatePreviewVisibility],
+    [runPreviewRenderQueue],
   )
 
-  const updatePreviewVisibilityNow = React.useCallback(
+  const flushPreviewRender = React.useCallback(
     (nextCanvas: StudioCanvasTransform = canvasRef.current) => {
-      if (typeof window !== "undefined" && previewVisibilityFrame.current) {
-        window.cancelAnimationFrame(previewVisibilityFrame.current)
-        previewVisibilityFrame.current = 0
+      if (typeof window !== "undefined" && previewRenderFrame.current) {
+        window.cancelAnimationFrame(previewRenderFrame.current)
+        previewRenderFrame.current = 0
       }
-      previewVisibilityScheduledCanvas.current = null
-      updatePreviewVisibility(nextCanvas)
+      previewRenderScheduledCanvas.current = null
+      runPreviewRenderQueue(nextCanvas)
     },
-    [updatePreviewVisibility],
+    [runPreviewRenderQueue],
+  )
+
+  const debouncePreviewRender = React.useCallback(
+    (nextCanvas: StudioCanvasTransform = canvasRef.current) => {
+      if (typeof window === "undefined") return
+      if (previewRenderIdleTimeout.current) window.clearTimeout(previewRenderIdleTimeout.current)
+      previewRenderIdleTimeout.current = window.setTimeout(() => {
+        previewRenderIdleTimeout.current = 0
+        requestPreviewRender(nextCanvas)
+      }, studioPreviewRenderIdleDelayMs)
+    },
+    [requestPreviewRender],
+  )
+
+  const scheduleActivePreviewRenderTimeout = React.useCallback(() => {
+    if (typeof window === "undefined") return
+
+    if (previewRenderActiveTimeout.current) {
+      window.clearTimeout(previewRenderActiveTimeout.current)
+      previewRenderActiveTimeout.current = 0
+    }
+    const activeTimeoutMs = positivePreviewQueueActiveTimeout(previewRenderQueueRef.current?.activeTimeoutMs)
+    if (activeTimeoutMs === undefined) return
+
+    previewRenderActiveTimeout.current = window.setTimeout(() => {
+      previewRenderActiveTimeout.current = 0
+      requestPreviewRender(canvasRef.current)
+    }, activeTimeoutMs + 16)
+  }, [requestPreviewRender])
+
+  const requestCanvasPreviewRender = React.useCallback(
+    (nextCanvas: StudioCanvasTransform = canvasRef.current) => {
+      requestPreviewRender(nextCanvas)
+      debouncePreviewRender(nextCanvas)
+    },
+    [debouncePreviewRender, requestPreviewRender],
   )
 
   const applyCanvasSurfaceTransform = React.useCallback(
     (nextCanvas: StudioCanvasTransform) => {
       if (canvasSurfaceElement) canvasSurfaceElement.style.transform = studioCanvasTransformStyle(nextCanvas)
-      schedulePreviewVisibilityUpdate(nextCanvas)
+      requestCanvasPreviewRender(nextCanvas)
     },
-    [canvasSurfaceElement, schedulePreviewVisibilityUpdate],
+    [canvasSurfaceElement, requestCanvasPreviewRender],
   )
 
   React.useEffect(() => {
@@ -223,30 +261,23 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
 
   React.useEffect(() => {
     renderPreviewSessionIdsRef.current = renderPreviewSessionIds
-    schedulePreviewVisibilityUpdate(canvasRef.current)
-    if (typeof window === "undefined") return
-
-    if (previewVisibilityTimeout.current) {
-      window.clearTimeout(previewVisibilityTimeout.current)
-      previewVisibilityTimeout.current = 0
-    }
-    const activeTimeoutMs = positivePreviewQueueActiveTimeout(previewRenderQueueRef.current?.activeTimeoutMs)
-    if (activeTimeoutMs === undefined) return
-
-    previewVisibilityTimeout.current = window.setTimeout(() => {
-      previewVisibilityTimeout.current = 0
-      schedulePreviewVisibilityUpdate(canvasRef.current)
-    }, activeTimeoutMs + 16)
-  }, [renderPreviewSessionIds, schedulePreviewVisibilityUpdate])
+    requestPreviewRender(canvasRef.current)
+    scheduleActivePreviewRenderTimeout()
+  }, [renderPreviewSessionIds, requestPreviewRender, scheduleActivePreviewRenderTimeout])
 
   React.useEffect(() => {
-    schedulePreviewVisibilityUpdate(canvasRef.current)
-  }, [canvasViewportPreset, layoutMeasurementKey, schedulePreviewVisibilityUpdate])
+    requestPreviewRender(canvasRef.current)
+  }, [canvasViewportPreset, layoutMeasurementKey, requestPreviewRender])
+
+  React.useEffect(() => {
+    requestPreviewRender(canvasRef.current)
+  }, [props.frameStates, requestPreviewRender])
 
   React.useEffect(() => {
     return () => {
-      if (previewVisibilityFrame.current) window.cancelAnimationFrame(previewVisibilityFrame.current)
-      if (previewVisibilityTimeout.current) window.clearTimeout(previewVisibilityTimeout.current)
+      if (previewRenderActiveTimeout.current) window.clearTimeout(previewRenderActiveTimeout.current)
+      if (previewRenderFrame.current) window.cancelAnimationFrame(previewRenderFrame.current)
+      if (previewRenderIdleTimeout.current) window.clearTimeout(previewRenderIdleTimeout.current)
     }
   }, [])
 
@@ -379,8 +410,8 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
       sameColumnMeasurementRecord(current, nextMeasurementsByIndex) ? current : nextMeasurementsByIndex,
     )
     setColumnLayoutByIndex((current) => (sameColumnLayoutRecord(current, nextLayoutByIndex) ? current : nextLayoutByIndex))
-    updatePreviewVisibilityNow(canvasRef.current)
-  }, [canvasSurfaceElement, layoutMeasurementKey, props.workspace.columns, updatePreviewVisibilityNow])
+    flushPreviewRender(canvasRef.current)
+  }, [canvasSurfaceElement, flushPreviewRender, layoutMeasurementKey, props.workspace.columns])
 
   return {
     canvas,
@@ -389,7 +420,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     onCanvasPointerCancel(event) {
       if (panRef.current?.pointerId === event.pointerId) {
         panRef.current = null
-        updatePreviewVisibilityNow()
+        flushPreviewRender()
       }
     },
     onCanvasPointerDown(event) {
@@ -420,7 +451,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     onCanvasPointerUp(event) {
       if (panRef.current?.pointerId === event.pointerId) {
         panRef.current = null
-        updatePreviewVisibilityNow()
+        flushPreviewRender()
       }
     },
     onChangeSelection: props.onChangeSelection
