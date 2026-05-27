@@ -696,11 +696,13 @@ function preserveStudioDebugUrlParams(target: URLSearchParams, source: URLSearch
     "previewQueueBuffer",
     "previewQueueLength",
     "previewQueueRetain",
+    "previewQueueSafety",
     "queueActive",
     "queueActiveTimeout",
     "queueBuffer",
     "queueLength",
     "queueRetain",
+    "queueSafety",
     "previewBuffer",
     "previewRetain",
   ]) {

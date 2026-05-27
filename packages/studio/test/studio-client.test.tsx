@@ -725,7 +725,7 @@ describe("GTSX Studio shell", () => {
         },
       ],
       maxActive: 2,
-      maxLength: 5,
+      safetyLimit: 5,
       viewport: { bottom: 100, left: 0, right: 100, top: 0 },
     }
 
@@ -764,7 +764,7 @@ describe("GTSX Studio shell", () => {
           },
         ],
         maxActive: 2,
-        maxLength: 3,
+        safetyLimit: 3,
         viewport: { bottom: 100, left: 0, right: 100, top: 0 },
       })],
     ).toEqual(["new-a", "new-b", "done"])
@@ -785,7 +785,7 @@ describe("GTSX Studio shell", () => {
           },
         ],
         maxActive: 2,
-        maxLength: 4,
+        safetyLimit: 4,
         viewport: { bottom: 100, left: 0, right: 240, top: 0 },
       })],
     ).toEqual(["top-a", "bottom-a"])
@@ -804,7 +804,7 @@ describe("GTSX Studio shell", () => {
         },
       ],
       maxActive: 2,
-      maxLength: 4,
+      safetyLimit: 4,
       viewport: { bottom: 100, left: 0, right: 100, top: 0 },
     }
 
@@ -815,7 +815,7 @@ describe("GTSX Studio shell", () => {
     ])
   })
 
-  it("caps pending preview queue length without dropping completed mounted previews", () => {
+  it("uses explicit preview queue safety cap without dropping completed mounted previews", () => {
     expect(
       [...queuedStudioPreviewSessionIds({
         canvas: { x: 0, y: 0, scale: 1 },
@@ -828,7 +828,7 @@ describe("GTSX Studio shell", () => {
           },
         ],
         maxActive: 1,
-        maxLength: 2,
+        safetyLimit: 2,
         viewport: { bottom: 100, left: 0, right: 100, top: 0 },
       })],
     ).toEqual(["a", "b", "c"])
@@ -842,10 +842,28 @@ describe("GTSX Studio shell", () => {
           },
         ],
         maxActive: 4,
-        maxLength: 2,
+        safetyLimit: 2,
         viewport: { bottom: 100, left: 0, right: 100, top: 0 },
       })],
     ).toEqual(["a", "b"])
+  })
+
+  it("does not apply a small default preview queue length cap", () => {
+    const sessionIds = Array.from({ length: 24 }, (_, index) => `case-${index}`)
+
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        canvas: { x: 0, y: 0, scale: 1 },
+        items: [
+          {
+            rect: { bottom: 100, left: 0, right: 100, top: 0 },
+            sessionIds,
+          },
+        ],
+        maxActive: 32,
+        viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      })],
+    ).toEqual(sessionIds)
   })
 
   it("uses an adjustable preload buffer for near-canvas preview work", () => {
@@ -858,7 +876,7 @@ describe("GTSX Studio shell", () => {
         },
       ],
       maxActive: 2,
-      maxLength: 4,
+      safetyLimit: 4,
       viewport: { bottom: 100, left: 0, right: 100, top: 0 },
     }
 
@@ -1124,29 +1142,36 @@ describe("GTSX Studio shell", () => {
     expect(
       studioPreviewRenderQueueOptionsFromParams(
         new URLSearchParams(
-          "previewQueueActive=3&previewQueueLength=9&previewQueueBuffer=640&previewQueueRetain=1800&previewQueueActiveTimeout=900",
+          "previewQueueActive=3&previewQueueSafety=9&previewQueueBuffer=640&previewQueueRetain=1800&previewQueueActiveTimeout=900",
         ),
       ),
     ).toEqual({
       activeTimeoutMs: 900,
       maxActive: 3,
-      maxLength: 9,
       preloadMargin: 640,
       retainMargin: 1800,
+      safetyLimit: 9,
     })
-    expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("queueActive=4&queueLength=12&queueBuffer=700"))).toEqual({
+    expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("queueActive=4&queueSafety=12&queueBuffer=700"))).toEqual({
       activeTimeoutMs: undefined,
       maxActive: 4,
-      maxLength: 12,
       preloadMargin: 700,
       retainMargin: undefined,
+      safetyLimit: 12,
+    })
+    expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("previewQueueLength=10&queueLength=12"))).toEqual({
+      activeTimeoutMs: undefined,
+      maxActive: undefined,
+      preloadMargin: undefined,
+      retainMargin: undefined,
+      safetyLimit: 10,
     })
     expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("queueActive=0&queueLength=nope"))).toEqual({
       activeTimeoutMs: undefined,
       maxActive: undefined,
-      maxLength: undefined,
       preloadMargin: undefined,
       retainMargin: undefined,
+      safetyLimit: undefined,
     })
   })
 

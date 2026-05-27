@@ -8,14 +8,17 @@ import {
 } from "./preview-lazy-loading"
 
 export const defaultStudioPreviewRenderQueueMaxActive = 8
-export const defaultStudioPreviewRenderQueueMaxLength = 18
+export const defaultStudioPreviewRenderQueueSafetyLimit = 8192
+export const defaultStudioPreviewRenderQueueMaxLength = defaultStudioPreviewRenderQueueSafetyLimit
 
 export type StudioPreviewRenderQueueOptions = {
   activeTimeoutMs?: number
   maxActive?: number
+  /** @deprecated Use safetyLimit. */
   maxLength?: number
   preloadMargin?: number
   retainMargin?: number
+  safetyLimit?: number
 }
 
 export type StudioPreviewRenderQueueInput = StudioPreviewRenderQueueOptions & {
@@ -42,9 +45,9 @@ type StudioPreviewRenderQueueCandidate = {
 export function queuedStudioPreviewSessionIds(input: StudioPreviewRenderQueueInput): Set<string> {
   const selected = new Set<string>()
   let activeTasks = 0
-  let queuedTasks = 0
-  const maxLength = positiveQueueLimit(input.maxLength, defaultStudioPreviewRenderQueueMaxLength)
-  const maxActive = Math.min(positiveQueueLimit(input.maxActive, defaultStudioPreviewRenderQueueMaxActive), maxLength)
+  let renderTaskCandidates = 0
+  const safetyLimit = positiveQueueLimit(input.safetyLimit ?? input.maxLength, defaultStudioPreviewRenderQueueSafetyLimit)
+  const maxActive = Math.min(positiveQueueLimit(input.maxActive, defaultStudioPreviewRenderQueueMaxActive), safetyLimit)
 
   for (const candidate of studioPreviewRenderQueueCandidates(input)) {
     if (selected.has(candidate.sessionId)) continue
@@ -55,8 +58,8 @@ export function queuedStudioPreviewSessionIds(input: StudioPreviewRenderQueueInp
     }
 
     if (candidate.needsRenderTask) {
-      if (queuedTasks >= maxLength) continue
-      queuedTasks += 1
+      renderTaskCandidates += 1
+      if (renderTaskCandidates > safetyLimit) continue
       if (activeTasks >= maxActive) continue
     }
 
@@ -71,9 +74,9 @@ export function studioPreviewRenderQueueOptionsFromParams(params: URLSearchParam
   return {
     activeTimeoutMs: positiveIntegerParam(params, ["previewQueueActiveTimeout", "queueActiveTimeout"]),
     maxActive: positiveIntegerParam(params, ["previewQueueActive", "queueActive"]),
-    maxLength: positiveIntegerParam(params, ["previewQueueLength", "queueLength"]),
     preloadMargin: positiveIntegerParam(params, ["previewQueueBuffer", "queueBuffer", "previewBuffer"]),
     retainMargin: positiveIntegerParam(params, ["previewQueueRetain", "queueRetain", "previewRetain"]),
+    safetyLimit: positiveIntegerParam(params, ["previewQueueSafety", "queueSafety", "previewQueueLength", "queueLength"]),
   }
 }
 
