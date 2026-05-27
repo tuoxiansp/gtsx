@@ -19,11 +19,15 @@ import {
   componentCardLayoutWidth,
   computeStudioColumnLayout,
   createStudioCanvasTransformFromUrl,
+  createStudioPreviewPoolUrl,
   createStudioRuntimeValuesRequest,
   createStudioWorkspaceStateFromUrl,
   createStudioWorkspaceState,
   createStudioWorkspaceUrlSearchParams,
   currentStudioPreviewTargets,
+  isGPreviewProtocolMessage,
+  isStudioPreviewPoolDisabled,
+  isStudioPreviewPoolDebugEnabled,
   mergeStudioPreviewFrameState,
   previewSessionId,
   replaceStudioCanvasUrlState,
@@ -32,12 +36,25 @@ import {
   selectedStudioCaseName,
   selectStudioRuntimeInstance,
   selectStudioComponent,
+  studioPreviewCacheKey,
+  studioPreviewRenderTargetFromUrl,
   studioPreviewWarmupTargets,
 } from "../src/index.js"
 import ComponentCard from "../src/components/ComponentCard.g.js"
 import LazyPreviewFrame from "../src/components/LazyPreviewFrame.g.js"
 import PreviewCaseSheet from "../src/components/PreviewCaseSheet.g.js"
 import PreviewMessage from "../src/components/PreviewMessage.g.js"
+import { studioPreviewIframeBorrowKey } from "../src/preview-iframe-pool.js"
+import { studioPreviewIndexedDBNamespace } from "../src/preview-cache-indexeddb.js"
+import {
+  dispatchStudioPreviewLoadCheck,
+  isRectNearViewport,
+  scheduleStudioPreviewLoadCheck,
+  shouldRenderStudioPreview,
+  studioPreviewLoadCheckEvent,
+  studioPreviewPreloadMargin,
+  studioPreviewRetainMargin,
+} from "../src/preview-lazy-loading.js"
 
 const fixtureRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
 const examplesRoot = join(import.meta.dirname, "../../../examples")
@@ -53,7 +70,12 @@ function buildStudioManifest(
     projectRoot: options.projectRoot,
     tsconfigPath: options.tsconfigPath,
   })
-  return createStudioManifest(projectIndex, { preview: options.preview, routes: options.routes, diagnostics: options.diagnostics })
+  return createStudioManifest(projectIndex, {
+    cache: options.cache,
+    preview: options.preview,
+    routes: options.routes,
+    diagnostics: options.diagnostics,
+  })
 }
 
 describe("GTSX Studio shell", () => {
@@ -121,6 +143,20 @@ describe("GTSX Studio shell", () => {
 
     expect(rootStudioManifestComponents(manifest).map((component) => component.coordinate)).toEqual(expectedRootCoordinates)
     expect(cardCoordinates(renderToStaticMarkup(<StudioShell manifest={manifest} />))).toEqual(expectedRootCoordinates)
+  })
+
+  it("defers cache-namespaced Studio card layout until browser preview geometry cache hydration", () => {
+    const manifest = buildStudioManifest({
+      cwd: fixtureRoot,
+      projectRoot: "src",
+      routes: { preview: "/gtsx" },
+      cache: { namespace: "fixture-project" },
+    })
+    const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="component:src/UserCard.g.tsx#default" />)
+
+    expect(html).toContain('aria-busy="true"')
+    expect(html).toContain('data-gtsx-canvas-viewport="true"')
+    expect(cardCoordinates(html)).toEqual([])
   })
 
   it("names the Studio package's outer visual root as Studio", () => {
@@ -623,6 +659,104 @@ describe("GTSX Studio shell", () => {
     expect(previewFrameHtml(html, "src/MultiExport.g.tsx#NamedBadge:ready")).not.toContain("border:1px solid #e5e7eb")
   })
 
+  it("treats transformed preview bounds near the viewport as loadable", () => {
+    const viewport = { bottom: 720, left: 0, right: 1280, top: 0 }
+
+    expect(studioPreviewLoadCheckEvent).toBe("gtsx:studio-preview-load-check")
+    expect(studioPreviewRetainMargin).toBeGreaterThan(studioPreviewPreloadMargin)
+    expect(isRectNearViewport({ bottom: -1, left: 80, right: 360, top: -240 }, viewport, studioPreviewPreloadMargin)).toBe(true)
+    expect(isRectNearViewport({ bottom: -400, left: 80, right: 360, top: -640 }, viewport, studioPreviewPreloadMargin)).toBe(false)
+    expect(isRectNearViewport({ bottom: 300, left: 1281, right: 1520, top: 40 }, viewport, studioPreviewPreloadMargin)).toBe(true)
+    expect(isRectNearViewport({ bottom: 300, left: 1700, right: 1920, top: 40 }, viewport, studioPreviewPreloadMargin)).toBe(false)
+  })
+
+  it("retains loaded previews near the viewport and releases distant previews", () => {
+    const viewport = { bottom: 720, left: 0, right: 1280, top: 0 }
+    const betweenPreloadAndRetain = {
+      bottom: -studioPreviewPreloadMargin - 10,
+      left: 80,
+      right: 360,
+      top: -studioPreviewPreloadMargin - 240,
+    }
+    const beyondRetain = {
+      bottom: -studioPreviewRetainMargin - 10,
+      left: 80,
+      right: 360,
+      top: -studioPreviewRetainMargin - 240,
+    }
+
+    expect(shouldRenderStudioPreview(false, betweenPreloadAndRetain, viewport)).toBe(false)
+    expect(shouldRenderStudioPreview(true, betweenPreloadAndRetain, viewport)).toBe(true)
+    expect(shouldRenderStudioPreview(true, beyondRetain, viewport)).toBe(false)
+  })
+
+  it("throttles preview load checks during canvas motion and keeps a settled check", () => {
+    vi.useFakeTimers()
+    const dispatchEvent = vi.fn()
+    const originalWindow = Reflect.get(globalThis, "window") as Window | undefined
+    const performanceNow = vi.spyOn(performance, "now")
+    let now = 0
+
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        clearTimeout: globalThis.clearTimeout.bind(globalThis),
+        dispatchEvent,
+        setTimeout: globalThis.setTimeout.bind(globalThis),
+      },
+    })
+    performanceNow.mockImplementation(() => now)
+
+    try {
+      dispatchStudioPreviewLoadCheck()
+      expect(dispatchEvent).toHaveBeenCalledTimes(1)
+
+      now = 10
+      scheduleStudioPreviewLoadCheck({ minInterval: 100, settledDelay: 40 })
+      vi.advanceTimersByTime(10)
+      now = 20
+      scheduleStudioPreviewLoadCheck({ minInterval: 100, settledDelay: 40 })
+
+      expect(dispatchEvent).toHaveBeenCalledTimes(1)
+      vi.advanceTimersByTime(29)
+      expect(dispatchEvent).toHaveBeenCalledTimes(1)
+
+      now = 60
+      vi.advanceTimersByTime(11)
+      expect(dispatchEvent).toHaveBeenCalledTimes(2)
+
+      vi.advanceTimersByTime(100)
+      expect(dispatchEvent).toHaveBeenCalledTimes(2)
+    } finally {
+      performanceNow.mockRestore()
+      vi.useRealTimers()
+      if (originalWindow === undefined) {
+        Reflect.deleteProperty(globalThis, "window")
+      } else {
+        Object.defineProperty(globalThis, "window", { configurable: true, value: originalWindow })
+      }
+    }
+  })
+
+  it("creates stable pooled iframe URLs and render targets for preview slots", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+
+    expect(createStudioPreviewPoolUrl(manifest)).toBe("/gtsx?chrome=0&pool=1")
+    expect(
+      studioPreviewRenderTargetFromUrl(
+        "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0&sessionId=session-1&static=1&gcase=src%2FChild.g.tsx%23default%3Aopen",
+        "fallback-session",
+      ),
+    ).toEqual({
+      caseName: "ready",
+      caseOverrides: [["src/Child.g.tsx#default", "open"]],
+      chrome: "0",
+      entry: "src/UserCard.g.tsx#default",
+      sessionId: "session-1",
+      staticMode: true,
+    })
+  })
+
   it("derives warmup previews near the selected workspace path without duplicating active cards", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
     const state = selectStudioComponent(
@@ -694,10 +828,10 @@ describe("GTSX Studio shell", () => {
       <StudioWorkspaceView
         workspace={createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")}
         previewCache={{
-          "tablet\nsrc/UserCard.g.tsx#default\nready": {
+          [studioPreviewCacheKey(component, "ready", "tablet")]: {
             lastUsedAt: 1,
             frameState: {
-              expectedSessionId: "warmup:tablet\nsrc/UserCard.g.tsx#default\nready",
+              expectedSessionId: `warmup:${studioPreviewCacheKey(component, "ready", "tablet")}`,
               ready: true,
               tree: [
                 {
@@ -718,6 +852,39 @@ describe("GTSX Studio shell", () => {
     expect(casePreviewFrameHtml(html, "ready")).not.toContain("height:1024px")
     expect(html).toContain('data-gtsx-case-grid-columns="2"')
     expect(html).not.toContain("data-gtsx-case-sidebar")
+  })
+
+  it("invalidates preview cache keys when the component source hash changes", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
+    if (!component) throw new Error("Missing UserCard fixture")
+
+    expect(studioPreviewCacheKey({ ...component, sourceHash: "hash-a" }, "ready", "tablet")).not.toBe(
+      studioPreviewCacheKey({ ...component, sourceHash: "hash-b" }, "ready", "tablet"),
+    )
+  })
+
+  it("uses a project namespace for the browser preview geometry cache", () => {
+    const manifest = buildStudioManifest({
+      cwd: fixtureRoot,
+      projectRoot: "src",
+      routes: { preview: "/gtsx" },
+      cache: { namespace: "yuckuolie" },
+    })
+
+    expect(studioPreviewIndexedDBNamespace(manifest)).toBe("project:yuckuolie")
+  })
+
+  it("derives a stable fallback namespace from the Studio manifest shape", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const namespace = studioPreviewIndexedDBNamespace(manifest)
+    const renamedManifest = {
+      ...manifest,
+      files: manifest.files.map((file, index) => (index === 0 ? { ...file, path: `renamed/${file.path}` } : file)),
+    }
+
+    expect(namespace).toMatch(/^manifest:/)
+    expect(studioPreviewIndexedDBNamespace(renamedManifest)).not.toBe(namespace)
   })
 
   it("uses tablet viewport sizing by default", () => {
@@ -801,6 +968,42 @@ describe("GTSX Studio shell", () => {
     expect(previewSessionId(component, "ready", "tablet")).toBe("src/UserCard.g.tsx#default:ready")
     expect(previewSessionId(component, "ready", "desktop")).toBe("src/UserCard.g.tsx#default:ready@desktop")
     expect(previewSessionId(component, "ready", "phone")).toBe("src/UserCard.g.tsx#default:ready@phone")
+  })
+
+  it("reads preview pool debug mode from URL params", () => {
+    expect(isStudioPreviewPoolDebugEnabled(new URLSearchParams("debug=pool"))).toBe(true)
+    expect(isStudioPreviewPoolDebugEnabled(new URLSearchParams("debug=layout,pool"))).toBe(true)
+    expect(isStudioPreviewPoolDebugEnabled(new URLSearchParams("debug=layout&debug=pool"))).toBe(true)
+    expect(isStudioPreviewPoolDebugEnabled(new URLSearchParams("debug=layout&debug=preview-pool"))).toBe(true)
+    expect(isStudioPreviewPoolDebugEnabled(new URLSearchParams("debug=no-pool"))).toBe(true)
+    expect(isStudioPreviewPoolDebugEnabled(new URLSearchParams("debugPool=1"))).toBe(true)
+    expect(isStudioPreviewPoolDebugEnabled(new URLSearchParams("debugPool=0"))).toBe(true)
+    expect(isStudioPreviewPoolDebugEnabled(new URLSearchParams("debug=layout"))).toBe(false)
+  })
+
+  it("reads preview pool disable mode from URL params", () => {
+    expect(isStudioPreviewPoolDisabled(new URLSearchParams("debug=no-pool"))).toBe(true)
+    expect(isStudioPreviewPoolDisabled(new URLSearchParams("debug=layout,disable-pool"))).toBe(true)
+    expect(isStudioPreviewPoolDisabled(new URLSearchParams("debug=layout&debug=without-pool"))).toBe(true)
+    expect(isStudioPreviewPoolDisabled(new URLSearchParams("debugPool=0"))).toBe(true)
+    expect(isStudioPreviewPoolDisabled(new URLSearchParams("debugPool=false"))).toBe(true)
+    expect(isStudioPreviewPoolDisabled(new URLSearchParams("debugPool=off"))).toBe(true)
+    expect(isStudioPreviewPoolDisabled(new URLSearchParams("debug=pool"))).toBe(false)
+    expect(isStudioPreviewPoolDisabled(new URLSearchParams("debugPool=1"))).toBe(false)
+  })
+
+  it("can disable the Studio preview iframe pool from debug URL params", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+
+    expect(renderToStaticMarkup(<StudioShell manifest={manifest} urlSearch="debug=pool" />)).toContain(
+      'data-gtsx-preview-iframe-pool="true"',
+    )
+    expect(renderToStaticMarkup(<StudioShell manifest={manifest} urlSearch="debug=pool" />)).toContain(
+      'data-gtsx-preview-iframe-pool-stats="true"',
+    )
+    expect(renderToStaticMarkup(<StudioShell manifest={manifest} urlSearch="debug=no-pool" />)).not.toContain(
+      'data-gtsx-preview-iframe-pool="true"',
+    )
   })
 
   it("stores viewport as a single canvas-level preset across drilldown columns", () => {
@@ -999,6 +1202,28 @@ describe("GTSX Studio shell", () => {
     })
   })
 
+  it("clears transient preview errors after a session reports ready again", () => {
+    const state = applyStudioPreviewMessage(
+      {
+        expectedSessionId: "current-session",
+        ready: false,
+        error: {
+          message: "Unknown GTSX entry: src/Transient.g.tsx#default",
+        },
+      },
+      {
+        type: "gtsx:ready",
+        protocolVersion: 1,
+        sessionId: "current-session",
+      },
+    )
+
+    expect(state).toEqual({
+      expectedSessionId: "current-session",
+      ready: true,
+    })
+  })
+
   it("updates frame state only for active iframe sessions", () => {
     const current = {
       "current-session": {
@@ -1035,6 +1260,42 @@ describe("GTSX Studio shell", () => {
         ready: true,
       },
     })
+  })
+
+  it("keeps pooled iframe handshake messages out of session frame state", () => {
+    expect(isGPreviewProtocolMessage({ type: "gtsx:pool-ready", protocolVersion: 1 })).toBe(false)
+    expect(isGPreviewProtocolMessage({ type: "gtsx:ready", protocolVersion: 1, sessionId: "session-1" })).toBe(true)
+    expect(isGPreviewProtocolMessage({ type: "gtsx:ready", protocolVersion: 1 })).toBe(false)
+  })
+
+  it("keeps pooled iframe borrow identity stable across render target and size updates", () => {
+    const input = {
+      size: { width: 768, height: 1024 },
+      slot: {
+        previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0",
+        sessionId: "src/UserCard.g.tsx#default:ready",
+        title: "UserCard ready preview",
+      },
+    }
+
+    expect(studioPreviewIframeBorrowKey({ ...input, onPreviewFrameMount() {} })).toBe(
+      studioPreviewIframeBorrowKey({ ...input, onPreviewFrameMount() {} }),
+    )
+    expect(studioPreviewIframeBorrowKey({ ...input, size: { width: 390, height: 844 } })).toBe(
+      studioPreviewIframeBorrowKey(input),
+    )
+    expect(
+      studioPreviewIframeBorrowKey({
+        ...input,
+        slot: { ...input.slot, previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=error&chrome=0" },
+      }),
+    ).toBe(studioPreviewIframeBorrowKey(input))
+    expect(
+      studioPreviewIframeBorrowKey({
+        ...input,
+        slot: { ...input.slot, sessionId: "src/UserCard.g.tsx#default:error" },
+      }),
+    ).not.toBe(studioPreviewIframeBorrowKey(input))
   })
 
   it("stores runtime values responses by boundary id", () => {

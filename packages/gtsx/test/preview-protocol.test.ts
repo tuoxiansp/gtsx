@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest"
 import {
   createGPreviewRequestValuesMessage,
   createGPreviewErrorMessage,
+  createGPreviewPoolReadyMessage,
   createGPreviewReadyMessage,
+  createGPreviewRenderMessage,
   createGPreviewResizeMessage,
   createGPreviewTreeMessage,
   createGPreviewValuesMessage,
@@ -77,6 +79,36 @@ describe("GTSX preview iframe protocol", () => {
         scope: { type: "undefined" },
         providerValues: [{ providerName: "ThemeGTSXProvider", value: { type: "string", value: "dark" } }],
       },
+    })
+  })
+
+  it("creates pooled iframe render control messages", () => {
+    expect(
+      createGPreviewRenderMessage({
+        caseName: "ready",
+        caseOverrides: [["src/Child.g.tsx#default", "open"]],
+        chrome: "0",
+        entry: "src/Card.g.tsx#default",
+        sessionId: "src/Card.g.tsx#default:ready",
+        staticMode: true,
+      }),
+    ).toEqual({
+      type: "gtsx:render",
+      protocolVersion: 1,
+      sessionId: "src/Card.g.tsx#default:ready",
+      target: {
+        caseName: "ready",
+        caseOverrides: [["src/Child.g.tsx#default", "open"]],
+        chrome: "0",
+        entry: "src/Card.g.tsx#default",
+        sessionId: "src/Card.g.tsx#default:ready",
+        staticMode: true,
+      },
+    })
+
+    expect(createGPreviewPoolReadyMessage()).toEqual({
+      type: "gtsx:pool-ready",
+      protocolVersion: 1,
     })
   })
 })

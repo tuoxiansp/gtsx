@@ -16,6 +16,16 @@
       "import": "./dist/project-index.js",
       "default": "./dist/project-index.js"
     },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js",
+      "default": "./dist/config.js"
+    },
+    "./config-model": {
+      "types": "./dist/config-model.d.ts",
+      "import": "./dist/config-model.js",
+      "default": "./dist/config-model.js"
+    },
     "./react-transform": {
       "types": "./dist/react-transform.d.ts",
       "import": "./dist/react-transform.js",

@@ -53,12 +53,32 @@ export type GPreviewValuesMessage = GPreviewProtocolBase & {
   values: GRuntimeValuesSnapshot
 }
 
+export type GPreviewRenderTarget = {
+  caseName: string | null
+  caseOverrides?: [string, string][]
+  chrome: string | null
+  entry: string | null
+  sessionId: string | null
+  staticMode: boolean
+}
+
+export type GPreviewRenderMessage = GPreviewProtocolBase & {
+  type: "gtsx:render"
+  target: GPreviewRenderTarget
+}
+
+export type GPreviewPoolReadyMessage = {
+  type: "gtsx:pool-ready"
+  protocolVersion: typeof G_PREVIEW_PROTOCOL_VERSION
+}
+
 export type GPreviewProtocolMessage =
   | GPreviewReadyMessage
   | GPreviewTreeMessage
   | GPreviewResizeMessage
   | GPreviewRequestValuesMessage
   | GPreviewValuesMessage
+  | GPreviewRenderMessage
   | GPreviewErrorMessage
 
 export function createGPreviewReadyMessage(sessionId: string): GPreviewReadyMessage {
@@ -119,5 +139,21 @@ export function createGPreviewValuesMessage(sessionId: string, values: GRuntimeV
     protocolVersion: G_PREVIEW_PROTOCOL_VERSION,
     sessionId,
     values,
+  }
+}
+
+export function createGPreviewRenderMessage(target: GPreviewRenderTarget): GPreviewRenderMessage {
+  return {
+    type: "gtsx:render",
+    protocolVersion: G_PREVIEW_PROTOCOL_VERSION,
+    sessionId: target.sessionId ?? "",
+    target,
+  }
+}
+
+export function createGPreviewPoolReadyMessage(): GPreviewPoolReadyMessage {
+  return {
+    type: "gtsx:pool-ready",
+    protocolVersion: G_PREVIEW_PROTOCOL_VERSION,
   }
 }

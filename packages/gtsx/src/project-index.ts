@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { readdirSync, readFileSync } from "node:fs"
 import { dirname, join, relative, resolve, sep } from "node:path"
 import ts from "typescript"
@@ -8,6 +9,7 @@ import { discoverGTSXProgramFiles, findNearestTSConfig } from "./project-scope.j
 export type GTSXProjectIndexComponent = {
   coordinate: string
   filePath: string
+  sourceHash: string
   exportName: string
   componentName: string
   mode: GTSXAnalysisResult["mode"]
@@ -19,6 +21,7 @@ export type GTSXProjectIndexComponent = {
 
 export type GTSXProjectIndexFile = {
   path: string
+  sourceHash: string
   components: GTSXProjectIndexComponent[]
   diagnostics: GTSXDiagnostic[]
 }
@@ -47,6 +50,7 @@ type ExportedComponent = {
 
 type ProjectIndexFileContext = {
   filePath: string
+  sourceHash: string
   sourceFile: ts.SourceFile
   exportedComponents: ExportedComponent[]
 }
@@ -108,9 +112,11 @@ export function createCachedGTSXProjectIndexBuilder(cacheOptions: GTSXProjectInd
 }
 
 function buildProjectIndexFileContext(cwd: string, filePath: string): ProjectIndexFileContext {
-  const sourceFile = readGTSXSourceFile(resolve(cwd, filePath))
+  const sourceText = readFileSync(resolve(cwd, filePath), "utf8")
+  const sourceFile = ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   return {
     filePath,
+    sourceHash: hashSourceText(sourceText),
     sourceFile,
     exportedComponents: readExportedComponents(sourceFile),
   }
@@ -135,6 +141,7 @@ function buildProjectIndexFile(
     buildProjectIndexComponent(
       cwd,
       context.filePath,
+      context.sourceHash,
       component,
       dependencyCoordinatesForComponent(context, component, exportedComponentsByFilePath, fileContextsByFilePath, moduleResolution),
     ),
@@ -153,6 +160,7 @@ function buildProjectIndexFile(
 
   return {
     path: context.filePath,
+    sourceHash: context.sourceHash,
     components,
     diagnostics: [...fileDiagnostics, ...components.flatMap((component) => component.diagnostics)],
   }
@@ -161,6 +169,7 @@ function buildProjectIndexFile(
 function buildProjectIndexComponent(
   cwd: string,
   filePath: string,
+  sourceHash: string,
   component: ExportedComponent,
   dependencies: string[],
 ): GTSXProjectIndexComponent {
@@ -170,6 +179,7 @@ function buildProjectIndexComponent(
   return {
     coordinate,
     filePath,
+    sourceHash,
     exportName: component.exportName,
     componentName: component.componentName,
     mode: analysis.mode,
@@ -208,9 +218,8 @@ function discoverGTSXFiles(cwd: string, projectRoot: string, tsconfigPath?: stri
   }
 }
 
-function readGTSXSourceFile(filePath: string): ts.SourceFile {
-  const sourceText = readFileSync(filePath, "utf8")
-  return ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+function hashSourceText(sourceText: string): string {
+  return createHash("sha256").update(sourceText).digest("hex")
 }
 
 function createProjectModuleResolution(cwd: string, tsconfigPath: string | undefined): ProjectModuleResolution {

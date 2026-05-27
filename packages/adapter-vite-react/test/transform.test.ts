@@ -4,6 +4,7 @@ import { buildGTSXProjectIndex } from "gtsx/project-index"
 import { describe, expect, it } from "vitest"
 
 import { gtsxViteReact } from "../src/index.js"
+import { createGTSXVitePreviewComponentLoader, type GTSXPreviewModule } from "../src/preview.js"
 
 describe("gtsx Vite React adapter", () => {
   it("transforms .g.tsx modules through the shared React transform", () => {
@@ -70,5 +71,63 @@ Card.cases = {
     const projectIndex = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
 
     expect(projectIndex.files.map((file) => file.path)).toEqual(["src/Child.g.tsx", "src/Included.g.tsx"])
+  })
+
+  it("loads resolved gtsx config through a virtual module", () => {
+    const fixtureRoot = resolve(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
+    const plugin = gtsxViteReact({
+      config: {
+        project: {
+          namespace: "fixture-project",
+          root: "src/corpus",
+        },
+        routes: {
+          preview: "/preview",
+        },
+        preview: {},
+      },
+      root: fixtureRoot,
+    })
+    plugin.configResolved({ root: fixtureRoot })
+
+    const resolvedId = plugin.resolveId("virtual:gtsx/config")
+    const loaded = plugin.load(resolvedId)
+    const config = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
+
+    expect(resolvedId).toBe("\0virtual:gtsx/config")
+    expect(config.project).toMatchObject({ namespace: "fixture-project", root: "src/corpus" })
+    expect(config.routes).toMatchObject({ preview: "/preview", studio: "/gtsx/studio" })
+  })
+
+  it("uses gtsx config for the virtual project index scope", () => {
+    const fixtureRoot = resolve(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
+    const plugin = gtsxViteReact({
+      config: {
+        project: {
+          root: "src/corpus",
+        },
+        preview: {},
+      },
+      root: fixtureRoot,
+    })
+    plugin.configResolved({ root: fixtureRoot })
+
+    const loaded = plugin.load(plugin.resolveId("virtual:gtsx/project-index"))
+    const projectIndex = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
+
+    expect(projectIndex.files.map((file) => file.path)).toEqual(["src/corpus/Badge.g.tsx", "src/corpus/StatusPanel.g.tsx"])
+  })
+
+  it("creates a preview component loader from a Vite module glob and project root", async () => {
+    function Card() {
+      return null
+    }
+    const modules: Record<string, () => Promise<GTSXPreviewModule>> = {
+      "./components/Card.g.tsx": async () => ({ default: Card }),
+    }
+    const loadComponent = createGTSXVitePreviewComponentLoader(modules, { projectRoot: "src" })
+
+    await expect(loadComponent("src/components/Card.g.tsx#default")).resolves.toBe(Card)
+    await expect(loadComponent("src/components/Missing.g.tsx#default")).resolves.toBeUndefined()
   })
 })

@@ -1,11 +1,12 @@
 import { createRoot } from "react-dom/client"
-import { StudioShell, createStudioManifest } from "@gtsx/studio"
+import { StudioShell, createStudioManifestFromGTSXConfig } from "@gtsx/studio"
+import gtsxConfig from "virtual:gtsx/config"
 import projectIndex from "virtual:gtsx/project-index"
 
 import { GTSXPreviewApp } from "./preview"
 import "./styles.css"
 
-const studioManifest = createStudioManifest(projectIndex)
+const studioManifest = createStudioManifestFromGTSXConfig(projectIndex, gtsxConfig)
 const app = window.location.pathname === "/gtsx/studio" ? <StudioShell manifest={studioManifest} /> : <GTSXPreviewApp />
 
 createRoot(document.getElementById("root")!).render(app)

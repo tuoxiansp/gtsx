@@ -24,6 +24,11 @@
       "import": "./dist/preview.js",
       "default": "./dist/preview.js"
     },
+    "./preview-route": {
+      "types": "./dist/preview-route.d.ts",
+      "import": "./dist/preview-route.js",
+      "default": "./dist/preview-route.js"
+    },
     "./loader": "./loader.cjs"
   },
   "files": [

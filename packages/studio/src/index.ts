@@ -1,9 +1,11 @@
-export { createStudioManifest } from "./manifest"
+export { createStudioManifest, createStudioManifestFromGTSXConfig, studioUrlSearchFromSearchParams } from "./manifest"
 export type {
   CreateStudioManifestOptions,
+  StudioRouteSearchParams,
   StudioManifest,
   StudioManifestComponent,
   StudioManifestFile,
+  StudioManifestCacheConfig,
   StudioManifestPreviewConfig,
   StudioManifestRouteConfig,
 } from "./manifest"
@@ -20,6 +22,7 @@ export {
   computeStudioColumnLayout,
   componentCardLayoutWidth,
   createStudioPreviewUrl,
+  createStudioPreviewPoolUrl,
   createStudioCanvasTransformFromUrl,
   createStudioRuntimeValuesRequest,
   createStudioWorkspaceState,
@@ -28,6 +31,9 @@ export {
   currentStudioPreviewTargets,
   defaultStudioCanvasTransform,
   mergeStudioPreviewFrameState,
+  isGPreviewProtocolMessage,
+  isStudioPreviewPoolDisabled,
+  isStudioPreviewPoolDebugEnabled,
   previewSessionId,
   replaceStudioCanvasUrlState,
   resolveStudioSelection,
@@ -37,6 +43,7 @@ export {
   selectStudioComponent,
   selectStudioRuntimeInstance,
   studioPreviewCacheKey,
+  studioPreviewRenderTargetFromUrl,
   studioPreviewFrameSize,
   studioPreviewWarmupTargets,
 } from "./client"

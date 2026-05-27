@@ -1,5 +1,7 @@
 import { buildGTSXProjectIndex } from "gtsx/project-index"
 import { transformGTSXReactModule } from "gtsx/react-transform"
+import { resolveGTSXConfig } from "gtsx/config-model"
+import type { GTSXConfig, ResolvedGTSXConfig } from "gtsx"
 
 export { transformGTSXComponentBoundaries, transformGTSXReactModule } from "gtsx/react-transform"
 
@@ -13,6 +15,7 @@ type TransformResult = {
 }
 
 type GTSXViteReactOptions = {
+  config?: GTSXConfig
   projectRoot?: string
   root?: string
   tsconfigPath?: string
@@ -20,8 +23,11 @@ type GTSXViteReactOptions = {
 
 export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
   let root = options.root ?? process.cwd()
+  const resolvedConfig = options.config ? resolveGTSXConfig(options.config) : undefined
   const virtualProjectIndexId = "virtual:gtsx/project-index"
+  const virtualConfigId = "virtual:gtsx/config"
   const resolvedVirtualProjectIndexId = `\0${virtualProjectIndexId}`
+  const resolvedVirtualConfigId = `\0${virtualConfigId}`
 
   return {
     name: "@gtsx/adapter-vite-react",
@@ -29,7 +35,7 @@ export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
     config() {
       return {
         optimizeDeps: {
-          exclude: ["@gtsx/adapter-vite-react", "typescript", virtualProjectIndexId],
+          exclude: ["@gtsx/adapter-vite-react", "typescript", virtualConfigId, virtualProjectIndexId],
         },
       }
     },
@@ -38,14 +44,21 @@ export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
     },
     resolveId(id: string) {
       if (id === virtualProjectIndexId) return resolvedVirtualProjectIndexId
+      if (id === virtualConfigId) return resolvedVirtualConfigId
       return null
     },
     load(id: string): TransformResult | null {
+      if (id === resolvedVirtualConfigId) {
+        return {
+          code: `export default ${JSON.stringify(resolvedConfig ?? defaultResolvedConfig())}\n`,
+          map: null,
+        }
+      }
       if (id !== resolvedVirtualProjectIndexId) return null
       const projectIndex = buildGTSXProjectIndex({
         cwd: root,
-        projectRoot: options.projectRoot ?? "src",
-        tsconfigPath: options.tsconfigPath,
+        projectRoot: options.projectRoot ?? resolvedConfig?.project.root ?? "src",
+        tsconfigPath: options.tsconfigPath ?? resolvedConfig?.project.tsconfig,
       })
       return {
         code: `export default ${JSON.stringify(projectIndex)}\n`,
@@ -62,4 +75,10 @@ export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
       return transformed ? { code: transformed.code, map: null } : null
     },
   }
+}
+
+function defaultResolvedConfig(): ResolvedGTSXConfig {
+  return resolveGTSXConfig({
+    preview: {},
+  })
 }

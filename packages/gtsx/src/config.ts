@@ -5,7 +5,10 @@ import ts from "typescript"
 
 import type { GTSXDiagnostic } from "./analyzer.js"
 import { defineGTSXConfig } from "./define-config.js"
+import { resolveGTSXConfig } from "./config-model.js"
 import type { GTSXConfig, GTSXScriptConfig } from "./config-types.js"
+
+export { resolveGTSXConfig }
 
 export type LoadConfigResult = {
   config?: GTSXConfig

@@ -10,11 +10,14 @@ import {
   canvasViewportPresetForWorkspace,
   changeStudioCanvasViewportPreset,
   changeStudioViewportPreset,
+  createStudioPreviewPoolUrl,
   createStudioWorkspaceStateFromUrl,
   currentStudioPreviewTargets,
   currentPreviewSessionIds,
   initialStudioUrlSearchParams,
   isGPreviewProtocolMessage,
+  isStudioPreviewPoolDisabled,
+  isStudioPreviewPoolDebugEnabled,
   pushStudioWorkspaceUrlState,
   replaceStudioCanvasUrlState,
   selectStudioComponent,
@@ -27,7 +30,13 @@ import {
   type StudioViewportPreset,
   type StudioWorkspaceState,
 } from "../client"
-import BufferedPreviewIframe from "./BufferedPreviewIframe.g"
+import {
+  readStudioPreviewIndexedDBCache,
+  studioPreviewIndexedDBNamespace,
+  writeStudioPreviewIndexedDBCache,
+} from "../preview-cache-indexeddb"
+import { StudioPreviewIframePoolProvider } from "../preview-iframe-pool"
+import StudioPreviewIframe from "./StudioPreviewIframe"
 import StudioWorkspaceView from "./StudioWorkspaceView.g"
 
 export type StudioShellProps = {
@@ -38,6 +47,8 @@ export type StudioShellProps = {
 
 type StudioShellScope = {
   canvas: StudioCanvasTransform
+  debugPreviewPool: boolean
+  disablePreviewPool: boolean
   frameStates: Record<string, StudioPreviewFrameState>
   onChangeCanvas: (canvas: StudioCanvasTransform) => void
   onChangeCanvasViewportPreset: (preset: StudioViewportPreset) => void
@@ -50,6 +61,7 @@ type StudioShellScope = {
     options?: StudioComponentSelectionOptions,
   ) => void
   previewCache: Record<string, StudioPreviewCacheEntry>
+  previewCacheReady: boolean
   selection: string
   urlWarning?: string
   warmupTargets: StudioPreviewWarmupTarget[]
@@ -61,10 +73,16 @@ const studioCanvasCommitDelayMs = 120
 const studioPreviewCacheLimit = 96
 
 function useStudioShellScope(props: StudioShellProps): StudioShellScope {
-  const initialUrlState = React.useMemo(
-    () => createStudioWorkspaceStateFromUrl(props.manifest, initialStudioUrlSearchParams(props.selection, props.urlSearch)),
-    [props.manifest, props.selection, props.urlSearch],
+  const initialUrlParams = React.useMemo(
+    () => initialStudioUrlSearchParams(props.selection, props.urlSearch),
+    [props.selection, props.urlSearch],
   )
+  const initialUrlState = React.useMemo(
+    () => createStudioWorkspaceStateFromUrl(props.manifest, initialUrlParams),
+    [initialUrlParams, props.manifest],
+  )
+  const debugPreviewPool = React.useMemo(() => isStudioPreviewPoolDebugEnabled(initialUrlParams), [initialUrlParams])
+  const disablePreviewPool = React.useMemo(() => isStudioPreviewPoolDisabled(initialUrlParams), [initialUrlParams])
   const [selection, setSelection] = React.useState(initialUrlState.selection)
   const [canvas, setCanvas] = React.useState(initialUrlState.canvas)
   const [urlWarning, setUrlWarning] = React.useState(initialUrlState.warning)
@@ -78,6 +96,19 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
   const pendingCanvasCommitTimer = React.useRef(0)
   const sessionIds = React.useMemo(() => currentPreviewSessionIds(workspace), [workspace])
   const currentTargets = React.useMemo(() => currentStudioPreviewTargets(props.manifest, workspace), [props.manifest, workspace])
+  const currentTargetCacheKey = React.useMemo(
+    () => currentTargets.map((target) => target.cacheKey).join("\n"),
+    [currentTargets],
+  )
+  const previewCacheNamespace = React.useMemo(() => studioPreviewIndexedDBNamespace(props.manifest), [props.manifest])
+  const shouldHydratePreviewCacheBeforeLayout = Boolean(props.manifest.cache?.namespace)
+  const [previewCacheReadyState, setPreviewCacheReadyState] = React.useState(() => ({
+    key: currentTargetCacheKey,
+    ready: !shouldHydratePreviewCacheBeforeLayout,
+  }))
+  const previewCacheReady =
+    !shouldHydratePreviewCacheBeforeLayout ||
+    (previewCacheReadyState.key === currentTargetCacheKey && previewCacheReadyState.ready)
   const warmupTargets = React.useMemo(
     () => (warmupsEnabled ? studioPreviewWarmupTargets(props.manifest, workspace, { limit: studioPreviewWarmupLimit }) : []),
     [props.manifest, warmupsEnabled, workspace],
@@ -87,6 +118,7 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
     [currentTargets, warmupTargets],
   )
   const canvasRef = React.useRef(canvas)
+  const previewCacheRef = React.useRef(previewCache)
   const selectionRef = React.useRef(selection)
 
   React.useEffect(() => {
@@ -103,9 +135,41 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
   }, [canvas])
 
   React.useEffect(() => {
+    previewCacheRef.current = previewCache
+  }, [previewCache])
+
+  React.useEffect(() => {
     setFrameStates({})
+    previewCacheRef.current = {}
     setPreviewCache({})
   }, [props.manifest])
+
+  React.useEffect(() => {
+    let cancelled = false
+    const cacheKeys = [...new Set(currentTargets.map((target) => target.cacheKey))]
+    const readKey = currentTargetCacheKey
+
+    if (shouldHydratePreviewCacheBeforeLayout) {
+      setPreviewCacheReadyState({ key: readKey, ready: cacheKeys.length === 0 })
+    }
+
+    readStudioPreviewIndexedDBCache(previewCacheNamespace, cacheKeys).then((cachedEntries) => {
+      if (cancelled) return
+
+      if (Object.keys(cachedEntries).length > 0) {
+        setPreviewCache((current) => {
+          const next = pruneStudioPreviewCache({ ...cachedEntries, ...current })
+          previewCacheRef.current = next
+          return next
+        })
+      }
+      if (shouldHydratePreviewCacheBeforeLayout) setPreviewCacheReadyState({ key: readKey, ready: true })
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentTargetCacheKey, currentTargets, previewCacheNamespace, shouldHydratePreviewCacheBeforeLayout])
 
   React.useEffect(() => {
     return () => {
@@ -136,7 +200,10 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
             current,
           ),
         )
-        setPreviewCache((current) => pruneStudioPreviewCache(applyStudioPreviewMessagesToCache(current, messages)))
+        const nextPreviewCache = pruneStudioPreviewCache(applyStudioPreviewMessagesToCache(previewCacheRef.current, messages))
+        previewCacheRef.current = nextPreviewCache
+        setPreviewCache(nextPreviewCache)
+        void writeStudioPreviewIndexedDBCache(previewCacheNamespace, previewCacheEntriesForMessages(nextPreviewCache, messages))
       })
     }
 
@@ -162,7 +229,7 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
       window.removeEventListener("message", handleMessage)
       if (scheduledFrame) window.cancelAnimationFrame(scheduledFrame)
     }
-  }, [sessionIds, targetsBySessionId])
+  }, [previewCacheNamespace, sessionIds, targetsBySessionId])
 
   const clearPendingCanvasCommit = React.useCallback(() => {
     pendingCanvasCommit.current = null
@@ -214,6 +281,8 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
 
   return {
     canvas,
+    debugPreviewPool,
+    disablePreviewPool,
     frameStates,
     onChangeCanvas: commitCanvas,
     onChangeCanvasViewportPreset(preset) {
@@ -256,6 +325,7 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
       )
     },
     previewCache,
+    previewCacheReady,
     selection,
     urlWarning,
     warmupTargets,
@@ -266,10 +336,11 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
 export default function StudioShell(props: StudioShellProps) {
   const scope = useStudioShellScope(props)
 
-  return (
+  const studio = (
     <>
       <StudioWorkspaceView
         canvas={scope.canvas}
+        debugPreviewPool={scope.debugPreviewPool}
         frameStates={scope.frameStates}
         manifest={props.manifest}
         onChangeCanvas={scope.onChangeCanvas}
@@ -279,12 +350,21 @@ export default function StudioShell(props: StudioShellProps) {
         onChangeViewportPreset={scope.onChangeViewportPreset}
         onPreviewFrameMount={scope.onPreviewFrameMount}
         previewCache={scope.previewCache}
+        previewCacheReady={scope.previewCacheReady}
         selection={scope.selection}
         urlWarning={scope.urlWarning}
         workspace={scope.workspace}
       />
       <StudioPreviewWarmups targets={scope.warmupTargets} />
     </>
+  )
+
+  if (scope.disablePreviewPool) return studio
+
+  return (
+    <StudioPreviewIframePoolProvider debug={scope.debugPreviewPool} poolUrl={createStudioPreviewPoolUrl(props.manifest)}>
+      {studio}
+    </StudioPreviewIframePoolProvider>
   )
 }
 
@@ -295,7 +375,7 @@ function StudioPreviewWarmups(props: { targets: StudioPreviewWarmupTarget[] }) {
     <div aria-hidden="true" data-gtsx-preview-warmups="true" style={{ height: 0, overflow: "hidden", position: "fixed", width: 0 }}>
       {props.targets.map((target) => (
         <div key={target.cacheKey} style={{ height: 0, overflow: "hidden", position: "relative", width: 0 }}>
-          <BufferedPreviewIframe
+          <StudioPreviewIframe
             size={target.size}
             slot={{
               previewUrl: target.previewUrl,
@@ -330,6 +410,15 @@ function applyStudioPreviewMessagesToCache(
   }
 
   return next
+}
+
+function previewCacheEntriesForMessages(
+  cache: Record<string, StudioPreviewCacheEntry>,
+  messages: { target: StudioPreviewWarmupTarget }[],
+): Record<string, StudioPreviewCacheEntry | undefined> {
+  const entries: Record<string, StudioPreviewCacheEntry | undefined> = {}
+  for (const { target } of messages) entries[target.cacheKey] = cache[target.cacheKey]
+  return entries
 }
 
 function pruneStudioPreviewCache(

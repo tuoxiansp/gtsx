@@ -78,10 +78,11 @@ function resolvePreviewEntriesOptions(root, options) {
   if (options.previewEntries === false) return undefined
 
   const previewEntries = typeof options.previewEntries === "object" ? options.previewEntries : {}
+  const configuredProjectRoot = options.config?.project?.root
   return {
     moduleId: previewEntries.moduleId ?? defaultPreviewEntriesModuleId,
     outputPath: resolve(root, previewEntries.outputFile ?? defaultPreviewEntriesOutputFile),
-    projectRoot: previewEntries.projectRoot ?? options.projectRoot ?? "src",
+    projectRoot: previewEntries.projectRoot ?? options.projectRoot ?? configuredProjectRoot ?? "src",
   }
 }
 

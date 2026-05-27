@@ -5,7 +5,10 @@
     "types": ["node"],
     "paths": {
       "@gtsx/adapter-next-react/preview-entries": ["./src/preview-entries.ts"],
-      "@gtsx/preview-react": ["../preview-react/src/index.tsx"]
+      "@gtsx/adapter-next-react/preview-route": ["./src/preview-route.ts"],
+      "@gtsx/preview-react": ["../preview-react/src/index.tsx"],
+      "gtsx": ["../gtsx/src/index.ts"],
+      "gtsx/config-model": ["../gtsx/src/config-model.ts"]
     }
   },
   "include": ["src", "test/**/*.ts"]

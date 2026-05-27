@@ -1,6 +1,5 @@
-import { createStudioManifest } from "@gtsx/studio/manifest"
-import { buildGTSXProjectIndex } from "gtsx/project-index"
+import { getStudioManifest } from "../studio-manifest"
 
 export function GET() {
-  return Response.json(createStudioManifest(buildGTSXProjectIndex({ cwd: ".", projectRoot: "components" })))
+  return Response.json(getStudioManifest())
 }

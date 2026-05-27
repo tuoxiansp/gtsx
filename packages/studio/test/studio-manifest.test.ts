@@ -3,7 +3,8 @@ import { join, resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { buildGTSXProjectIndex } from "gtsx/project-index"
-import { createStudioManifest } from "../src/index.js"
+import { createStudioManifest, studioUrlSearchFromSearchParams } from "../src/index.js"
+import { createStudioManifestProvider } from "../src/manifest-server.js"
 
 const fixtureRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
 const tsProjectScopeRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/ts-project-scope")
@@ -38,7 +39,12 @@ function buildStudioManifest(
     projectRoot: options.projectRoot,
     tsconfigPath: options.tsconfigPath,
   })
-  return createStudioManifest(projectIndex, { preview: options.preview, routes: options.routes, diagnostics: options.diagnostics })
+  return createStudioManifest(projectIndex, {
+    cache: options.cache,
+    preview: options.preview,
+    routes: options.routes,
+    diagnostics: options.diagnostics,
+  })
 }
 
 describe("GTSX Studio manifest", () => {
@@ -63,11 +69,13 @@ describe("GTSX Studio manifest", () => {
       files: [
         {
           path: "src/corpus/Badge.g.tsx",
+          sourceHash: expect.any(String),
           groupId: "file:src/corpus/Badge.g.tsx",
           components: [
             {
               coordinate: "src/corpus/Badge.g.tsx#default",
               filePath: "src/corpus/Badge.g.tsx",
+              sourceHash: expect.any(String),
               exportName: "default",
               componentName: "Badge",
               mode: "pure",
@@ -83,11 +91,13 @@ describe("GTSX Studio manifest", () => {
         },
         {
           path: "src/corpus/StatusPanel.g.tsx",
+          sourceHash: expect.any(String),
           groupId: "file:src/corpus/StatusPanel.g.tsx",
           components: [
             {
               coordinate: "src/corpus/StatusPanel.g.tsx#default",
               filePath: "src/corpus/StatusPanel.g.tsx",
+              sourceHash: expect.any(String),
               exportName: "default",
               componentName: "StatusPanel",
               mode: "pure",
@@ -132,6 +142,62 @@ describe("GTSX Studio manifest", () => {
       "file:src/corpus/StatusPanel.g.tsx",
     ])
     expect(manifest.diagnostics).toEqual(projectIndex.diagnostics)
+  })
+
+  it("carries a configured cache namespace into the browser manifest", () => {
+    const manifest = buildStudioManifest({
+      cwd: fixtureRoot,
+      projectRoot: "src/corpus",
+      cache: { namespace: "fixture-project" },
+    })
+
+    expect(manifest.cache).toEqual({ namespace: "fixture-project" })
+  })
+
+  it("creates a cached Studio manifest provider from gtsx config", () => {
+    const getManifest = createStudioManifestProvider({
+      cwd: fixtureRoot,
+      config: {
+        project: {
+          root: "src/corpus",
+          namespace: "fixture-project",
+        },
+        routes: {
+          preview: "/preview",
+          studio: "/studio",
+          manifest: "/studio/manifest",
+        },
+        preview: {
+          serve: "pnpm dev --port {port}",
+        },
+        studio: {
+          manifestCacheTtlMs: 60_000,
+        },
+      },
+    })
+    const manifest = getManifest()
+
+    expect(manifest.cache).toEqual({ namespace: "fixture-project" })
+    expect(manifest.routes).toEqual({
+      preview: "/preview",
+      studio: "/studio",
+      manifest: "/studio/manifest",
+    })
+    expect(manifest.preview).toEqual({
+      urlTemplate: "/preview?entry={entry}&case={case}{gcase}",
+      allUrlTemplate: "/preview?entry={entry}{gcase}",
+    })
+    expect(manifest.files.map((file) => file.path)).toEqual(["src/corpus/Badge.g.tsx", "src/corpus/StatusPanel.g.tsx"])
+  })
+
+  it("serializes Studio route search params without losing repeated values", () => {
+    expect(
+      studioUrlSearchFromSearchParams({
+        canvasX: "12",
+        debug: ["pool", "layout"],
+        selection: "component:src/Card.g.tsx#default",
+      }),
+    ).toBe("canvasX=12&debug=pool&debug=layout&selection=component%3Asrc%2FCard.g.tsx%23default")
   })
 
   it("builds files from the selected TypeScript project scope", () => {
@@ -258,6 +324,10 @@ describe("GTSX Studio manifest", () => {
       "./manifest": {
         types: "./src/manifest.ts",
         import: "./src/manifest.ts",
+      },
+      "./manifest-server": {
+        types: "./src/manifest-server.ts",
+        import: "./src/manifest-server.ts",
       },
     })
   })

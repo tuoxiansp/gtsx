@@ -4,6 +4,7 @@ import {
   GPreviewProvider,
   createGBoundaryCollector,
   createGPreviewErrorMessage,
+  createGPreviewPoolReadyMessage,
   createGPreviewReadyMessage,
   createGPreviewResizeMessage,
   createGPreviewTreeMessage,
@@ -12,6 +13,8 @@ import {
   type GBoundaryCollector,
   type GBoundaryRect,
   type GPreviewProtocolMessage,
+  type GPreviewRenderMessage,
+  type GPreviewRenderTarget,
 } from "gtsx"
 
 export type GTSXPreviewCase<Props extends object = Record<string, unknown>> = {
@@ -35,6 +38,7 @@ export type GTSXPreviewRouteParams = {
   caseOverrides: Map<string, string>
   chrome: string | null
   entry: string | null
+  poolMode: boolean
   sessionId: string | null
   staticMode: boolean
 }
@@ -47,6 +51,7 @@ export type GTSXReactPreviewClientProps = {
   entry?: string | null
   loadComponent: GTSXPreviewComponentLoader
   missingEntryDetail?: string
+  pool?: boolean | string | null
   sessionId?: string | null
   staticMode?: boolean
 }
@@ -68,17 +73,34 @@ export function GTSXReactPreviewClient({
   entry,
   loadComponent,
   missingEntryDetail = "Pass ?entry=src/components/.../*.g.tsx to render a GTSX preview.",
+  pool = null,
   sessionId = null,
   staticMode = false,
 }: GTSXReactPreviewClientProps) {
-  const selectedEntry = entry ?? defaultEntry ?? null
-  const showChrome = chrome === null ? true : typeof chrome === "boolean" ? chrome : chrome !== "0"
+  const routeTarget = React.useMemo(
+    () => ({
+      caseName,
+      caseOverrides,
+      chrome: typeof chrome === "boolean" ? (chrome ? "1" : "0") : chrome,
+      entry: entry ?? defaultEntry ?? null,
+      poolMode: typeof pool === "boolean" ? pool : pool === "1",
+      sessionId,
+      staticMode,
+    }),
+    [caseName, caseOverrides, chrome, defaultEntry, entry, pool, sessionId, staticMode],
+  )
+  const renderTarget = useGTSXPreviewRenderTarget(routeTarget)
+  const showChrome = showChromeForPreviewTarget(renderTarget.chrome)
 
-  if (!selectedEntry) {
+  if (!renderTarget.entry) {
+    if (renderTarget.poolMode) {
+      return <GTSXPreviewDocumentBackground showChrome={false} />
+    }
+
     return (
       <>
         <GTSXPreviewDocumentBackground showChrome={showChrome} />
-        <GTSXPreviewMessage detail={missingEntryDetail} sessionId={sessionId} title="Missing entry" />
+        <GTSXPreviewMessage detail={missingEntryDetail} sessionId={renderTarget.sessionId} title="Missing entry" />
       </>
     )
   }
@@ -87,13 +109,14 @@ export function GTSXReactPreviewClient({
     <>
       <GTSXPreviewDocumentBackground showChrome={showChrome} />
       <GTSXEntryPreview
-        caseName={caseName}
-        caseOverrides={caseOverrides}
-        entry={selectedEntry}
+        caseName={renderTarget.caseName}
+        caseOverrides={renderTarget.caseOverrides}
+        entry={renderTarget.entry}
+        key={previewRenderTargetKey(renderTarget)}
         loadComponent={loadComponent}
-        sessionId={sessionId}
+        sessionId={renderTarget.sessionId}
         showChrome={showChrome}
-        staticMode={staticMode}
+        staticMode={renderTarget.staticMode}
       />
     </>
   )
@@ -281,9 +304,66 @@ export function readGTSXPreviewRouteParams(params: URLSearchParams): GTSXPreview
     caseOverrides: readGTSXPreviewCaseOverrides(params),
     chrome: params.get("chrome"),
     entry: params.get("entry"),
+    poolMode: params.get("pool") === "1",
     sessionId: params.get("sessionId"),
     staticMode: params.get("static") === "1",
   }
+}
+
+function useGTSXPreviewRenderTarget(routeTarget: GTSXPreviewRouteParams): GTSXPreviewRouteParams {
+  const [messageTarget, setMessageTarget] = React.useState<GTSXPreviewRouteParams | null>(null)
+
+  React.useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (!isGPreviewRenderMessage(event.data)) return
+      setMessageTarget(previewRouteParamsFromRenderTarget(event.data.target))
+    }
+
+    window.addEventListener("message", handleMessage)
+    window.parent.postMessage(createGPreviewPoolReadyMessage(), "*")
+    return () => window.removeEventListener("message", handleMessage)
+  }, [])
+
+  return messageTarget ?? routeTarget
+}
+
+function previewRouteParamsFromRenderTarget(target: GPreviewRenderTarget): GTSXPreviewRouteParams {
+  return {
+    caseName: target.caseName,
+    caseOverrides: new Map(target.caseOverrides ?? []),
+    chrome: target.chrome,
+    entry: target.entry,
+    poolMode: false,
+    sessionId: target.sessionId,
+    staticMode: target.staticMode,
+  }
+}
+
+function isGPreviewRenderMessage(value: unknown): value is GPreviewRenderMessage {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { type?: unknown }).type === "gtsx:render" &&
+    (value as { protocolVersion?: unknown }).protocolVersion === 1 &&
+    typeof (value as { target?: unknown }).target === "object" &&
+    (value as { target?: unknown }).target !== null
+  )
+}
+
+function showChromeForPreviewTarget(chrome: string | null): boolean {
+  return chrome === null ? true : chrome !== "0"
+}
+
+function previewRenderTargetKey(target: GTSXPreviewRouteParams): string {
+  return JSON.stringify({
+    caseName: target.caseName,
+    caseOverrides: [...target.caseOverrides],
+    chrome: target.chrome,
+    entry: target.entry,
+    poolMode: target.poolMode,
+    sessionId: target.sessionId,
+    staticMode: target.staticMode,
+  })
 }
 
 export function readGTSXPreviewCaseOverrides(params: URLSearchParams): Map<string, string> {

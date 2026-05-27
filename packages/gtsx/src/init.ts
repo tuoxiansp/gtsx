@@ -68,10 +68,23 @@ function configTemplate(): string {
   return `import { defineGTSXConfig } from "gtsx"
 
 export default defineGTSXConfig({
+  project: {
+    root: "src",
+    namespace: "my-project",
+  },
+  routes: {
+    preview: "/gtsx",
+    studio: "/gtsx/studio",
+    manifest: "/gtsx/studio/manifest",
+  },
   preview: {
     serve: "npm run dev -- --port {port}",
-    url: "http://localhost:{port}/gtsx?entry={entry}&case={case}",
-    allUrl: "http://localhost:{port}/gtsx?entry={entry}",
+    studioUrl: "http://localhost:{port}/gtsx/studio",
+    url: "http://localhost:{port}/gtsx?entry={entry}&case={case}{gcase}",
+    allUrl: "http://localhost:{port}/gtsx?entry={entry}{gcase}",
+  },
+  studio: {
+    manifestCacheTtlMs: 1000,
   },
 })
 `
@@ -86,6 +99,7 @@ function instructionsTemplate(): string {
 - Configure \`preview.serve\` to start this project's normal dev server.
 - Configure \`preview.url\` to point at this project's GTSX preview route.
 - Configure \`preview.allUrl\` to render all cases for one entry as a contact sheet.
+- Configure \`project.root\`, \`project.namespace\`, and \`routes\` as the single source of truth for Studio routes.
 - Do not put secrets, credentials, tokens, or customer data in GTSX cases.
 `
 }

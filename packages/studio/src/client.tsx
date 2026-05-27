@@ -1,6 +1,7 @@
 import {
   G_PREVIEW_PROTOCOL_VERSION,
   createGPreviewRequestValuesMessage,
+  type GPreviewRenderTarget,
   type GBoundaryRect,
   type GBoundaryTreeNode,
   type GRuntimeValuesSnapshot,
@@ -152,7 +153,9 @@ export function applyStudioPreviewMessage(
   }
 
   if (message.type === "gtsx:ready") {
-    return { ...state, ready: true }
+    const next = { ...state, ready: true }
+    delete next.error
+    return next
   }
 
   if (message.type === "gtsx:tree") {
@@ -641,11 +644,53 @@ export function pushStudioWorkspaceUrlState(
 
   const canvas = options.canvas ?? createStudioCanvasTransformFromUrl(new URLSearchParams(window.location.search))
   const params = createStudioWorkspaceUrlSearchParams(selection, workspace, canvas)
+  preserveStudioDebugUrlParams(params, new URLSearchParams(window.location.search))
   const search = params.toString()
   const nextUrl = `${window.location.pathname}${search ? `?${search}` : ""}`
   const currentUrl = `${window.location.pathname}${window.location.search}`
   if (nextUrl !== currentUrl) {
     window.history.pushState({ gtsxStudio: true }, "", nextUrl)
+  }
+}
+
+export function isStudioPreviewPoolDebugEnabled(params: URLSearchParams): boolean {
+  const debugModes = studioDebugModes(params)
+  return (
+    debugModes.includes("pool") ||
+    debugModes.includes("preview-pool") ||
+    debugModes.includes("no-pool") ||
+    debugModes.includes("disable-pool") ||
+    params.get("debugPool") === "1" ||
+    isStudioPreviewPoolDisabled(params)
+  )
+}
+
+export function isStudioPreviewPoolDisabled(params: URLSearchParams): boolean {
+  const debugModes = studioDebugModes(params)
+  const debugPool = params.get("debugPool")?.trim().toLowerCase()
+  return (
+    debugModes.includes("no-pool") ||
+    debugModes.includes("disable-pool") ||
+    debugModes.includes("without-pool") ||
+    debugPool === "0" ||
+    debugPool === "false" ||
+    debugPool === "off"
+  )
+}
+
+function studioDebugModes(params: URLSearchParams): string[] {
+  return params
+    .getAll("debug")
+    .join(",")
+    .split(",")
+    .map((mode) => mode.trim())
+    .filter(Boolean)
+}
+
+function preserveStudioDebugUrlParams(target: URLSearchParams, source: URLSearchParams) {
+  for (const name of ["debug", "debugPool"]) {
+    target.delete(name)
+    for (const value of source.getAll(name)) target.append(name, value)
   }
 }
 
@@ -1022,6 +1067,33 @@ export function createStudioPreviewUrl(
   return `${manifest.routes.preview}?${params.toString()}`
 }
 
+export function createStudioPreviewPoolUrl(manifest: StudioManifest): string {
+  return appendStudioPreviewSearchParams(manifest.routes.preview, new URLSearchParams({ chrome: "0", pool: "1" }))
+}
+
+export function studioPreviewRenderTargetFromUrl(previewUrl: string, fallbackSessionId: string): GPreviewRenderTarget {
+  const url = new URL(previewUrl, "http://gtsx.local")
+  const caseOverrides = url.searchParams.getAll("gcase").flatMap((value) => {
+    const separatorIndex = value.lastIndexOf(":")
+    return separatorIndex > 0 ? ([[value.slice(0, separatorIndex), value.slice(separatorIndex + 1)]] as [string, string][]) : []
+  })
+
+  return {
+    caseName: url.searchParams.get("case"),
+    ...(caseOverrides.length > 0 ? { caseOverrides } : {}),
+    chrome: url.searchParams.get("chrome"),
+    entry: url.searchParams.get("entry"),
+    sessionId: url.searchParams.get("sessionId") ?? fallbackSessionId,
+    staticMode: url.searchParams.get("static") === "1",
+  }
+}
+
+function appendStudioPreviewSearchParams(url: string, params: URLSearchParams): string {
+  const serialized = params.toString()
+  if (!serialized) return url
+  return `${url}${url.includes("?") ? "&" : "?"}${serialized}`
+}
+
 export function previewSessionId(
   component: StudioManifestComponent,
   caseName: string,
@@ -1031,7 +1103,7 @@ export function previewSessionId(
 }
 
 export function studioPreviewCacheKey(component: StudioManifestComponent, caseName: string, viewportPreset: StudioViewportPreset): string {
-  return `${viewportPreset}\n${component.coordinate}\n${caseName}`
+  return `${viewportPreset}\n${component.sourceHash ?? "no-source-hash"}\n${component.coordinate}\n${caseName}`
 }
 
 export function studioPreviewFrameSize(
@@ -1147,12 +1219,26 @@ function warmupPreviewSessionId(cacheKey: string): string {
 }
 
 export function isGPreviewProtocolMessage(value: unknown): value is GPreviewProtocolMessage {
+  const messageType = (value as { type?: unknown }).type
   return (
     typeof value === "object" &&
     value !== null &&
-    "type" in value &&
-    typeof (value as { type: unknown }).type === "string" &&
-    (value as { type: string }).type.startsWith("gtsx:")
+    typeof messageType === "string" &&
+    isGPreviewSessionMessageType(messageType) &&
+    (value as { protocolVersion?: unknown }).protocolVersion === G_PREVIEW_PROTOCOL_VERSION &&
+    typeof (value as { sessionId?: unknown }).sessionId === "string"
+  )
+}
+
+function isGPreviewSessionMessageType(type: string): type is GPreviewProtocolMessage["type"] {
+  return (
+    type === "gtsx:ready" ||
+    type === "gtsx:tree" ||
+    type === "gtsx:resize" ||
+    type === "gtsx:error" ||
+    type === "gtsx:request-values" ||
+    type === "gtsx:values" ||
+    type === "gtsx:render"
   )
 }
 

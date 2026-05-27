@@ -2,11 +2,7 @@
 
 import type { GCases } from "gtsx"
 
-export type StudioPreviewFrameSlot = {
-  previewUrl: string
-  sessionId: string
-  title: string
-}
+import type { StudioPreviewFrameSlot } from "../preview-frame-slot"
 
 type BufferedPreviewIframeProps = {
   onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void

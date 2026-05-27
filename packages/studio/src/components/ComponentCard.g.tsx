@@ -30,6 +30,7 @@ type ComponentCardProps = {
   caseFrameStates?: Record<string, ComponentCardFrameState | undefined>
   casePreviewScale?: number
   component: StudioManifestComponent
+  debugPreviewPool?: boolean
   frameState?: ComponentCardFrameState
   manifest: StudioManifest
   onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void
@@ -184,27 +185,37 @@ export default function ComponentCard(props: ComponentCardProps) {
                     width: tile.layoutWidth,
                   }}
                 >
+                  <LazyPreviewFrame
+                    data-gtsx-preview-session-id={tile.sessionId}
+                    boundaryRect={tile.visibleBoundaryRect}
+                    coordinate={props.component.coordinate}
+                    debugIndicatorScale={caseGridLayout.previewScale}
+                    debugPreviewPool={props.debugPreviewPool}
+                    onSelect={() => props.onSelect?.(props.component, effectiveCaseFrameStates, "pointer")}
+                    onPreviewFrameMount={props.onPreviewFrameMount}
+                    previewUrl={tile.previewUrl}
+                    size={tile.displaySize}
+                    sessionId={tile.sessionId}
+                    title={`${props.component.componentName} ${tile.name} preview`}
+                    viewportPreset={props.viewportPreset}
+                  />
                   {tile.frameState?.error ? (
-                    <PreviewError
-                      caseName={tile.name}
-                      coordinate={props.component.coordinate}
-                      error={tile.frameState.error}
-                      previewUrl={tile.previewUrl}
-                    />
-                  ) : (
-                    <LazyPreviewFrame
-                      data-gtsx-preview-session-id={tile.sessionId}
-                      boundaryRect={tile.visibleBoundaryRect}
-                      coordinate={props.component.coordinate}
-                      onSelect={() => props.onSelect?.(props.component, effectiveCaseFrameStates, "pointer")}
-                      onPreviewFrameMount={props.onPreviewFrameMount}
-                      previewUrl={tile.previewUrl}
-                      size={tile.displaySize}
-                      sessionId={tile.sessionId}
-                      title={`${props.component.componentName} ${tile.name} preview`}
-                      viewportPreset={props.viewportPreset}
-                    />
-                  )}
+                    <div
+                      style={{
+                        inset: 0,
+                        overflow: "auto",
+                        position: "absolute",
+                        zIndex: 2,
+                      }}
+                    >
+                      <PreviewError
+                        caseName={tile.name}
+                        coordinate={props.component.coordinate}
+                        error={tile.frameState.error}
+                        previewUrl={tile.previewUrl}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>

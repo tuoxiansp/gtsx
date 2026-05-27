@@ -5,6 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { gtsxNextReact } from "../src/index.js"
+import { readGTSXNextPreviewProps } from "../src/preview-route.js"
 
 const require = createRequire(import.meta.url)
 
@@ -114,6 +115,30 @@ describe("gtsx Next React adapter", () => {
     })
   })
 
+  it("uses the configured project root for generated preview entries", () => {
+    const root = mkdtempSync(join(tmpdir(), "gtsx-next-config-root-"))
+    try {
+      mkdirSync(join(root, "components"), { recursive: true })
+      mkdirSync(join(root, "src"), { recursive: true })
+      writeFileSync(join(root, "components/AppShell.g.tsx"), "export default function AppShell() { return null }\n")
+      writeFileSync(join(root, "src/Ignored.g.tsx"), "export default function Ignored() { return null }\n")
+
+      gtsxNextReact({
+        config: {
+          project: { root: "components" },
+          preview: {},
+        },
+        root,
+      })({})
+
+      const output = readFileSync(join(root, ".gtsx/preview-entries.ts"), "utf8")
+      expect(output).toContain('"components/AppShell.g.tsx"')
+      expect(output).not.toContain("src/Ignored.g.tsx")
+    } finally {
+      rmSync(root, { force: true, recursive: true })
+    }
+  })
+
   it("writes a generated lazy preview entry registry for Next projects", () => {
     const root = mkdtempSync(join(tmpdir(), "gtsx-next-registry-"))
     try {
@@ -142,5 +167,30 @@ describe("gtsx Next React adapter", () => {
     expect(config.webpack?.({}, {})?.module?.rules?.[0]?.use?.[0]?.loader).toContain("loader.cjs")
     expect(config.turbopack?.rules?.["*.g.tsx"]?.loaders?.[0]?.loader).toContain("loader.cjs")
     expect(config.turbopack?.resolveAlias?.["@gtsx/adapter-next-react/preview-entries"]).toBe("./.gtsx/preview-entries.ts")
+  })
+
+  it("reads preview props from Next search params including child case overrides", () => {
+    const props = readGTSXNextPreviewProps({
+      case: "ready",
+      chrome: "0",
+      entry: "src/Card.g.tsx#default",
+      gcase: ["src/Child.g.tsx#default:open", "src/Menu.g.tsx#default:hover"],
+      pool: "1",
+      sessionId: "session-1",
+      static: "1",
+    })
+
+    expect(props).toMatchObject({
+      caseName: "ready",
+      chrome: "0",
+      entry: "src/Card.g.tsx#default",
+      pool: "1",
+      sessionId: "session-1",
+      staticMode: true,
+    })
+    expect([...props.caseOverrides!]).toEqual([
+      ["src/Child.g.tsx#default", "open"],
+      ["src/Menu.g.tsx#default", "hover"],
+    ])
   })
 })

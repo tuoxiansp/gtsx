@@ -10,7 +10,8 @@
       "@gtsx/adapter-vite-react/preview": ["../packages/adapter-vite-react/src/preview.ts"],
       "@gtsx/preview-react": ["../packages/preview-react/src/index.tsx"],
       "@gtsx/studio": ["../packages/studio/src/index.ts"],
-      "gtsx": ["../packages/gtsx/src/index.ts"]
+      "gtsx": ["../packages/gtsx/src/index.ts"],
+      "gtsx/project-index": ["../packages/gtsx/src/project-index.ts"]
     }
   },
   "include": ["src", "vite.config.ts", "gtsx.config.ts"]

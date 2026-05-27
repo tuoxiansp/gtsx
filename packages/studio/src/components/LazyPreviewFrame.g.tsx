@@ -3,9 +3,9 @@
 import React from "react"
 import { createGScopeHook, type GBoundaryRect, type GCases } from "gtsx"
 
-import BufferedPreviewIframe from "./BufferedPreviewIframe.g"
 import ComponentBoundsHitTarget from "./ComponentBoundsHitTarget.g"
 import SelectedBoundaryOutline from "./SelectedBoundaryOutline.g"
+import StudioPreviewIframe from "./StudioPreviewIframe"
 import {
   normalizeBoundaryRect,
   previewFrameLayoutHeight,
@@ -13,11 +13,19 @@ import {
   previewFrameViewportOffset,
   previewFrameVisualBleed,
 } from "../preview-frame-layout"
+import {
+  studioPreviewLoadCheckEvent,
+  studioPreviewPreloadMargin,
+  shouldRenderElementPreview,
+} from "../preview-lazy-loading"
+import type { StudioPreviewIframeBorrowOrigin } from "../preview-iframe-pool"
 
 type LazyPreviewFrameProps = {
   "data-gtsx-preview-session-id": string
   boundaryRect?: GBoundaryRect
   coordinate: string
+  debugIndicatorScale?: number
+  debugPreviewPool?: boolean
   onSelect?: () => void
   onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void
   previewUrl: string
@@ -33,8 +41,6 @@ type LazyPreviewFrameScope = {
   setContainerElement: (element: HTMLDivElement | null) => void
 }
 
-const studioPreviewPreloadMargin = 360
-
 function useRealLazyPreviewFrameScope(): LazyPreviewFrameScope {
   const [containerElement, setContainerElement] = React.useState<HTMLDivElement | null>(null)
   const [shouldLoad, setShouldLoad] = React.useState(false)
@@ -42,27 +48,38 @@ function useRealLazyPreviewFrameScope(): LazyPreviewFrameScope {
   React.useEffect(() => {
     if (!containerElement) return
 
-    if (!("IntersectionObserver" in window)) {
-      setShouldLoad(true)
-      return
+    const updateLoadState = () => {
+      setShouldLoad((current) => shouldRenderElementPreview(containerElement, current))
     }
 
-    if (isElementNearViewport(containerElement, studioPreviewPreloadMargin)) {
-      setShouldLoad(true)
-      return
+    let scheduledFrame = 0
+    const scheduleLoadCheck = () => {
+      if (scheduledFrame) return
+      scheduledFrame = window.requestAnimationFrame(() => {
+        scheduledFrame = 0
+        updateLoadState()
+      })
     }
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          setShouldLoad(true)
-          observer.disconnect()
-        }
-      },
-      { rootMargin: `${studioPreviewPreloadMargin}px` },
-    )
-    observer.observe(containerElement)
-    return () => observer.disconnect()
+    const observer =
+      "IntersectionObserver" in window
+        ? new IntersectionObserver(
+            (entries) => {
+              if (entries.some((entry) => entry.isIntersecting)) setShouldLoad(true)
+            },
+            { rootMargin: `${studioPreviewPreloadMargin}px` },
+          )
+        : undefined
+    observer?.observe(containerElement)
+    window.addEventListener(studioPreviewLoadCheckEvent, scheduleLoadCheck)
+    window.addEventListener("resize", scheduleLoadCheck)
+    scheduleLoadCheck()
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener(studioPreviewLoadCheckEvent, scheduleLoadCheck)
+      window.removeEventListener("resize", scheduleLoadCheck)
+      if (scheduledFrame) window.cancelAnimationFrame(scheduledFrame)
+    }
   }, [containerElement])
 
   return {
@@ -75,12 +92,18 @@ const useLazyPreviewFrameScope = createGScopeHook(useRealLazyPreviewFrameScope)
 
 export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
   const scope = useLazyPreviewFrameScope()
+  const [borrowOrigin, setBorrowOrigin] = React.useState<StudioPreviewIframeBorrowOrigin | null>(null)
   const layoutHeight = previewFrameLayoutHeight(props.size, props.boundaryRect)
   const layoutWidth = previewFrameLayoutWidth(props.size, props.boundaryRect)
   const visualBleed = previewFrameVisualBleed(props.size, props.boundaryRect)
   const viewportOffset = previewFrameViewportOffset(props.boundaryRect, visualBleed)
   const overlayRect = normalizeBoundaryRect(props.boundaryRect, visualBleed)
   const selectedOverlayRect = normalizeBoundaryRect(props.selectedBoundaryRect, visualBleed)
+  const debugIndicatorScale = 1 / Math.max(props.debugIndicatorScale ?? 1, 0.01)
+
+  React.useEffect(() => {
+    if (!scope.shouldLoad) setBorrowOrigin(null)
+  }, [scope.shouldLoad])
 
   return (
     <div
@@ -121,7 +144,8 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
               width: props.size.width,
             }}
           >
-            <BufferedPreviewIframe
+            <StudioPreviewIframe
+              onBorrowOriginChange={props.debugPreviewPool ? setBorrowOrigin : undefined}
               onPreviewFrameMount={props.onPreviewFrameMount}
               size={props.size}
               slot={{
@@ -132,6 +156,28 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
             />
           </div>
         </div>
+      ) : null}
+      {props.debugPreviewPool && scope.shouldLoad && borrowOrigin ? (
+        <span
+          aria-label={borrowOrigin === "pool" ? "Preview iframe reused from pool" : "Preview iframe created"}
+          data-gtsx-preview-pool-origin={borrowOrigin}
+          style={{
+            background: borrowOrigin === "pool" ? "#2da44e" : "#fb8f2d",
+            border: "1px solid rgba(255,255,255,0.92)",
+            borderRadius: 999,
+            boxShadow: "0 1px 5px rgba(31,35,40,0.25)",
+            height: 9,
+            pointerEvents: "none",
+            position: "absolute",
+            right: 5,
+            top: 5,
+            transform: `scale(${debugIndicatorScale})`,
+            transformOrigin: "top right",
+            width: 9,
+            zIndex: 4,
+          }}
+          title={borrowOrigin === "pool" ? "from pool" : "new iframe"}
+        />
       ) : null}
       {overlayRect ? <ComponentBoundsHitTarget coordinate={props.coordinate} onSelect={props.onSelect} rect={overlayRect} /> : null}
       {selectedOverlayRect ? <SelectedBoundaryOutline rect={selectedOverlayRect} /> : null}
@@ -158,8 +204,3 @@ LazyPreviewFrame.cases = {
     },
   },
 } satisfies GCases<LazyPreviewFrameProps, LazyPreviewFrameScope>
-
-function isElementNearViewport(element: HTMLElement, margin: number): boolean {
-  const rect = element.getBoundingClientRect()
-  return rect.bottom >= -margin && rect.right >= -margin && rect.top <= window.innerHeight + margin && rect.left <= window.innerWidth + margin
-}

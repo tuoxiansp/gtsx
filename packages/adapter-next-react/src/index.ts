@@ -2,6 +2,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { createRequire } from "node:module"
 import { dirname, relative, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
+import { resolveGTSXConfig } from "gtsx/config-model"
+import type { GTSXConfig } from "gtsx"
 
 type WebpackRule = {
   enforce?: string
@@ -36,6 +38,7 @@ type NextConfigLike = {
 }
 
 type GTSXNextReactOptions = {
+  config?: GTSXConfig
   previewEntries?: false | GTSXNextPreviewEntriesOptions
   projectRoot?: string
   root?: string
@@ -144,10 +147,11 @@ function resolvePreviewEntriesOptions(
   if (options.previewEntries === false) return undefined
 
   const previewEntries = typeof options.previewEntries === "object" ? options.previewEntries : {}
+  const resolvedConfig = options.config ? resolveGTSXConfig(options.config) : undefined
   return {
     moduleId: previewEntries.moduleId ?? defaultPreviewEntriesModuleId,
     outputPath: resolve(root, previewEntries.outputFile ?? defaultPreviewEntriesOutputFile),
-    projectRoot: previewEntries.projectRoot ?? options.projectRoot ?? "src",
+    projectRoot: previewEntries.projectRoot ?? options.projectRoot ?? resolvedConfig?.project.root ?? "src",
   }
 }
 

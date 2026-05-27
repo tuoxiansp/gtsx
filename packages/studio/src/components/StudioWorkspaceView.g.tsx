@@ -38,15 +38,22 @@ import {
   studioComponentCaseGridMinScale,
 } from "../case-grid-layout"
 import { previewFrameLayoutHeight, previewFrameLayoutWidth } from "../preview-frame-layout"
+import {
+  dispatchStudioPreviewLoadCheck,
+  scheduleStudioPreviewLoadCheck,
+  studioPreviewLoadCheckSettledDelay,
+} from "../preview-lazy-loading"
 import ComponentCard from "./ComponentCard.g"
 import ViewportPresetTabs from "./ViewportPresetTabs.g"
 
 export type StudioWorkspaceViewProps = {
   canvas?: StudioCanvasTransform
+  debugPreviewPool?: boolean
   manifest: StudioManifest
   workspace: StudioWorkspaceState
   selection?: string
   previewCache?: Record<string, StudioPreviewCacheEntry>
+  previewCacheReady?: boolean
   frameStates?: Record<string, StudioPreviewFrameState>
   onChangeSelection?: (selection: string) => void
   onChangeCase?: (component: StudioManifestComponent, caseName: string, options?: { keepDrilldown?: boolean }) => void
@@ -117,6 +124,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   const applyCanvasSurfaceTransform = React.useCallback(
     (nextCanvas: StudioCanvasTransform) => {
       if (canvasSurfaceElement) canvasSurfaceElement.style.transform = studioCanvasTransformStyle(nextCanvas)
+      scheduleStudioPreviewLoadCheck({ settledDelay: studioPreviewLoadCheckSettledDelay })
     },
     [canvasSurfaceElement],
   )
@@ -125,6 +133,10 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     canvasRef.current = canvas
     applyCanvasSurfaceTransform(canvas)
   }, [applyCanvasSurfaceTransform, canvas])
+
+  React.useEffect(() => {
+    dispatchStudioPreviewLoadCheck()
+  }, [canvasViewportPreset, layoutMeasurementKey])
 
   const setCanvas = React.useCallback(
     (updater: (current: StudioCanvasTransform) => StudioCanvasTransform) => {
@@ -257,7 +269,10 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     canvasViewportPreset,
     columnLayoutByIndex,
     onCanvasPointerCancel(event) {
-      if (panRef.current?.pointerId === event.pointerId) panRef.current = null
+      if (panRef.current?.pointerId === event.pointerId) {
+        panRef.current = null
+        dispatchStudioPreviewLoadCheck()
+      }
     },
     onCanvasPointerDown(event) {
       if ((event.target as HTMLElement).closest("a,button,iframe")) return
@@ -285,7 +300,10 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
       }))
     },
     onCanvasPointerUp(event) {
-      if (panRef.current?.pointerId === event.pointerId) panRef.current = null
+      if (panRef.current?.pointerId === event.pointerId) {
+        panRef.current = null
+        dispatchStudioPreviewLoadCheck()
+      }
     },
     onChangeSelection: props.onChangeSelection
       ? (nextSelection) => {
@@ -326,6 +344,7 @@ const useStudioWorkspaceViewScope = createGScopeHook(useRealStudioWorkspaceViewS
 
 export default function Studio(props: StudioWorkspaceViewProps) {
   const scope = useStudioWorkspaceViewScope(props)
+  const previewCacheReady = props.previewCacheReady ?? true
   const canvasCasePreviewScale = studioCanvasCasePreviewScale(
     props.workspace,
     scope.canvasViewportPreset,
@@ -353,6 +372,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
           onPointerUp={scope.onCanvasPointerUp}
           onPointerCancel={scope.onCanvasPointerCancel}
           ref={scope.setCanvasViewportElement}
+          aria-busy={previewCacheReady ? undefined : true}
           style={{
             backgroundColor: "#f5f6f8",
             backgroundImage: "radial-gradient(circle at 1px 1px, rgba(31,35,40,0.10) 1px, transparent 0)",
@@ -391,69 +411,72 @@ export default function Studio(props: StudioWorkspaceViewProps) {
               {props.urlWarning}
             </p>
           ) : null}
-          <div
-            data-gtsx-canvas-surface
-            ref={scope.setCanvasSurfaceElement}
-            style={{
-              display: "block",
-              left: 0,
-              padding: "0 80px 80px 0",
-              position: "absolute",
-              top: 0,
-              transform: studioCanvasTransformStyle(scope.canvas),
-              transformOrigin: "0 0",
-            }}
-          >
-            {props.workspace.columns.map((column, columnIndex) => (
-              <section
-                data-gtsx-column-index={columnIndex}
-                data-gtsx-column-layout-x={scope.columnLayoutByIndex[columnIndex]?.x ?? 0}
-                data-gtsx-column-layout-y={scope.columnLayoutByIndex[columnIndex]?.y ?? 0}
-                data-gtsx-column-parent-coordinate={column.parentCoordinate}
-                key={columnIndex}
-                ref={(element) => scope.setColumnElement(columnIndex, element)}
-                style={{
-                  display: "grid",
-                  gap: 10,
-                  left: scope.columnLayoutByIndex[columnIndex]?.x ?? 0,
-                  position: "absolute",
-                  top: scope.columnLayoutByIndex[columnIndex]?.y ?? 0,
-                  width: "max-content",
-                }}
-              >
-                {column.components.map((component) => {
-                  const caseFrameStates = studioComponentCaseFrameStates(
-                    component,
-                    scope.canvasViewportPreset,
-                    props.frameStates,
-                    props.previewCache,
-                  )
-                  const componentPathKey = studioPathKey(studioComponentPathForColumn(props.workspace, columnIndex, component.coordinate))
-                  return (
-                    <div
-                      key={component.coordinate}
-                      ref={(element) => scope.setCardElement(columnIndex, component.coordinate, element)}
-                      style={{ display: "grid", justifySelf: "start", width: "max-content" }}
-                    >
-                      <ComponentCard
-                        caseFrameStates={caseFrameStates}
-                        casePreviewScale={canvasCasePreviewScale}
-                        component={component}
-                        manifest={props.manifest}
-                        onPreviewFrameMount={props.onPreviewFrameMount}
-                        onSelect={(selectedComponent, selectedCaseFrameStates, source) =>
-                          scope.onSelectCard(selectedComponent, selectedCaseFrameStates, columnIndex, source)
-                        }
-                        selected={scope.selectedCardPathKey === componentPathKey}
-                        selectedCaseName={selectedStudioCaseName(props.workspace, component)}
-                        viewportPreset={scope.canvasViewportPreset}
-                      />
-                    </div>
-                  )
-                })}
-              </section>
-            ))}
-          </div>
+          {previewCacheReady ? (
+            <div
+              data-gtsx-canvas-surface
+              ref={scope.setCanvasSurfaceElement}
+              style={{
+                display: "block",
+                left: 0,
+                padding: "0 80px 80px 0",
+                position: "absolute",
+                top: 0,
+                transform: studioCanvasTransformStyle(scope.canvas),
+                transformOrigin: "0 0",
+              }}
+            >
+              {props.workspace.columns.map((column, columnIndex) => (
+                <section
+                  data-gtsx-column-index={columnIndex}
+                  data-gtsx-column-layout-x={scope.columnLayoutByIndex[columnIndex]?.x ?? 0}
+                  data-gtsx-column-layout-y={scope.columnLayoutByIndex[columnIndex]?.y ?? 0}
+                  data-gtsx-column-parent-coordinate={column.parentCoordinate}
+                  key={columnIndex}
+                  ref={(element) => scope.setColumnElement(columnIndex, element)}
+                  style={{
+                    display: "grid",
+                    gap: 10,
+                    left: scope.columnLayoutByIndex[columnIndex]?.x ?? 0,
+                    position: "absolute",
+                    top: scope.columnLayoutByIndex[columnIndex]?.y ?? 0,
+                    width: "max-content",
+                  }}
+                >
+                  {column.components.map((component) => {
+                    const caseFrameStates = studioComponentCaseFrameStates(
+                      component,
+                      scope.canvasViewportPreset,
+                      props.frameStates,
+                      props.previewCache,
+                    )
+                    const componentPathKey = studioPathKey(studioComponentPathForColumn(props.workspace, columnIndex, component.coordinate))
+                    return (
+                      <div
+                        key={component.coordinate}
+                        ref={(element) => scope.setCardElement(columnIndex, component.coordinate, element)}
+                        style={{ display: "grid", justifySelf: "start", width: "max-content" }}
+                      >
+                        <ComponentCard
+                          caseFrameStates={caseFrameStates}
+                          casePreviewScale={canvasCasePreviewScale}
+                          component={component}
+                          debugPreviewPool={props.debugPreviewPool}
+                          manifest={props.manifest}
+                          onPreviewFrameMount={props.onPreviewFrameMount}
+                          onSelect={(selectedComponent, selectedCaseFrameStates, source) =>
+                            scope.onSelectCard(selectedComponent, selectedCaseFrameStates, columnIndex, source)
+                          }
+                          selected={scope.selectedCardPathKey === componentPathKey}
+                          selectedCaseName={selectedStudioCaseName(props.workspace, component)}
+                          viewportPreset={scope.canvasViewportPreset}
+                        />
+                      </div>
+                    )
+                  })}
+                </section>
+              ))}
+            </div>
+          ) : null}
         </div>
       </section>
     </main>

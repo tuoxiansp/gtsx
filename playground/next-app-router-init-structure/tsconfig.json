@@ -5,5 +5,5 @@
     "moduleResolution": "Bundler",
     "types": ["react"]
   },
-  "include": ["app", "components"]
+  "include": ["app", "components", "gtsx.config.ts"]
 }

@@ -17,10 +17,12 @@ describe("GTSX project index", () => {
       files: [
         {
           path: "src/corpus/Badge.g.tsx",
+          sourceHash: expect.any(String),
           components: [
             {
               coordinate: "src/corpus/Badge.g.tsx#default",
               filePath: "src/corpus/Badge.g.tsx",
+              sourceHash: expect.any(String),
               exportName: "default",
               componentName: "Badge",
               mode: "pure",
@@ -36,10 +38,12 @@ describe("GTSX project index", () => {
         },
         {
           path: "src/corpus/StatusPanel.g.tsx",
+          sourceHash: expect.any(String),
           components: [
             {
               coordinate: "src/corpus/StatusPanel.g.tsx#default",
               filePath: "src/corpus/StatusPanel.g.tsx",
+              sourceHash: expect.any(String),
               exportName: "default",
               componentName: "StatusPanel",
               mode: "pure",
