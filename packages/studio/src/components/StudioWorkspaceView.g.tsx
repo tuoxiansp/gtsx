@@ -39,9 +39,9 @@ import {
 } from "../case-grid-layout"
 import { previewFrameLayoutHeight, previewFrameLayoutWidth } from "../preview-frame-layout"
 import {
-  dispatchStudioPreviewLoadCheck,
-  scheduleStudioPreviewLoadCheck,
-  studioPreviewLoadCheckSettledDelay,
+  visibleStudioPreviewSessionIds,
+  type StudioCanvasPreviewVisibilityItem,
+  type StudioViewportRect,
 } from "../preview-lazy-loading"
 import ComponentCard from "./ComponentCard.g"
 import ViewportPresetTabs from "./ViewportPresetTabs.g"
@@ -87,6 +87,7 @@ type StudioWorkspaceViewScope = {
     source: "keyboard" | "pointer",
   ) => void
   onViewportPresetChange: (preset: StudioViewportPreset) => void
+  renderPreviewSessionIds: ReadonlySet<string>
   selected: { id: string; components: StudioManifestComponent[] }
   selectedCardPathKey?: string
   setCanvasViewportElement: (element: HTMLDivElement | null) => void
@@ -113,20 +114,82 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   const [canvasViewportElement, setCanvasViewportElement] = React.useState<HTMLDivElement | null>(null)
   const [canvasSurfaceElement, setCanvasSurfaceElement] = React.useState<HTMLDivElement | null>(null)
   const [columnLayoutByIndex, setColumnLayoutByIndex] = React.useState<Record<number, StudioColumnLayout>>({})
+  const [columnMeasurementsByIndex, setColumnMeasurementsByIndex] = React.useState<Record<number, StudioColumnLayoutMeasurement>>({})
+  const [renderPreviewSessionIds, setRenderPreviewSessionIds] = React.useState<Set<string>>(() => new Set())
   const cardElements = React.useRef(new Map<string, HTMLDivElement>())
   const columnCardElements = React.useRef(new Map<string, HTMLDivElement>())
   const columnElements = React.useRef(new Map<number, HTMLElement>())
+  const previewVisibilityFrame = React.useRef(0)
+  const previewVisibilityScheduledCanvas = React.useRef<StudioCanvasTransform | null>(null)
+  const renderPreviewSessionIdsRef = React.useRef(renderPreviewSessionIds)
   const layoutMeasurementKey = React.useMemo(
     () => studioWorkspaceLayoutMeasurementKey(props.workspace, canvasViewportPreset, props.frameStates, props.previewCache),
     [canvasViewportPreset, props.frameStates, props.previewCache, props.workspace],
   )
 
+  const updatePreviewVisibility = React.useCallback(
+    (nextCanvas: StudioCanvasTransform = canvasRef.current) => {
+      if (!canvasViewportElement) return
+
+      const viewportRect = canvasViewportElement.getBoundingClientRect()
+      const nextSessionIds = visibleStudioPreviewSessionIds({
+        canvas: nextCanvas,
+        currentSessionIds: renderPreviewSessionIdsRef.current,
+        items: studioPreviewVisibilityItems(
+          props.workspace,
+          canvasViewportPreset,
+          columnLayoutByIndex,
+          columnMeasurementsByIndex,
+        ),
+        viewport: {
+          bottom: viewportRect.height,
+          left: 0,
+          right: viewportRect.width,
+          top: 0,
+        },
+      })
+
+      if (sameStringSet(renderPreviewSessionIdsRef.current, nextSessionIds)) return
+      renderPreviewSessionIdsRef.current = nextSessionIds
+      setRenderPreviewSessionIds(nextSessionIds)
+    },
+    [canvasViewportElement, canvasViewportPreset, columnLayoutByIndex, columnMeasurementsByIndex, props.workspace],
+  )
+
+  const schedulePreviewVisibilityUpdate = React.useCallback(
+    (nextCanvas: StudioCanvasTransform = canvasRef.current) => {
+      previewVisibilityScheduledCanvas.current = nextCanvas
+      if (typeof window === "undefined") return
+      if (previewVisibilityFrame.current) return
+
+      previewVisibilityFrame.current = window.requestAnimationFrame(() => {
+        previewVisibilityFrame.current = 0
+        const scheduledCanvas = previewVisibilityScheduledCanvas.current ?? canvasRef.current
+        previewVisibilityScheduledCanvas.current = null
+        updatePreviewVisibility(scheduledCanvas)
+      })
+    },
+    [updatePreviewVisibility],
+  )
+
+  const updatePreviewVisibilityNow = React.useCallback(
+    (nextCanvas: StudioCanvasTransform = canvasRef.current) => {
+      if (typeof window !== "undefined" && previewVisibilityFrame.current) {
+        window.cancelAnimationFrame(previewVisibilityFrame.current)
+        previewVisibilityFrame.current = 0
+      }
+      previewVisibilityScheduledCanvas.current = null
+      updatePreviewVisibility(nextCanvas)
+    },
+    [updatePreviewVisibility],
+  )
+
   const applyCanvasSurfaceTransform = React.useCallback(
     (nextCanvas: StudioCanvasTransform) => {
       if (canvasSurfaceElement) canvasSurfaceElement.style.transform = studioCanvasTransformStyle(nextCanvas)
-      scheduleStudioPreviewLoadCheck({ settledDelay: studioPreviewLoadCheckSettledDelay })
+      schedulePreviewVisibilityUpdate(nextCanvas)
     },
-    [canvasSurfaceElement],
+    [canvasSurfaceElement, schedulePreviewVisibilityUpdate],
   )
 
   React.useEffect(() => {
@@ -135,8 +198,18 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   }, [applyCanvasSurfaceTransform, canvas])
 
   React.useEffect(() => {
-    dispatchStudioPreviewLoadCheck()
-  }, [canvasViewportPreset, layoutMeasurementKey])
+    renderPreviewSessionIdsRef.current = renderPreviewSessionIds
+  }, [renderPreviewSessionIds])
+
+  React.useEffect(() => {
+    schedulePreviewVisibilityUpdate(canvasRef.current)
+  }, [canvasViewportPreset, layoutMeasurementKey, schedulePreviewVisibilityUpdate])
+
+  React.useEffect(() => {
+    return () => {
+      if (previewVisibilityFrame.current) window.cancelAnimationFrame(previewVisibilityFrame.current)
+    }
+  }, [])
 
   const setCanvas = React.useCallback(
     (updater: (current: StudioCanvasTransform) => StudioCanvasTransform) => {
@@ -261,6 +334,9 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
       measurementsByIndex: nextMeasurementsByIndex,
     })
 
+    setColumnMeasurementsByIndex((current) =>
+      sameColumnMeasurementRecord(current, nextMeasurementsByIndex) ? current : nextMeasurementsByIndex,
+    )
     setColumnLayoutByIndex((current) => (sameColumnLayoutRecord(current, nextLayoutByIndex) ? current : nextLayoutByIndex))
   }, [canvasSurfaceElement, layoutMeasurementKey, props.workspace.columns])
 
@@ -271,7 +347,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     onCanvasPointerCancel(event) {
       if (panRef.current?.pointerId === event.pointerId) {
         panRef.current = null
-        dispatchStudioPreviewLoadCheck()
+        updatePreviewVisibilityNow()
       }
     },
     onCanvasPointerDown(event) {
@@ -302,7 +378,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     onCanvasPointerUp(event) {
       if (panRef.current?.pointerId === event.pointerId) {
         panRef.current = null
-        dispatchStudioPreviewLoadCheck()
+        updatePreviewVisibilityNow()
       }
     },
     onChangeSelection: props.onChangeSelection
@@ -331,6 +407,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
         for (const component of visibleWorkspaceComponents(props.workspace)) props.onChangeViewportPreset?.(component, preset)
       }
     },
+    renderPreviewSessionIds,
     selected,
     selectedCardPathKey,
     setCanvasSurfaceElement,
@@ -466,6 +543,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                           onSelect={(selectedComponent, selectedCaseFrameStates, source) =>
                             scope.onSelectCard(selectedComponent, selectedCaseFrameStates, columnIndex, source)
                           }
+                          renderPreviewSessionIds={scope.renderPreviewSessionIds}
                           selected={scope.selectedCardPathKey === componentPathKey}
                           selectedCaseName={selectedStudioCaseName(props.workspace, component)}
                           viewportPreset={scope.canvasViewportPreset}
@@ -611,6 +689,37 @@ function findStudioBoundaryNode(tree: GBoundaryTreeNode[], coordinate: string): 
   return undefined
 }
 
+function studioPreviewVisibilityItems(
+  workspace: StudioWorkspaceState,
+  viewportPreset: StudioViewportPreset,
+  columnLayoutByIndex: Record<number, StudioColumnLayout>,
+  columnMeasurementsByIndex: Record<number, StudioColumnLayoutMeasurement>,
+): StudioCanvasPreviewVisibilityItem[] {
+  const items: StudioCanvasPreviewVisibilityItem[] = []
+
+  workspace.columns.forEach((column, columnIndex) => {
+    const columnLayout = columnLayoutByIndex[columnIndex] ?? { x: 0, y: 0 }
+    const cardRectsByCoordinate = columnMeasurementsByIndex[columnIndex]?.cardRectsByCoordinate ?? {}
+
+    for (const component of column.components) {
+      const cardRect = cardRectsByCoordinate[component.coordinate]
+      if (!cardRect) continue
+
+      items.push({
+        rect: {
+          bottom: columnLayout.y + cardRect.bottom,
+          left: columnLayout.x + cardRect.left,
+          right: columnLayout.x + cardRect.right,
+          top: columnLayout.y + cardRect.top,
+        },
+        sessionIds: component.cases.map((testCase) => previewSessionId(component, testCase.name, viewportPreset)),
+      })
+    }
+  })
+
+  return items
+}
+
 function studioPreviewLayoutSignature(frameState: StudioPreviewFrameState | undefined): string {
   if (!frameState) return "pending"
   const size = frameState.size ? `${frameState.size.width}x${frameState.size.height}` : "-"
@@ -702,6 +811,7 @@ Studio.cases = {
       onCanvasPointerUp() {},
       onSelectCard() {},
       onViewportPresetChange() {},
+      renderPreviewSessionIds: new Set(),
       selected: { id: "file:src/MultiExport.g.tsx", components: [] },
       setCanvasSurfaceElement() {},
       setCanvasViewportElement() {},
@@ -721,4 +831,44 @@ function sameColumnLayoutRecord(left: Record<number, StudioColumnLayout>, right:
     const rightLayout = right[Number(key)]
     return leftLayout?.x === rightLayout?.x && leftLayout?.y === rightLayout?.y
   })
+}
+
+function sameColumnMeasurementRecord(
+  left: Record<number, StudioColumnLayoutMeasurement>,
+  right: Record<number, StudioColumnLayoutMeasurement>,
+): boolean {
+  const leftKeys = Object.keys(left)
+  const rightKeys = Object.keys(right)
+  if (leftKeys.length !== rightKeys.length) return false
+
+  return leftKeys.every((key) => {
+    const columnIndex = Number(key)
+    const leftMeasurement = left[columnIndex]
+    const rightMeasurement = right[columnIndex]
+    if (!leftMeasurement || !rightMeasurement || leftMeasurement.height !== rightMeasurement.height) return false
+    return sameCardRectRecord(leftMeasurement.cardRectsByCoordinate, rightMeasurement.cardRectsByCoordinate)
+  })
+}
+
+function sameCardRectRecord(
+  left: Record<string, StudioCanvasScreenRect>,
+  right: Record<string, StudioCanvasScreenRect>,
+): boolean {
+  const leftKeys = Object.keys(left)
+  const rightKeys = Object.keys(right)
+  if (leftKeys.length !== rightKeys.length) return false
+
+  return leftKeys.every((key) => sameRect(left[key], right[key]))
+}
+
+function sameRect(left: StudioViewportRect | undefined, right: StudioViewportRect | undefined): boolean {
+  return left?.bottom === right?.bottom && left?.left === right?.left && left?.right === right?.right && left?.top === right?.top
+}
+
+function sameStringSet(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
+  if (left.size !== right.size) return false
+  for (const value of left) {
+    if (!right.has(value)) return false
+  }
+  return true
 }

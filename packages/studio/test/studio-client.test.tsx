@@ -1,6 +1,5 @@
 import { join } from "node:path"
 import { renderToStaticMarkup } from "react-dom/server"
-import { GPreviewProvider } from "gtsx"
 import { buildGTSXProjectIndex } from "gtsx/project-index"
 import { describe, expect, it, vi } from "vitest"
 
@@ -47,13 +46,11 @@ import PreviewMessage from "../src/components/PreviewMessage.g.js"
 import { studioPreviewIframeBorrowKey } from "../src/preview-iframe-pool.js"
 import { studioPreviewIndexedDBNamespace } from "../src/preview-cache-indexeddb.js"
 import {
-  dispatchStudioPreviewLoadCheck,
   isRectNearViewport,
-  scheduleStudioPreviewLoadCheck,
   shouldRenderStudioPreview,
-  studioPreviewLoadCheckEvent,
   studioPreviewPreloadMargin,
   studioPreviewRetainMargin,
+  visibleStudioPreviewSessionIds,
 } from "../src/preview-lazy-loading.js"
 
 const fixtureRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
@@ -533,19 +530,18 @@ describe("GTSX Studio shell", () => {
 
   it("keeps preview rendering containment below selection overlays", () => {
     const html = renderToStaticMarkup(
-      <GPreviewProvider scope={{ shouldLoad: true, setContainerElement() {} }}>
-        <LazyPreviewFrame
-          data-gtsx-preview-session-id="src/Icon.g.tsx#default:ready@phone"
-          boundaryRect={{ x: 0, y: 0, width: 96, height: 96 }}
-          coordinate="src/Icon.g.tsx#default"
-          previewUrl="/gtsx?entry=src%2FIcon.g.tsx%23default&case=ready&chrome=0"
-          selectedBoundaryRect={{ x: 0, y: 0, width: 96, height: 96 }}
-          size={{ width: 390, height: 844 }}
-          sessionId="src/Icon.g.tsx#default:ready"
-          title="Icon preview"
-          viewportPreset="phone"
-        />
-      </GPreviewProvider>,
+      <LazyPreviewFrame
+        data-gtsx-preview-session-id="src/Icon.g.tsx#default:ready@phone"
+        boundaryRect={{ x: 0, y: 0, width: 96, height: 96 }}
+        coordinate="src/Icon.g.tsx#default"
+        previewUrl="/gtsx?entry=src%2FIcon.g.tsx%23default&case=ready&chrome=0"
+        selectedBoundaryRect={{ x: 0, y: 0, width: 96, height: 96 }}
+        shouldLoad
+        size={{ width: 390, height: 844 }}
+        sessionId="src/Icon.g.tsx#default:ready"
+        title="Icon preview"
+        viewportPreset="phone"
+      />,
     )
 
     expect(previewFrameTagHtml(html, "src/Icon.g.tsx#default:ready@phone")).toContain("overflow:visible")
@@ -662,7 +658,6 @@ describe("GTSX Studio shell", () => {
   it("treats transformed preview bounds near the viewport as loadable", () => {
     const viewport = { bottom: 720, left: 0, right: 1280, top: 0 }
 
-    expect(studioPreviewLoadCheckEvent).toBe("gtsx:studio-preview-load-check")
     expect(studioPreviewRetainMargin).toBeGreaterThan(studioPreviewPreloadMargin)
     expect(isRectNearViewport({ bottom: -1, left: 80, right: 360, top: -240 }, viewport, studioPreviewPreloadMargin)).toBe(true)
     expect(isRectNearViewport({ bottom: -400, left: 80, right: 360, top: -640 }, viewport, studioPreviewPreloadMargin)).toBe(false)
@@ -690,52 +685,28 @@ describe("GTSX Studio shell", () => {
     expect(shouldRenderStudioPreview(true, beyondRetain, viewport)).toBe(false)
   })
 
-  it("throttles preview load checks during canvas motion and keeps a settled check", () => {
-    vi.useFakeTimers()
-    const dispatchEvent = vi.fn()
-    const originalWindow = Reflect.get(globalThis, "window") as Window | undefined
-    const performanceNow = vi.spyOn(performance, "now")
-    let now = 0
-
-    Object.defineProperty(globalThis, "window", {
-      configurable: true,
-      value: {
-        clearTimeout: globalThis.clearTimeout.bind(globalThis),
-        dispatchEvent,
-        setTimeout: globalThis.setTimeout.bind(globalThis),
-      },
-    })
-    performanceNow.mockImplementation(() => now)
-
-    try {
-      dispatchStudioPreviewLoadCheck()
-      expect(dispatchEvent).toHaveBeenCalledTimes(1)
-
-      now = 10
-      scheduleStudioPreviewLoadCheck({ minInterval: 100, settledDelay: 40 })
-      vi.advanceTimersByTime(10)
-      now = 20
-      scheduleStudioPreviewLoadCheck({ minInterval: 100, settledDelay: 40 })
-
-      expect(dispatchEvent).toHaveBeenCalledTimes(1)
-      vi.advanceTimersByTime(29)
-      expect(dispatchEvent).toHaveBeenCalledTimes(1)
-
-      now = 60
-      vi.advanceTimersByTime(11)
-      expect(dispatchEvent).toHaveBeenCalledTimes(2)
-
-      vi.advanceTimersByTime(100)
-      expect(dispatchEvent).toHaveBeenCalledTimes(2)
-    } finally {
-      performanceNow.mockRestore()
-      vi.useRealTimers()
-      if (originalWindow === undefined) {
-        Reflect.deleteProperty(globalThis, "window")
-      } else {
-        Object.defineProperty(globalThis, "window", { configurable: true, value: originalWindow })
-      }
-    }
+  it("computes preview visibility centrally from canvas coordinates", () => {
+    expect(
+      [...visibleStudioPreviewSessionIds({
+        canvas: { x: -420, y: -120, scale: 1 },
+        currentSessionIds: new Set(["retained"]),
+        items: [
+          {
+            rect: { bottom: 260, left: 360, right: 640, top: 40 },
+            sessionIds: ["visible-a", "visible-b"],
+          },
+          {
+            rect: { bottom: 260, left: 2200, right: 2460, top: 40 },
+            sessionIds: ["far"],
+          },
+          {
+            rect: { bottom: 260, left: -1320, right: -1120, top: 40 },
+            sessionIds: ["retained"],
+          },
+        ],
+        viewport: { bottom: 720, left: 0, right: 1280, top: 0 },
+      })].sort(),
+    ).toEqual(["retained", "visible-a", "visible-b"])
   })
 
   it("creates stable pooled iframe URLs and render targets for preview slots", () => {

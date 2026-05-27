@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GBoundaryRect, type GCases } from "gtsx"
+import type { GBoundaryRect, GCases } from "gtsx"
 
 import ComponentBoundsHitTarget from "./ComponentBoundsHitTarget.g"
 import SelectedBoundaryOutline from "./SelectedBoundaryOutline.g"
@@ -13,11 +13,6 @@ import {
   previewFrameViewportOffset,
   previewFrameVisualBleed,
 } from "../preview-frame-layout"
-import {
-  studioPreviewLoadCheckEvent,
-  studioPreviewPreloadMargin,
-  shouldRenderElementPreview,
-} from "../preview-lazy-loading"
 import type { StudioPreviewIframeBorrowOrigin } from "../preview-iframe-pool"
 
 type LazyPreviewFrameProps = {
@@ -30,68 +25,14 @@ type LazyPreviewFrameProps = {
   onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void
   previewUrl: string
   selectedBoundaryRect?: GBoundaryRect
+  shouldLoad: boolean
   size: { width: number | string; height: number }
   sessionId: string
   title: string
   viewportPreset: "phone" | "tablet" | "desktop"
 }
 
-type LazyPreviewFrameScope = {
-  shouldLoad: boolean
-  setContainerElement: (element: HTMLDivElement | null) => void
-}
-
-function useRealLazyPreviewFrameScope(): LazyPreviewFrameScope {
-  const [containerElement, setContainerElement] = React.useState<HTMLDivElement | null>(null)
-  const [shouldLoad, setShouldLoad] = React.useState(false)
-
-  React.useEffect(() => {
-    if (!containerElement) return
-
-    const updateLoadState = () => {
-      setShouldLoad((current) => shouldRenderElementPreview(containerElement, current))
-    }
-
-    let scheduledFrame = 0
-    const scheduleLoadCheck = () => {
-      if (scheduledFrame) return
-      scheduledFrame = window.requestAnimationFrame(() => {
-        scheduledFrame = 0
-        updateLoadState()
-      })
-    }
-
-    const observer =
-      "IntersectionObserver" in window
-        ? new IntersectionObserver(
-            (entries) => {
-              if (entries.some((entry) => entry.isIntersecting)) setShouldLoad(true)
-            },
-            { rootMargin: `${studioPreviewPreloadMargin}px` },
-          )
-        : undefined
-    observer?.observe(containerElement)
-    window.addEventListener(studioPreviewLoadCheckEvent, scheduleLoadCheck)
-    window.addEventListener("resize", scheduleLoadCheck)
-    scheduleLoadCheck()
-    return () => {
-      observer?.disconnect()
-      window.removeEventListener(studioPreviewLoadCheckEvent, scheduleLoadCheck)
-      window.removeEventListener("resize", scheduleLoadCheck)
-      if (scheduledFrame) window.cancelAnimationFrame(scheduledFrame)
-    }
-  }, [containerElement])
-
-  return {
-    shouldLoad,
-    setContainerElement,
-  }
-}
-
-const useLazyPreviewFrameScope = createGScopeHook(useRealLazyPreviewFrameScope)
-
 export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
-  const scope = useLazyPreviewFrameScope()
   const [borrowOrigin, setBorrowOrigin] = React.useState<StudioPreviewIframeBorrowOrigin | null>(null)
   const layoutHeight = previewFrameLayoutHeight(props.size, props.boundaryRect)
   const layoutWidth = previewFrameLayoutWidth(props.size, props.boundaryRect)
@@ -102,15 +43,14 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
   const debugIndicatorScale = 1 / Math.max(props.debugIndicatorScale ?? 1, 0.01)
 
   React.useEffect(() => {
-    if (!scope.shouldLoad) setBorrowOrigin(null)
-  }, [scope.shouldLoad])
+    if (!props.shouldLoad) setBorrowOrigin(null)
+  }, [props.shouldLoad])
 
   return (
     <div
       data-gtsx-preview-session-id={props["data-gtsx-preview-session-id"]}
       data-gtsx-preview-src={props.previewUrl}
       data-gtsx-viewport-preset={props.viewportPreset}
-      ref={scope.setContainerElement}
       style={{
         height: layoutHeight,
         overflow: "visible",
@@ -118,7 +58,7 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
         width: layoutWidth,
       }}
     >
-      {scope.shouldLoad ? (
+      {props.shouldLoad ? (
         <div
           data-gtsx-preview-clip="true"
           style={{
@@ -157,7 +97,7 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
           </div>
         </div>
       ) : null}
-      {props.debugPreviewPool && scope.shouldLoad && borrowOrigin ? (
+      {props.debugPreviewPool && props.shouldLoad && borrowOrigin ? (
         <span
           aria-label={borrowOrigin === "pool" ? "Preview iframe reused from pool" : "Preview iframe created"}
           data-gtsx-preview-pool-origin={borrowOrigin}
@@ -193,14 +133,11 @@ LazyPreviewFrame.cases = {
       coordinate: "src/UserCard.g.tsx#default",
       previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0",
       selectedBoundaryRect: { x: 10, y: 20, width: 320, height: 88 },
+      shouldLoad: true,
       size: { width: 390, height: 844 },
       sessionId: "src/UserCard.g.tsx#default:ready",
       title: "UserCard preview",
       viewportPreset: "phone",
     },
-    scope: {
-      shouldLoad: true,
-      setContainerElement() {},
-    },
   },
-} satisfies GCases<LazyPreviewFrameProps, LazyPreviewFrameScope>
+} satisfies GCases<LazyPreviewFrameProps>

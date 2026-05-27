@@ -39,6 +39,7 @@ type ComponentCardProps = {
     caseFrameStates: Record<string, ComponentCardFrameState | undefined>,
     source: StudioCardSelectionSource,
   ) => void
+  renderPreviewSessionIds?: ReadonlySet<string>
   selected: boolean
   selectedCaseName: string
   viewportPreset: StudioViewportPreset
@@ -194,6 +195,7 @@ export default function ComponentCard(props: ComponentCardProps) {
                     onSelect={() => props.onSelect?.(props.component, effectiveCaseFrameStates, "pointer")}
                     onPreviewFrameMount={props.onPreviewFrameMount}
                     previewUrl={tile.previewUrl}
+                    shouldLoad={props.renderPreviewSessionIds?.has(tile.sessionId) ?? false}
                     size={tile.displaySize}
                     sessionId={tile.sessionId}
                     title={`${props.component.componentName} ${tile.name} preview`}

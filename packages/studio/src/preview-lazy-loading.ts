@@ -1,8 +1,5 @@
-export const studioPreviewLoadCheckEvent = "gtsx:studio-preview-load-check"
 export const studioPreviewPreloadMargin = 360
 export const studioPreviewRetainMargin = 1600
-export const studioPreviewLoadCheckMinInterval = 120
-export const studioPreviewLoadCheckSettledDelay = 80
 
 export type StudioViewportRect = {
   bottom: number
@@ -11,57 +8,32 @@ export type StudioViewportRect = {
   top: number
 }
 
-let loadCheckThrottleTimer = 0
-let loadCheckSettledTimer = 0
-let lastLoadCheckAt = 0
-
-export function dispatchStudioPreviewLoadCheck(): void {
-  if (typeof window === "undefined") return
-  if (loadCheckThrottleTimer) {
-    window.clearTimeout(loadCheckThrottleTimer)
-    loadCheckThrottleTimer = 0
-  }
-  if (loadCheckSettledTimer) {
-    window.clearTimeout(loadCheckSettledTimer)
-    loadCheckSettledTimer = 0
-  }
-  lastLoadCheckAt = performance.now()
-  window.dispatchEvent(new Event(studioPreviewLoadCheckEvent))
+export type StudioCanvasPreviewVisibilityItem = {
+  rect: StudioViewportRect
+  sessionIds: readonly string[]
 }
 
-export function scheduleStudioPreviewLoadCheck(
-  options: { minInterval?: number; settledDelay?: number } = {},
-): void {
-  if (typeof window === "undefined") return
+export type StudioCanvasPreviewVisibilityInput = {
+  canvas: { x: number; y: number; scale: number }
+  currentSessionIds?: ReadonlySet<string>
+  items: readonly StudioCanvasPreviewVisibilityItem[]
+  viewport: StudioViewportRect
+}
 
-  const minInterval = options.minInterval ?? studioPreviewLoadCheckMinInterval
-  const now = performance.now()
-  const elapsed = now - lastLoadCheckAt
+export function visibleStudioPreviewSessionIds(input: StudioCanvasPreviewVisibilityInput): Set<string> {
+  const visibleSessionIds = new Set<string>()
+  const currentSessionIds = input.currentSessionIds ?? new Set<string>()
 
-  if (elapsed >= minInterval) {
-    if (loadCheckThrottleTimer) {
-      window.clearTimeout(loadCheckThrottleTimer)
-      loadCheckThrottleTimer = 0
+  for (const item of input.items) {
+    const currentlyRendered = item.sessionIds.some((sessionId) => currentSessionIds.has(sessionId))
+    if (!shouldRenderStudioPreview(currentlyRendered, studioCanvasRectToViewportRect(input.canvas, item.rect), input.viewport)) {
+      continue
     }
-    dispatchStudioPreviewLoadCheck()
-  } else if (!loadCheckThrottleTimer) {
-    loadCheckThrottleTimer = window.setTimeout(() => {
-      loadCheckThrottleTimer = 0
-      dispatchStudioPreviewLoadCheck()
-    }, Math.max(0, minInterval - elapsed))
+
+    for (const sessionId of item.sessionIds) visibleSessionIds.add(sessionId)
   }
 
-  if (options.settledDelay !== undefined) {
-    if (loadCheckSettledTimer) window.clearTimeout(loadCheckSettledTimer)
-    loadCheckSettledTimer = window.setTimeout(() => {
-      loadCheckSettledTimer = 0
-      dispatchStudioPreviewLoadCheck()
-    }, options.settledDelay)
-  }
-}
-
-export function isElementNearViewport(element: HTMLElement, margin = studioPreviewPreloadMargin): boolean {
-  return isRectNearViewport(element.getBoundingClientRect(), viewportRect(), margin)
+  return visibleSessionIds
 }
 
 export function shouldRenderStudioPreview(
@@ -73,8 +45,16 @@ export function shouldRenderStudioPreview(
   return isRectNearViewport(rect, viewport, margin)
 }
 
-export function shouldRenderElementPreview(element: HTMLElement, currentlyRendered: boolean): boolean {
-  return shouldRenderStudioPreview(currentlyRendered, element.getBoundingClientRect(), viewportRect())
+export function studioCanvasRectToViewportRect(
+  canvas: { x: number; y: number; scale: number },
+  rect: StudioViewportRect,
+): StudioViewportRect {
+  return {
+    bottom: canvas.y + rect.bottom * canvas.scale,
+    left: canvas.x + rect.left * canvas.scale,
+    right: canvas.x + rect.right * canvas.scale,
+    top: canvas.y + rect.top * canvas.scale,
+  }
 }
 
 export function isRectNearViewport(rect: StudioViewportRect, viewport: StudioViewportRect, margin: number): boolean {
@@ -84,13 +64,4 @@ export function isRectNearViewport(rect: StudioViewportRect, viewport: StudioVie
     rect.top <= viewport.bottom + margin &&
     rect.left <= viewport.right + margin
   )
-}
-
-function viewportRect(): StudioViewportRect {
-  return {
-    bottom: window.innerHeight,
-    left: 0,
-    right: window.innerWidth,
-    top: 0,
-  }
 }
