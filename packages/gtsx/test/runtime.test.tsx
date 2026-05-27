@@ -67,6 +67,66 @@ describe("GTSX runtime", () => {
     expect(renderer?.toJSON()).toMatchObject({ type: "button", children: ["dark"] })
   })
 
+  it("only rerenders consumers that read the changed provider state field", () => {
+    type ThemeState = {
+      accent: string
+      surface: string
+    }
+
+    const ThemeProvider = createGProvider((props: { initialState: ThemeState }) =>
+      React.useState<ThemeState>(props.initialState),
+    )
+    const commitCounts = {
+      accent: 0,
+      surface: 0,
+    }
+
+    function AccentLabel() {
+      const theme = useGContext(ThemeProvider)
+      React.useEffect(() => {
+        commitCounts.accent += 1
+      })
+      return <span id="accent">{theme.accent}</span>
+    }
+
+    function SurfaceLabel() {
+      const theme = useGContext(ThemeProvider)
+      React.useEffect(() => {
+        commitCounts.surface += 1
+      })
+      return <span id="surface">{theme.surface}</span>
+    }
+
+    function AccentButton() {
+      const setTheme = useGContextUpdate(ThemeProvider)
+      return <button onClick={() => setTheme((prev) => ({ ...prev, accent: "violet" }))}>update</button>
+    }
+
+    let renderer: ReactTestRenderer | undefined
+    act(() => {
+      renderer = create(
+        <ThemeProvider initialState={{ accent: "blue", surface: "white" }}>
+          <AccentLabel />
+          <SurfaceLabel />
+          <AccentButton />
+        </ThemeProvider>,
+      )
+    })
+
+    const initialCommitCounts = { ...commitCounts }
+    expect(initialCommitCounts.accent).toBeGreaterThan(0)
+    expect(initialCommitCounts.surface).toBeGreaterThan(0)
+
+    act(() => {
+      renderer?.root.findByType("button").props.onClick()
+    })
+
+    expect(renderer?.root.findByProps({ id: "accent" }).children).toEqual(["violet"])
+    expect(renderer?.root.findByProps({ id: "surface" }).children).toEqual(["white"])
+    expect(commitCounts.accent).toBeGreaterThan(initialCommitCounts.accent)
+    expect(commitCounts.surface).toBe(initialCommitCounts.surface)
+  })
+
   it("delegates a GTSX scope hook to the real hook by default", () => {
     const useScope = createGScopeHook((props: Props) => ({ title: `user:${props.userId}` }))
 
