@@ -12,5 +12,5 @@ This playground keeps a minimal App Router shape:
 - `app/api/ping/route.ts`
 - `components/AppShell.g.tsx`
 
-GTSX validates the component-level states that make the initial app shell and
+gtsx validates the component-level states that make the initial app shell and
 route-handler health visible to preview/capture without replacing Next.js.

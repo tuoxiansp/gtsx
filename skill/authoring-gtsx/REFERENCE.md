@@ -1,8 +1,10 @@
-# GTSX Authoring Reference
+# gtsx Authoring Reference
+
+Complete patterns for `.g.tsx` components, from simple to advanced.
 
 ## Pattern 1: Pure Props
 
-The simplest kind. Every preview state is described entirely by props.
+Every preview state described by props alone.
 
 ```tsx
 import type { GCases } from "gtsx"
@@ -32,9 +34,9 @@ Alert.cases = {
 } satisfies GCases<AlertProps>
 ```
 
-## Pattern 2: Stateful Scope (createGScopeHook)
+## Pattern 2: Stateful Scope
 
-Use when the component depends on application state (hooks, stores, queries, routers).
+Component depends on application state (hooks, stores, queries, routers).
 
 ```tsx
 import { useState } from "react"
@@ -50,7 +52,6 @@ type SearchScope = {
 
 function useRealSearchScope(): SearchScope {
   const [query, setQuery] = useState("")
-  // production logic: fetch, debounce, etc.
   return { query, results: [], onSearch: setQuery }
 }
 
@@ -82,13 +83,13 @@ Search.cases = {
 ```
 
 Key points:
-- The real hook (`useRealSearchScope`) can call any React hooks.
-- `createGScopeHook(useRealHook)` returns a GTSX hook that the component calls.
-- Cases supply `scope` values, bypassing the real hook during preview.
+- The real hook can call any React hooks.
+- `createGScopeHook` returns a gtsx hook that the component calls.
+- Cases supply `scope`, bypassing the real hook during preview.
 
 ## Pattern 3: Discriminated Union Scope
 
-Model multi-state components with a discriminated union. Each case represents one branch.
+Multi-state components where each case represents one branch.
 
 ```tsx
 import { createGScopeHook, type GCases } from "gtsx"
@@ -135,9 +136,9 @@ Resource.cases = {
 } satisfies GCases<Props, Scope>
 ```
 
-## Pattern 4: Provider Context (useGContext)
+## Pattern 4: Provider Context
 
-Use when the component reads from a shared context (theme, locale, auth, feature flags).
+Component reads shared context (theme, locale, auth, feature flags).
 
 ```tsx
 import React from "react"
@@ -169,13 +170,13 @@ Card.cases = {
 ```
 
 Key points:
-- Providers are created with `createGProvider(useValue)`.
-- Component cases provide preview fallback state with ordered entries: `providers: [[Provider, state]]`.
-- The third type parameter of `GCases` lists providers as a tuple.
+- `createGProvider(useValue)` creates the provider.
+- Cases supply fallback state: `providers: [[Provider, state]]`.
+- Third type parameter of `GCases` lists providers as a tuple.
 
 ## Pattern 5: Multiple Exports
 
-A single `.g.tsx` file can export multiple components. Each gets its own coordinate.
+One `.g.tsx` file, multiple components, each with its own coordinate.
 
 ```tsx
 import type { GCases } from "gtsx"
@@ -203,7 +204,7 @@ Coordinates: `src/Buttons.g.tsx#default`, `src/Buttons.g.tsx#PrimaryButton`.
 
 ## Pattern 6: Scope with Props Dependency
 
-The scope hook can accept props as an argument when the state depends on prop values.
+The scope hook accepts props when state depends on prop values.
 
 ```tsx
 import { createGScopeHook, type GCases } from "gtsx"
@@ -212,7 +213,7 @@ type Props = { userId: string }
 type Scope = { name: string; online: boolean }
 
 function useRealScope(props: Props): Scope {
-  // fetch user by props.userId
+  void props
   return { name: "Loading…", online: false }
 }
 
@@ -231,7 +232,7 @@ UserStatus.cases = {
 
 ## Pattern 7: Scope + Provider Combined
 
-When a component has both internal state and external context.
+Internal state and external context together. The scope hook receives provider values as a second tuple argument.
 
 ```tsx
 import React from "react"
@@ -280,21 +281,51 @@ Page.cases = {
 } satisfies GCases<Props, Scope, typeof providers>
 ```
 
-## Case Design Guidelines
+## Pattern 8: Composition
 
-### Name cases by visual/behavioral state, not by data
+A `.g.tsx` component rendering another `.g.tsx` component. The parent imports the child directly — no special composition API needed.
 
 ```tsx
-// Good: describes what the user sees
+import type { GCases } from "gtsx"
+import Badge from "./Badge.g"
+
+type NotificationProps = {
+  title: string
+  unread: number
+}
+
+export default function Notification(props: NotificationProps) {
+  return (
+    <div>
+      <h3>{props.title}</h3>
+      {props.unread > 0 && <Badge tone="warning" label={`${props.unread} new`} />}
+    </div>
+  )
+}
+
+Notification.cases = {
+  noUnread: { props: { title: "Inbox", unread: 0 } },
+  withUnread: { props: { title: "Inbox", unread: 3 } },
+} satisfies GCases<NotificationProps>
+```
+
+The child (`Badge.g`) has its own cases for isolated preview. The parent's cases exercise the composition — Studio shows both, with children reachable by drilldown.
+
+## Case Design Guidelines
+
+### Name by visual state, not data
+
+```tsx
+// Good
 cases = { empty: {…}, loading: {…}, overflowing: {…}, errorRetryable: {…} }
 
-// Bad: describes implementation details
+// Bad
 cases = { case1: {…}, withData: {…}, testCase: {…} }
 ```
 
 ### Cover boundary states
 
-For any component, consider these case categories:
+For any component, consider:
 - **Happy path** — typical usage with representative data
 - **Empty** — no data, zero counts, blank strings
 - **Loading** — async pending states
@@ -305,16 +336,16 @@ For any component, consider these case categories:
 ### Keep case data minimal but realistic
 
 ```tsx
-// Good: minimal realistic fixture
+// Good
 scope: { status: "ready", name: "Ada Lovelace", role: "Engineer" }
 
-// Bad: lorem ipsum or obviously fake data
+// Bad
 scope: { status: "ready", name: "asdfasdf", role: "xxx" }
 ```
 
 ### Functions in scope
 
-Provide no-op functions (`() => {}`) for callbacks in cases. They satisfy the type without side effects.
+No-op functions satisfy the type without side effects:
 
 ```tsx
 scope: { count: 0, increment() {}, reset() {} }
@@ -322,19 +353,18 @@ scope: { count: 0, increment() {}, reset() {} }
 
 ## File Organization
 
-- Export at least one component per `.g.tsx` file. A default export is optional; named-only files are valid.
-- Keep one primary visual surface per file unless multiple small sibling components naturally share props, fixtures, or provider setup.
-- Co-locate the provider with the component if it's only used by that component.
-- Share providers across files by exporting from a dedicated `providers.g.tsx`.
-- Keep prop/scope types in the same `.g.tsx` file unless shared across multiple components.
+- One primary visual surface per `.g.tsx` file (unless small siblings share fixtures/providers).
+- Export at least one component. Default export is optional.
+- Keep prop/scope types in the `.g.tsx` file unless shared across multiple components.
+- Co-locate providers with their component, or share through a `providers.g.tsx`.
 
 ## Common Mistakes
 
 | Mistake | Fix |
 |---------|-----|
-| Calling `useState` directly in component body | Wrap in `createGScopeHook` |
-| Putting `.cases` on the scope hook | Move to the component export |
-| Using template literals as case keys | Use plain string literal keys |
-| Forgetting `satisfies GCases<…>` | Always add for type safety |
+| `useState` directly in component body | Wrap in `createGScopeHook` |
+| `.cases` on the scope hook | Move to the component export |
+| Template literals as case keys | Use plain string literals |
+| Missing `satisfies GCases<…>` | Always add for type safety |
 | Importing from `"gtsx/runtime"` | Import from `"gtsx"` |
-| Making cases depend on runtime values | Cases must be statically evaluable |
+| Cases depending on runtime values | Cases must be statically evaluable |

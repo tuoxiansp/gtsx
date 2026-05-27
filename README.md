@@ -1,94 +1,56 @@
-# GTSX
+# gtsx
 
-GTSX is a production TSX case protocol and AI-assisted language-toolchain layer for React components.
+**Make your React UI knowable — to you and to your agents.**
 
-The core model:
+Every component declares its visual states. Studio renders them. The CLI checks and screenshots them. Agents read them as typed data.
 
-```txt
-GTSX Project = selected TypeScript project + .g.tsx protocol
-GTSX Scope = .g.tsx files in the selected TypeScript Program
-Host = execution environment that renders that scope
-Adapter = bridge that makes the Host understand GTSX boundaries and preview URLs
+> **TODO — Hero image goes here.**
+>
+> A Studio screenshot showing a grid of 8–12 real components, each with
+> multiple state thumbnails side by side (loading / ready / error / empty),
+> so the eye reads "everything, all visible at once" within 2 seconds.
+> Light theme, ~1200px wide. An animated GIF cycling through cases beats
+> a static frame.
+
+## Install
+
+Give this to an AI coding agent inside your project:
+
+```
+Install gtsx in this project: install the `setup-gtsx`, `authoring-gtsx`,
+and `refactor-to-gtsx` skills from the `gtsx` package, then run `setup-gtsx`.
 ```
 
-The product invariant is:
+The agent detects your TypeScript project and Host (Next.js or Vite), installs the right packages, wires `/gtsx/studio`, and verifies everything works.
 
-> Scope follows TypeScript. Host does not expand scope.
+You will not touch a config file.
 
-GTSX does not decide scope by app, library, package, or monorepo shape. It resolves a TypeScript project, derives the `.g.tsx` files in that Program, and renders them through a project-native, managed, or external Host.
+## Why gtsx
 
-## Installation Model
+**You cannot see your own UI.**
 
-GTSX does not provide a `gtsx init` command.
+Your React codebase has hundreds of visual states — loading, error, empty, overflow, permission-denied, RTL, dark mode — and no place to actually view them. Code review only sees diffs. Designers only see Figma. Every "what does this look like?" question costs a dev server, a click trail, and ten minutes.
 
-Installation is agent-driven. Use the official [Studio Installer Prompt](docs/gtsx-studio-installer-prompt.md) inside the target repository. The agent inspects the selected TypeScript project, detects or asks about the Host, applies the smallest project-local Studio and preview integration, and verifies the result.
+This was painful before. With agents writing UI at machine speed, it is now untenable. New states ship unseen. Existing states regress silently. The agent editing your `Button` has no idea what `Button` is supposed to look like in its eight different states.
 
-The CLI assumes this integration already exists. It checks `.g.tsx` contracts, serves the configured Studio URL, and captures configured preview URLs; it does not generate framework routes or own the target project's bundler.
+gtsx gives you back the map. Every component declares its visual states next to its TSX. Studio renders them. The CLI checks and screenshots them. Agents read them as first-class data.
 
-## First Successful Path
+You get:
 
-This path exercises the repository example app. It does not install GTSX into another project.
-
-```sh
-pnpm install
-pnpm --filter @gtsx/examples gtsx:check
-pnpm --filter @gtsx/examples dev -- --port 4300
-```
-
-After the dev server starts, open:
-
-```txt
-http://localhost:4300/gtsx/studio
-```
-
-The check command should list the example `.g.tsx` entries and their cases. The Studio URL should show the example project's GTSX components through the Vite Host.
-
-## Workspace
-
-This repository is a pnpm workspace:
-
-- `packages/gtsx`: protocol, runtime, analyzer, CLI, and project index helpers.
-- `packages/studio`: Studio shell and Studio manifest model helpers.
-- `packages/adapter-vite-react`: Vite React adapter and preview transform.
-- `examples`: Vite example app for current end-to-end behavior.
-- `playground`: Host/Adapter validation fixtures shaped like real framework projects.
-
-## Commands
-
-```sh
-pnpm install
-pnpm build
-pnpm test
-pnpm typecheck
-```
-
-Package-level commands are also available through pnpm filtering, for example:
-
-```sh
-pnpm --filter gtsx test
-pnpm --filter @gtsx/adapter-vite-react typecheck
-```
-
-## Current CLI Shape
-
-The current CLI resolves a TypeScript project from `-p` / `--project`, or from
-the nearest `tsconfig.json` when no project is provided:
-
-```sh
-gtsx check [-p <tsconfig-or-directory>] <entry.g.tsx[#export]|dir>
-gtsx serve [-p <tsconfig-or-directory>] [--port <port>]
-gtsx capture [-p <tsconfig-or-directory>] <entry.g.tsx[#export]|dir> [--case <name>|--all]
-```
-
-Directory checks and Studio manifests derive `.g.tsx` entries from the selected
-TypeScript Program instead of recursive directory scanning. If no TypeScript
-project can be resolved, the CLI keeps the legacy directory scan as a fallback
-for host-only fixtures and early setup flows. Host commands use `gtsx.config.ts`
-preview URLs from the selected project root or the current host boundary.
+- **A complete map of your UI.** Studio enumerates every component and every visual state in your TypeScript project. Stop guessing what exists.
+- **Visual state as a typed contract.** Refactors fail the build the moment cases drift from props.
+- **Preview without mocking.** Loading, error, empty, and edge states render without writing a single fetch mock.
+- **AI-readable.** Agents enumerate, render, and diff every visual state without running your app.
+- **No parallel build.** Plugs into your Next.js or Vite toolchain — no separate stories directory, no config to keep in sync.
 
 ## Docs
 
-- [GTSX Authoring Guide](docs/gtsx-authoring-guide.md)
-- [GTSX Refactor Guide](docs/gtsx-refactor-guide.md)
-- [Studio Installer Prompt](docs/gtsx-studio-installer-prompt.md)
-- [Open Issues](issues)
+- [Authoring Guide](docs/gtsx-authoring-guide.md) — patterns for pure, stateful, and contextual components
+- [Refactor Guide](docs/gtsx-refactor-guide.md) — convert existing TSX into `.g.tsx`
+- [Design](docs/gtsx-design.md) — the model, the invariants, and why the protocol is shaped this way
+
+## Contributing
+
+pnpm workspace. `pnpm install && pnpm build && pnpm test && pnpm typecheck`.
+
+Packages: `gtsx` (protocol, CLI), `@gtsx/studio` (shell, manifests), `@gtsx/adapter-vite-react` (Vite adapter). Cross-framework validation fixtures live in [`playground/`](playground/).

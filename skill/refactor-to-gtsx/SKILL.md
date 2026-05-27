@@ -1,54 +1,53 @@
 ---
 name: refactor-to-gtsx
-description: Refactor existing React TSX components into production .g.tsx UI models without preview wrappers.
+description: Refactor existing React TSX into production .g.tsx UI models without preview wrappers.
 ---
 
-# Refactor Existing TSX To GTSX
+# Refactor Existing TSX To gtsx
 
-Use this skill when converting, migrating, or refactoring existing React `.tsx` components into GTSX.
+Convert existing React components into `.g.tsx` UI models.
 
 ## Read First
 
-- Repository guide: `../../docs/gtsx-refactor-guide.md`
-- Authoring best practices: `../../docs/gtsx-authoring-guide.md`
-- Authoring patterns: `../authoring-gtsx/REFERENCE.md`
+- [Refactor Guide](../../docs/gtsx-refactor-guide.md) — decision gates, patterns, anti-patterns
+- [Authoring Guide](../../docs/gtsx-authoring-guide.md) — best practices for the resulting `.g.tsx`
+- [Authoring Reference](../authoring-gtsx/REFERENCE.md) — code patterns
 
-If the target project is not wired for GTSX Studio or preview yet, use the Studio installer prompt first instead of migrating components.
+If the project isn't wired for gtsx yet, run the `setup-gtsx` skill first.
 
-## Core invariant
+## Invariant
 
-`.g.tsx` owns real visual UI and enumerable visual states. It is not a preview wrapper around existing TSX.
-
-If the visual UI cannot be safely moved into `.g.tsx`, skip that component. Do not create a thin wrapper to show progress.
+`.g.tsx` owns real visual UI and enumerable visual states. Not a wrapper.
 
 ## Workflow
 
-1. Inspect the requested surface and nearby component tree.
-2. Apply the decision gates from the repository refactor guide.
-3. Choose `migrate`, `split`, `descend`, or `skip`.
-4. For `descend`, keep reading until you find a component with a real visual surface whose visual variations can be expressed as cases.
-5. For `migrate`, move the real UI, UI prop types, and visual helpers into `.g.tsx`; add static cases.
-6. For `split`, define a UI `Scope`, move production hooks/effects/router/store/fetch behavior behind `useRealScope`, wrap it with `createGScopeHook`, and render the real JSX from the `.g.tsx` component.
-7. Update local imports from `./Component` to `./Component.g`; keep component names, props contracts, and public barrel exports stable where practical.
-8. Run `gtsx check` and the target project's normal typecheck. If Studio or preview is available, render at least one migrated case.
+1. Inspect the target component and its tree.
+2. Apply decision gates: does it render DOM? Own visual states? States controllable by props/scope/providers? Would `.g.tsx` just wrap old TSX?
+3. Choose action:
+   - **migrate** — pure UI, move into `.g.tsx`, add cases
+   - **split** — mixed hooks+UI, separate scope from view
+   - **descend** — orchestration, inspect children instead
+   - **skip** — too risky or no visual surface
+4. For `descend`: keep reading until finding real visual surfaces.
+5. For `migrate`: move real UI + types + helpers into `.g.tsx`, add static cases, update imports.
+6. For `split`: define `Scope` type, move production behavior behind `useRealScope`, wrap with `createGScopeHook`, render real TSX from `.g.tsx` component.
+7. Update imports from `./Component` to `./Component.g`. Preserve barrels.
+8. Run `gtsx check` + project typecheck. Render a case in Studio if available.
 
-## Never Do This
+## Never
 
-- Do not create `.g.tsx` files that only render `<ExistingComponent {...props} />`.
-- Do not wrap old clients in `<GtsxPreviewRuntime>` and call that a component migration.
-- Do not hide the old component behind `scope: { node: <OldComponent /> }`.
-- Do not GTSX-ify route, provider, layout, or feature orchestration.
-- Do not bulk-generate `*.impl.tsx`, `*.component.g.tsx`, or `*.preview.g.tsx` files to avoid moving UI.
-- Do not preserve old relative import paths by adding wrappers. Update imports to `.g` or use a barrel re-export.
+- `.g.tsx` that only renders `<ExistingComponent {...props} />`
+- `<GtsxPreviewRuntime>` wrapping old clients
+- `scope: { node: <OldComponent /> }`
+- gtsx-ifying route/provider/layout orchestration
+- Bulk-generating `*.impl.tsx` or `*.preview.g.tsx` files
+- Preserving old paths by adding wrappers (update imports or use barrels)
 
-## Completion Check
+## Done When
 
-Before finishing, confirm:
-
-- The `.g.tsx` file owns the migrated visual JSX and visual branches.
-- Cases describe meaningful visual states.
-- The happy-path case appears first when the component has one.
-- Stateful cases use concrete scope data and no-op callbacks.
-- The old TSX no longer owns the migrated visual branches.
-- `gtsx check` passes.
-- The project typecheck passes or any failure is clearly unrelated and reported.
+- `.g.tsx` owns the migrated visual TSX
+- Cases describe meaningful visual states (happy-path first, at least two)
+- Stateful cases: concrete scope data + no-op callbacks
+- Old TSX no longer owns migrated visual branches
+- `gtsx check` passes
+- Project typecheck passes (or unrelated failures reported)

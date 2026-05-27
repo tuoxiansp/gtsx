@@ -1,78 +1,72 @@
-# GTSX Refactor Guide
+# gtsx Refactor Guide
 
-This guide shows how to turn existing React TSX into production `.g.tsx` UI models.
+Turn existing React TSX into production `.g.tsx` UI models.
 
-Use this guide when a component already exists in a target project. Use the [GTSX Authoring Guide](./gtsx-authoring-guide.md) for best practices while writing the resulting `.g.tsx` component. If the project has not been wired for GTSX Studio and preview yet, first use the [Studio Installer Prompt](./gtsx-studio-installer-prompt.md).
+Use this guide when a component already exists. For authoring patterns in the resulting `.g.tsx`, see the [Authoring Guide](./gtsx-authoring-guide.md). If the project isn't wired for gtsx yet, run the [`setup-gtsx`](../skill/setup-gtsx/SKILL.md) skill first.
 
-## Core Invariant
+## Invariant
 
 `.g.tsx` owns real visual UI and enumerable visual states. It is not a preview wrapper around existing TSX.
 
-If the visual UI cannot be safely moved into `.g.tsx`, skip that component. Do not create a thin wrapper to show progress.
+If the visual UI cannot be safely moved into `.g.tsx`, skip that component. Never create a thin wrapper to show progress.
 
-## Refactor Targets
+## Choosing Targets
 
-Start from a user-visible visual surface, not from a file tree sweep. Good targets are components that own DOM, JSX, visual variants, or other visible branches such as loading, empty, error, overflow, open, selected, disabled, and permission states.
+Start from a user-visible visual surface, not from a file tree sweep.
 
-Do not GTSX-ify orchestration. A component is usually not a refactor target when it mainly does route glue, provider nesting, layout slots, feature composition, permission gates, or data plumbing. Descend through those components until you find the first component with a real visual surface whose visual variations can be meaningfully enumerated as cases.
+Good targets own DOM, TSX, visual variants, or visible branches: loading, empty, error, overflow, open, selected, disabled, permission states.
 
-Case names depend on the component kind:
-
-- Basic UI: `default`, `disabled`, `danger`, `open`, `selected`, `longLabel`, `withIcon`.
-- Composite UI: `empty`, `populated`, `overflowing`, `permissionDenied`.
-- Page or feature UI: `loading`, `errorRetryable`, `ready`, `empty`, `unauthorized`.
+Bad targets are orchestration: route glue, provider nesting, layout slots, feature composition, permission gates, data plumbing. Descend through them until you find real visual surfaces.
 
 ## Decision Gates
 
-Before editing, inspect the target component and answer these gates:
+Before editing, answer four questions about the target:
 
-1. Does this component render real DOM or JSX instead of only forwarding children, providers, routes, or layout slots?
-2. Does it own a visual surface with states or variants worth previewing?
+1. Does it render real DOM/TSX (not only forwarding children, providers, or layout slots)?
+2. Does it own a visual surface with states worth previewing?
 3. Can those states be controlled by `props`, `scope`, and `providers`?
-4. After migration, would the `.g.tsx` file still just render the old TSX component?
+4. After migration, would the `.g.tsx` file just render the old component?
 
-Use the result to choose an action:
+The answers determine the action:
 
-- `migrate`: the component is mostly pure UI. Move it into `.g.tsx` and add cases.
-- `split`: the component mixes hooks, effects, router, stores, fetches, or other production behavior with UI. Move the visual UI into `.g.tsx` and put production behavior behind a real scope hook.
-- `descend`: the component is orchestration. Do not convert it; inspect its children.
-- `skip`: the component is too risky or unclear. Leave it untouched and do not create a `.g.tsx` wrapper.
+| Action | When |
+|--------|------|
+| **migrate** | Mostly pure UI. Move into `.g.tsx`, add cases. |
+| **split** | Mixes hooks/effects/router/stores with UI. Separate visual UI from production state. |
+| **descend** | Orchestration. Don't convert; inspect children. |
+| **skip** | Too risky or unclear. Leave untouched, no wrapper. |
 
-If gate 4 is yes, do not migrate at that boundary. Descend into the old component or skip it.
+If gate 4 is "yes" — you'd be creating a wrapper. Descend or skip instead.
 
-## Pure UI Migration
+## Migrate: Pure UI
 
-For a pure component, make the `.g.tsx` file the production component:
+The `.g.tsx` file becomes the production component:
 
-1. Move the component, UI prop types, helper render functions, and local visual constants into `Component.g.tsx`.
-2. Keep the component name, props contract, and default or named exports stable where practical.
-3. Add static `Component.cases` with meaningful visual states.
-4. Update local imports from `./Component` to `./Component.g`.
-5. Keep barrel exports stable when a package or directory exposes a public API:
+1. Move component, UI prop types, helper render functions, and visual constants into `Component.g.tsx`.
+2. Keep component name, props contract, and exports stable.
+3. Add `Component.cases` with meaningful visual states.
+4. Update imports from `./Component` to `./Component.g`.
+5. Preserve public APIs through barrels:
 
 ```ts
 export { Component } from "./Component.g"
 ```
 
-Do not create a wrapper just to preserve an old relative path.
+## Split: Stateful UI
 
-## Stateful Or Heavy Migration
+For components that mix hooks/effects/state with visual TSX:
 
-Heavy components are normal GTSX targets. Do not avoid them by wrapping the old component. Apply this mechanical split:
-
-1. Identify everything the JSX reads from hooks, effects, router, query clients, stores, fetches, local state, or permissions.
-2. Define a `Scope` type containing only the values and callbacks the visual UI needs.
+1. Identify everything the TSX reads from hooks, effects, router, stores, or fetches.
+2. Define a `Scope` type — only values and callbacks the visual UI needs.
 3. Move production behavior into `useRealComponentScope(props)`.
-4. Wrap that hook with `createGScopeHook(useRealComponentScope)`.
-5. Make the exported `.g.tsx` component call only the returned GTSX hook and render the real JSX.
-6. Add cases that inject `scope` for the important visual states.
+4. Wrap: `const useComponentScope = createGScopeHook(useRealComponentScope)`.
+5. The `.g.tsx` component calls only the gtsx hook and renders real TSX.
+6. Add cases injecting `scope` for each important visual state.
 
 ```tsx
 import { createGScopeHook, type GCases } from "gtsx"
 
-type OrderProps = {
-  orderId: string
-}
+type OrderProps = { orderId: string }
 
 type OrderScope =
   | { status: "loading" }
@@ -80,6 +74,7 @@ type OrderScope =
   | { status: "ready"; title: string; total: string; submit: () => void }
 
 function useRealOrderScope(props: OrderProps): OrderScope {
+  // production: fetch order, manage submit state, handle errors
   void props
   return { status: "loading" }
 }
@@ -90,13 +85,11 @@ export function Order(props: OrderProps) {
   const scope = useOrderScope(props)
 
   if (scope.status === "loading") {
-    return <p>Loading order...</p>
+    return <p>Loading order…</p>
   }
-
   if (scope.status === "error") {
     return <button onClick={scope.retry}>{scope.message}</button>
   }
-
   return (
     <article>
       <h1>{scope.title}</h1>
@@ -122,56 +115,47 @@ Order.cases = {
 } satisfies GCases<OrderProps, OrderScope>
 ```
 
-Extract ordinary `.ts` or `.tsx` modules only for shared non-UI code, large data helpers, service calls, reusable hooks, or actions. Do not bulk-generate `*.impl.tsx` files as a migration escape hatch.
+Extract separate `.ts` modules only for shared business logic, reusable hooks, or service calls. Do not bulk-generate `*.impl.tsx` files as a migration escape hatch.
 
 ## Anti-Patterns
 
-Do not produce these as component migrations:
+Never produce these as migrations:
 
 ```tsx
+// Wrapper that doesn't own UI
 export default function OrderPreview(props: OrderProps) {
   return <Order {...props} />
 }
-```
 
-```tsx
+// Runtime wrapper instead of real component
 export default function OrderPreview() {
-  return (
-    <GtsxPreviewRuntime>
-      <OrderClient />
-    </GtsxPreviewRuntime>
-  )
+  return <GtsxPreviewRuntime><OrderClient /></GtsxPreviewRuntime>
 }
-```
 
-```tsx
-type OrderScope = {
-  node: React.ReactNode
-}
+// Hiding old component behind a node scope value
+type OrderScope = { node: React.ReactNode }
 ```
-
-A `ReactNode` prop or scope value is acceptable only when the component's real public contract is a slot. It is not acceptable as an escape hatch for hiding the old component behind `scope.node`.
 
 Also avoid:
 
-- Converting route, provider, or layout orchestration into `.g.tsx`.
-- Copying a parent component into a nearly identical child just to create a `.g.tsx` file.
-- Passing router objects, query clients, stores, API clients, or entire payloads through scope when the UI needs only selected render values and callbacks.
-- Creating cases named `case1`, `test`, or `withData` when the state can be named visually.
-- Sweeping an entire directory and generating `.g.tsx` files for every `*-client.tsx`.
+- Converting route/provider/layout orchestration into `.g.tsx`
+- Copying a parent into a child just to create a `.g.tsx` file
+- Passing routers, query clients, stores, or entire payloads through scope (pass only what the view renders)
+- Cases named `case1`, `test`, `withData` (name by visual state)
+- Sweeping a directory and generating `.g.tsx` for every file
 
 ## Completion Standard
 
-A GTSX refactor is complete only when:
+A refactor is done when:
 
-- The `.g.tsx` file contains the real visual UI model, not only a wrapper around old TSX.
-- Export names and props contracts remain stable where practical.
-- Local production imports point at the `.g` module, or a barrel re-exports the `.g` module as the stable public API.
-- Cases enumerate meaningful visual states. Use at least two cases unless the component truly has only one stable visual state.
-- Stateful cases inject concrete UI scope values and callbacks, not `scope.node` placeholders.
-- The old TSX no longer owns the migrated visual branches.
-- `gtsx check` passes for the new `.g.tsx` file or scope.
-- The target project's normal typecheck passes.
-- When Studio or preview is available, at least one migrated case renders successfully.
+- [ ] The `.g.tsx` file contains real visual UI, not a wrapper
+- [ ] Export names and props contracts remain stable
+- [ ] Local imports point at the `.g` module (or barrel re-exports it)
+- [ ] Cases enumerate meaningful visual states (at least two, happy-path first)
+- [ ] Stateful cases use concrete scope values and no-op callbacks
+- [ ] The old TSX no longer owns the migrated visual branches
+- [ ] `gtsx check` passes
+- [ ] Project typecheck passes
+- [ ] At least one case renders in Studio/preview (when available)
 
-`gtsx check` is necessary but not sufficient. It verifies protocol shape; it does not prove that the refactor moved real UI into `.g.tsx`.
+`gtsx check` validates protocol shape — it does not prove the refactor moved real UI. That remains a design judgment.

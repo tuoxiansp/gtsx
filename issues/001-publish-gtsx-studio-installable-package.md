@@ -7,13 +7,13 @@ State: ready-for-agent
 
 ## Problem
 
-The installer prompt tells target projects to import `StudioShell` and `createStudioManifest` from `@gtsx/studio`, and that is the intended official package boundary.
+The `setup-gtsx` skill tells target projects to import `StudioShell` and `createStudioManifest` from `@gtsx/studio`, and that is the intended official package boundary.
 
 Today `@gtsx/studio` is still workspace-private and exports source files directly, so a normal consumer project outside this repository cannot rely on the documented import path as an installable package.
 
 ## Desired Outcome
 
-`@gtsx/studio` should be consumable as an official GTSX package from target projects integrated by the agent-driven installer prompt.
+`@gtsx/studio` should be consumable as an official gtsx package from target projects integrated by the agent-driven `setup-gtsx` skill.
 
 ## Acceptance Criteria
 
@@ -25,5 +25,5 @@ Today `@gtsx/studio` is still workspace-private and exports source files directl
 
 ## Notes
 
-- Do not change the install model: GTSX installation remains agent-driven through the Studio Installer Prompt.
+- Do not change the install model: gtsx installation remains agent-driven through the `setup-gtsx` skill.
 - Keep the package focused on Studio shell and manifest helpers; target-project Host glue still belongs to the user's agent.
