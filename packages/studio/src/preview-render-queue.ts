@@ -11,6 +11,7 @@ export const defaultStudioPreviewRenderQueueMaxActive = 8
 export const defaultStudioPreviewRenderQueueMaxLength = 18
 
 export type StudioPreviewRenderQueueOptions = {
+  activeTimeoutMs?: number
   maxActive?: number
   maxLength?: number
   preloadMargin?: number
@@ -18,6 +19,7 @@ export type StudioPreviewRenderQueueOptions = {
 }
 
 export type StudioPreviewRenderQueueInput = StudioPreviewRenderQueueOptions & {
+  activeSessionIds?: ReadonlySet<string>
   canvas: { x: number; y: number; scale: number }
   completedSessionIds?: ReadonlySet<string>
   currentSessionIds?: ReadonlySet<string>
@@ -26,6 +28,7 @@ export type StudioPreviewRenderQueueInput = StudioPreviewRenderQueueOptions & {
 }
 
 type StudioPreviewRenderQueueCandidate = {
+  active: boolean
   cardIndex: number
   completed: boolean
   currentlyMounted: boolean
@@ -45,6 +48,12 @@ export function queuedStudioPreviewSessionIds(input: StudioPreviewRenderQueueInp
 
   for (const candidate of studioPreviewRenderQueueCandidates(input)) {
     if (selected.has(candidate.sessionId)) continue
+    if (candidate.active) {
+      selected.add(candidate.sessionId)
+      activeTasks += 1
+      continue
+    }
+
     if (candidate.needsRenderTask) {
       if (queuedTasks >= maxLength) continue
       queuedTasks += 1
@@ -60,6 +69,7 @@ export function queuedStudioPreviewSessionIds(input: StudioPreviewRenderQueueInp
 
 export function studioPreviewRenderQueueOptionsFromParams(params: URLSearchParams): StudioPreviewRenderQueueOptions {
   return {
+    activeTimeoutMs: positiveIntegerParam(params, ["previewQueueActiveTimeout", "queueActiveTimeout"]),
     maxActive: positiveIntegerParam(params, ["previewQueueActive", "queueActive"]),
     maxLength: positiveIntegerParam(params, ["previewQueueLength", "queueLength"]),
     preloadMargin: positiveIntegerParam(params, ["previewQueueBuffer", "queueBuffer", "previewBuffer"]),
@@ -70,6 +80,7 @@ export function studioPreviewRenderQueueOptionsFromParams(params: URLSearchParam
 function studioPreviewRenderQueueCandidates(input: StudioPreviewRenderQueueInput): StudioPreviewRenderQueueCandidate[] {
   const currentSessionIds = input.currentSessionIds ?? new Set<string>()
   const completedSessionIds = input.completedSessionIds ?? new Set<string>()
+  const activeSessionIds = input.activeSessionIds ?? new Set<string>()
   const preloadMargin = positiveQueueLimit(input.preloadMargin, studioPreviewPreloadMargin)
   const retainMargin = Math.max(preloadMargin, positiveQueueLimit(input.retainMargin, studioPreviewRetainMargin))
   const visibleCards: StudioPreviewRenderQueueCandidate[][] = []
@@ -87,12 +98,13 @@ function studioPreviewRenderQueueCandidates(input: StudioPreviewRenderQueueInput
       const currentlyMounted = currentSessionIds.has(sessionId)
       const completed = completedSessionIds.has(sessionId)
       return {
+        active: activeSessionIds.has(sessionId),
         cardIndex,
         completed,
         currentlyMounted,
         distance,
         intersectionArea,
-        needsRenderTask: !currentlyMounted || !completed,
+        needsRenderTask: !currentlyMounted,
         sessionId,
         sessionIndex,
       }

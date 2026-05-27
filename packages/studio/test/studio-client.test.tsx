@@ -736,7 +736,22 @@ describe("GTSX Studio shell", () => {
         completedSessionIds: new Set(["visible-a"]),
         currentSessionIds: new Set(["visible-a", "visible-b"]),
       })],
-    ).toEqual(["visible-a", "visible-b", "visible-c"])
+    ).toEqual(["visible-a", "visible-b", "visible-c", "near-a"])
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        ...queueInput,
+        currentSessionIds: new Set(["visible-a"]),
+        maxActive: 1,
+      })],
+    ).toEqual(["visible-a", "visible-b"])
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        ...queueInput,
+        activeSessionIds: new Set(["visible-a"]),
+        currentSessionIds: new Set(["visible-a"]),
+        maxActive: 1,
+      })],
+    ).toEqual(["visible-a"])
     expect(
       [...queuedStudioPreviewSessionIds({
         canvas: { x: 0, y: 0, scale: 1 },
@@ -1108,21 +1123,26 @@ describe("GTSX Studio shell", () => {
   it("reads preview render queue limits from URL params", () => {
     expect(
       studioPreviewRenderQueueOptionsFromParams(
-        new URLSearchParams("previewQueueActive=3&previewQueueLength=9&previewQueueBuffer=640&previewQueueRetain=1800"),
+        new URLSearchParams(
+          "previewQueueActive=3&previewQueueLength=9&previewQueueBuffer=640&previewQueueRetain=1800&previewQueueActiveTimeout=900",
+        ),
       ),
     ).toEqual({
+      activeTimeoutMs: 900,
       maxActive: 3,
       maxLength: 9,
       preloadMargin: 640,
       retainMargin: 1800,
     })
     expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("queueActive=4&queueLength=12&queueBuffer=700"))).toEqual({
+      activeTimeoutMs: undefined,
       maxActive: 4,
       maxLength: 12,
       preloadMargin: 700,
       retainMargin: undefined,
     })
     expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("queueActive=0&queueLength=nope"))).toEqual({
+      activeTimeoutMs: undefined,
       maxActive: undefined,
       maxLength: undefined,
       preloadMargin: undefined,

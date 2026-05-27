@@ -39,7 +39,10 @@ import {
 } from "../case-grid-layout"
 import { previewFrameLayoutHeight, previewFrameLayoutWidth } from "../preview-frame-layout"
 import { type StudioCanvasPreviewVisibilityItem, type StudioViewportRect } from "../preview-lazy-loading"
-import { queuedStudioPreviewSessionIds, type StudioPreviewRenderQueueOptions } from "../preview-render-queue"
+import {
+  queuedStudioPreviewSessionIds,
+  type StudioPreviewRenderQueueOptions,
+} from "../preview-render-queue"
 import ComponentCard from "./ComponentCard.g"
 import ViewportPresetTabs from "./ViewportPresetTabs.g"
 
@@ -124,6 +127,8 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   const previewRenderQueueRef = React.useRef(props.previewRenderQueue)
   const previewVisibilityFrame = React.useRef(0)
   const previewVisibilityScheduledCanvas = React.useRef<StudioCanvasTransform | null>(null)
+  const previewVisibilityTimeout = React.useRef(0)
+  const renderPreviewSessionMountedAt = React.useRef(new Map<string, number>())
   const renderPreviewSessionIdsRef = React.useRef(renderPreviewSessionIds)
   const workspaceRef = React.useRef(props.workspace)
   const layoutMeasurementKey = React.useMemo(
@@ -140,9 +145,17 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
       if (!canvasViewportElement) return
 
       const viewportRect = canvasViewportElement.getBoundingClientRect()
+      const completedSessionIds = completedStudioPreviewSessionIds(frameStatesRef.current)
+      const previewRenderQueue = previewRenderQueueRef.current
       const nextSessionIds = queuedStudioPreviewSessionIds({
+        activeSessionIds: activeStudioPreviewSessionIds(
+          renderPreviewSessionIdsRef.current,
+          completedSessionIds,
+          renderPreviewSessionMountedAt.current,
+          previewRenderQueue?.activeTimeoutMs,
+        ),
         canvas: nextCanvas,
-        completedSessionIds: completedStudioPreviewSessionIds(frameStatesRef.current),
+        completedSessionIds,
         currentSessionIds: renderPreviewSessionIdsRef.current,
         items: studioPreviewVisibilityItems(
           workspaceRef.current,
@@ -156,10 +169,11 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
           right: viewportRect.width,
           top: 0,
         },
-        ...previewRenderQueueRef.current,
+        ...previewRenderQueue,
       })
 
       if (sameStringSet(renderPreviewSessionIdsRef.current, nextSessionIds)) return
+      syncRenderPreviewSessionMountedAt(renderPreviewSessionMountedAt.current, renderPreviewSessionIdsRef.current, nextSessionIds)
       renderPreviewSessionIdsRef.current = nextSessionIds
       setRenderPreviewSessionIds(nextSessionIds)
     },
@@ -209,7 +223,21 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
 
   React.useEffect(() => {
     renderPreviewSessionIdsRef.current = renderPreviewSessionIds
-  }, [renderPreviewSessionIds])
+    schedulePreviewVisibilityUpdate(canvasRef.current)
+    if (typeof window === "undefined") return
+
+    if (previewVisibilityTimeout.current) {
+      window.clearTimeout(previewVisibilityTimeout.current)
+      previewVisibilityTimeout.current = 0
+    }
+    const activeTimeoutMs = positivePreviewQueueActiveTimeout(previewRenderQueueRef.current?.activeTimeoutMs)
+    if (activeTimeoutMs === undefined) return
+
+    previewVisibilityTimeout.current = window.setTimeout(() => {
+      previewVisibilityTimeout.current = 0
+      schedulePreviewVisibilityUpdate(canvasRef.current)
+    }, activeTimeoutMs + 16)
+  }, [renderPreviewSessionIds, schedulePreviewVisibilityUpdate])
 
   React.useEffect(() => {
     schedulePreviewVisibilityUpdate(canvasRef.current)
@@ -218,6 +246,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   React.useEffect(() => {
     return () => {
       if (previewVisibilityFrame.current) window.cancelAnimationFrame(previewVisibilityFrame.current)
+      if (previewVisibilityTimeout.current) window.clearTimeout(previewVisibilityTimeout.current)
     }
   }, [])
 
@@ -659,6 +688,46 @@ function completedStudioPreviewSessionIds(frameStates: Record<string, StudioPrev
   }
 
   return sessionIds
+}
+
+function activeStudioPreviewSessionIds(
+  currentSessionIds: ReadonlySet<string>,
+  completedSessionIds: ReadonlySet<string>,
+  mountedAt: ReadonlyMap<string, number>,
+  timeoutMs: number | undefined,
+): Set<string> {
+  const sessionIds = new Set<string>()
+  const now = studioPerformanceNow()
+
+  for (const sessionId of currentSessionIds) {
+    if (completedSessionIds.has(sessionId)) continue
+    const startedAt = mountedAt.get(sessionId) ?? now
+    if (timeoutMs === undefined || now - startedAt < timeoutMs) sessionIds.add(sessionId)
+  }
+
+  return sessionIds
+}
+
+function positivePreviewQueueActiveTimeout(value: number | undefined): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined
+}
+
+function syncRenderPreviewSessionMountedAt(
+  mountedAt: Map<string, number>,
+  currentSessionIds: ReadonlySet<string>,
+  nextSessionIds: ReadonlySet<string>,
+) {
+  const now = studioPerformanceNow()
+  for (const sessionId of nextSessionIds) {
+    if (!currentSessionIds.has(sessionId) && !mountedAt.has(sessionId)) mountedAt.set(sessionId, now)
+  }
+  for (const sessionId of mountedAt.keys()) {
+    if (!nextSessionIds.has(sessionId)) mountedAt.delete(sessionId)
+  }
+}
+
+function studioPerformanceNow(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now()
 }
 
 function studioCanvasCasePreviewScale(
