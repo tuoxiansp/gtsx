@@ -38,11 +38,8 @@ import {
   studioComponentCaseGridMinScale,
 } from "../case-grid-layout"
 import { previewFrameLayoutHeight, previewFrameLayoutWidth } from "../preview-frame-layout"
-import {
-  visibleStudioPreviewSessionIds,
-  type StudioCanvasPreviewVisibilityItem,
-  type StudioViewportRect,
-} from "../preview-lazy-loading"
+import { type StudioCanvasPreviewVisibilityItem, type StudioViewportRect } from "../preview-lazy-loading"
+import { queuedStudioPreviewSessionIds, type StudioPreviewRenderQueueOptions } from "../preview-render-queue"
 import ComponentCard from "./ComponentCard.g"
 import ViewportPresetTabs from "./ViewportPresetTabs.g"
 
@@ -54,6 +51,7 @@ export type StudioWorkspaceViewProps = {
   selection?: string
   previewCache?: Record<string, StudioPreviewCacheEntry>
   previewCacheReady?: boolean
+  previewRenderQueue?: StudioPreviewRenderQueueOptions
   frameStates?: Record<string, StudioPreviewFrameState>
   onChangeSelection?: (selection: string) => void
   onChangeCase?: (component: StudioManifestComponent, caseName: string, options?: { keepDrilldown?: boolean }) => void
@@ -134,8 +132,9 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
       if (!canvasViewportElement) return
 
       const viewportRect = canvasViewportElement.getBoundingClientRect()
-      const nextSessionIds = visibleStudioPreviewSessionIds({
+      const nextSessionIds = queuedStudioPreviewSessionIds({
         canvas: nextCanvas,
+        completedSessionIds: completedStudioPreviewSessionIds(props.frameStates),
         currentSessionIds: renderPreviewSessionIdsRef.current,
         items: studioPreviewVisibilityItems(
           props.workspace,
@@ -149,13 +148,14 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
           right: viewportRect.width,
           top: 0,
         },
+        ...props.previewRenderQueue,
       })
 
       if (sameStringSet(renderPreviewSessionIdsRef.current, nextSessionIds)) return
       renderPreviewSessionIdsRef.current = nextSessionIds
       setRenderPreviewSessionIds(nextSessionIds)
     },
-    [canvasViewportElement, canvasViewportPreset, props.workspace],
+    [canvasViewportElement, canvasViewportPreset, props.frameStates, props.previewRenderQueue, props.workspace],
   )
 
   const schedulePreviewVisibilityUpdate = React.useCallback(
@@ -640,6 +640,17 @@ function studioComponentCaseFrameStates(
       ] as const
     }),
   )
+}
+
+function completedStudioPreviewSessionIds(frameStates: Record<string, StudioPreviewFrameState> | undefined): Set<string> {
+  const sessionIds = new Set<string>()
+  if (!frameStates) return sessionIds
+
+  for (const [sessionId, frameState] of Object.entries(frameStates)) {
+    if (frameState.ready || frameState.error) sessionIds.add(sessionId)
+  }
+
+  return sessionIds
 }
 
 function studioCanvasCasePreviewScale(

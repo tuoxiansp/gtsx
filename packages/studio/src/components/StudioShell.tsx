@@ -35,12 +35,14 @@ import {
   studioPreviewIndexedDBNamespace,
   writeStudioPreviewIndexedDBCache,
 } from "../preview-cache-indexeddb"
+import { studioPreviewRenderQueueOptionsFromParams, type StudioPreviewRenderQueueOptions } from "../preview-render-queue"
 import { StudioPreviewIframePoolProvider } from "../preview-iframe-pool"
 import StudioPreviewIframe from "./StudioPreviewIframe"
 import StudioWorkspaceView from "./StudioWorkspaceView.g"
 
 export type StudioShellProps = {
   manifest: StudioManifest
+  previewRenderQueue?: StudioPreviewRenderQueueOptions
   selection?: string
   urlSearch?: string
 }
@@ -62,6 +64,7 @@ type StudioShellScope = {
   ) => void
   previewCache: Record<string, StudioPreviewCacheEntry>
   previewCacheReady: boolean
+  previewRenderQueue: StudioPreviewRenderQueueOptions
   selection: string
   urlWarning?: string
   warmupTargets: StudioPreviewWarmupTarget[]
@@ -83,6 +86,10 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
   )
   const debugPreviewPool = React.useMemo(() => isStudioPreviewPoolDebugEnabled(initialUrlParams), [initialUrlParams])
   const disablePreviewPool = React.useMemo(() => isStudioPreviewPoolDisabled(initialUrlParams), [initialUrlParams])
+  const previewRenderQueue = React.useMemo(
+    () => ({ ...studioPreviewRenderQueueOptionsFromParams(initialUrlParams), ...props.previewRenderQueue }),
+    [initialUrlParams, props.previewRenderQueue],
+  )
   const [selection, setSelection] = React.useState(initialUrlState.selection)
   const [canvas, setCanvas] = React.useState(initialUrlState.canvas)
   const [urlWarning, setUrlWarning] = React.useState(initialUrlState.warning)
@@ -326,6 +333,7 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
     },
     previewCache,
     previewCacheReady,
+    previewRenderQueue,
     selection,
     urlWarning,
     warmupTargets,
@@ -351,6 +359,7 @@ export default function StudioShell(props: StudioShellProps) {
         onPreviewFrameMount={scope.onPreviewFrameMount}
         previewCache={scope.previewCache}
         previewCacheReady={scope.previewCacheReady}
+        previewRenderQueue={scope.previewRenderQueue}
         selection={scope.selection}
         urlWarning={scope.urlWarning}
         workspace={scope.workspace}

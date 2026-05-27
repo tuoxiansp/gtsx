@@ -29,6 +29,7 @@ import {
   isStudioPreviewPoolDebugEnabled,
   mergeStudioPreviewFrameState,
   previewSessionId,
+  queuedStudioPreviewSessionIds,
   replaceStudioCanvasUrlState,
   revealStudioCanvasRect,
   rootStudioManifestComponents,
@@ -36,6 +37,7 @@ import {
   selectStudioRuntimeInstance,
   selectStudioComponent,
   studioPreviewCacheKey,
+  studioPreviewRenderQueueOptionsFromParams,
   studioPreviewRenderTargetFromUrl,
   studioPreviewWarmupTargets,
 } from "../src/index.js"
@@ -709,6 +711,93 @@ describe("GTSX Studio shell", () => {
     ).toEqual(["retained", "visible-a", "visible-b"])
   })
 
+  it("queues preview rendering by viewport priority and active render budget", () => {
+    const queueInput = {
+      canvas: { x: 0, y: 0, scale: 1 },
+      items: [
+        {
+          rect: { bottom: 100, left: 0, right: 100, top: 0 },
+          sessionIds: ["visible-a", "visible-b", "visible-c"],
+        },
+        {
+          rect: { bottom: 250, left: 0, right: 100, top: 150 },
+          sessionIds: ["near-a", "near-b"],
+        },
+      ],
+      maxActive: 2,
+      maxLength: 5,
+      viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+    }
+
+    expect([...queuedStudioPreviewSessionIds(queueInput)]).toEqual(["visible-a", "visible-b"])
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        ...queueInput,
+        completedSessionIds: new Set(["visible-a"]),
+        currentSessionIds: new Set(["visible-a", "visible-b"]),
+      })],
+    ).toEqual(["visible-a", "visible-b", "visible-c"])
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        canvas: { x: 0, y: 0, scale: 1 },
+        completedSessionIds: new Set(["done"]),
+        currentSessionIds: new Set(["done"]),
+        items: [
+          {
+            rect: { bottom: 100, left: 0, right: 100, top: 0 },
+            sessionIds: ["new-a", "new-b", "done"],
+          },
+        ],
+        maxActive: 2,
+        maxLength: 3,
+        viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      })],
+    ).toEqual(["done", "new-a", "new-b"])
+  })
+
+  it("reorders the preview render queue when the canvas moves", () => {
+    const input = {
+      items: [
+        {
+          rect: { bottom: 100, left: 0, right: 100, top: 0 },
+          sessionIds: ["top-a", "top-b"],
+        },
+        {
+          rect: { bottom: 320, left: 0, right: 100, top: 220 },
+          sessionIds: ["lower-a", "lower-b"],
+        },
+      ],
+      maxActive: 2,
+      maxLength: 4,
+      viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+    }
+
+    expect([...queuedStudioPreviewSessionIds({ ...input, canvas: { x: 0, y: 0, scale: 1 } })]).toEqual(["top-a", "top-b"])
+    expect([...queuedStudioPreviewSessionIds({ ...input, canvas: { x: 0, y: -220, scale: 1 } })]).toEqual([
+      "lower-a",
+      "lower-b",
+    ])
+  })
+
+  it("caps the retained preview queue length separately from active render work", () => {
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        canvas: { x: 0, y: 0, scale: 1 },
+        completedSessionIds: new Set(["a", "b", "c"]),
+        currentSessionIds: new Set(["a", "b", "c"]),
+        items: [
+          {
+            rect: { bottom: 100, left: 0, right: 100, top: 0 },
+            sessionIds: ["a", "b", "c"],
+          },
+        ],
+        maxActive: 1,
+        maxLength: 2,
+        viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      })],
+    ).toEqual(["a", "b"])
+  })
+
   it("creates stable pooled iframe URLs and render targets for preview slots", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
 
@@ -961,6 +1050,21 @@ describe("GTSX Studio shell", () => {
     expect(isStudioPreviewPoolDisabled(new URLSearchParams("debugPool=off"))).toBe(true)
     expect(isStudioPreviewPoolDisabled(new URLSearchParams("debug=pool"))).toBe(false)
     expect(isStudioPreviewPoolDisabled(new URLSearchParams("debugPool=1"))).toBe(false)
+  })
+
+  it("reads preview render queue limits from URL params", () => {
+    expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("previewQueueActive=3&previewQueueLength=9"))).toEqual({
+      maxActive: 3,
+      maxLength: 9,
+    })
+    expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("queueActive=4&queueLength=12"))).toEqual({
+      maxActive: 4,
+      maxLength: 12,
+    })
+    expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("queueActive=0&queueLength=nope"))).toEqual({
+      maxActive: undefined,
+      maxLength: undefined,
+    })
   })
 
   it("can disable the Studio preview iframe pool from debug URL params", () => {

@@ -69,3 +69,10 @@ export type {
 } from "./client"
 export { StudioShell, StudioWorkspaceView } from "./client-entry"
 export type { StudioShellProps, StudioWorkspaceViewProps } from "./client-entry"
+export {
+  defaultStudioPreviewRenderQueueMaxActive,
+  defaultStudioPreviewRenderQueueMaxLength,
+  queuedStudioPreviewSessionIds,
+  studioPreviewRenderQueueOptionsFromParams,
+} from "./preview-render-queue"
+export type { StudioPreviewRenderQueueInput, StudioPreviewRenderQueueOptions } from "./preview-render-queue"

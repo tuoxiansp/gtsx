@@ -688,7 +688,7 @@ function studioDebugModes(params: URLSearchParams): string[] {
 }
 
 function preserveStudioDebugUrlParams(target: URLSearchParams, source: URLSearchParams) {
-  for (const name of ["debug", "debugPool"]) {
+  for (const name of ["debug", "debugPool", "previewQueueActive", "previewQueueLength", "queueActive", "queueLength"]) {
     target.delete(name)
     for (const value of source.getAll(name)) target.append(name, value)
   }
