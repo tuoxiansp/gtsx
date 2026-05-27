@@ -4,13 +4,20 @@ import type { GBoundaryRect, GBoundaryTreeNode, GCases } from "gtsx"
 
 import {
   clipPreviewBoundaryRectToViewport,
-  componentCardLayoutWidth,
+  computeStudioCaseGridLayout,
   createStudioPreviewUrl,
   previewSessionId,
   studioPreviewFrameSize,
   type StudioPreviewFrameState,
 } from "../client"
+import {
+  studioCaseGridMaxSide,
+  studioComponentCaseChromeHeight,
+  studioComponentCaseGridGap,
+  studioComponentCaseGridMinScale,
+} from "../case-grid-layout"
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
+import { previewFrameLayoutHeight, previewFrameLayoutWidth } from "../preview-frame-layout"
 import LazyPreviewFrame from "./LazyPreviewFrame.g"
 import PreviewError from "./PreviewError.g"
 
@@ -20,51 +27,78 @@ type StudioCardSelectionSource = "keyboard" | "pointer"
 type ComponentCardFrameState = StudioPreviewFrameState
 
 type ComponentCardProps = {
+  caseFrameStates?: Record<string, ComponentCardFrameState | undefined>
+  casePreviewScale?: number
   component: StudioManifestComponent
   frameState?: ComponentCardFrameState
   manifest: StudioManifest
   onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void
-  onSelect?: (component: StudioManifestComponent, frameState: ComponentCardFrameState | undefined, source: StudioCardSelectionSource) => void
+  onSelect?: (
+    component: StudioManifestComponent,
+    caseFrameStates: Record<string, ComponentCardFrameState | undefined>,
+    source: StudioCardSelectionSource,
+  ) => void
   selected: boolean
   selectedCaseName: string
   viewportPreset: StudioViewportPreset
 }
 
 export default function ComponentCard(props: ComponentCardProps) {
-  const defaultCase = props.selectedCaseName
   const previewError = getPreviewError(props.component)
-  const sessionId = previewSessionId(props.component, defaultCase, props.viewportPreset)
-  const displaySize = studioPreviewFrameSize(props.viewportPreset, props.frameState?.size)
-  const previewUrl = createStudioPreviewUrl(props.manifest, props.component, defaultCase, sessionId, { static: true })
-  const boundaryRect = selectedBoundaryRectForComponent(props.frameState?.tree, props.component.coordinate)
-  const visibleBoundaryRect = clipPreviewBoundaryRectToViewport(boundaryRect, displaySize)
-  const cardWidth = componentCardLayoutWidth(displaySize, props.frameState?.tree, props.component.coordinate)
-  const selectedBoundaryRect = props.selected ? visibleBoundaryRect : undefined
+  const effectiveCaseFrameStates = Object.fromEntries(
+    props.component.cases.map((testCase) => [
+      testCase.name,
+      props.caseFrameStates?.[testCase.name] ?? (testCase.name === props.selectedCaseName ? props.frameState : undefined),
+    ]),
+  ) as Record<string, ComponentCardFrameState | undefined>
+  const caseTiles = props.component.cases.map((testCase) => {
+    const frameState = effectiveCaseFrameStates[testCase.name]
+    const sessionId = previewSessionId(props.component, testCase.name, props.viewportPreset)
+    const displaySize = studioPreviewFrameSize(props.viewportPreset, frameState?.size)
+    const previewUrl = createStudioPreviewUrl(props.manifest, props.component, testCase.name, sessionId, { static: true })
+    const boundaryRect = boundaryRectForComponent(frameState?.tree, props.component.coordinate)
+    const visibleBoundaryRect = clipPreviewBoundaryRectToViewport(boundaryRect, displaySize)
+    const layoutWidth = Number(previewFrameLayoutWidth(displaySize, visibleBoundaryRect))
+    const layoutHeight = previewFrameLayoutHeight(displaySize, visibleBoundaryRect)
+
+    return {
+      displaySize,
+      frameState,
+      layoutHeight,
+      layoutWidth,
+      name: testCase.name,
+      previewUrl,
+      sessionId,
+      visibleBoundaryRect,
+    }
+  })
+  const caseGridLayout = computeStudioCaseGridLayout({
+    caseChromeHeight: studioComponentCaseChromeHeight,
+    gap: studioComponentCaseGridGap,
+    items: caseTiles.map((tile) => ({ height: tile.layoutHeight, width: tile.layoutWidth })),
+    maxSide: studioCaseGridMaxSide(props.viewportPreset, caseTiles.length),
+    minScale: studioComponentCaseGridMinScale,
+    previewScale: props.casePreviewScale,
+  })
+  const cardWidth = Math.max(280, caseGridLayout.width)
+  const firstCaseName = props.component.cases[0]?.name ?? props.selectedCaseName
 
   return (
     <article
-      aria-pressed={props.selected}
+      aria-label={props.component.componentName}
       data-gtsx-card-coordinate={props.component.coordinate}
       data-gtsx-card-selected={props.selected ? "true" : undefined}
-      onKeyDown={(event) => {
-        if (event.key !== "Enter" && event.key !== " ") return
-        event.preventDefault()
-        props.onSelect?.(props.component, props.frameState, "keyboard")
-      }}
-      role="button"
       style={{
-        cursor: props.onSelect ? "pointer" : "default",
         display: "grid",
-        gap: 6,
+        gap: 8,
         width: cardWidth,
       }}
-      tabIndex={0}
     >
       <strong
         style={{
           color: "inherit",
           fontSize: 13,
-          letterSpacing: -0.05,
+          letterSpacing: 0,
           lineHeight: 1.2,
           overflow: "hidden",
           textOverflow: "ellipsis",
@@ -73,27 +107,109 @@ export default function ComponentCard(props: ComponentCardProps) {
       >
         {props.component.componentName}
       </strong>
-      {previewError || props.frameState?.error ? (
+      {previewError ? (
         <PreviewError
-          caseName={defaultCase}
+          caseName={firstCaseName}
           coordinate={props.component.coordinate}
-          error={props.frameState?.error ?? { message: previewError ?? "Unknown preview error" }}
-          previewUrl={previewUrl}
+          error={{ message: previewError }}
+          previewUrl={createStudioPreviewUrl(props.manifest, props.component, firstCaseName, undefined, { static: true })}
         />
       ) : (
-        <LazyPreviewFrame
-          data-gtsx-preview-session-id={sessionId}
-          boundaryRect={visibleBoundaryRect}
-          coordinate={props.component.coordinate}
-          onSelect={() => props.onSelect?.(props.component, props.frameState, "pointer")}
-          onPreviewFrameMount={props.onPreviewFrameMount}
-          previewUrl={previewUrl}
-          selectedBoundaryRect={selectedBoundaryRect}
-          size={displaySize}
-          sessionId={sessionId}
-          title={`${props.component.componentName} preview`}
-          viewportPreset={props.viewportPreset}
-        />
+        <div
+          data-gtsx-case-grid={props.component.coordinate}
+          data-gtsx-case-grid-columns={caseGridLayout.columns}
+          data-gtsx-case-grid-preview-scale={caseGridLayout.previewScale}
+          data-gtsx-case-grid-selected={props.selected ? "true" : undefined}
+          style={{
+            display: "grid",
+            gap: caseGridLayout.gap,
+            gridTemplateColumns: `repeat(${caseGridLayout.columns}, ${caseGridLayout.cellWidth}px)`,
+            outline: props.selected ? "1px solid #0d99ff" : undefined,
+            position: "relative",
+            width: caseGridLayout.width,
+          }}
+        >
+          {caseTiles.map((tile) => (
+            <div
+              data-gtsx-case-tile={tile.name}
+              key={tile.name}
+              onClick={() => props.onSelect?.(props.component, effectiveCaseFrameStates, "pointer")}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return
+                event.preventDefault()
+                props.onSelect?.(props.component, effectiveCaseFrameStates, "keyboard")
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+              role="button"
+              style={{
+                alignContent: "start",
+                cursor: props.onSelect ? "pointer" : "default",
+                display: "grid",
+                gap: 5,
+                minWidth: 0,
+                width: caseGridLayout.cellWidth,
+              }}
+              tabIndex={0}
+            >
+              <strong
+                style={{
+                  color: "#57606a",
+                  fontSize: 11,
+                  lineHeight: `${studioComponentCaseChromeHeight - 5}px`,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {tile.name}
+              </strong>
+              <div
+                data-gtsx-case-preview-frame={tile.name}
+                style={{
+                  height: Math.ceil(tile.layoutHeight * caseGridLayout.previewScale),
+                  justifySelf: "center",
+                  overflow: "visible",
+                  position: "relative",
+                  width: Math.ceil(tile.layoutWidth * caseGridLayout.previewScale),
+                }}
+              >
+                <div
+                  style={{
+                    height: tile.layoutHeight,
+                    left: 0,
+                    position: "absolute",
+                    top: 0,
+                    transform: `scale(${caseGridLayout.previewScale})`,
+                    transformOrigin: "0 0",
+                    width: tile.layoutWidth,
+                  }}
+                >
+                  {tile.frameState?.error ? (
+                    <PreviewError
+                      caseName={tile.name}
+                      coordinate={props.component.coordinate}
+                      error={tile.frameState.error}
+                      previewUrl={tile.previewUrl}
+                    />
+                  ) : (
+                    <LazyPreviewFrame
+                      data-gtsx-preview-session-id={tile.sessionId}
+                      boundaryRect={tile.visibleBoundaryRect}
+                      coordinate={props.component.coordinate}
+                      onSelect={() => props.onSelect?.(props.component, effectiveCaseFrameStates, "pointer")}
+                      onPreviewFrameMount={props.onPreviewFrameMount}
+                      previewUrl={tile.previewUrl}
+                      size={tile.displaySize}
+                      sessionId={tile.sessionId}
+                      title={`${props.component.componentName} ${tile.name} preview`}
+                      viewportPreset={props.viewportPreset}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </article>
   )
@@ -124,6 +240,20 @@ ComponentCard.cases = {
           },
         ],
       },
+      caseFrameStates: {
+        ready: {
+          expectedSessionId: "src/UserCard.g.tsx#default:ready",
+          ready: true,
+          tree: [
+            {
+              id: "root",
+              coordinate: "src/UserCard.g.tsx#default",
+              rect: { x: 10, y: 20, width: 320, height: 88 },
+              children: [],
+            },
+          ],
+        },
+      },
       manifest: {
         version: 1,
         routes: {
@@ -145,7 +275,7 @@ ComponentCard.cases = {
   },
 } satisfies GCases<ComponentCardProps>
 
-function selectedBoundaryRectForComponent(tree: GBoundaryTreeNode[] | undefined, coordinate: string): GBoundaryRect | undefined {
+function boundaryRectForComponent(tree: GBoundaryTreeNode[] | undefined, coordinate: string): GBoundaryRect | undefined {
   return tree ? findBoundaryNode(tree, coordinate)?.rect : undefined
 }
 

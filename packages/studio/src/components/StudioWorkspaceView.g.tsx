@@ -1,34 +1,44 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GCases } from "gtsx"
+import { createGScopeHook, type GBoundaryRect, type GBoundaryTreeNode, type GCases } from "gtsx"
 
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import {
   applyStudioCanvasWheel,
   applyStudioCardSelectionAction,
   canvasViewportPresetForWorkspace,
+  clipPreviewBoundaryRectToViewport,
+  computeStudioCaseGridLayout,
   computeStudioColumnLayout,
   defaultStudioCanvasTransform,
-  findManifestComponent,
   mergeStudioPreviewFrameState,
   previewSessionId,
   revealStudioCanvasRect,
   resolveStudioSelection,
   selectedStudioCaseName,
   studioPreviewCacheKey,
+  studioPreviewFrameSize,
   type StudioPreviewCacheEntry,
   type StudioCanvasScreenRect,
   type StudioColumnLayout,
   type StudioColumnLayoutMeasurement,
+  type StudioCaseGridItemLayout,
   visibleWorkspaceComponents,
   type StudioCanvasTransform,
+  type StudioComponentSelectionOptions,
   type StudioPreviewFrameState,
   type StudioViewportPreset,
   type StudioWorkspaceState,
 } from "../client"
+import {
+  studioCaseGridMaxSide,
+  studioComponentCaseChromeHeight,
+  studioComponentCaseGridGap,
+  studioComponentCaseGridMinScale,
+} from "../case-grid-layout"
+import { previewFrameLayoutHeight, previewFrameLayoutWidth } from "../preview-frame-layout"
 import ComponentCard from "./ComponentCard.g"
-import SelectedComponentCasesSidebar from "./SelectedComponentCasesSidebar.g"
 import ViewportPresetTabs from "./ViewportPresetTabs.g"
 
 export type StudioWorkspaceViewProps = {
@@ -44,7 +54,11 @@ export type StudioWorkspaceViewProps = {
   onChangeCanvas?: (canvas: StudioCanvasTransform) => void
   onChangeViewportPreset?: (component: StudioManifestComponent, preset: StudioViewportPreset) => void
   onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void
-  onSelectComponent?: (component: StudioManifestComponent, frameState: StudioPreviewFrameState | undefined) => void
+  onSelectComponent?: (
+    component: StudioManifestComponent,
+    caseFrameStates: Record<string, StudioPreviewFrameState | undefined>,
+    options?: StudioComponentSelectionOptions,
+  ) => void
   urlWarning?: string
 }
 
@@ -56,20 +70,18 @@ type StudioWorkspaceViewScope = {
   onCanvasPointerMove: React.PointerEventHandler<HTMLDivElement>
   onCanvasPointerUp: React.PointerEventHandler<HTMLDivElement>
   onChangeSelection?: (selection: string) => void
-  onChangeCase?: (component: StudioManifestComponent, caseName: string, options?: { keepDrilldown?: boolean }) => void
   setCanvasSurfaceElement: (element: HTMLDivElement | null) => void
   setCardElement: (columnIndex: number, coordinate: string, element: HTMLDivElement | null) => void
   setColumnElement: (columnIndex: number, element: HTMLElement | null) => void
   onSelectCard: (
     component: StudioManifestComponent,
-    frameState: StudioPreviewFrameState | undefined,
+    caseFrameStates: Record<string, StudioPreviewFrameState | undefined>,
+    columnIndex: number,
     source: "keyboard" | "pointer",
   ) => void
   onViewportPresetChange: (preset: StudioViewportPreset) => void
   selected: { id: string; components: StudioManifestComponent[] }
-  selectedCardCoordinate?: string
-  selectedCardComponent?: StudioManifestComponent
-  selectedCaseName?: string
+  selectedCardPathKey?: string
   setCanvasViewportElement: (element: HTMLDivElement | null) => void
   columnLayoutByIndex: Record<number, StudioColumnLayout>
 }
@@ -85,7 +97,7 @@ function shouldHandleCanvasWheelTarget(target: EventTarget | null): boolean {
 
 function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): StudioWorkspaceViewScope {
   const selected = resolveStudioSelection(props.manifest, props.selection)
-  const [selectedCardCoordinate, setSelectedCardCoordinate] = React.useState<string | undefined>()
+  const [selectedCardPathKey, setSelectedCardPathKey] = React.useState<string | undefined>()
   const canvasViewportPreset = canvasViewportPresetForWorkspace(props.workspace)
   const [uncontrolledCanvas, setUncontrolledCanvas] = React.useState<StudioCanvasTransform>(() => defaultStudioCanvasTransform())
   const canvas = props.canvas ?? uncontrolledCanvas
@@ -97,8 +109,6 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   const cardElements = React.useRef(new Map<string, HTMLDivElement>())
   const columnCardElements = React.useRef(new Map<string, HTMLDivElement>())
   const columnElements = React.useRef(new Map<number, HTMLElement>())
-  const selectedCardComponent = selectedCardCoordinate ? findManifestComponent(props.manifest, selectedCardCoordinate) : undefined
-  const selectedCaseName = selectedCardComponent ? selectedStudioCaseName(props.workspace, selectedCardComponent) : undefined
   const layoutMeasurementKey = React.useMemo(
     () => studioWorkspaceLayoutMeasurementKey(props.workspace, canvasViewportPreset, props.frameStates, props.previewCache),
     [canvasViewportPreset, props.frameStates, props.previewCache, props.workspace],
@@ -131,7 +141,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   )
 
   React.useEffect(() => {
-    setSelectedCardCoordinate(undefined)
+    setSelectedCardPathKey(undefined)
   }, [props.selection])
 
   React.useEffect(() => {
@@ -180,16 +190,12 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   }, [])
 
   const revealCardOnCanvas = React.useCallback(
-    (coordinate: string) => {
+    (columnIndex: number, coordinate: string) => {
       if (!canvasViewportElement) return
-      const cardElement = cardElements.current.get(coordinate)
+      const cardElement = columnCardElements.current.get(columnCardElementKey(columnIndex, coordinate)) ?? cardElements.current.get(coordinate)
       if (!cardElement) return
 
-      const caseSidebarElement = canvasViewportElement.querySelector("[data-gtsx-case-sidebar]")
-      const blockerRects: StudioCanvasScreenRect[] =
-        caseSidebarElement instanceof Element ? [domRectToStudioCanvasScreenRect(caseSidebarElement.getBoundingClientRect())] : []
       const nextCanvas = revealStudioCanvasRect(canvasRef.current, {
-        blockerRects,
         margin: studioCanvasRevealMargin,
         rect: domRectToStudioCanvasScreenRect(cardElement.getBoundingClientRect()),
         viewportRect: domRectToStudioCanvasScreenRect(canvasViewportElement.getBoundingClientRect()),
@@ -200,10 +206,10 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   )
 
   const scheduleRevealCardOnCanvas = React.useCallback(
-    (coordinate: string) => {
-      revealCardOnCanvas(coordinate)
+    (columnIndex: number, coordinate: string) => {
+      revealCardOnCanvas(columnIndex, coordinate)
       if (typeof window === "undefined") return
-      window.requestAnimationFrame(() => revealCardOnCanvas(coordinate))
+      window.requestAnimationFrame(() => revealCardOnCanvas(columnIndex, coordinate))
     },
     [revealCardOnCanvas],
   )
@@ -255,7 +261,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     },
     onCanvasPointerDown(event) {
       if ((event.target as HTMLElement).closest("a,button,iframe")) return
-      setSelectedCardCoordinate((current) => applyStudioCardSelectionAction(current, { type: "clear" }))
+      setSelectedCardPathKey(undefined)
       panRef.current = {
         pointerId: event.pointerId,
         startX: event.clientX,
@@ -283,25 +289,22 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     },
     onChangeSelection: props.onChangeSelection
       ? (nextSelection) => {
-          setSelectedCardCoordinate((current) => applyStudioCardSelectionAction(current, { type: "clear" }))
+          setSelectedCardPathKey(undefined)
           props.onChangeSelection?.(nextSelection)
         }
       : undefined,
-    onChangeCase: props.onChangeCase
-      ? (component, caseName, options) => {
-          props.onChangeCase?.(component, caseName, options)
-          scheduleRevealCardOnCanvas(component.coordinate)
-        }
-      : undefined,
-    onSelectCard(component, frameState, source) {
-      setSelectedCardCoordinate((current) =>
-        applyStudioCardSelectionAction(current, {
+    onSelectCard(component, caseFrameStates, columnIndex, source) {
+      const nextSelectedCardPathKey = studioPathKey(studioComponentPathForColumn(props.workspace, columnIndex, component.coordinate))
+      setSelectedCardPathKey((current) => {
+        const nextCoordinate = applyStudioCardSelectionAction(current === nextSelectedCardPathKey ? component.coordinate : undefined, {
           type: "activate-card",
           coordinate: component.coordinate,
           source,
-        }),
-      )
-      props.onSelectComponent?.(component, frameState)
+        })
+        return nextCoordinate ? nextSelectedCardPathKey : undefined
+      })
+      props.onSelectComponent?.(component, caseFrameStates, { columnIndex })
+      scheduleRevealCardOnCanvas(columnIndex, component.coordinate)
     },
     onViewportPresetChange(preset) {
       if (props.onChangeCanvasViewportPreset) {
@@ -311,9 +314,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
       }
     },
     selected,
-    selectedCardComponent,
-    selectedCardCoordinate,
-    selectedCaseName,
+    selectedCardPathKey,
     setCanvasSurfaceElement,
     setCanvasViewportElement,
     setCardElement,
@@ -325,6 +326,12 @@ const useStudioWorkspaceViewScope = createGScopeHook(useRealStudioWorkspaceViewS
 
 export default function Studio(props: StudioWorkspaceViewProps) {
   const scope = useStudioWorkspaceViewScope(props)
+  const canvasCasePreviewScale = studioCanvasCasePreviewScale(
+    props.workspace,
+    scope.canvasViewportPreset,
+    props.frameStates,
+    props.previewCache,
+  )
 
   return (
     <main
@@ -415,14 +422,13 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                 }}
               >
                 {column.components.map((component) => {
-                  const caseName = selectedStudioCaseName(props.workspace, component)
-                  const sessionId = previewSessionId(component, caseName, scope.canvasViewportPreset)
-                  const cacheKey = studioPreviewCacheKey(component, caseName, scope.canvasViewportPreset)
-                  const frameState = mergeStudioPreviewFrameState(
-                    sessionId,
-                    props.frameStates?.[sessionId],
-                    props.previewCache?.[cacheKey]?.frameState,
+                  const caseFrameStates = studioComponentCaseFrameStates(
+                    component,
+                    scope.canvasViewportPreset,
+                    props.frameStates,
+                    props.previewCache,
                   )
+                  const componentPathKey = studioPathKey(studioComponentPathForColumn(props.workspace, columnIndex, component.coordinate))
                   return (
                     <div
                       key={component.coordinate}
@@ -430,13 +436,16 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                       style={{ display: "grid", justifySelf: "start", width: "max-content" }}
                     >
                       <ComponentCard
+                        caseFrameStates={caseFrameStates}
+                        casePreviewScale={canvasCasePreviewScale}
                         component={component}
-                        frameState={frameState}
                         manifest={props.manifest}
                         onPreviewFrameMount={props.onPreviewFrameMount}
-                        onSelect={scope.onSelectCard}
-                        selected={scope.selectedCardCoordinate === component.coordinate}
-                        selectedCaseName={caseName}
+                        onSelect={(selectedComponent, selectedCaseFrameStates, source) =>
+                          scope.onSelectCard(selectedComponent, selectedCaseFrameStates, columnIndex, source)
+                        }
+                        selected={scope.selectedCardPathKey === componentPathKey}
+                        selectedCaseName={selectedStudioCaseName(props.workspace, component)}
                         viewportPreset={scope.canvasViewportPreset}
                       />
                     </div>
@@ -445,16 +454,6 @@ export default function Studio(props: StudioWorkspaceViewProps) {
               </section>
             ))}
           </div>
-          {scope.selectedCardComponent && scope.selectedCaseName ? (
-            <SelectedComponentCasesSidebar
-              component={scope.selectedCardComponent}
-              manifest={props.manifest}
-              onChangeCase={scope.onChangeCase}
-              previewCache={props.previewCache}
-              selectedCaseName={scope.selectedCaseName}
-              viewportPreset={scope.canvasViewportPreset}
-            />
-          ) : null}
         </div>
       </section>
     </main>
@@ -483,6 +482,14 @@ function studioCanvasTransformStyle(canvas: StudioCanvasTransform): string {
   return `translate(${canvas.x}px, ${canvas.y}px) scale(${canvas.scale})`
 }
 
+function studioComponentPathForColumn(workspace: StudioWorkspaceState, columnIndex: number, coordinate: string): string[] {
+  return [...workspace.selectedCoordinatePath.slice(0, columnIndex), coordinate]
+}
+
+function studioPathKey(path: string[]): string {
+  return path.join("\n")
+}
+
 function studioWorkspaceLayoutMeasurementKey(
   workspace: StudioWorkspaceState,
   viewportPreset: StudioViewportPreset,
@@ -493,19 +500,92 @@ function studioWorkspaceLayoutMeasurementKey(
     .map((column) =>
       column.components
         .map((component) => {
-          const caseName = selectedStudioCaseName(workspace, component)
-          const sessionId = previewSessionId(component, caseName, viewportPreset)
-          const cacheKey = studioPreviewCacheKey(component, caseName, viewportPreset)
-          const frameState = mergeStudioPreviewFrameState(
-            sessionId,
-            frameStates?.[sessionId],
-            previewCache?.[cacheKey]?.frameState,
-          )
-          return `${component.coordinate}:${caseName}:${studioPreviewLayoutSignature(frameState)}`
+          return component.cases
+            .map((testCase) => {
+              const sessionId = previewSessionId(component, testCase.name, viewportPreset)
+              const cacheKey = studioPreviewCacheKey(component, testCase.name, viewportPreset)
+              const frameState = mergeStudioPreviewFrameState(
+                sessionId,
+                frameStates?.[sessionId],
+                previewCache?.[cacheKey]?.frameState,
+              )
+              return `${component.coordinate}:${testCase.name}:${studioPreviewLayoutSignature(frameState)}`
+            })
+            .join(";")
         })
         .join(","),
     )
     .join("|")
+}
+
+function studioComponentCaseFrameStates(
+  component: StudioManifestComponent,
+  viewportPreset: StudioViewportPreset,
+  frameStates: Record<string, StudioPreviewFrameState> | undefined,
+  previewCache: Record<string, StudioPreviewCacheEntry> | undefined,
+): Record<string, StudioPreviewFrameState | undefined> {
+  return Object.fromEntries(
+    component.cases.map((testCase) => {
+      const sessionId = previewSessionId(component, testCase.name, viewportPreset)
+      const cacheKey = studioPreviewCacheKey(component, testCase.name, viewportPreset)
+      return [
+        testCase.name,
+        mergeStudioPreviewFrameState(sessionId, frameStates?.[sessionId], previewCache?.[cacheKey]?.frameState),
+      ] as const
+    }),
+  )
+}
+
+function studioCanvasCasePreviewScale(
+  workspace: StudioWorkspaceState,
+  viewportPreset: StudioViewportPreset,
+  frameStates: Record<string, StudioPreviewFrameState> | undefined,
+  previewCache: Record<string, StudioPreviewCacheEntry> | undefined,
+): number {
+  const scales = visibleWorkspaceComponents(workspace).map((component) => {
+    const caseFrameStates = studioComponentCaseFrameStates(component, viewportPreset, frameStates, previewCache)
+    return computeStudioCaseGridLayout({
+      caseChromeHeight: studioComponentCaseChromeHeight,
+      gap: studioComponentCaseGridGap,
+      items: studioComponentCaseGridItems(component, caseFrameStates, viewportPreset),
+      maxSide: studioCaseGridMaxSide(viewportPreset, component.cases.length),
+      minScale: studioComponentCaseGridMinScale,
+    }).previewScale
+  })
+
+  return scales.length > 0 ? Math.min(1, ...scales) : 1
+}
+
+function studioComponentCaseGridItems(
+  component: StudioManifestComponent,
+  caseFrameStates: Record<string, StudioPreviewFrameState | undefined>,
+  viewportPreset: StudioViewportPreset,
+): StudioCaseGridItemLayout[] {
+  return component.cases.map((testCase) => {
+    const frameState = caseFrameStates[testCase.name]
+    const displaySize = studioPreviewFrameSize(viewportPreset, frameState?.size)
+    const boundaryRect = studioBoundaryRectForComponent(frameState?.tree, component.coordinate)
+    const visibleBoundaryRect = clipPreviewBoundaryRectToViewport(boundaryRect, displaySize)
+
+    return {
+      height: previewFrameLayoutHeight(displaySize, visibleBoundaryRect),
+      width: Number(previewFrameLayoutWidth(displaySize, visibleBoundaryRect)),
+    }
+  })
+}
+
+function studioBoundaryRectForComponent(tree: GBoundaryTreeNode[] | undefined, coordinate: string): GBoundaryRect | undefined {
+  return tree ? findStudioBoundaryNode(tree, coordinate)?.rect : undefined
+}
+
+function findStudioBoundaryNode(tree: GBoundaryTreeNode[], coordinate: string): GBoundaryTreeNode | undefined {
+  for (const node of tree) {
+    if (node.coordinate === coordinate) return node
+    const childMatch = findStudioBoundaryNode(node.children, coordinate)
+    if (childMatch) return childMatch
+  }
+
+  return undefined
 }
 
 function studioPreviewLayoutSignature(frameState: StudioPreviewFrameState | undefined): string {

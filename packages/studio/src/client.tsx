@@ -62,6 +62,23 @@ export type StudioColumnLayoutMeasurement = {
   height: number
 }
 
+export type StudioCaseGridItemLayout = {
+  height: number
+  width: number
+}
+
+export type StudioCaseGridLayout = {
+  caseChromeHeight: number
+  cellHeight: number
+  cellWidth: number
+  columns: number
+  gap: number
+  height: number
+  previewScale: number
+  rows: number
+  width: number
+}
+
 export type StudioCanvasWheelInput = {
   clientX: number
   clientY: number
@@ -87,6 +104,10 @@ export type StudioCardSelectionAction =
     }
 
 export type StudioViewportPreset = "phone" | "tablet" | "desktop"
+
+export type StudioComponentSelectionOptions = {
+  columnIndex?: number
+}
 
 export type StudioRuntimeInstance = {
   boundaryId: string
@@ -197,16 +218,15 @@ export function selectStudioComponent(
   state: StudioWorkspaceState,
   manifest: StudioManifest,
   coordinate: string,
-  tree: GBoundaryTreeNode[],
+  tree: GBoundaryTreeNode[] | GBoundaryTreeNode[][],
+  options: StudioComponentSelectionOptions = {},
 ): StudioWorkspaceState {
-  const selectedColumnIndex = state.columns.findIndex((column) =>
-    column.components.some((component) => component.coordinate === coordinate),
-  )
+  const selectedColumnIndex = studioSelectedColumnIndexForCoordinate(state, coordinate, options.columnIndex)
   if (selectedColumnIndex < 0) return state
 
   const nextColumns = state.columns.slice(0, selectedColumnIndex + 1)
   const selectedPath = [...state.selectedCoordinatePath.slice(0, selectedColumnIndex), coordinate]
-  const childComponents = directChildComponentsForCoordinate(manifest, tree, coordinate)
+  const childComponents = directChildComponentsForCoordinate(manifest, normalizeStudioBoundaryTrees(tree), coordinate)
   if (childComponents.length > 0) {
     nextColumns.push({ components: childComponents, parentCoordinate: coordinate })
   }
@@ -214,11 +234,26 @@ export function selectStudioComponent(
   return {
     canvasViewportPreset: canvasViewportPresetForWorkspace(state),
     columns: nextColumns,
-    selectedCaseByCoordinate: state.selectedCaseByCoordinate,
+    selectedCaseByCoordinate: omitStudioSelectedCases(state.selectedCaseByCoordinate, selectedPath),
     selectedCoordinatePath: selectedPath,
     selectedRuntimeInstanceByCoordinate: state.selectedRuntimeInstanceByCoordinate,
     selectedViewportPresetByCoordinate: state.selectedViewportPresetByCoordinate,
   }
+}
+
+function studioSelectedColumnIndexForCoordinate(
+  state: StudioWorkspaceState,
+  coordinate: string,
+  preferredColumnIndex: number | undefined,
+): number {
+  if (
+    preferredColumnIndex !== undefined &&
+    state.columns[preferredColumnIndex]?.components.some((component) => component.coordinate === coordinate)
+  ) {
+    return preferredColumnIndex
+  }
+
+  return state.columns.findIndex((column) => column.components.some((component) => component.coordinate === coordinate))
 }
 
 export function selectedStudioCaseName(
@@ -513,29 +548,45 @@ function parseCoordinateValuePair(manifest: StudioManifest, value: string): { co
 
 function directChildComponentsForCoordinate(
   manifest: StudioManifest,
-  tree: GBoundaryTreeNode[],
+  trees: GBoundaryTreeNode[][],
   coordinate: string,
 ): StudioManifestComponent[] {
-  const node = findBoundaryNode(tree, coordinate)
-  if (!node) return []
-
   const componentsByCoordinate = new Map(
     manifest.files.flatMap((file) => file.components).map((component) => [component.coordinate, component] as const),
   )
   const seen = new Set<string>()
   const components: StudioManifestComponent[] = []
 
-  for (const child of node.children) {
-    if (seen.has(child.coordinate)) continue
+  for (const tree of trees) {
+    const node = findBoundaryNode(tree, coordinate)
+    if (!node) continue
 
-    const component = componentsByCoordinate.get(child.coordinate)
-    if (component) {
-      seen.add(child.coordinate)
-      components.push(component)
+    for (const child of node.children) {
+      if (seen.has(child.coordinate)) continue
+
+      const component = componentsByCoordinate.get(child.coordinate)
+      if (component) {
+        seen.add(child.coordinate)
+        components.push(component)
+      }
     }
   }
 
   return components
+}
+
+function normalizeStudioBoundaryTrees(tree: GBoundaryTreeNode[] | GBoundaryTreeNode[][]): GBoundaryTreeNode[][] {
+  if (tree.length === 0) return []
+  return Array.isArray(tree[0]) ? (tree as GBoundaryTreeNode[][]) : [tree as GBoundaryTreeNode[]]
+}
+
+function omitStudioSelectedCases(
+  selectedCaseByCoordinate: Record<string, string>,
+  coordinates: string[],
+): Record<string, string> {
+  const omitted = new Set(coordinates)
+  const next = Object.fromEntries(Object.entries(selectedCaseByCoordinate).filter(([coordinate]) => !omitted.has(coordinate)))
+  return next
 }
 
 function findBoundaryNode(tree: GBoundaryTreeNode[], coordinate: string): GBoundaryTreeNode | undefined {
@@ -710,6 +761,78 @@ export function computeStudioColumnLayout(input: {
   })
 
   return layoutsByIndex
+}
+
+export function computeStudioCaseGridLayout(input: {
+  caseChromeHeight?: number
+  gap?: number
+  items: StudioCaseGridItemLayout[]
+  maxSide?: number
+  minScale?: number
+  previewScale?: number
+}): StudioCaseGridLayout {
+  const gap = input.gap ?? 14
+  const caseChromeHeight = input.caseChromeHeight ?? 20
+  const maxSide = input.maxSide ?? 760
+  const minScale = input.minScale ?? 0.24
+  const items = input.items.length > 0 ? input.items : [{ height: 160, width: 280 }]
+  const itemCount = items.length
+  const maxItemWidth = Math.max(1, ...items.map((item) => item.width))
+  const maxItemHeight = Math.max(1, ...items.map((item) => item.height))
+  let bestLayout: StudioCaseGridLayout | undefined
+  let bestScore = Number.POSITIVE_INFINITY
+
+  for (let columns = 1; columns <= itemCount; columns += 1) {
+    const rows = Math.ceil(itemCount / columns)
+    const naturalWidth = columns * maxItemWidth + (columns - 1) * gap
+    const previewNaturalHeight = rows * maxItemHeight
+    const chromeHeight = rows * caseChromeHeight + (rows - 1) * gap
+    const heightAvailableForPreviews = Math.max(maxSide * minScale, maxSide - chromeHeight)
+    const fittingPreviewScale = clamp(
+      Math.min(1, maxSide / naturalWidth, heightAvailableForPreviews / previewNaturalHeight),
+      minScale,
+      1,
+    )
+    const previewScale = input.previewScale === undefined ? fittingPreviewScale : clamp(input.previewScale, minScale, 1)
+    const cellWidth = Math.ceil(maxItemWidth * previewScale)
+    const cellHeight = Math.ceil(caseChromeHeight + maxItemHeight * previewScale)
+    const width = Math.ceil(columns * cellWidth + (columns - 1) * gap)
+    const height = Math.ceil(rows * cellHeight + (rows - 1) * gap)
+    const aspectPenalty = Math.abs(Math.log(width / height))
+    const scalePenalty = input.previewScale === undefined ? (1 - previewScale) * 0.35 : 0
+    const emptySlotPenalty = (columns * rows - itemCount) * 0.08
+    const overflowPenalty = input.previewScale === undefined ? 0 : Math.max(0, width - maxSide, height - maxSide) / maxSide
+    const score = aspectPenalty + scalePenalty + emptySlotPenalty + overflowPenalty * 4
+
+    if (score < bestScore) {
+      bestScore = score
+      bestLayout = {
+        caseChromeHeight,
+        cellHeight,
+        cellWidth,
+        columns,
+        gap,
+        height,
+        previewScale,
+        rows,
+        width,
+      }
+    }
+  }
+
+  return (
+    bestLayout ?? {
+      caseChromeHeight,
+      cellHeight: caseChromeHeight + 160,
+      cellWidth: 280,
+      columns: 1,
+      gap,
+      height: caseChromeHeight + 160,
+      previewScale: 1,
+      rows: 1,
+      width: 280,
+    }
+  )
 }
 
 export function applyStudioCardSelectionAction(
@@ -942,23 +1065,20 @@ export function currentPreviewSessionIds(workspace: StudioWorkspaceState): Set<s
   const viewportPreset = canvasViewportPresetForWorkspace(workspace)
   return new Set(
     workspace.columns.flatMap((column) =>
-      column.components.flatMap((component) => {
-        const caseName = selectedStudioCaseName(workspace, component)
-        return caseName !== "No cases" ? [previewSessionId(component, caseName, viewportPreset)] : []
-      }),
+      column.components.flatMap((component) =>
+        component.cases.map((testCase) => previewSessionId(component, testCase.name, viewportPreset)),
+      ),
     ),
   )
 }
 
 export function currentStudioPreviewTargets(manifest: StudioManifest, workspace: StudioWorkspaceState): StudioPreviewWarmupTarget[] {
   const viewportPreset = canvasViewportPresetForWorkspace(workspace)
-  return visibleWorkspaceComponents(workspace).flatMap((component) => {
-    const caseName = selectedStudioCaseName(workspace, component)
-    if (caseName === "No cases") return []
-
-    const sessionId = previewSessionId(component, caseName, viewportPreset)
-    return [studioPreviewTarget(manifest, component, caseName, viewportPreset, sessionId)]
-  })
+  return visibleWorkspaceComponents(workspace).flatMap((component) =>
+    component.cases.map((testCase) =>
+      studioPreviewTarget(manifest, component, testCase.name, viewportPreset, previewSessionId(component, testCase.name, viewportPreset)),
+    ),
+  )
 }
 
 export function studioPreviewWarmupTargets(

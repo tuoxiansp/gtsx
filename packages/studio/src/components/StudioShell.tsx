@@ -9,7 +9,6 @@ import {
   applyStudioPreviewMessageToFrameStates,
   canvasViewportPresetForWorkspace,
   changeStudioCanvasViewportPreset,
-  changeStudioComponentCase,
   changeStudioViewportPreset,
   createStudioWorkspaceStateFromUrl,
   currentStudioPreviewTargets,
@@ -21,6 +20,7 @@ import {
   selectStudioComponent,
   studioPreviewWarmupTargets,
   type StudioCanvasTransform,
+  type StudioComponentSelectionOptions,
   type StudioPreviewCacheEntry,
   type StudioPreviewFrameState,
   type StudioPreviewWarmupTarget,
@@ -41,11 +41,14 @@ type StudioShellScope = {
   frameStates: Record<string, StudioPreviewFrameState>
   onChangeCanvas: (canvas: StudioCanvasTransform) => void
   onChangeCanvasViewportPreset: (preset: StudioViewportPreset) => void
-  onChangeCase: (component: StudioManifestComponent, caseName: string, options?: { keepDrilldown?: boolean }) => void
   onChangeSelection: (selection: string) => void
   onChangeViewportPreset: (component: StudioManifestComponent, preset: StudioViewportPreset) => void
   onPreviewFrameMount: (sessionId: string, frame: HTMLIFrameElement | null) => void
-  onSelectComponent: (component: StudioManifestComponent, frameState: StudioPreviewFrameState | undefined) => void
+  onSelectComponent: (
+    component: StudioManifestComponent,
+    caseFrameStates: Record<string, StudioPreviewFrameState | undefined>,
+    options?: StudioComponentSelectionOptions,
+  ) => void
   previewCache: Record<string, StudioPreviewCacheEntry>
   selection: string
   urlWarning?: string
@@ -216,9 +219,6 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
     onChangeCanvasViewportPreset(preset) {
       commitWorkspace((current) => changeStudioCanvasViewportPreset(current, preset))
     },
-    onChangeCase(component, caseName, options) {
-      commitWorkspace((current) => changeStudioComponentCase(current, component.coordinate, caseName, options))
-    },
     onChangeSelection(nextSelection) {
       const params = new URLSearchParams()
       params.set("selection", nextSelection)
@@ -244,8 +244,16 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
         previewFrameMountedAt.current.delete(sessionId)
       }
     },
-    onSelectComponent(component, frameState) {
-      commitWorkspace((current) => selectStudioComponent(current, props.manifest, component.coordinate, frameState?.tree ?? []))
+    onSelectComponent(component, caseFrameStates, options) {
+      commitWorkspace((current) =>
+        selectStudioComponent(
+          current,
+          props.manifest,
+          component.coordinate,
+          Object.values(caseFrameStates).flatMap((frameState) => (frameState?.tree ? [frameState.tree] : [])),
+          options,
+        ),
+      )
     },
     previewCache,
     selection,
@@ -266,7 +274,6 @@ export default function StudioShell(props: StudioShellProps) {
         manifest={props.manifest}
         onChangeCanvas={scope.onChangeCanvas}
         onSelectComponent={scope.onSelectComponent}
-        onChangeCase={scope.onChangeCase}
         onChangeCanvasViewportPreset={scope.onChangeCanvasViewportPreset}
         onChangeSelection={scope.onChangeSelection}
         onChangeViewportPreset={scope.onChangeViewportPreset}
