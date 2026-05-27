@@ -119,6 +119,8 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   const cardElements = React.useRef(new Map<string, HTMLDivElement>())
   const columnCardElements = React.useRef(new Map<string, HTMLDivElement>())
   const columnElements = React.useRef(new Map<number, HTMLElement>())
+  const columnLayoutByIndexRef = React.useRef(columnLayoutByIndex)
+  const columnMeasurementsByIndexRef = React.useRef(columnMeasurementsByIndex)
   const previewVisibilityFrame = React.useRef(0)
   const previewVisibilityScheduledCanvas = React.useRef<StudioCanvasTransform | null>(null)
   const renderPreviewSessionIdsRef = React.useRef(renderPreviewSessionIds)
@@ -138,8 +140,8 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
         items: studioPreviewVisibilityItems(
           props.workspace,
           canvasViewportPreset,
-          columnLayoutByIndex,
-          columnMeasurementsByIndex,
+          columnLayoutByIndexRef.current,
+          columnMeasurementsByIndexRef.current,
         ),
         viewport: {
           bottom: viewportRect.height,
@@ -153,7 +155,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
       renderPreviewSessionIdsRef.current = nextSessionIds
       setRenderPreviewSessionIds(nextSessionIds)
     },
-    [canvasViewportElement, canvasViewportPreset, columnLayoutByIndex, columnMeasurementsByIndex, props.workspace],
+    [canvasViewportElement, canvasViewportPreset, props.workspace],
   )
 
   const schedulePreviewVisibilityUpdate = React.useCallback(
@@ -334,11 +336,14 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
       measurementsByIndex: nextMeasurementsByIndex,
     })
 
+    columnMeasurementsByIndexRef.current = nextMeasurementsByIndex
+    columnLayoutByIndexRef.current = nextLayoutByIndex
     setColumnMeasurementsByIndex((current) =>
       sameColumnMeasurementRecord(current, nextMeasurementsByIndex) ? current : nextMeasurementsByIndex,
     )
     setColumnLayoutByIndex((current) => (sameColumnLayoutRecord(current, nextLayoutByIndex) ? current : nextLayoutByIndex))
-  }, [canvasSurfaceElement, layoutMeasurementKey, props.workspace.columns])
+    updatePreviewVisibilityNow(canvasRef.current)
+  }, [canvasSurfaceElement, layoutMeasurementKey, props.workspace.columns, updatePreviewVisibilityNow])
 
   return {
     canvas,
