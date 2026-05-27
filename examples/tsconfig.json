@@ -6,6 +6,9 @@
     "noEmit": true,
     "types": ["vite/client"],
     "paths": {
+      "@gtsx/adapter-vite-react": ["../packages/adapter-vite-react/src/index.ts"],
+      "@gtsx/adapter-vite-react/preview": ["../packages/adapter-vite-react/src/preview.ts"],
+      "@gtsx/preview-react": ["../packages/preview-react/src/index.tsx"],
       "@gtsx/studio": ["../packages/studio/src/index.ts"],
       "gtsx": ["../packages/gtsx/src/index.ts"]
     }

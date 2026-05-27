@@ -57,7 +57,7 @@ Card.cases = {
     const loaded = plugin.load(resolvedId)
     const projectIndex = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
 
-    expect(projectIndex.files.map((file) => file.path)).toEqual(["src/Included.g.tsx"])
+    expect(projectIndex.files.map((file) => file.path)).toEqual(["src/Child.g.tsx", "src/Included.g.tsx"])
   })
 
   it("loads project indexes from the nearest TypeScript project scope by default", () => {
@@ -69,6 +69,6 @@ Card.cases = {
     const loaded = plugin.load(resolvedId)
     const projectIndex = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
 
-    expect(projectIndex.files.map((file) => file.path)).toEqual(["src/Included.g.tsx"])
+    expect(projectIndex.files.map((file) => file.path)).toEqual(["src/Child.g.tsx", "src/Included.g.tsx"])
   })
 })

@@ -57,18 +57,30 @@ importers:
 
   packages/adapter-next-react:
     dependencies:
+      '@gtsx/preview-react':
+        specifier: workspace:*
+        version: link:../preview-react
       gtsx:
         specifier: workspace:*
         version: link:../gtsx
       next:
         specifier: '>=13'
         version: 16.2.4(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      react:
+        specifier: '>=18'
+        version: 19.2.6
 
   packages/adapter-vite-react:
     dependencies:
+      '@gtsx/preview-react':
+        specifier: workspace:*
+        version: link:../preview-react
       gtsx:
         specifier: workspace:*
         version: link:../gtsx
+      react:
+        specifier: '>=18'
+        version: 19.2.6
       vite:
         specifier: '>=5'
         version: 8.0.14(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.3)
@@ -101,11 +113,39 @@ importers:
         specifier: ^19.2.6
         version: 19.2.6(react@19.2.6)
 
+  packages/preview-react:
+    dependencies:
+      gtsx:
+        specifier: workspace:*
+        version: link:../gtsx
+    devDependencies:
+      '@types/react':
+        specifier: ^19.2.15
+        version: 19.2.15
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.15)
+      react:
+        specifier: ^19.2.6
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.2.6
+        version: 19.2.6(react@19.2.6)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.7
+        version: 4.1.7(@types/node@25.9.1)(vite@8.0.14(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.3))
+
   packages/studio:
     dependencies:
       '@gtsx/adapter-vite-react':
         specifier: workspace:*
         version: link:../adapter-vite-react
+      '@gtsx/preview-react':
+        specifier: workspace:*
+        version: link:../preview-react
       '@vitejs/plugin-react':
         specifier: ^5.1.2
         version: 5.2.0(vite@8.0.14(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.3))

@@ -1,58 +1,24 @@
-import type React from "react"
-import { GPreviewProvider, type GBoundaryCollector, type GCases } from "gtsx"
+import { type GCases } from "gtsx"
+import {
+  GTSXPreviewCaseSheet,
+  type GTSXPreviewCase,
+  type GTSXPreviewCaseSheetProps,
+  type GTSXPreviewComponent,
+} from "@gtsx/preview-react"
 
-export type PreviewCase<Props extends object = Record<string, unknown>> = {
-  props: Props
-  scope?: unknown
-}
+export type PreviewCase<Props extends object = Record<string, unknown>> = GTSXPreviewCase<Props>
 
-export type PreviewComponent<Props extends object = Record<string, unknown>> = React.ComponentType<Props> & {
-  cases?: Record<string, PreviewCase<Props>>
-}
+export type PreviewComponent<Props extends object = Record<string, unknown>> = GTSXPreviewComponent<Props>
 
 export type PreviewRenderableCase<Props extends object = Record<string, unknown>> = {
   name: string
   testCase: PreviewCase<Props>
 }
 
-export type PreviewCaseSheetProps<Props extends object = Record<string, unknown>> = {
-  boundaryCollector?: GBoundaryCollector
-  caseOverrides?: Map<string, string>
-  component: PreviewComponent<Props>
-  entry: string
-  selectedCases: PreviewRenderableCase<Props>[]
-  showChrome?: boolean
-}
+export type PreviewCaseSheetProps<Props extends object = Record<string, unknown>> = GTSXPreviewCaseSheetProps<Props>
 
 export default function PreviewCaseSheet<Props extends object = Record<string, unknown>>(props: PreviewCaseSheetProps<Props>) {
-  const Component = props.component
-
-  return (
-    <main style={{ display: "grid", gap: 16, padding: props.showChrome === false ? 0 : 24 }}>
-      {props.selectedCases.map(({ name, testCase }) => (
-        <section data-gtsx-preview-case={name} key={name}>
-          {props.showChrome === false ? null : (
-            <header
-              style={{
-                color: "#64748b",
-                font: "12px ui-monospace, SFMono-Regular, Menlo, monospace",
-                marginBottom: 8,
-              }}
-            >
-              {props.entry} / {name}
-            </header>
-          )}
-          <GPreviewProvider
-            boundaryCollector={props.boundaryCollector}
-            caseOverrides={caseOverridesForFrame(props.entry, name, props.caseOverrides ?? new Map())}
-            scope={testCase.scope}
-          >
-            <Component {...testCase.props} />
-          </GPreviewProvider>
-        </section>
-      ))}
-    </main>
-  )
+  return <GTSXPreviewCaseSheet {...props} />
 }
 
 type ExamplePreviewProps = {
@@ -107,11 +73,3 @@ PreviewCaseSheet.cases = {
     },
   },
 } satisfies GCases<PreviewCaseSheetProps<ExamplePreviewProps>>
-
-function caseOverridesForFrame(entry: string, caseName: string, childOverrides: Map<string, string>): Map<string, string> {
-  return new Map([...childOverrides, [toComponentCoordinate(entry), caseName]])
-}
-
-function toComponentCoordinate(entry: string): string {
-  return entry.includes("#") ? entry : `${entry}#default`
-}

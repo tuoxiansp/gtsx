@@ -1,13 +1,4 @@
-import type { ComponentType } from "react"
-
-export type GTSXPreviewCase<Props = Record<string, unknown>> = {
-  props: Props
-  scope?: unknown
-}
-
-export type GTSXPreviewComponent<Props = Record<string, unknown>> = ComponentType<Props> & {
-  cases?: Record<string, GTSXPreviewCase<Props>>
-}
+import type { GTSXPreviewComponent } from "@gtsx/preview-react"
 
 export type GTSXPreviewModule = Record<string, unknown>
 export type GTSXPreviewEntryLoader = () => Promise<GTSXPreviewModule>

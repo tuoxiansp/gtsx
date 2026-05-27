@@ -1,9 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": ".",
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "@gtsx/adapter-next-react/preview-entries": ["./src/preview-entries.ts"],
+      "@gtsx/preview-react": ["../preview-react/src/index.tsx"]
+    }
   },
   "include": ["src", "test/**/*.ts"]
 }

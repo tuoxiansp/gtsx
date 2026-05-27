@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@gtsx/adapter-vite-react": "workspace:*",
+    "@gtsx/preview-react": "workspace:*",
     "@vitejs/plugin-react": "^5.1.2",
     "gtsx": "workspace:*",
     "react": "^19.2.6",

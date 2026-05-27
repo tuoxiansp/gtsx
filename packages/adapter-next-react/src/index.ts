@@ -91,6 +91,7 @@ export function gtsxNextReact(options: GTSXNextReactOptions = {}) {
         loaderPath,
         root,
         transformPath,
+        previewEntries,
       ),
     } as Config & NextConfigLike
   }
@@ -101,6 +102,7 @@ function withGTSXTurbopackConfig(
   loaderPath: string,
   root: string,
   transformPath: string,
+  previewEntries: ResolvedGTSXNextPreviewEntriesOptions | undefined,
 ): NonNullable<NextConfigLike["turbopack"]> {
   const gtsxRule: TurbopackRuleConfigItem = {
     loaders: [{ loader: loaderPath, options: { root, transformPath } }],
@@ -110,6 +112,10 @@ function withGTSXTurbopackConfig(
 
   return {
     ...turbopack,
+    resolveAlias: {
+      ...(turbopack?.resolveAlias ?? {}),
+      ...(previewEntries ? { [previewEntries.moduleId]: toTurbopackResolveAliasPath(root, previewEntries.outputPath) } : {}),
+    },
     rules: {
       ...rules,
       "*.g.tsx": prependRule(gtsxRule, rules["*.g.tsx"]),
@@ -187,16 +193,7 @@ function createGTSXNextPreviewEntriesModule(root: string, outputPath: string, fi
     return `  ${JSON.stringify(filePath)}: () => import(${JSON.stringify(toGeneratedImportSpecifier(outputPath, absoluteFilePath))}),`
   })
 
-  return `import type { ComponentType } from "react"
-
-export type GTSXPreviewCase<Props = Record<string, unknown>> = {
-  props: Props
-  scope?: unknown
-}
-
-export type GTSXPreviewComponent<Props = Record<string, unknown>> = ComponentType<Props> & {
-  cases?: Record<string, GTSXPreviewCase<Props>>
-}
+  return `import type { GTSXPreviewComponent } from "@gtsx/adapter-next-react/preview"
 
 export type GTSXPreviewModule = Record<string, unknown>
 export type GTSXPreviewEntryLoader = () => Promise<GTSXPreviewModule>
@@ -208,7 +205,7 @@ ${entries.join("\n")}
 
 export async function loadGTSXPreviewComponent(entry: string): Promise<GTSXPreviewComponent | undefined> {
   const { file, exportName } = parseGTSXPreviewEntry(entry)
-  const loader = gtsxPreviewEntryLoaders[file]
+  const loader = (gtsxPreviewEntryLoaders as GTSXPreviewEntryLoaders)[file]
   if (!loader) return undefined
 
   const moduleValue = await loader()
@@ -227,6 +224,11 @@ function toGeneratedImportSpecifier(outputPath: string, absoluteFilePath: string
   const extensionless = absoluteFilePath.replace(/\.tsx$/, "")
   const relativePath = relative(dirname(outputPath), extensionless).split(sep).join("/")
   return relativePath.startsWith(".") ? relativePath : `./${relativePath}`
+}
+
+function toTurbopackResolveAliasPath(root: string, outputPath: string): string {
+  const relativePath = relative(root, outputPath).split(sep).join("/")
+  return relativePath.startsWith("./") || relativePath.startsWith("../") ? relativePath : `./${relativePath}`
 }
 
 function readFileIfExists(path: string): string | undefined {

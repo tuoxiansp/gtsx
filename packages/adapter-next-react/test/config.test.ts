@@ -38,7 +38,7 @@ describe("gtsx Next React adapter", () => {
       ],
       as: "*.tsx",
     })
-    expect(config.turbopack?.resolveAlias?.["@gtsx/adapter-next-react/preview-entries"]).toBeUndefined()
+    expect(config.turbopack?.resolveAlias?.["@gtsx/adapter-next-react/preview-entries"]).toBe("./.gtsx/preview-entries.ts")
   })
 
   it("preserves user webpack config and prepends existing turbopack rules", () => {
@@ -65,7 +65,7 @@ describe("gtsx Next React adapter", () => {
     expect(webpackConfig?.module?.rules?.[0]?.use?.[0]?.loader).toContain("loader.cjs")
     expect(webpackConfig?.module?.rules?.[1]?.test?.test("other")).toBe(true)
     expect(Array.isArray(turboRule)).toBe(true)
-    expect(config.turbopack?.resolveAlias?.["@gtsx/adapter-next-react/preview-entries"]).toBeUndefined()
+    expect(config.turbopack?.resolveAlias?.["@gtsx/adapter-next-react/preview-entries"]).toBe("./.gtsx/preview-entries.ts")
     expect((turboRule as unknown[])[0]).toMatchObject({
       loaders: [
         {
@@ -110,6 +110,7 @@ describe("gtsx Next React adapter", () => {
     })
     expect(config.turbopack?.resolveAlias).toMatchObject({
       "@app/existing": "/repo/existing.ts",
+      "@app/gtsx-preview-entries": "./.generated/gtsx-preview-entries.ts",
     })
   })
 
@@ -140,6 +141,6 @@ describe("gtsx Next React adapter", () => {
 
     expect(config.webpack?.({}, {})?.module?.rules?.[0]?.use?.[0]?.loader).toContain("loader.cjs")
     expect(config.turbopack?.rules?.["*.g.tsx"]?.loaders?.[0]?.loader).toContain("loader.cjs")
-    expect(config.turbopack?.resolveAlias?.["@gtsx/adapter-next-react/preview-entries"]).toBeUndefined()
+    expect(config.turbopack?.resolveAlias?.["@gtsx/adapter-next-react/preview-entries"]).toBe("./.gtsx/preview-entries.ts")
   })
 })

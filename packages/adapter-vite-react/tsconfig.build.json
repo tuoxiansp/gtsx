@@ -6,6 +6,7 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
+    "paths": {},
     "noEmit": false
   },
   "include": ["src"]

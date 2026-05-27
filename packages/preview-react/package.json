@@ -1,15 +1,12 @@
 {
-  "name": "@gtsx/adapter-vite-react",
+  "name": "@gtsx/preview-react",
   "version": "0.0.0",
   "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./preview": {
-      "types": "./dist/preview.d.ts",
-      "import": "./dist/preview.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "files": [
@@ -20,12 +17,16 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "dependencies": {
-    "@gtsx/preview-react": "workspace:*"
-  },
   "peerDependencies": {
     "gtsx": "workspace:*",
-    "react": ">=18",
-    "vite": ">=5"
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
   }
 }

@@ -4,8 +4,8 @@
     "noEmit": true,
     "types": ["node"],
     "paths": {
-      "@gtsx/preview-react": ["../preview-react/src/index.tsx"]
+      "gtsx": ["../gtsx/src/index.ts"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "test/**/*.ts", "test/**/*.tsx"]
 }
