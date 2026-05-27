@@ -119,13 +119,21 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   const columnElements = React.useRef(new Map<number, HTMLElement>())
   const columnLayoutByIndexRef = React.useRef(columnLayoutByIndex)
   const columnMeasurementsByIndexRef = React.useRef(columnMeasurementsByIndex)
+  const canvasViewportPresetRef = React.useRef(canvasViewportPreset)
+  const frameStatesRef = React.useRef(props.frameStates)
+  const previewRenderQueueRef = React.useRef(props.previewRenderQueue)
   const previewVisibilityFrame = React.useRef(0)
   const previewVisibilityScheduledCanvas = React.useRef<StudioCanvasTransform | null>(null)
   const renderPreviewSessionIdsRef = React.useRef(renderPreviewSessionIds)
+  const workspaceRef = React.useRef(props.workspace)
   const layoutMeasurementKey = React.useMemo(
     () => studioWorkspaceLayoutMeasurementKey(props.workspace, canvasViewportPreset, props.frameStates, props.previewCache),
     [canvasViewportPreset, props.frameStates, props.previewCache, props.workspace],
   )
+  canvasViewportPresetRef.current = canvasViewportPreset
+  frameStatesRef.current = props.frameStates
+  previewRenderQueueRef.current = props.previewRenderQueue
+  workspaceRef.current = props.workspace
 
   const updatePreviewVisibility = React.useCallback(
     (nextCanvas: StudioCanvasTransform = canvasRef.current) => {
@@ -134,11 +142,11 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
       const viewportRect = canvasViewportElement.getBoundingClientRect()
       const nextSessionIds = queuedStudioPreviewSessionIds({
         canvas: nextCanvas,
-        completedSessionIds: completedStudioPreviewSessionIds(props.frameStates),
+        completedSessionIds: completedStudioPreviewSessionIds(frameStatesRef.current),
         currentSessionIds: renderPreviewSessionIdsRef.current,
         items: studioPreviewVisibilityItems(
-          props.workspace,
-          canvasViewportPreset,
+          workspaceRef.current,
+          canvasViewportPresetRef.current,
           columnLayoutByIndexRef.current,
           columnMeasurementsByIndexRef.current,
         ),
@@ -148,14 +156,14 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
           right: viewportRect.width,
           top: 0,
         },
-        ...props.previewRenderQueue,
+        ...previewRenderQueueRef.current,
       })
 
       if (sameStringSet(renderPreviewSessionIdsRef.current, nextSessionIds)) return
       renderPreviewSessionIdsRef.current = nextSessionIds
       setRenderPreviewSessionIds(nextSessionIds)
     },
-    [canvasViewportElement, canvasViewportPreset, props.frameStates, props.previewRenderQueue, props.workspace],
+    [canvasViewportElement],
   )
 
   const schedulePreviewVisibilityUpdate = React.useCallback(
