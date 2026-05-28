@@ -3,6 +3,29 @@ import type { GSerializedRuntimeValue } from "./runtime-values.js"
 
 export const G_PREVIEW_PROTOCOL_VERSION = 1
 
+export const gtsxPreviewSsrBootstrapScriptId = "gtsx-preview-ssr-bootstrap"
+
+export const GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT = `(() => {
+  if (window.__gtsxPreviewPrehydrationMailboxInstalled) return;
+  window.__gtsxPreviewPrehydrationMailboxInstalled = true;
+  const render = (target) => {
+    window.__gtsxPreviewPendingRenderTarget = target;
+    if (target && target.sessionId) {
+      window.parent.postMessage({ type: "gtsx:render-accepted", protocolVersion: 1, sessionId: target.sessionId }, "*");
+    }
+    window.dispatchEvent(new CustomEvent("gtsx:preview-render-target", { detail: target }));
+  };
+  window.__gtsxPreviewRenderTargetMailbox = { render };
+  window.addEventListener("message", (event) => {
+    const message = event.data;
+    if (!message || message.type !== "gtsx:render" || message.protocolVersion !== 1 || !message.target) return;
+    render(message.target);
+  });
+  window.setTimeout(() => {
+    window.parent.postMessage({ type: "gtsx:pool-ready", protocolVersion: 1 }, "*");
+  }, 0);
+})();`
+
 type GPreviewProtocolBase = {
   protocolVersion: typeof G_PREVIEW_PROTOCOL_VERSION
   sessionId: string

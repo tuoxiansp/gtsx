@@ -1,3 +1,5 @@
+import { GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT, gtsxPreviewSsrBootstrapScriptId } from "gtsx/preview-protocol"
+
 export type GTSXNextPreviewSearchParams = Record<string, string | string[] | undefined> | URLSearchParams | undefined
 
 export type GTSXNextPreviewRouteProps = {
@@ -10,28 +12,17 @@ export type GTSXNextPreviewRouteProps = {
   staticMode?: boolean
 }
 
-export const gtsxNextPreviewPoolMailboxScriptId = "gtsx-preview-pool-mailbox"
+export type GTSXNextPreviewSsrScriptProps = {
+  dangerouslySetInnerHTML: { __html: string }
+  id: string
+  strategy: "beforeInteractive"
+}
 
-export const GTSX_NEXT_PREVIEW_POOL_MAILBOX_SCRIPT = `(() => {
-  if (window.__gtsxPreviewPrehydrationMailboxInstalled) return;
-  window.__gtsxPreviewPrehydrationMailboxInstalled = true;
-  const render = (target) => {
-    window.__gtsxPreviewPendingRenderTarget = target;
-    if (target && target.sessionId) {
-      window.parent.postMessage({ type: "gtsx:render-accepted", protocolVersion: 1, sessionId: target.sessionId }, "*");
-    }
-    window.dispatchEvent(new CustomEvent("gtsx:preview-render-target", { detail: target }));
-  };
-  window.__gtsxPreviewRenderTargetMailbox = { render };
-  window.addEventListener("message", (event) => {
-    const message = event.data;
-    if (!message || message.type !== "gtsx:render" || message.protocolVersion !== 1 || !message.target) return;
-    render(message.target);
-  });
-  window.setTimeout(() => {
-    window.parent.postMessage({ type: "gtsx:pool-ready", protocolVersion: 1 }, "*");
-  }, 0);
-})();`
+/** @deprecated Use gtsxPreviewSsrBootstrapScriptId from gtsx/preview-protocol. */
+export const gtsxNextPreviewPoolMailboxScriptId = gtsxPreviewSsrBootstrapScriptId
+
+/** @deprecated Use GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT from gtsx/preview-protocol. */
+export const GTSX_NEXT_PREVIEW_POOL_MAILBOX_SCRIPT = GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT
 
 export function readGTSXNextPreviewProps(searchParams: GTSXNextPreviewSearchParams): GTSXNextPreviewRouteProps {
   const params = searchParams instanceof URLSearchParams ? searchParams : searchParamsFromNextRecord(searchParams)
@@ -47,22 +38,36 @@ export function readGTSXNextPreviewProps(searchParams: GTSXNextPreviewSearchPara
   }
 }
 
-export function createGTSXNextPreviewPoolMailboxScriptProps(): {
-  dangerouslySetInnerHTML: { __html: string }
-  id: string
-  strategy: "beforeInteractive"
-} {
+export function createGTSXNextPreviewSsrScripts(
+  routeProps: Pick<GTSXNextPreviewRouteProps, "pool">,
+): GTSXNextPreviewSsrScriptProps[] {
+  if (!shouldInstallGTSXNextPreviewSsrScripts(routeProps)) return []
+
+  return [createGTSXNextPreviewSsrBootstrapScript()]
+}
+
+export function shouldInstallGTSXNextPreviewSsrScripts(routeProps: Pick<GTSXNextPreviewRouteProps, "pool">): boolean {
+  return routeProps.pool === "1"
+}
+
+function createGTSXNextPreviewSsrBootstrapScript(): GTSXNextPreviewSsrScriptProps {
   return {
     dangerouslySetInnerHTML: {
-      __html: GTSX_NEXT_PREVIEW_POOL_MAILBOX_SCRIPT,
+      __html: GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT,
     },
-    id: gtsxNextPreviewPoolMailboxScriptId,
+    id: gtsxPreviewSsrBootstrapScriptId,
     strategy: "beforeInteractive",
   }
 }
 
+/** @deprecated Use createGTSXNextPreviewSsrScripts. */
+export function createGTSXNextPreviewPoolMailboxScriptProps(): GTSXNextPreviewSsrScriptProps {
+  return createGTSXNextPreviewSsrBootstrapScript()
+}
+
+/** @deprecated Use shouldInstallGTSXNextPreviewSsrScripts. */
 export function shouldInstallGTSXNextPreviewPoolMailbox(routeProps: Pick<GTSXNextPreviewRouteProps, "pool">): boolean {
-  return routeProps.pool === "1"
+  return shouldInstallGTSXNextPreviewSsrScripts(routeProps)
 }
 
 function searchParamsFromNextRecord(searchParams: Record<string, string | string[] | undefined> | undefined): URLSearchParams {

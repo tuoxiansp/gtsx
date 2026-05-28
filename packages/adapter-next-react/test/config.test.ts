@@ -4,13 +4,13 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT, gtsxPreviewSsrBootstrapScriptId } from "gtsx/preview-protocol"
+
 import { gtsxNextReact } from "../src/index.js"
 import {
-  GTSX_NEXT_PREVIEW_POOL_MAILBOX_SCRIPT,
-  createGTSXNextPreviewPoolMailboxScriptProps,
-  gtsxNextPreviewPoolMailboxScriptId,
+  createGTSXNextPreviewSsrScripts,
   readGTSXNextPreviewProps,
-  shouldInstallGTSXNextPreviewPoolMailbox,
+  shouldInstallGTSXNextPreviewSsrScripts,
 } from "../src/preview-route.js"
 
 const require = createRequire(import.meta.url)
@@ -200,15 +200,17 @@ describe("gtsx Next React adapter", () => {
     ])
   })
 
-  it("installs the preview pool mailbox only for pooled preview routes", () => {
-    const scriptProps = createGTSXNextPreviewPoolMailboxScriptProps()
+  it("installs SSR preview scripts only when the preview URL requires early render-target delivery", () => {
+    const scripts = createGTSXNextPreviewSsrScripts({ pool: "1" })
+    const scriptProps = scripts[0]
 
-    expect(shouldInstallGTSXNextPreviewPoolMailbox({ pool: "1" })).toBe(true)
-    expect(shouldInstallGTSXNextPreviewPoolMailbox({ pool: null })).toBe(false)
-    expect(scriptProps.id).toBe(gtsxNextPreviewPoolMailboxScriptId)
-    expect(scriptProps.strategy).toBe("beforeInteractive")
-    expect(scriptProps.dangerouslySetInnerHTML.__html).toBe(GTSX_NEXT_PREVIEW_POOL_MAILBOX_SCRIPT)
-    expect(GTSX_NEXT_PREVIEW_POOL_MAILBOX_SCRIPT).toContain("__gtsxPreviewRenderTargetMailbox")
-    expect(GTSX_NEXT_PREVIEW_POOL_MAILBOX_SCRIPT).toContain("gtsx:render-accepted")
+    expect(shouldInstallGTSXNextPreviewSsrScripts({ pool: "1" })).toBe(true)
+    expect(shouldInstallGTSXNextPreviewSsrScripts({ pool: null })).toBe(false)
+    expect(createGTSXNextPreviewSsrScripts({ pool: null })).toEqual([])
+    expect(scriptProps?.id).toBe(gtsxPreviewSsrBootstrapScriptId)
+    expect(scriptProps?.strategy).toBe("beforeInteractive")
+    expect(scriptProps?.dangerouslySetInnerHTML.__html).toBe(GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT)
+    expect(GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT).toContain("__gtsxPreviewRenderTargetMailbox")
+    expect(GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT).toContain("gtsx:render-accepted")
   })
 })

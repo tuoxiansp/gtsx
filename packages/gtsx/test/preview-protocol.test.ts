@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT,
   createGPreviewRequestValuesMessage,
   createGPreviewErrorMessage,
   createGPreviewPoolReadyMessage,
@@ -10,6 +11,7 @@ import {
   createGPreviewResizeMessage,
   createGPreviewTreeMessage,
   createGPreviewValuesMessage,
+  gtsxPreviewSsrBootstrapScriptId,
   type GBoundaryTreeNode,
 } from "../src/index.js"
 
@@ -117,5 +119,12 @@ describe("GTSX preview iframe protocol", () => {
       protocolVersion: 1,
       sessionId: "src/Card.g.tsx#default:ready",
     })
+  })
+
+  it("exposes the framework-neutral SSR preview bootstrap script", () => {
+    expect(gtsxPreviewSsrBootstrapScriptId).toBe("gtsx-preview-ssr-bootstrap")
+    expect(GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT).toContain("gtsx:render")
+    expect(GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT).toContain("gtsx:render-accepted")
+    expect(GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT).toContain("gtsx:pool-ready")
   })
 })

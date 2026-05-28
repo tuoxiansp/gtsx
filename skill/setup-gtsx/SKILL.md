@@ -55,6 +55,7 @@ Install the smallest working gtsx integration. Stop and ask if the TypeScript pr
 - Do not reimplement preview runtime in the app. No custom `GPreviewProvider`, boundary collectors, iframe `postMessage` handlers, resize observers, boundary rect readers, case override merging, or scope fallback logic.
 - Import preview clients from framework adapters, not from `@gtsx/preview-react`.
 - Use adapter helpers for route search params and preview component loading. Do not hand-roll `gcase`, `case`, `static`, entry parsing, or `import.meta.glob` key normalization.
+- For SSR preview routes, install only adapter-provided preview SSR scripts. Do not write app-local preview bootstrap or `postMessage` bridge code.
 
 ## Next.js React
 
@@ -68,7 +69,8 @@ Install the smallest working gtsx integration. Stop and ask if the TypeScript pr
 export { GTSXNextPreviewClient as GTSXPreviewClient } from "@gtsx/adapter-next-react/preview"
 ```
 
-- `/gtsx` page: use `readGTSXNextPreviewProps` from `@gtsx/adapter-next-react/preview-route`.
+- `/gtsx` page: use `readGTSXNextPreviewProps` and `createGTSXNextPreviewSsrScripts` from `@gtsx/adapter-next-react/preview-route`.
+- Render the adapter-provided SSR scripts before the preview client. The helper returns only the scripts needed for the current preview URL, so the route does not need to know internal Studio rendering details.
 - `/gtsx/studio` page: pass the complete URL search string to `StudioShell` so canvas, selection, debug, and drilldown params survive server rendering.
 
 ### Next.js App Router Entry Templates
@@ -126,7 +128,11 @@ export { GTSXNextPreviewClient as GTSXPreviewClient } from "@gtsx/adapter-next-r
 `app/gtsx/page.tsx`:
 
 ```tsx
-import { readGTSXNextPreviewProps } from "@gtsx/adapter-next-react/preview-route"
+import {
+  createGTSXNextPreviewSsrScripts,
+  readGTSXNextPreviewProps,
+} from "@gtsx/adapter-next-react/preview-route"
+import Script from "next/script"
 
 import { GTSXPreviewClient } from "./preview-client"
 
@@ -136,8 +142,16 @@ type GTSXPreviewPageProps = {
 
 export default async function GTSXPreviewPage(props: GTSXPreviewPageProps) {
   const searchParams = await props.searchParams
+  const previewProps = readGTSXNextPreviewProps(searchParams)
 
-  return <GTSXPreviewClient {...readGTSXNextPreviewProps(searchParams)} />
+  return (
+    <>
+      {createGTSXNextPreviewSsrScripts(previewProps).map((scriptProps) => (
+        <Script key={scriptProps.id} {...scriptProps} />
+      ))}
+      <GTSXPreviewClient {...previewProps} />
+    </>
+  )
 }
 ```
 
@@ -189,6 +203,7 @@ export function GET() {
 - Pass the project `gtsx.config.ts` to `gtsxViteReact({ config: gtsxConfig })`.
 - Preview entry uses `GTSXVitePreviewClient`, `readGTSXPreviewRouteParams`, `createGTSXVitePreviewComponentLoader`, and `import.meta.glob<GTSXPreviewModule>("./**/*.g.tsx")` from `@gtsx/adapter-vite-react/preview`.
 - Keep the route entry thin — no preview runtime logic in the app.
+- The single-entry Vite template is client-rendered and does not need the Next.js SSR scripts. For Vite-based SSR frameworks, use the framework adapter's SSR script entry when one is provided.
 
 ### Vite Single-Entry Template
 
@@ -304,8 +319,9 @@ declare module "virtual:gtsx/config" {
 5. Confirm the manifest contains only TypeScript Program `.g.tsx` entries.
 6. Render at least one component card.
 7. Open that card's `/gtsx?...` preview URL — confirm no `Missing entry`, `Unknown gtsx entry`, or `Unknown gtsx case` errors.
-8. For components with child `.g.tsx` dependencies, confirm root-level Studio shows only top-level components; children are reachable by drilldown.
-9. Run capture if configured.
+8. For Next.js projects, confirm the `/gtsx` route renders adapter SSR scripts before the preview client and that Studio cards render without a pre-hydration "Missing entry" flash.
+9. For components with child `.g.tsx` dependencies, confirm root-level Studio shows only top-level components; children are reachable by drilldown.
+10. Run capture if configured.
 
 ## Report
 

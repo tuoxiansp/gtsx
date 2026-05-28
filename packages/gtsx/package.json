@@ -26,6 +26,11 @@
       "import": "./dist/config-model.js",
       "default": "./dist/config-model.js"
     },
+    "./preview-protocol": {
+      "types": "./dist/preview-protocol.d.ts",
+      "import": "./dist/preview-protocol.js",
+      "default": "./dist/preview-protocol.js"
+    },
     "./react-transform": {
       "types": "./dist/react-transform.d.ts",
       "import": "./dist/react-transform.js",

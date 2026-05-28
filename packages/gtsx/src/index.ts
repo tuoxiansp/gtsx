@@ -39,6 +39,7 @@ export { serializeGRuntimeValue } from "./runtime-values.js"
 export type { GRuntimeValueSerializationOptions, GRuntimeValueTruncation, GSerializedRuntimeValue } from "./runtime-values.js"
 export {
   G_PREVIEW_PROTOCOL_VERSION,
+  GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT,
   createGPreviewErrorMessage,
   createGPreviewPoolReadyMessage,
   createGPreviewReadyMessage,
@@ -48,6 +49,7 @@ export {
   createGPreviewResizeMessage,
   createGPreviewTreeMessage,
   createGPreviewValuesMessage,
+  gtsxPreviewSsrBootstrapScriptId,
 } from "./preview-protocol.js"
 export type {
   GRuntimeValuesSnapshot,
