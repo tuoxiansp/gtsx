@@ -3,9 +3,14 @@
 import type { GCases } from "gtsx"
 
 import type { StudioPreviewFrameSlot } from "../preview-frame-slot"
+import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
 
 type BufferedPreviewIframeProps = {
-  onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void
+  onPreviewFrameMount?: (
+    sessionId: string,
+    frame: HTMLIFrameElement | null,
+    state?: StudioPreviewIframeMountState,
+  ) => void
   size: { width: number | string; height: number }
   slot: StudioPreviewFrameSlot
 }

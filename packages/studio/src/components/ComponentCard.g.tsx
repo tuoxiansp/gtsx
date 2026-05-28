@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import type { GBoundaryRect, GBoundaryTreeNode, GCases } from "gtsx"
 
 import {
@@ -17,6 +18,7 @@ import {
   studioComponentCaseGridMinScale,
 } from "../case-grid-layout"
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
+import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
 import { previewFrameLayoutHeight, previewFrameLayoutWidth } from "../preview-frame-layout"
 import LazyPreviewFrame from "./LazyPreviewFrame.g"
 import PreviewError from "./PreviewError.g"
@@ -28,24 +30,31 @@ type ComponentCardFrameState = StudioPreviewFrameState
 
 type ComponentCardProps = {
   caseFrameStates?: Record<string, ComponentCardFrameState | undefined>
+  caseLayoutFrameStates?: Record<string, ComponentCardFrameState | undefined>
   casePreviewScale?: number
+  columnIndex?: number
   component: StudioManifestComponent
   debugPreviewPool?: boolean
+  debugPreviewQueue?: boolean
   frameState?: ComponentCardFrameState
   manifest: StudioManifest
-  onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void
+  onPreviewFrameMount?: (
+    sessionId: string,
+    frame: HTMLIFrameElement | null,
+    state?: StudioPreviewIframeMountState,
+  ) => void
   onSelect?: (
     component: StudioManifestComponent,
     caseFrameStates: Record<string, ComponentCardFrameState | undefined>,
+    columnIndex: number,
     source: StudioCardSelectionSource,
   ) => void
-  renderPreviewSessionIds?: ReadonlySet<string>
   selected: boolean
   selectedCaseName: string
   viewportPreset: StudioViewportPreset
 }
 
-export default function ComponentCard(props: ComponentCardProps) {
+function ComponentCardView(props: ComponentCardProps) {
   const previewError = getPreviewError(props.component)
   const effectiveCaseFrameStates = Object.fromEntries(
     props.component.cases.map((testCase) => [
@@ -53,12 +62,19 @@ export default function ComponentCard(props: ComponentCardProps) {
       props.caseFrameStates?.[testCase.name] ?? (testCase.name === props.selectedCaseName ? props.frameState : undefined),
     ]),
   ) as Record<string, ComponentCardFrameState | undefined>
+  const effectiveCaseLayoutFrameStates = Object.fromEntries(
+    props.component.cases.map((testCase) => [
+      testCase.name,
+      props.caseLayoutFrameStates?.[testCase.name] ?? effectiveCaseFrameStates[testCase.name],
+    ]),
+  ) as Record<string, ComponentCardFrameState | undefined>
   const caseTiles = props.component.cases.map((testCase) => {
     const frameState = effectiveCaseFrameStates[testCase.name]
+    const layoutFrameState = effectiveCaseLayoutFrameStates[testCase.name]
     const sessionId = previewSessionId(props.component, testCase.name, props.viewportPreset)
-    const displaySize = studioPreviewFrameSize(props.viewportPreset, frameState?.size)
+    const displaySize = studioPreviewFrameSize(props.viewportPreset, layoutFrameState?.size)
     const previewUrl = createStudioPreviewUrl(props.manifest, props.component, testCase.name, sessionId, { static: true })
-    const boundaryRect = boundaryRectForComponent(frameState?.tree, props.component.coordinate)
+    const boundaryRect = boundaryRectForComponent(layoutFrameState?.tree, props.component.coordinate)
     const visibleBoundaryRect = clipPreviewBoundaryRectToViewport(boundaryRect, displaySize)
     const layoutWidth = Number(previewFrameLayoutWidth(displaySize, visibleBoundaryRect))
     const layoutHeight = previewFrameLayoutHeight(displaySize, visibleBoundaryRect)
@@ -83,6 +99,7 @@ export default function ComponentCard(props: ComponentCardProps) {
     previewScale: props.casePreviewScale,
   })
   const cardWidth = Math.max(280, caseGridLayout.width)
+  const columnIndex = props.columnIndex ?? 0
   const firstCaseName = props.component.cases[0]?.name ?? props.selectedCaseName
 
   return (
@@ -135,11 +152,11 @@ export default function ComponentCard(props: ComponentCardProps) {
             <div
               data-gtsx-case-tile={tile.name}
               key={tile.name}
-              onClick={() => props.onSelect?.(props.component, effectiveCaseFrameStates, "pointer")}
+              onClick={() => props.onSelect?.(props.component, effectiveCaseFrameStates, columnIndex, "pointer")}
               onKeyDown={(event) => {
                 if (event.key !== "Enter" && event.key !== " ") return
                 event.preventDefault()
-                props.onSelect?.(props.component, effectiveCaseFrameStates, "keyboard")
+                props.onSelect?.(props.component, effectiveCaseFrameStates, columnIndex, "keyboard")
               }}
               onPointerDown={(event) => event.stopPropagation()}
               role="button"
@@ -167,6 +184,7 @@ export default function ComponentCard(props: ComponentCardProps) {
               </strong>
               <div
                 data-gtsx-case-preview-frame={tile.name}
+                data-gtsx-case-preview-frame-state={componentCardPreviewFrameStateName(tile.frameState)}
                 style={{
                   height: Math.ceil(tile.layoutHeight * caseGridLayout.previewScale),
                   justifySelf: "center",
@@ -192,10 +210,11 @@ export default function ComponentCard(props: ComponentCardProps) {
                     coordinate={props.component.coordinate}
                     debugIndicatorScale={caseGridLayout.previewScale}
                     debugPreviewPool={props.debugPreviewPool}
-                    onSelect={() => props.onSelect?.(props.component, effectiveCaseFrameStates, "pointer")}
+                    debugPreviewQueue={props.debugPreviewQueue}
+                    frameState={tile.frameState}
+                    onSelect={() => props.onSelect?.(props.component, effectiveCaseFrameStates, columnIndex, "pointer")}
                     onPreviewFrameMount={props.onPreviewFrameMount}
                     previewUrl={tile.previewUrl}
-                    shouldLoad={props.renderPreviewSessionIds?.has(tile.sessionId) ?? false}
                     size={tile.displaySize}
                     sessionId={tile.sessionId}
                     title={`${props.component.componentName} ${tile.name} preview`}
@@ -227,6 +246,12 @@ export default function ComponentCard(props: ComponentCardProps) {
     </article>
   )
 }
+
+const ComponentCard = React.memo(ComponentCardView, areComponentCardPropsEqual) as typeof ComponentCardView & {
+  cases?: GCases<ComponentCardProps>
+}
+
+export default ComponentCard
 
 ComponentCard.cases = {
   selectedReady: {
@@ -287,6 +312,64 @@ ComponentCard.cases = {
     },
   },
 } satisfies GCases<ComponentCardProps>
+
+function areComponentCardPropsEqual(previous: ComponentCardProps, next: ComponentCardProps): boolean {
+  if (
+    previous.casePreviewScale !== next.casePreviewScale ||
+    previous.columnIndex !== next.columnIndex ||
+    previous.component !== next.component ||
+    previous.debugPreviewPool !== next.debugPreviewPool ||
+    previous.debugPreviewQueue !== next.debugPreviewQueue ||
+    previous.frameState !== next.frameState ||
+    previous.manifest !== next.manifest ||
+    previous.onPreviewFrameMount !== next.onPreviewFrameMount ||
+    previous.onSelect !== next.onSelect ||
+    previous.selected !== next.selected ||
+    previous.selectedCaseName !== next.selectedCaseName ||
+    previous.viewportPreset !== next.viewportPreset
+  ) {
+    return false
+  }
+
+  for (const testCase of next.component.cases) {
+    if (!sameComponentCardFrameState(previous.caseFrameStates?.[testCase.name], next.caseFrameStates?.[testCase.name])) {
+      return false
+    }
+    if (
+      !sameComponentCardFrameState(
+        previous.caseLayoutFrameStates?.[testCase.name],
+        next.caseLayoutFrameStates?.[testCase.name],
+      )
+    ) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function sameComponentCardFrameState(
+  previous: ComponentCardFrameState | undefined,
+  next: ComponentCardFrameState | undefined,
+): boolean {
+  return (
+    previous === next ||
+    (previous?.expectedSessionId === next?.expectedSessionId &&
+      previous?.ready === next?.ready &&
+      previous?.tree === next?.tree &&
+      previous?.size?.height === next?.size?.height &&
+      previous?.size?.width === next?.size?.width &&
+      previous?.error?.message === next?.error?.message &&
+      previous?.error?.stack === next?.error?.stack &&
+      previous?.valuesByBoundaryId === next?.valuesByBoundaryId)
+  )
+}
+
+function componentCardPreviewFrameStateName(frameState: ComponentCardFrameState | undefined): "error" | "ready" | "loading" {
+  if (frameState?.error) return "error"
+  if (frameState?.ready) return "ready"
+  return "loading"
+}
 
 function boundaryRectForComponent(tree: GBoundaryTreeNode[] | undefined, coordinate: string): GBoundaryRect | undefined {
   return tree ? findBoundaryNode(tree, coordinate)?.rect : undefined

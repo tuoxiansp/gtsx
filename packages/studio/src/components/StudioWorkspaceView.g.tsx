@@ -1,29 +1,17 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GBoundaryRect, type GBoundaryTreeNode, type GCases } from "gtsx"
+import { createGScopeHook, type GCases } from "gtsx"
 
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import {
-  applyStudioCanvasWheel,
   applyStudioCardSelectionAction,
   canvasViewportPresetForWorkspace,
-  clipPreviewBoundaryRectToViewport,
-  computeStudioCaseGridLayout,
-  computeStudioColumnLayout,
-  defaultStudioCanvasTransform,
-  mergeStudioPreviewFrameState,
-  previewSessionId,
   revealStudioCanvasRect,
   resolveStudioSelection,
   selectedStudioCaseName,
-  studioPreviewCacheKey,
-  studioPreviewFrameSize,
   type StudioPreviewCacheEntry,
-  type StudioCanvasScreenRect,
   type StudioColumnLayout,
-  type StudioColumnLayoutMeasurement,
-  type StudioCaseGridItemLayout,
   visibleWorkspaceComponents,
   type StudioCanvasTransform,
   type StudioComponentSelectionOptions,
@@ -31,29 +19,41 @@ import {
   type StudioViewportPreset,
   type StudioWorkspaceState,
 } from "../client"
+import type { StudioPreviewRenderQueueOptions } from "../preview-render-queue"
 import {
-  studioCaseGridMaxSide,
-  studioComponentCaseChromeHeight,
-  studioComponentCaseGridGap,
-  studioComponentCaseGridMinScale,
-} from "../case-grid-layout"
-import { previewFrameLayoutHeight, previewFrameLayoutWidth } from "../preview-frame-layout"
-import { type StudioCanvasPreviewVisibilityItem, type StudioViewportRect } from "../preview-lazy-loading"
+  createStudioPreviewRenderSessionStore,
+  StudioPreviewRenderSessionStoreProvider,
+  type StudioPreviewRenderSessionStore,
+} from "../preview-render-session-store"
+import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
 import {
-  queuedStudioPreviewSessionIds,
-  type StudioPreviewRenderQueueOptions,
-} from "../preview-render-queue"
-import ComponentCard from "./ComponentCard.g"
+  domRectToStudioCanvasScreenRect,
+  studioCanvasTransformStyle,
+  studioComponentPathForColumn,
+  studioPathKey,
+} from "../studio-canvas-geometry"
+import {
+  createStudioPreviewRenderObservation,
+  type StudioPreviewRenderObservationSnapshot,
+  type StudioPreviewRenderQueueDebugObservationInput,
+} from "../studio-preview-render-observation"
+import { useStudioCanvasController } from "../use-studio-canvas-controller"
+import { useStudioCanvasLayout } from "../use-studio-canvas-layout"
+import { useStudioPreviewRenderScheduler } from "../use-studio-preview-render-scheduler"
+import StudioComponentCardSlot from "./StudioComponentCardSlot"
 import ViewportPresetTabs from "./ViewportPresetTabs.g"
+import type { StudioPreviewGeometryCacheStore } from "../preview-geometry-cache-store"
 
 export type StudioWorkspaceViewProps = {
   canvas?: StudioCanvasTransform
   debugPreviewPool?: boolean
+  debugPreviewQueue?: boolean
   manifest: StudioManifest
   workspace: StudioWorkspaceState
   selection?: string
   previewCache?: Record<string, StudioPreviewCacheEntry>
   previewCacheReady?: boolean
+  previewGeometryStore?: StudioPreviewGeometryCacheStore
   previewRenderQueue?: StudioPreviewRenderQueueOptions
   frameStates?: Record<string, StudioPreviewFrameState>
   onChangeSelection?: (selection: string) => void
@@ -61,7 +61,11 @@ export type StudioWorkspaceViewProps = {
   onChangeCanvasViewportPreset?: (preset: StudioViewportPreset) => void
   onChangeCanvas?: (canvas: StudioCanvasTransform) => void
   onChangeViewportPreset?: (component: StudioManifestComponent, preset: StudioViewportPreset) => void
-  onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void
+  onPreviewFrameMount?: (
+    sessionId: string,
+    frame: HTMLIFrameElement | null,
+    state?: StudioPreviewIframeMountState,
+  ) => void
   onSelectComponent?: (
     component: StudioManifestComponent,
     caseFrameStates: Record<string, StudioPreviewFrameState | undefined>,
@@ -88,380 +92,211 @@ type StudioWorkspaceViewScope = {
     source: "keyboard" | "pointer",
   ) => void
   onViewportPresetChange: (preset: StudioViewportPreset) => void
-  renderPreviewSessionIds: ReadonlySet<string>
+  onPreviewGeometryChange: () => void
+  previewRenderSessionStore: StudioPreviewRenderSessionStore
+  casePreviewScale: number
   selected: { id: string; components: StudioManifestComponent[] }
   selectedCardPathKey?: string
   setCanvasViewportElement: (element: HTMLDivElement | null) => void
   columnLayoutByIndex: Record<number, StudioColumnLayout>
+  renderObservationSnapshot?: StudioPreviewRenderObservationSnapshot
+  renderExpansionCenterPulse?: { id: number; x: number; y: number }
 }
 
 const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
 const canvasWheelExemptSelector = "[data-gtsx-canvas-wheel-exempt]"
-const studioColumnGap = 40
 const studioCanvasRevealMargin = 24
-const studioPreviewRenderIdleDelayMs = 120
 
 function shouldHandleCanvasWheelTarget(target: EventTarget | null): boolean {
   return !(typeof Element !== "undefined" && target instanceof Element && target.closest(canvasWheelExemptSelector))
+}
+
+function shouldClearStudioCanvasSelectionForPointerTarget(target: EventTarget | null): boolean {
+  return typeof Element === "undefined" || !(target instanceof Element) || !target.closest("a,button,iframe")
 }
 
 function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): StudioWorkspaceViewScope {
   const selected = resolveStudioSelection(props.manifest, props.selection)
   const [selectedCardPathKey, setSelectedCardPathKey] = React.useState<string | undefined>()
   const canvasViewportPreset = canvasViewportPresetForWorkspace(props.workspace)
-  const [uncontrolledCanvas, setUncontrolledCanvas] = React.useState<StudioCanvasTransform>(() => defaultStudioCanvasTransform())
-  const canvas = props.canvas ?? uncontrolledCanvas
-  const canvasRef = React.useRef(canvas)
-  const panRef = React.useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null)
-  const [canvasViewportElement, setCanvasViewportElement] = React.useState<HTMLDivElement | null>(null)
-  const [canvasSurfaceElement, setCanvasSurfaceElement] = React.useState<HTMLDivElement | null>(null)
-  const [columnLayoutByIndex, setColumnLayoutByIndex] = React.useState<Record<number, StudioColumnLayout>>({})
-  const [columnMeasurementsByIndex, setColumnMeasurementsByIndex] = React.useState<Record<number, StudioColumnLayoutMeasurement>>({})
-  const [renderPreviewSessionIds, setRenderPreviewSessionIds] = React.useState<Set<string>>(() => new Set())
-  const cardElements = React.useRef(new Map<string, HTMLDivElement>())
-  const columnCardElements = React.useRef(new Map<string, HTMLDivElement>())
-  const columnElements = React.useRef(new Map<number, HTMLElement>())
-  const columnLayoutByIndexRef = React.useRef(columnLayoutByIndex)
-  const columnMeasurementsByIndexRef = React.useRef(columnMeasurementsByIndex)
+  const previewRenderSessionStore = React.useMemo(() => createStudioPreviewRenderSessionStore(), [])
   const canvasViewportPresetRef = React.useRef(canvasViewportPreset)
   const frameStatesRef = React.useRef(props.frameStates)
-  const previewRenderQueueRef = React.useRef(props.previewRenderQueue)
-  const previewRenderActiveTimeout = React.useRef(0)
-  const previewRenderFrame = React.useRef(0)
-  const previewRenderIdleTimeout = React.useRef(0)
-  const previewRenderScheduledCanvas = React.useRef<StudioCanvasTransform | null>(null)
-  const renderPreviewSessionMountedAt = React.useRef(new Map<string, number>())
-  const renderPreviewSessionIdsRef = React.useRef(renderPreviewSessionIds)
-  const workspaceRef = React.useRef(props.workspace)
-  const layoutMeasurementKey = React.useMemo(
-    () => studioWorkspaceLayoutMeasurementKey(props.workspace, canvasViewportPreset, props.frameStates, props.previewCache),
-    [canvasViewportPreset, props.frameStates, props.previewCache, props.workspace],
+  const flushPreviewRenderRef = React.useRef<(nextCanvas?: StudioCanvasTransform, options?: { includeBuffer?: boolean }) => void>(
+    () => {},
   )
+  const requestPreviewRenderRef = React.useRef<(nextCanvas?: StudioCanvasTransform) => void>(() => {})
+  const [renderExpansionCenterPulse, setRenderExpansionCenterPulse] = React.useState<
+    { id: number; x: number; y: number } | undefined
+  >()
+  const [renderObservationSnapshot, setRenderObservationSnapshot] = React.useState<
+    StudioPreviewRenderObservationSnapshot | undefined
+  >()
+  const onSelectComponentRef = React.useRef(props.onSelectComponent)
+  const previewRenderObservationRef = React.useRef(
+    createStudioPreviewRenderObservation({
+      now: () => (typeof performance !== "undefined" ? performance.now() : Date.now()),
+    }),
+  )
+  const previewRenderQueueRef = React.useRef(props.previewRenderQueue)
+  const requestCanvasPreviewRenderRef = React.useRef<(nextCanvas: StudioCanvasTransform) => void>(() => {})
+  const workspaceRef = React.useRef(props.workspace)
   canvasViewportPresetRef.current = canvasViewportPreset
   frameStatesRef.current = props.frameStates
+  onSelectComponentRef.current = props.onSelectComponent
   previewRenderQueueRef.current = props.previewRenderQueue
   workspaceRef.current = props.workspace
 
-  const runPreviewRenderQueue = React.useCallback(
-    (nextCanvas: StudioCanvasTransform = canvasRef.current) => {
-      if (!canvasViewportElement) return
-
-      const viewportRect = canvasViewportElement.getBoundingClientRect()
-      const completedSessionIds = completedStudioPreviewSessionIds(frameStatesRef.current)
-      const previewRenderQueue = previewRenderQueueRef.current
-      const nextSessionIds = queuedStudioPreviewSessionIds({
-        activeSessionIds: activeStudioPreviewSessionIds(
-          renderPreviewSessionIdsRef.current,
-          completedSessionIds,
-          renderPreviewSessionMountedAt.current,
-          previewRenderQueue?.activeTimeoutMs,
-        ),
-        canvas: nextCanvas,
-        completedSessionIds,
-        currentSessionIds: renderPreviewSessionIdsRef.current,
-        items: studioPreviewVisibilityItems(
-          workspaceRef.current,
-          canvasViewportPresetRef.current,
-          columnLayoutByIndexRef.current,
-          columnMeasurementsByIndexRef.current,
-        ),
-        viewport: {
-          bottom: viewportRect.height,
-          left: 0,
-          right: viewportRect.width,
-          top: 0,
-        },
-        ...previewRenderQueue,
-      })
-
-      if (sameStringSet(renderPreviewSessionIdsRef.current, nextSessionIds)) return
-      syncRenderPreviewSessionMountedAt(renderPreviewSessionMountedAt.current, renderPreviewSessionIdsRef.current, nextSessionIds)
-      renderPreviewSessionIdsRef.current = nextSessionIds
-      setRenderPreviewSessionIds(nextSessionIds)
+  const canvasController = useStudioCanvasController({
+    canvas: props.canvas,
+    onCanvasChange: props.onChangeCanvas,
+    onCanvasMove(nextCanvas) {
+      requestCanvasPreviewRenderRef.current(nextCanvas)
     },
-    [canvasViewportElement],
-  )
-
-  const requestPreviewRender = React.useCallback(
-    (nextCanvas: StudioCanvasTransform = canvasRef.current) => {
-      previewRenderScheduledCanvas.current = nextCanvas
-      if (typeof window === "undefined") return
-      if (previewRenderFrame.current) return
-
-      previewRenderFrame.current = window.requestAnimationFrame(() => {
-        previewRenderFrame.current = 0
-        const scheduledCanvas = previewRenderScheduledCanvas.current ?? canvasRef.current
-        previewRenderScheduledCanvas.current = null
-        runPreviewRenderQueue(scheduledCanvas)
-      })
+    onCanvasPanEnd() {
+      flushPreviewRenderRef.current(undefined, { includeBuffer: true })
     },
-    [runPreviewRenderQueue],
-  )
+    shouldHandleWheelTarget: shouldHandleCanvasWheelTarget,
+  })
 
-  const flushPreviewRender = React.useCallback(
-    (nextCanvas: StudioCanvasTransform = canvasRef.current) => {
-      if (typeof window !== "undefined" && previewRenderFrame.current) {
-        window.cancelAnimationFrame(previewRenderFrame.current)
-        previewRenderFrame.current = 0
-      }
-      previewRenderScheduledCanvas.current = null
-      runPreviewRenderQueue(nextCanvas)
-    },
-    [runPreviewRenderQueue],
-  )
+  const handleLayoutMeasured = React.useCallback(() => {
+    requestPreviewRenderRef.current(canvasController.canvasRef.current)
+  }, [canvasController.canvasRef])
 
-  const debouncePreviewRender = React.useCallback(
-    (nextCanvas: StudioCanvasTransform = canvasRef.current) => {
-      if (typeof window === "undefined") return
-      if (previewRenderIdleTimeout.current) window.clearTimeout(previewRenderIdleTimeout.current)
-      previewRenderIdleTimeout.current = window.setTimeout(() => {
-        previewRenderIdleTimeout.current = 0
-        requestPreviewRender(nextCanvas)
-      }, studioPreviewRenderIdleDelayMs)
-    },
-    [requestPreviewRender],
-  )
+  const layout = useStudioCanvasLayout({
+    canvasRef: canvasController.canvasRef,
+    canvasSurfaceElement: canvasController.canvasSurfaceElement,
+    canvasViewportPreset,
+    frameStates: props.frameStates,
+    onLayoutMeasured: handleLayoutMeasured,
+    previewCache: props.previewCache,
+    previewGeometryStore: props.previewGeometryStore,
+    workspace: props.workspace,
+  })
 
-  const scheduleActivePreviewRenderTimeout = React.useCallback(() => {
-    if (typeof window === "undefined") return
+  const { flushPreviewRender, requestCanvasPreviewRender, requestPreviewRender } = useStudioPreviewRenderScheduler({
+    canvasRef: canvasController.canvasRef,
+    canvasViewportElement: canvasController.canvasViewportElement,
+    canvasViewportPresetRef,
+    columnLayoutByIndexRef: layout.columnLayoutByIndexRef,
+    columnMeasurementsByIndexRef: layout.columnMeasurementsByIndexRef,
+    frameStatesRef,
+    previewGeometryStore: props.previewGeometryStore,
+    previewRenderQueueRef,
+    previewRenderSessionStore,
+    workspaceRef,
+  })
+  flushPreviewRenderRef.current = flushPreviewRender
+  requestPreviewRenderRef.current = requestPreviewRender
+  requestCanvasPreviewRenderRef.current = requestCanvasPreviewRender
 
-    if (previewRenderActiveTimeout.current) {
-      window.clearTimeout(previewRenderActiveTimeout.current)
-      previewRenderActiveTimeout.current = 0
+  useStudioLayoutEffect(() => {
+    requestPreviewRender(canvasController.canvasRef.current)
+  }, [canvasController.canvasViewportElement, requestPreviewRender])
+
+  React.useEffect(() => {
+    requestPreviewRender(canvasController.canvasRef.current)
+  }, [canvasViewportPreset, layout.layoutMeasurementKey, requestPreviewRender])
+
+  React.useEffect(() => {
+    if (props.previewGeometryStore) return
+    requestPreviewRender(canvasController.canvasRef.current)
+  }, [props.frameStates, props.previewGeometryStore, requestPreviewRender])
+
+  React.useEffect(() => {
+    if (!props.debugPreviewQueue || typeof window === "undefined") return
+
+    const previewRenderObservation = previewRenderObservationRef.current
+    let clearTimer = 0
+    const publishObservationSnapshot = (snapshot: StudioPreviewRenderObservationSnapshot) => {
+      setRenderObservationSnapshot(snapshot)
+      document.documentElement.setAttribute("data-gtsx-preview-render-observation", JSON.stringify(snapshot))
+      window.dispatchEvent(new CustomEvent("gtsx:preview-render-observation", { detail: snapshot }))
     }
-    const activeTimeoutMs = positivePreviewQueueActiveTimeout(previewRenderQueueRef.current?.activeTimeoutMs)
-    if (activeTimeoutMs === undefined) return
+    const clearPulse = () => {
+      clearTimer = 0
+      setRenderExpansionCenterPulse(undefined)
+    }
+    const handlePreviewQueueDebug = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        renderExpansionCenterViewportPoint?: { x: number; y: number }
+        showRenderExpansionCenterPulse?: boolean
+      }>).detail
+      publishObservationSnapshot(
+        previewRenderObservation.observeQueueRun(
+          detail as StudioPreviewRenderQueueDebugObservationInput,
+        ),
+      )
+      if (!detail?.showRenderExpansionCenterPulse || !detail.renderExpansionCenterViewportPoint) return
 
-    previewRenderActiveTimeout.current = window.setTimeout(() => {
-      previewRenderActiveTimeout.current = 0
-      requestPreviewRender(canvasRef.current)
-    }, activeTimeoutMs + 16)
-  }, [requestPreviewRender])
+      if (clearTimer) window.clearTimeout(clearTimer)
+      setRenderExpansionCenterPulse({
+        id: Date.now(),
+        x: detail.renderExpansionCenterViewportPoint.x,
+        y: detail.renderExpansionCenterViewportPoint.y,
+      })
+      clearTimer = window.setTimeout(clearPulse, 650)
+    }
+    const handlePreviewTiming = (event: Event) => {
+      const detail = (event as CustomEvent<{ sessionId?: string; type?: string }>).detail
+      if (
+        !detail?.sessionId ||
+        (detail.type !== "gtsx:ready" && detail.type !== "gtsx:error")
+      ) {
+        return
+      }
+      publishObservationSnapshot(previewRenderObservation.observePreviewTiming({ sessionId: detail.sessionId, type: detail.type }))
+    }
 
-  const requestCanvasPreviewRender = React.useCallback(
-    (nextCanvas: StudioCanvasTransform = canvasRef.current) => {
-      requestPreviewRender(nextCanvas)
-      debouncePreviewRender(nextCanvas)
-    },
-    [debouncePreviewRender, requestPreviewRender],
-  )
-
-  const applyCanvasSurfaceTransform = React.useCallback(
-    (nextCanvas: StudioCanvasTransform) => {
-      if (canvasSurfaceElement) canvasSurfaceElement.style.transform = studioCanvasTransformStyle(nextCanvas)
-      requestCanvasPreviewRender(nextCanvas)
-    },
-    [canvasSurfaceElement, requestCanvasPreviewRender],
-  )
-
-  React.useEffect(() => {
-    canvasRef.current = canvas
-    applyCanvasSurfaceTransform(canvas)
-  }, [applyCanvasSurfaceTransform, canvas])
-
-  React.useEffect(() => {
-    renderPreviewSessionIdsRef.current = renderPreviewSessionIds
-    requestPreviewRender(canvasRef.current)
-    scheduleActivePreviewRenderTimeout()
-  }, [renderPreviewSessionIds, requestPreviewRender, scheduleActivePreviewRenderTimeout])
-
-  React.useEffect(() => {
-    requestPreviewRender(canvasRef.current)
-  }, [canvasViewportPreset, layoutMeasurementKey, requestPreviewRender])
-
-  React.useEffect(() => {
-    requestPreviewRender(canvasRef.current)
-  }, [props.frameStates, requestPreviewRender])
-
-  React.useEffect(() => {
+    window.addEventListener("gtsx:preview-queue-debug", handlePreviewQueueDebug)
+    window.addEventListener("gtsx:preview-timing", handlePreviewTiming)
     return () => {
-      if (previewRenderActiveTimeout.current) window.clearTimeout(previewRenderActiveTimeout.current)
-      if (previewRenderFrame.current) window.cancelAnimationFrame(previewRenderFrame.current)
-      if (previewRenderIdleTimeout.current) window.clearTimeout(previewRenderIdleTimeout.current)
+      window.removeEventListener("gtsx:preview-queue-debug", handlePreviewQueueDebug)
+      window.removeEventListener("gtsx:preview-timing", handlePreviewTiming)
+      document.documentElement.removeAttribute("data-gtsx-preview-render-observation")
+      if (clearTimer) window.clearTimeout(clearTimer)
     }
-  }, [])
-
-  const setCanvas = React.useCallback(
-    (updater: (current: StudioCanvasTransform) => StudioCanvasTransform) => {
-      const next = updater(canvasRef.current)
-      canvasRef.current = next
-      applyCanvasSurfaceTransform(next)
-      if (props.onChangeCanvas) {
-        props.onChangeCanvas(next)
-      } else {
-        setUncontrolledCanvas(next)
-      }
-    },
-    [applyCanvasSurfaceTransform, props.onChangeCanvas],
-  )
+  }, [props.debugPreviewQueue])
 
   React.useEffect(() => {
     setSelectedCardPathKey(undefined)
   }, [props.selection])
 
-  React.useEffect(() => {
-    if (!canvasViewportElement) return
-
-    const handleWheel = (event: WheelEvent) => {
-      if (!shouldHandleCanvasWheelTarget(event.target)) return
-      event.preventDefault()
-      const rect = canvasViewportElement.getBoundingClientRect()
-      setCanvas((current) =>
-        applyStudioCanvasWheel(current, {
-          clientX: event.clientX,
-          clientY: event.clientY,
-          ctrlKey: event.ctrlKey,
-          deltaMode: event.deltaMode,
-          deltaX: event.deltaX,
-          deltaY: event.deltaY,
-          metaKey: event.metaKey,
-          viewportLeft: rect.left,
-          viewportTop: rect.top,
-        }),
-      )
-    }
-
-    canvasViewportElement.addEventListener("wheel", handleWheel, { passive: false })
-    return () => canvasViewportElement.removeEventListener("wheel", handleWheel)
-  }, [canvasViewportElement, setCanvas])
-
-  const setCardElement = React.useCallback((columnIndex: number, coordinate: string, element: HTMLDivElement | null) => {
-    const key = columnCardElementKey(columnIndex, coordinate)
-    if (element) {
-      cardElements.current.set(coordinate, element)
-      columnCardElements.current.set(key, element)
-    } else {
-      if (cardElements.current.get(coordinate) === columnCardElements.current.get(key)) cardElements.current.delete(coordinate)
-      columnCardElements.current.delete(key)
-    }
-  }, [])
-
-  const setColumnElement = React.useCallback((columnIndex: number, element: HTMLElement | null) => {
-    if (element) {
-      columnElements.current.set(columnIndex, element)
-    } else {
-      columnElements.current.delete(columnIndex)
-    }
-  }, [])
-
   const revealCardOnCanvas = React.useCallback(
-    (columnIndex: number, coordinate: string) => {
-      if (!canvasViewportElement) return
-      const cardElement = columnCardElements.current.get(columnCardElementKey(columnIndex, coordinate)) ?? cardElements.current.get(coordinate)
+    (columnIndex: number, coordinate: string, options: { preserveVerticalCanvasPosition?: boolean } = {}) => {
+      if (!canvasController.canvasViewportElement) return
+      const cardElement = layout.getCardElement(columnIndex, coordinate)
       if (!cardElement) return
 
-      const nextCanvas = revealStudioCanvasRect(canvasRef.current, {
+      const currentCanvas = canvasController.canvasRef.current
+      const nextCanvas = revealStudioCanvasRect(currentCanvas, {
         margin: studioCanvasRevealMargin,
         rect: domRectToStudioCanvasScreenRect(cardElement.getBoundingClientRect()),
-        viewportRect: domRectToStudioCanvasScreenRect(canvasViewportElement.getBoundingClientRect()),
+        viewportRect: domRectToStudioCanvasScreenRect(canvasController.canvasViewportElement.getBoundingClientRect()),
       })
-      if (nextCanvas !== canvasRef.current) setCanvas(() => nextCanvas)
+      const revealCanvas = options.preserveVerticalCanvasPosition ? { ...nextCanvas, y: currentCanvas.y } : nextCanvas
+      if (revealCanvas !== currentCanvas) canvasController.moveCanvas(() => revealCanvas)
     },
-    [canvasViewportElement, setCanvas],
+    [canvasController, layout.getCardElement],
   )
 
   const scheduleRevealCardOnCanvas = React.useCallback(
-    (columnIndex: number, coordinate: string) => {
-      revealCardOnCanvas(columnIndex, coordinate)
+    (columnIndex: number, coordinate: string, options: { preserveVerticalCanvasPosition?: boolean } = {}) => {
+      revealCardOnCanvas(columnIndex, coordinate, options)
       if (typeof window === "undefined") return
-      window.requestAnimationFrame(() => revealCardOnCanvas(columnIndex, coordinate))
+      window.requestAnimationFrame(() => revealCardOnCanvas(columnIndex, coordinate, options))
     },
     [revealCardOnCanvas],
   )
 
-  useStudioLayoutEffect(() => {
-    if (!canvasSurfaceElement) return
-
-    const nextMeasurementsByIndex: Record<number, StudioColumnLayoutMeasurement> = {}
-
-    props.workspace.columns.forEach((column, columnIndex) => {
-      const columnElement = columnElements.current.get(columnIndex)
-      if (!columnElement) return
-
-      const columnRect = columnElement.getBoundingClientRect()
-      const cardRectsByCoordinate: Record<string, StudioCanvasScreenRect> = {}
-      for (const component of column.components) {
-        const cardElement = columnCardElements.current.get(columnCardElementKey(columnIndex, component.coordinate))
-        if (!cardElement) continue
-        cardRectsByCoordinate[component.coordinate] = domRectToLocalStudioCanvasScreenRect(
-          cardElement.getBoundingClientRect(),
-          columnRect,
-          canvasRef.current.scale,
-        )
-      }
-      nextMeasurementsByIndex[columnIndex] = {
-        cardRectsByCoordinate,
-        height: columnRect.height / canvasRef.current.scale,
-      }
-    })
-
-    const nextLayoutByIndex = computeStudioColumnLayout({
-      columns: props.workspace.columns.map((column) => ({
-        componentCoordinates: column.components.map((component) => component.coordinate),
-        parentCoordinate: column.parentCoordinate,
-      })),
-      margin: studioColumnGap,
-      measurementsByIndex: nextMeasurementsByIndex,
-    })
-
-    columnMeasurementsByIndexRef.current = nextMeasurementsByIndex
-    columnLayoutByIndexRef.current = nextLayoutByIndex
-    setColumnMeasurementsByIndex((current) =>
-      sameColumnMeasurementRecord(current, nextMeasurementsByIndex) ? current : nextMeasurementsByIndex,
-    )
-    setColumnLayoutByIndex((current) => (sameColumnLayoutRecord(current, nextLayoutByIndex) ? current : nextLayoutByIndex))
-    flushPreviewRender(canvasRef.current)
-  }, [canvasSurfaceElement, flushPreviewRender, layoutMeasurementKey, props.workspace.columns])
-
-  return {
-    canvas,
-    canvasViewportPreset,
-    columnLayoutByIndex,
-    onCanvasPointerCancel(event) {
-      if (panRef.current?.pointerId === event.pointerId) {
-        panRef.current = null
-        flushPreviewRender()
-      }
-    },
-    onCanvasPointerDown(event) {
-      if ((event.target as HTMLElement).closest("a,button,iframe")) return
-      setSelectedCardPathKey(undefined)
-      panRef.current = {
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        originX: canvasRef.current.x,
-        originY: canvasRef.current.y,
-      }
-      try {
-        event.currentTarget.setPointerCapture(event.pointerId)
-      } catch {
-        // Browsers can cancel trackpad pointer streams before React handles them.
-      }
-    },
-    onCanvasPointerMove(event) {
-      const pan = panRef.current
-      if (!pan || pan.pointerId !== event.pointerId) return
-      setCanvas((current) => ({
-        ...current,
-        x: pan.originX + event.clientX - pan.startX,
-        y: pan.originY + event.clientY - pan.startY,
-      }))
-    },
-    onCanvasPointerUp(event) {
-      if (panRef.current?.pointerId === event.pointerId) {
-        panRef.current = null
-        flushPreviewRender()
-      }
-    },
-    onChangeSelection: props.onChangeSelection
-      ? (nextSelection) => {
-          setSelectedCardPathKey(undefined)
-          props.onChangeSelection?.(nextSelection)
-        }
-      : undefined,
-    onSelectCard(component, caseFrameStates, columnIndex, source) {
-      const nextSelectedCardPathKey = studioPathKey(studioComponentPathForColumn(props.workspace, columnIndex, component.coordinate))
+  const handleSelectCard = React.useCallback(
+    (
+      component: StudioManifestComponent,
+      caseFrameStates: Record<string, StudioPreviewFrameState | undefined>,
+      columnIndex: number,
+      source: "keyboard" | "pointer",
+    ) => {
+      const nextSelectedCardPathKey = studioPathKey(studioComponentPathForColumn(workspaceRef.current, columnIndex, component.coordinate))
       setSelectedCardPathKey((current) => {
         const nextCoordinate = applyStudioCardSelectionAction(current === nextSelectedCardPathKey ? component.coordinate : undefined, {
           type: "activate-card",
@@ -470,9 +305,33 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
         })
         return nextCoordinate ? nextSelectedCardPathKey : undefined
       })
-      props.onSelectComponent?.(component, caseFrameStates, { columnIndex })
-      scheduleRevealCardOnCanvas(columnIndex, component.coordinate)
+      onSelectComponentRef.current?.(component, caseFrameStates, { columnIndex })
+      scheduleRevealCardOnCanvas(columnIndex, component.coordinate, {
+        preserveVerticalCanvasPosition: source === "pointer",
+      })
     },
+    [scheduleRevealCardOnCanvas],
+  )
+
+  return {
+    canvas: canvasController.canvas,
+    canvasViewportPreset,
+    columnLayoutByIndex: layout.columnLayoutByIndex,
+    onCanvasPointerCancel: canvasController.onCanvasPointerCancel,
+    onCanvasPointerDown(event) {
+      if (shouldClearStudioCanvasSelectionForPointerTarget(event.target)) setSelectedCardPathKey(undefined)
+      canvasController.onCanvasPointerDown(event)
+    },
+    onCanvasPointerMove: canvasController.onCanvasPointerMove,
+    onCanvasPointerUp: canvasController.onCanvasPointerUp,
+    onChangeSelection: props.onChangeSelection
+      ? (nextSelection) => {
+          setSelectedCardPathKey(undefined)
+          props.onChangeSelection?.(nextSelection)
+        }
+      : undefined,
+    onSelectCard: handleSelectCard,
+    onPreviewGeometryChange: layout.scheduleMeasurement,
     onViewportPresetChange(preset) {
       if (props.onChangeCanvasViewportPreset) {
         props.onChangeCanvasViewportPreset(preset)
@@ -480,13 +339,16 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
         for (const component of visibleWorkspaceComponents(props.workspace)) props.onChangeViewportPreset?.(component, preset)
       }
     },
-    renderPreviewSessionIds,
+    casePreviewScale: layout.casePreviewScale,
+    renderObservationSnapshot,
+    renderExpansionCenterPulse,
+    previewRenderSessionStore,
     selected,
     selectedCardPathKey,
-    setCanvasSurfaceElement,
-    setCanvasViewportElement,
-    setCardElement,
-    setColumnElement,
+    setCanvasSurfaceElement: canvasController.setCanvasSurfaceElement,
+    setCanvasViewportElement: canvasController.setCanvasViewportElement,
+    setCardElement: layout.setCardElement,
+    setColumnElement: layout.setColumnElement,
   }
 }
 
@@ -495,375 +357,219 @@ const useStudioWorkspaceViewScope = createGScopeHook(useRealStudioWorkspaceViewS
 export default function Studio(props: StudioWorkspaceViewProps) {
   const scope = useStudioWorkspaceViewScope(props)
   const previewCacheReady = props.previewCacheReady ?? true
-  const canvasCasePreviewScale = studioCanvasCasePreviewScale(
-    props.workspace,
-    scope.canvasViewportPreset,
-    props.frameStates,
-    props.previewCache,
-  )
+  const initialCanvasSurfaceTransform = typeof window === "undefined" ? studioCanvasTransformStyle(scope.canvas) : undefined
 
   return (
-    <main
+    <StudioPreviewRenderSessionStoreProvider store={scope.previewRenderSessionStore}>
+      <main
+        style={{
+          display: "grid",
+          height: "100vh",
+          overflow: "hidden",
+          background: "#f5f6f8",
+          color: "#1f2328",
+          fontFamily: "ui-sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+        }}
+      >
+        <section style={{ display: "grid", minHeight: 0, minWidth: 0 }}>
+          <div
+            aria-label="GTSX Studio canvas viewport"
+            data-gtsx-canvas-viewport
+            onPointerDown={scope.onCanvasPointerDown}
+            onPointerMove={scope.onCanvasPointerMove}
+            onPointerUp={scope.onCanvasPointerUp}
+            onPointerCancel={scope.onCanvasPointerCancel}
+            ref={scope.setCanvasViewportElement}
+            aria-busy={previewCacheReady ? undefined : true}
+            style={{
+              backgroundColor: "#f5f6f8",
+              backgroundImage: "radial-gradient(circle at 1px 1px, rgba(31,35,40,0.10) 1px, transparent 0)",
+              backgroundSize: "24px 24px",
+              cursor: "grab",
+              height: "100%",
+              minHeight: 0,
+              overscrollBehavior: "none",
+              overflow: "hidden",
+              position: "relative",
+              touchAction: "none",
+            }}
+            role="application"
+            tabIndex={0}
+          >
+            <ViewportPresetTabs floating onChange={scope.onViewportPresetChange} selectedPreset={scope.canvasViewportPreset} />
+            {scope.renderExpansionCenterPulse ? (
+              <span
+                aria-label="Preview render expansion center"
+                data-gtsx-preview-render-expansion-center-pulse="true"
+                key={scope.renderExpansionCenterPulse.id}
+                style={{
+                  background: "rgba(13,153,255,0.24)",
+                  border: "2px solid #0d99ff",
+                  borderRadius: 999,
+                  boxShadow: "0 0 0 6px rgba(13,153,255,0.14)",
+                  height: 18,
+                  left: scope.renderExpansionCenterPulse.x,
+                  pointerEvents: "none",
+                  position: "absolute",
+                  top: scope.renderExpansionCenterPulse.y,
+                  transform: "translate(-50%, -50%)",
+                  width: 18,
+                  zIndex: 4,
+                }}
+              />
+            ) : null}
+            {props.urlWarning ? (
+              <p
+                role="status"
+                style={{
+                  background: "#fff8c5",
+                  border: "1px solid #d4a72c",
+                  borderRadius: 8,
+                  color: "#5a1e02",
+                  fontSize: 12,
+                  left: 16,
+                  lineHeight: 1.45,
+                  margin: 0,
+                  maxWidth: 280,
+                  padding: "8px 10px",
+                  position: "absolute",
+                  top: 16,
+                  zIndex: 3,
+                }}
+              >
+                {props.urlWarning}
+              </p>
+            ) : null}
+            {props.debugPreviewQueue && scope.renderObservationSnapshot ? (
+              <StudioPreviewRenderObservationPanel snapshot={scope.renderObservationSnapshot} />
+            ) : null}
+            {previewCacheReady ? (
+              <div
+                data-gtsx-canvas-surface
+                ref={scope.setCanvasSurfaceElement}
+                style={{
+                  display: "block",
+                  left: 0,
+                  padding: "0 80px 80px 0",
+                  position: "absolute",
+                  top: 0,
+                  ...(initialCanvasSurfaceTransform ? { transform: initialCanvasSurfaceTransform } : {}),
+                  transformOrigin: "0 0",
+                }}
+              >
+                {props.workspace.columns.map((column, columnIndex) => (
+                  <section
+                    data-gtsx-column-index={columnIndex}
+                    data-gtsx-column-layout-x={scope.columnLayoutByIndex[columnIndex]?.x ?? 0}
+                    data-gtsx-column-layout-y={scope.columnLayoutByIndex[columnIndex]?.y ?? 0}
+                    data-gtsx-column-parent-coordinate={column.parentCoordinate}
+                    key={columnIndex}
+                    ref={(element) => scope.setColumnElement(columnIndex, element)}
+                    style={{
+                      display: "grid",
+                      gap: 10,
+                      left: scope.columnLayoutByIndex[columnIndex]?.x ?? 0,
+                      position: "absolute",
+                      top: scope.columnLayoutByIndex[columnIndex]?.y ?? 0,
+                      width: "max-content",
+                    }}
+                  >
+                    {column.components.map((component) => {
+                      const componentPathKey = studioPathKey(
+                        studioComponentPathForColumn(props.workspace, columnIndex, component.coordinate),
+                      )
+                      return (
+                        <div
+                          key={component.coordinate}
+                          ref={(element) => scope.setCardElement(columnIndex, component.coordinate, element)}
+                          style={{ display: "grid", justifySelf: "start", width: "max-content" }}
+                        >
+                          <StudioComponentCardSlot
+                            casePreviewScale={scope.casePreviewScale}
+                            columnIndex={columnIndex}
+                            component={component}
+                            debugPreviewPool={props.debugPreviewPool}
+                            debugPreviewQueue={props.debugPreviewQueue}
+                            fallbackFrameStates={props.frameStates}
+                            fallbackPreviewCache={props.previewCache}
+                            manifest={props.manifest}
+                            onPreviewFrameMount={props.onPreviewFrameMount}
+                            onPreviewGeometryChange={scope.onPreviewGeometryChange}
+                            onSelect={scope.onSelectCard}
+                            previewGeometryStore={props.previewGeometryStore}
+                            selected={scope.selectedCardPathKey === componentPathKey}
+                            selectedCaseName={selectedStudioCaseName(props.workspace, component)}
+                            viewportPreset={scope.canvasViewportPreset}
+                          />
+                        </div>
+                      )
+                    })}
+                  </section>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </section>
+      </main>
+    </StudioPreviewRenderSessionStoreProvider>
+  )
+}
+
+function StudioPreviewRenderObservationPanel(props: {
+  snapshot: StudioPreviewRenderObservationSnapshot
+}) {
+  const scrollResponse = props.snapshot.scrollResponse
+  const fullRender = props.snapshot.fullRender
+
+  return (
+    <aside
+      aria-label="Preview render observation"
+      data-gtsx-preview-render-observation-panel="true"
       style={{
-        display: "grid",
-        height: "100vh",
-        overflow: "hidden",
-        background: "#f5f6f8",
+        background: "rgba(255,255,255,0.92)",
+        border: "1px solid rgba(216,222,228,0.95)",
+        borderRadius: 6,
+        bottom: 12,
+        boxShadow: "0 3px 12px rgba(31,35,40,0.14)",
         color: "#1f2328",
-        fontFamily: "ui-sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+        display: "grid",
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+        fontSize: 11,
+        gap: 3,
+        left: 12,
+        lineHeight: 1.35,
+        padding: "7px 9px",
+        pointerEvents: "none",
+        position: "absolute",
+        zIndex: 5,
       }}
     >
-      <section style={{ display: "grid", minHeight: 0, minWidth: 0 }}>
-        <div
-          aria-label="GTSX Studio canvas viewport"
-          data-gtsx-canvas-viewport
-          onPointerDown={scope.onCanvasPointerDown}
-          onPointerMove={scope.onCanvasPointerMove}
-          onPointerUp={scope.onCanvasPointerUp}
-          onPointerCancel={scope.onCanvasPointerCancel}
-          ref={scope.setCanvasViewportElement}
-          aria-busy={previewCacheReady ? undefined : true}
-          style={{
-            backgroundColor: "#f5f6f8",
-            backgroundImage: "radial-gradient(circle at 1px 1px, rgba(31,35,40,0.10) 1px, transparent 0)",
-            backgroundSize: "24px 24px",
-            cursor: "grab",
-            height: "100%",
-            minHeight: 0,
-            overscrollBehavior: "contain",
-            overflow: "hidden",
-            position: "relative",
-            touchAction: "none",
-          }}
-          role="application"
-          tabIndex={0}
-        >
-          <ViewportPresetTabs floating onChange={scope.onViewportPresetChange} selectedPreset={scope.canvasViewportPreset} />
-          {props.urlWarning ? (
-            <p
-              role="status"
-              style={{
-                background: "#fff8c5",
-                border: "1px solid #d4a72c",
-                borderRadius: 8,
-                color: "#5a1e02",
-                fontSize: 12,
-                left: 16,
-                lineHeight: 1.45,
-                margin: 0,
-                maxWidth: 280,
-                padding: "8px 10px",
-                position: "absolute",
-                top: 16,
-                zIndex: 3,
-              }}
-            >
-              {props.urlWarning}
-            </p>
-          ) : null}
-          {previewCacheReady ? (
-            <div
-              data-gtsx-canvas-surface
-              ref={scope.setCanvasSurfaceElement}
-              style={{
-                display: "block",
-                left: 0,
-                padding: "0 80px 80px 0",
-                position: "absolute",
-                top: 0,
-                transform: studioCanvasTransformStyle(scope.canvas),
-                transformOrigin: "0 0",
-              }}
-            >
-              {props.workspace.columns.map((column, columnIndex) => (
-                <section
-                  data-gtsx-column-index={columnIndex}
-                  data-gtsx-column-layout-x={scope.columnLayoutByIndex[columnIndex]?.x ?? 0}
-                  data-gtsx-column-layout-y={scope.columnLayoutByIndex[columnIndex]?.y ?? 0}
-                  data-gtsx-column-parent-coordinate={column.parentCoordinate}
-                  key={columnIndex}
-                  ref={(element) => scope.setColumnElement(columnIndex, element)}
-                  style={{
-                    display: "grid",
-                    gap: 10,
-                    left: scope.columnLayoutByIndex[columnIndex]?.x ?? 0,
-                    position: "absolute",
-                    top: scope.columnLayoutByIndex[columnIndex]?.y ?? 0,
-                    width: "max-content",
-                  }}
-                >
-                  {column.components.map((component) => {
-                    const caseFrameStates = studioComponentCaseFrameStates(
-                      component,
-                      scope.canvasViewportPreset,
-                      props.frameStates,
-                      props.previewCache,
-                    )
-                    const componentPathKey = studioPathKey(studioComponentPathForColumn(props.workspace, columnIndex, component.coordinate))
-                    return (
-                      <div
-                        key={component.coordinate}
-                        ref={(element) => scope.setCardElement(columnIndex, component.coordinate, element)}
-                        style={{ display: "grid", justifySelf: "start", width: "max-content" }}
-                      >
-                        <ComponentCard
-                          caseFrameStates={caseFrameStates}
-                          casePreviewScale={canvasCasePreviewScale}
-                          component={component}
-                          debugPreviewPool={props.debugPreviewPool}
-                          manifest={props.manifest}
-                          onPreviewFrameMount={props.onPreviewFrameMount}
-                          onSelect={(selectedComponent, selectedCaseFrameStates, source) =>
-                            scope.onSelectCard(selectedComponent, selectedCaseFrameStates, columnIndex, source)
-                          }
-                          renderPreviewSessionIds={scope.renderPreviewSessionIds}
-                          selected={scope.selectedCardPathKey === componentPathKey}
-                          selectedCaseName={selectedStudioCaseName(props.workspace, component)}
-                          viewportPreset={scope.canvasViewportPreset}
-                        />
-                      </div>
-                    )
-                  })}
-                </section>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      </section>
-    </main>
+      <span data-gtsx-preview-render-observation-scroll="true">
+        scroll{" "}
+        {scrollResponse
+          ? `${formatObservationMilliseconds(
+              scrollResponse.firstVisibleCompletionMilliseconds,
+            )} ${scrollResponse.completedVisibleSessionCount}/${scrollResponse.visibleSessionCount}`
+          : "idle"}
+      </span>
+      <span data-gtsx-preview-render-observation-full="true">
+        full{" "}
+        {fullRender
+          ? `${formatObservationMilliseconds(fullRender.latestCompletionMilliseconds)} ${fullRender.completedSessionCount}/${
+              fullRender.sessionCount
+            } ${formatObservationRate(fullRender.renderCompletionsPerSecond)}`
+          : "idle"}
+      </span>
+    </aside>
   )
 }
 
-function domRectToStudioCanvasScreenRect(rect: DOMRect): StudioCanvasScreenRect {
-  return {
-    bottom: rect.bottom,
-    left: rect.left,
-    right: rect.right,
-    top: rect.top,
-  }
+function formatObservationMilliseconds(value: number | undefined): string {
+  return typeof value === "number" ? `${value}ms` : "..."
 }
 
-function domRectToLocalStudioCanvasScreenRect(rect: DOMRect, originRect: DOMRect, scale: number): StudioCanvasScreenRect {
-  return {
-    bottom: (rect.bottom - originRect.top) / scale,
-    left: (rect.left - originRect.left) / scale,
-    right: (rect.right - originRect.left) / scale,
-    top: (rect.top - originRect.top) / scale,
-  }
-}
-
-function studioCanvasTransformStyle(canvas: StudioCanvasTransform): string {
-  return `translate(${canvas.x}px, ${canvas.y}px) scale(${canvas.scale})`
-}
-
-function studioComponentPathForColumn(workspace: StudioWorkspaceState, columnIndex: number, coordinate: string): string[] {
-  return [...workspace.selectedCoordinatePath.slice(0, columnIndex), coordinate]
-}
-
-function studioPathKey(path: string[]): string {
-  return path.join("\n")
-}
-
-function studioWorkspaceLayoutMeasurementKey(
-  workspace: StudioWorkspaceState,
-  viewportPreset: StudioViewportPreset,
-  frameStates: Record<string, StudioPreviewFrameState> | undefined,
-  previewCache: Record<string, StudioPreviewCacheEntry> | undefined,
-): string {
-  return workspace.columns
-    .map((column) =>
-      column.components
-        .map((component) => {
-          return component.cases
-            .map((testCase) => {
-              const sessionId = previewSessionId(component, testCase.name, viewportPreset)
-              const cacheKey = studioPreviewCacheKey(component, testCase.name, viewportPreset)
-              const frameState = mergeStudioPreviewFrameState(
-                sessionId,
-                frameStates?.[sessionId],
-                previewCache?.[cacheKey]?.frameState,
-              )
-              return `${component.coordinate}:${testCase.name}:${studioPreviewLayoutSignature(frameState)}`
-            })
-            .join(";")
-        })
-        .join(","),
-    )
-    .join("|")
-}
-
-function studioComponentCaseFrameStates(
-  component: StudioManifestComponent,
-  viewportPreset: StudioViewportPreset,
-  frameStates: Record<string, StudioPreviewFrameState> | undefined,
-  previewCache: Record<string, StudioPreviewCacheEntry> | undefined,
-): Record<string, StudioPreviewFrameState | undefined> {
-  return Object.fromEntries(
-    component.cases.map((testCase) => {
-      const sessionId = previewSessionId(component, testCase.name, viewportPreset)
-      const cacheKey = studioPreviewCacheKey(component, testCase.name, viewportPreset)
-      return [
-        testCase.name,
-        mergeStudioPreviewFrameState(sessionId, frameStates?.[sessionId], previewCache?.[cacheKey]?.frameState),
-      ] as const
-    }),
-  )
-}
-
-function completedStudioPreviewSessionIds(frameStates: Record<string, StudioPreviewFrameState> | undefined): Set<string> {
-  const sessionIds = new Set<string>()
-  if (!frameStates) return sessionIds
-
-  for (const [sessionId, frameState] of Object.entries(frameStates)) {
-    if (frameState.ready || frameState.error) sessionIds.add(sessionId)
-  }
-
-  return sessionIds
-}
-
-function activeStudioPreviewSessionIds(
-  currentSessionIds: ReadonlySet<string>,
-  completedSessionIds: ReadonlySet<string>,
-  mountedAt: ReadonlyMap<string, number>,
-  timeoutMs: number | undefined,
-): Set<string> {
-  const sessionIds = new Set<string>()
-  const now = studioPerformanceNow()
-
-  for (const sessionId of currentSessionIds) {
-    if (completedSessionIds.has(sessionId)) continue
-    const startedAt = mountedAt.get(sessionId) ?? now
-    if (timeoutMs === undefined || now - startedAt < timeoutMs) sessionIds.add(sessionId)
-  }
-
-  return sessionIds
-}
-
-function positivePreviewQueueActiveTimeout(value: number | undefined): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined
-}
-
-function syncRenderPreviewSessionMountedAt(
-  mountedAt: Map<string, number>,
-  currentSessionIds: ReadonlySet<string>,
-  nextSessionIds: ReadonlySet<string>,
-) {
-  const now = studioPerformanceNow()
-  for (const sessionId of nextSessionIds) {
-    if (!currentSessionIds.has(sessionId) && !mountedAt.has(sessionId)) mountedAt.set(sessionId, now)
-  }
-  for (const sessionId of mountedAt.keys()) {
-    if (!nextSessionIds.has(sessionId)) mountedAt.delete(sessionId)
-  }
-}
-
-function studioPerformanceNow(): number {
-  return typeof performance !== "undefined" ? performance.now() : Date.now()
-}
-
-function studioCanvasCasePreviewScale(
-  workspace: StudioWorkspaceState,
-  viewportPreset: StudioViewportPreset,
-  frameStates: Record<string, StudioPreviewFrameState> | undefined,
-  previewCache: Record<string, StudioPreviewCacheEntry> | undefined,
-): number {
-  const scales = visibleWorkspaceComponents(workspace).map((component) => {
-    const caseFrameStates = studioComponentCaseFrameStates(component, viewportPreset, frameStates, previewCache)
-    return computeStudioCaseGridLayout({
-      caseChromeHeight: studioComponentCaseChromeHeight,
-      gap: studioComponentCaseGridGap,
-      items: studioComponentCaseGridItems(component, caseFrameStates, viewportPreset),
-      maxSide: studioCaseGridMaxSide(viewportPreset, component.cases.length),
-      minScale: studioComponentCaseGridMinScale,
-    }).previewScale
-  })
-
-  return scales.length > 0 ? Math.min(1, ...scales) : 1
-}
-
-function studioComponentCaseGridItems(
-  component: StudioManifestComponent,
-  caseFrameStates: Record<string, StudioPreviewFrameState | undefined>,
-  viewportPreset: StudioViewportPreset,
-): StudioCaseGridItemLayout[] {
-  return component.cases.map((testCase) => {
-    const frameState = caseFrameStates[testCase.name]
-    const displaySize = studioPreviewFrameSize(viewportPreset, frameState?.size)
-    const boundaryRect = studioBoundaryRectForComponent(frameState?.tree, component.coordinate)
-    const visibleBoundaryRect = clipPreviewBoundaryRectToViewport(boundaryRect, displaySize)
-
-    return {
-      height: previewFrameLayoutHeight(displaySize, visibleBoundaryRect),
-      width: Number(previewFrameLayoutWidth(displaySize, visibleBoundaryRect)),
-    }
-  })
-}
-
-function studioBoundaryRectForComponent(tree: GBoundaryTreeNode[] | undefined, coordinate: string): GBoundaryRect | undefined {
-  return tree ? findStudioBoundaryNode(tree, coordinate)?.rect : undefined
-}
-
-function findStudioBoundaryNode(tree: GBoundaryTreeNode[], coordinate: string): GBoundaryTreeNode | undefined {
-  for (const node of tree) {
-    if (node.coordinate === coordinate) return node
-    const childMatch = findStudioBoundaryNode(node.children, coordinate)
-    if (childMatch) return childMatch
-  }
-
-  return undefined
-}
-
-function studioPreviewVisibilityItems(
-  workspace: StudioWorkspaceState,
-  viewportPreset: StudioViewportPreset,
-  columnLayoutByIndex: Record<number, StudioColumnLayout>,
-  columnMeasurementsByIndex: Record<number, StudioColumnLayoutMeasurement>,
-): StudioCanvasPreviewVisibilityItem[] {
-  const items: StudioCanvasPreviewVisibilityItem[] = []
-
-  workspace.columns.forEach((column, columnIndex) => {
-    const columnLayout = columnLayoutByIndex[columnIndex] ?? { x: 0, y: 0 }
-    const cardRectsByCoordinate = columnMeasurementsByIndex[columnIndex]?.cardRectsByCoordinate ?? {}
-
-    for (const component of column.components) {
-      const cardRect = cardRectsByCoordinate[component.coordinate]
-      if (!cardRect) continue
-
-      items.push({
-        rect: {
-          bottom: columnLayout.y + cardRect.bottom,
-          left: columnLayout.x + cardRect.left,
-          right: columnLayout.x + cardRect.right,
-          top: columnLayout.y + cardRect.top,
-        },
-        sessionIds: component.cases.map((testCase) => previewSessionId(component, testCase.name, viewportPreset)),
-      })
-    }
-  })
-
-  return items
-}
-
-function studioPreviewLayoutSignature(frameState: StudioPreviewFrameState | undefined): string {
-  if (!frameState) return "pending"
-  const size = frameState.size ? `${frameState.size.width}x${frameState.size.height}` : "-"
-  return `${size}:${boundaryTreeLayoutSignature(frameState.tree)}`
-}
-
-function boundaryTreeLayoutSignature(tree: StudioPreviewFrameState["tree"]): string {
-  if (!tree) return "-"
-  const parts: string[] = []
-  const visit = (node: NonNullable<StudioPreviewFrameState["tree"]>[number]) => {
-    const rect = node.rect ? `${node.rect.x},${node.rect.y},${node.rect.width},${node.rect.height}` : "-"
-    parts.push(`${node.coordinate}@${rect}`)
-    for (const child of node.children) visit(child)
-  }
-  for (const node of tree) visit(node)
-  return parts.join(";")
-}
-
-function columnCardElementKey(columnIndex: number, coordinate: string): string {
-  return `${columnIndex}\n${coordinate}`
+function formatObservationRate(value: number | undefined): string {
+  return typeof value === "number" ? `${value}/s` : ".../s"
 }
 
 Studio.cases = {
@@ -928,14 +634,16 @@ Studio.cases = {
     scope: {
       canvas: { x: 40, y: 40, scale: 1 },
       canvasViewportPreset: "tablet",
+      casePreviewScale: 1,
       columnLayoutByIndex: {},
       onCanvasPointerCancel() {},
       onCanvasPointerDown() {},
       onCanvasPointerMove() {},
       onCanvasPointerUp() {},
+      onPreviewGeometryChange() {},
       onSelectCard() {},
       onViewportPresetChange() {},
-      renderPreviewSessionIds: new Set(),
+      previewRenderSessionStore: createStudioPreviewRenderSessionStore(),
       selected: { id: "file:src/MultiExport.g.tsx", components: [] },
       setCanvasSurfaceElement() {},
       setCanvasViewportElement() {},
@@ -944,55 +652,3 @@ Studio.cases = {
     },
   },
 } satisfies GCases<StudioWorkspaceViewProps, StudioWorkspaceViewScope>
-
-function sameColumnLayoutRecord(left: Record<number, StudioColumnLayout>, right: Record<number, StudioColumnLayout>): boolean {
-  const leftKeys = Object.keys(left)
-  const rightKeys = Object.keys(right)
-  if (leftKeys.length !== rightKeys.length) return false
-
-  return leftKeys.every((key) => {
-    const leftLayout = left[Number(key)]
-    const rightLayout = right[Number(key)]
-    return leftLayout?.x === rightLayout?.x && leftLayout?.y === rightLayout?.y
-  })
-}
-
-function sameColumnMeasurementRecord(
-  left: Record<number, StudioColumnLayoutMeasurement>,
-  right: Record<number, StudioColumnLayoutMeasurement>,
-): boolean {
-  const leftKeys = Object.keys(left)
-  const rightKeys = Object.keys(right)
-  if (leftKeys.length !== rightKeys.length) return false
-
-  return leftKeys.every((key) => {
-    const columnIndex = Number(key)
-    const leftMeasurement = left[columnIndex]
-    const rightMeasurement = right[columnIndex]
-    if (!leftMeasurement || !rightMeasurement || leftMeasurement.height !== rightMeasurement.height) return false
-    return sameCardRectRecord(leftMeasurement.cardRectsByCoordinate, rightMeasurement.cardRectsByCoordinate)
-  })
-}
-
-function sameCardRectRecord(
-  left: Record<string, StudioCanvasScreenRect>,
-  right: Record<string, StudioCanvasScreenRect>,
-): boolean {
-  const leftKeys = Object.keys(left)
-  const rightKeys = Object.keys(right)
-  if (leftKeys.length !== rightKeys.length) return false
-
-  return leftKeys.every((key) => sameRect(left[key], right[key]))
-}
-
-function sameRect(left: StudioViewportRect | undefined, right: StudioViewportRect | undefined): boolean {
-  return left?.bottom === right?.bottom && left?.left === right?.left && left?.right === right?.right && left?.top === right?.top
-}
-
-function sameStringSet(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
-  if (left.size !== right.size) return false
-  for (const value of left) {
-    if (!right.has(value)) return false
-  }
-  return true
-}

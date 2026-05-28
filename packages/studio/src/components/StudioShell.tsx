@@ -5,8 +5,6 @@ import type { GPreviewProtocolMessage } from "gtsx"
 
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import {
-  applyStudioPreviewMessage,
-  applyStudioPreviewMessageToFrameStates,
   canvasViewportPresetForWorkspace,
   changeStudioCanvasViewportPreset,
   changeStudioViewportPreset,
@@ -18,26 +16,28 @@ import {
   isGPreviewProtocolMessage,
   isStudioPreviewPoolDisabled,
   isStudioPreviewPoolDebugEnabled,
+  isStudioPreviewQueueDebugEnabled,
   pushStudioWorkspaceUrlState,
   replaceStudioCanvasUrlState,
   selectStudioComponent,
-  studioPreviewWarmupTargets,
   type StudioCanvasTransform,
   type StudioComponentSelectionOptions,
-  type StudioPreviewCacheEntry,
   type StudioPreviewFrameState,
-  type StudioPreviewWarmupTarget,
+  type StudioPreviewTarget,
   type StudioViewportPreset,
   type StudioWorkspaceState,
 } from "../client"
+import { studioPreviewIndexedDBNamespace } from "../preview-cache-indexeddb"
 import {
-  readStudioPreviewIndexedDBCache,
-  studioPreviewIndexedDBNamespace,
-  writeStudioPreviewIndexedDBCache,
-} from "../preview-cache-indexeddb"
+  createStudioPreviewGeometryCacheStore,
+  studioPreviewGeometryCacheKeys,
+  type StudioPreviewGeometryCacheMessage,
+  type StudioPreviewGeometryCacheStore,
+} from "../preview-geometry-cache-store"
 import { studioPreviewRenderQueueOptionsFromParams, type StudioPreviewRenderQueueOptions } from "../preview-render-queue"
 import { StudioPreviewIframePoolProvider } from "../preview-iframe-pool"
-import StudioPreviewIframe from "./StudioPreviewIframe"
+import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
+import { createStudioPreviewMessageFlush } from "../studio-preview-message-flush"
 import StudioWorkspaceView from "./StudioWorkspaceView.g"
 
 export type StudioShellProps = {
@@ -50,30 +50,37 @@ export type StudioShellProps = {
 type StudioShellScope = {
   canvas: StudioCanvasTransform
   debugPreviewPool: boolean
+  debugPreviewQueue: boolean
   disablePreviewPool: boolean
-  frameStates: Record<string, StudioPreviewFrameState>
   onChangeCanvas: (canvas: StudioCanvasTransform) => void
   onChangeCanvasViewportPreset: (preset: StudioViewportPreset) => void
   onChangeSelection: (selection: string) => void
   onChangeViewportPreset: (component: StudioManifestComponent, preset: StudioViewportPreset) => void
-  onPreviewFrameMount: (sessionId: string, frame: HTMLIFrameElement | null) => void
+  onPreviewFrameMount: (
+    sessionId: string,
+    frame: HTMLIFrameElement | null,
+    state?: StudioPreviewIframeMountState,
+  ) => void
   onSelectComponent: (
     component: StudioManifestComponent,
     caseFrameStates: Record<string, StudioPreviewFrameState | undefined>,
     options?: StudioComponentSelectionOptions,
   ) => void
-  previewCache: Record<string, StudioPreviewCacheEntry>
   previewCacheReady: boolean
+  previewGeometryStore: StudioPreviewGeometryCacheStore
   previewRenderQueue: StudioPreviewRenderQueueOptions
   selection: string
   urlWarning?: string
-  warmupTargets: StudioPreviewWarmupTarget[]
   workspace: StudioWorkspaceState
 }
 
-const studioPreviewWarmupLimit = 2
-const studioCanvasCommitDelayMs = 120
-const studioPreviewCacheLimit = 96
+type PendingStudioPreviewMessage = StudioPreviewGeometryCacheMessage & {
+  mountedAt?: number
+  target: StudioPreviewTarget
+}
+
+const studioCanvasUrlCommitDelayMilliseconds = 120
+const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
 
 function useStudioShellScope(props: StudioShellProps): StudioShellScope {
   const initialUrlParams = React.useMemo(
@@ -85,112 +92,64 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
     [initialUrlParams, props.manifest],
   )
   const debugPreviewPool = React.useMemo(() => isStudioPreviewPoolDebugEnabled(initialUrlParams), [initialUrlParams])
+  const debugPreviewQueue = React.useMemo(() => isStudioPreviewQueueDebugEnabled(initialUrlParams), [initialUrlParams])
   const disablePreviewPool = React.useMemo(() => isStudioPreviewPoolDisabled(initialUrlParams), [initialUrlParams])
   const previewRenderQueue = React.useMemo(
     () => ({ ...studioPreviewRenderQueueOptionsFromParams(initialUrlParams), ...props.previewRenderQueue }),
     [initialUrlParams, props.previewRenderQueue],
   )
   const [selection, setSelection] = React.useState(initialUrlState.selection)
-  const [canvas, setCanvas] = React.useState(initialUrlState.canvas)
+  const canvasUrlState = useStudioCanvasUrlState(initialUrlState.canvas)
   const [urlWarning, setUrlWarning] = React.useState(initialUrlState.warning)
   const [workspace, setWorkspace] = React.useState(initialUrlState.workspace)
-  const [frameStates, setFrameStates] = React.useState<Record<string, StudioPreviewFrameState>>({})
-  const [previewCache, setPreviewCache] = React.useState<Record<string, StudioPreviewCacheEntry>>({})
-  const [warmupsEnabled, setWarmupsEnabled] = React.useState(false)
   const previewFrames = React.useRef(new Map<string, HTMLIFrameElement>())
   const previewFrameMountedAt = React.useRef(new Map<string, number>())
-  const pendingCanvasCommit = React.useRef<StudioCanvasTransform | null>(null)
-  const pendingCanvasCommitTimer = React.useRef(0)
   const sessionIds = React.useMemo(() => currentPreviewSessionIds(workspace), [workspace])
   const currentTargets = React.useMemo(() => currentStudioPreviewTargets(props.manifest, workspace), [props.manifest, workspace])
-  const currentTargetCacheKey = React.useMemo(
-    () => currentTargets.map((target) => target.cacheKey).join("\n"),
+  const previewCacheNamespace = React.useMemo(() => studioPreviewIndexedDBNamespace(props.manifest), [props.manifest])
+  const previewGeometryCacheKeys = React.useMemo(() => studioPreviewGeometryCacheKeys(props.manifest), [props.manifest])
+  const previewGeometryCacheStore = React.useMemo(
+    () => createStudioPreviewGeometryCacheStore({ cacheKeys: previewGeometryCacheKeys, namespace: previewCacheNamespace }),
+    [previewCacheNamespace, previewGeometryCacheKeys],
+  )
+  const shouldHydratePreviewCacheBeforeLayout = shouldHydrateStudioPreviewCacheBeforeLayout(props.manifest)
+  const [previewCacheReady, setPreviewCacheReady] = React.useState(true)
+  const targetsBySessionId = React.useMemo(
+    () => new Map(currentTargets.map((target) => [target.sessionId, target] as const)),
     [currentTargets],
   )
-  const previewCacheNamespace = React.useMemo(() => studioPreviewIndexedDBNamespace(props.manifest), [props.manifest])
-  const shouldHydratePreviewCacheBeforeLayout = Boolean(props.manifest.cache?.namespace)
-  const [previewCacheReadyState, setPreviewCacheReadyState] = React.useState(() => ({
-    key: currentTargetCacheKey,
-    ready: !shouldHydratePreviewCacheBeforeLayout,
-  }))
-  const previewCacheReady =
-    !shouldHydratePreviewCacheBeforeLayout ||
-    (previewCacheReadyState.key === currentTargetCacheKey && previewCacheReadyState.ready)
-  const warmupTargets = React.useMemo(
-    () => (warmupsEnabled ? studioPreviewWarmupTargets(props.manifest, workspace, { limit: studioPreviewWarmupLimit }) : []),
-    [props.manifest, warmupsEnabled, workspace],
-  )
-  const targetsBySessionId = React.useMemo(
-    () => new Map([...currentTargets, ...warmupTargets].map((target) => [target.sessionId, target] as const)),
-    [currentTargets, warmupTargets],
-  )
-  const canvasRef = React.useRef(canvas)
-  const previewCacheRef = React.useRef(previewCache)
   const selectionRef = React.useRef(selection)
-
-  React.useEffect(() => {
-    setWarmupsEnabled(false)
-    return scheduleStudioPreviewWarmups(() => setWarmupsEnabled(true))
-  }, [workspace])
 
   React.useEffect(() => {
     selectionRef.current = selection
   }, [selection])
 
   React.useEffect(() => {
-    canvasRef.current = canvas
-  }, [canvas])
+    previewGeometryCacheStore.reset()
+  }, [previewGeometryCacheStore])
 
-  React.useEffect(() => {
-    previewCacheRef.current = previewCache
-  }, [previewCache])
-
-  React.useEffect(() => {
-    setFrameStates({})
-    previewCacheRef.current = {}
-    setPreviewCache({})
-  }, [props.manifest])
-
-  React.useEffect(() => {
+  useStudioLayoutEffect(() => {
     let cancelled = false
-    const cacheKeys = [...new Set(currentTargets.map((target) => target.cacheKey))]
-    const readKey = currentTargetCacheKey
 
     if (shouldHydratePreviewCacheBeforeLayout) {
-      setPreviewCacheReadyState({ key: readKey, ready: cacheKeys.length === 0 })
+      setPreviewCacheReady(previewGeometryCacheStore.cacheKeys.length === 0)
+    } else {
+      setPreviewCacheReady(true)
     }
 
-    readStudioPreviewIndexedDBCache(previewCacheNamespace, cacheKeys).then((cachedEntries) => {
+    previewGeometryCacheStore.hydrate().then(() => {
       if (cancelled) return
 
-      if (Object.keys(cachedEntries).length > 0) {
-        setPreviewCache((current) => {
-          const next = pruneStudioPreviewCache({ ...cachedEntries, ...current })
-          previewCacheRef.current = next
-          return next
-        })
-      }
-      if (shouldHydratePreviewCacheBeforeLayout) setPreviewCacheReadyState({ key: readKey, ready: true })
+      if (shouldHydratePreviewCacheBeforeLayout) setPreviewCacheReady(true)
     })
 
     return () => {
       cancelled = true
     }
-  }, [currentTargetCacheKey, currentTargets, previewCacheNamespace, shouldHydratePreviewCacheBeforeLayout])
+  }, [previewGeometryCacheStore, shouldHydratePreviewCacheBeforeLayout])
 
   React.useEffect(() => {
-    return () => {
-      if (pendingCanvasCommitTimer.current) window.clearTimeout(pendingCanvasCommitTimer.current)
-    }
-  }, [])
-
-  React.useEffect(() => {
-    type PendingPreviewMessage = {
-      message: GPreviewProtocolMessage
-      target: StudioPreviewWarmupTarget
-    }
-
-    let pendingMessages: PendingPreviewMessage[] = []
+    let pendingMessages: PendingStudioPreviewMessage[] = []
     let scheduledFrame = 0
 
     const flushPreviewMessages = () => {
@@ -200,17 +159,18 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
       if (messages.length === 0) return
 
       React.startTransition(() => {
-        setFrameStates((current) =>
-          messages.reduce(
-            (nextFrameStates, pending) =>
-              applyStudioPreviewMessageToFrameStates(nextFrameStates, pending.message, sessionIds),
-            current,
-          ),
-        )
-        const nextPreviewCache = pruneStudioPreviewCache(applyStudioPreviewMessagesToCache(previewCacheRef.current, messages))
-        previewCacheRef.current = nextPreviewCache
-        setPreviewCache(nextPreviewCache)
-        void writeStudioPreviewIndexedDBCache(previewCacheNamespace, previewCacheEntriesForMessages(nextPreviewCache, messages))
+        const messageFlush = createStudioPreviewMessageFlush({
+          getFrameState: previewGeometryCacheStore.getFrameState,
+          messages,
+        })
+        if (messageFlush.messagesToApply.length === 0) return
+
+        const previewCacheUpdate = previewGeometryCacheStore.putMessages(messageFlush.messagesToApply, sessionIds)
+        for (const pending of messageFlush.completionMessages) {
+          dispatchStudioPreviewTiming(pending.target, pending.message, pending.mountedAt)
+        }
+        if (!previewCacheUpdate.changed) return
+        void previewGeometryCacheStore.writeEntries(previewCacheUpdate.entriesToWrite)
       })
     }
 
@@ -226,8 +186,7 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
       const target = targetsBySessionId.get(message.sessionId)
       if (!target) return
 
-      dispatchStudioPreviewTiming(target, message, previewFrameMountedAt.current.get(message.sessionId))
-      pendingMessages.push({ message, target })
+      pendingMessages.push({ message, mountedAt: previewFrameMountedAt.current.get(message.sessionId), target })
       schedulePreviewMessageFlush()
     }
 
@@ -236,62 +195,46 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
       window.removeEventListener("message", handleMessage)
       if (scheduledFrame) window.cancelAnimationFrame(scheduledFrame)
     }
-  }, [previewCacheNamespace, sessionIds, targetsBySessionId])
-
-  const clearPendingCanvasCommit = React.useCallback(() => {
-    pendingCanvasCommit.current = null
-    if (pendingCanvasCommitTimer.current) {
-      window.clearTimeout(pendingCanvasCommitTimer.current)
-      pendingCanvasCommitTimer.current = 0
-    }
-  }, [])
+  }, [previewGeometryCacheStore, sessionIds, targetsBySessionId])
 
   React.useEffect(() => {
     const handlePopState = () => {
       const restored = createStudioWorkspaceStateFromUrl(props.manifest, new URLSearchParams(window.location.search))
-      clearPendingCanvasCommit()
-      canvasRef.current = restored.canvas
+      canvasUrlState.restoreCanvasFromUrl(restored.canvas)
       setSelection(restored.selection)
-      setCanvas(restored.canvas)
       setUrlWarning(restored.warning)
       setWorkspace(restored.workspace)
-      setFrameStates({})
     }
 
     window.addEventListener("popstate", handlePopState)
     return () => window.removeEventListener("popstate", handlePopState)
-  }, [clearPendingCanvasCommit, props.manifest])
+  }, [canvasUrlState, props.manifest])
 
   const commitWorkspace = React.useCallback((updater: (current: StudioWorkspaceState) => StudioWorkspaceState) => {
     setWorkspace((current) => {
       const next = updater(current)
-      pushStudioWorkspaceUrlState(selectionRef.current, next, { canvas: canvasRef.current })
+      pushStudioWorkspaceUrlState(selectionRef.current, next, { canvas: canvasUrlState.liveCanvasRef.current })
       return next
     })
-  }, [])
+  }, [canvasUrlState.liveCanvasRef])
 
-  const flushCanvasCommit = React.useCallback(() => {
-    pendingCanvasCommitTimer.current = 0
-    const nextCanvas = pendingCanvasCommit.current
-    if (!nextCanvas) return
-    pendingCanvasCommit.current = null
-    setCanvas(nextCanvas)
-    replaceStudioCanvasUrlState(nextCanvas)
-  }, [])
-
-  const commitCanvas = React.useCallback((nextCanvas: StudioCanvasTransform) => {
-    canvasRef.current = nextCanvas
-    pendingCanvasCommit.current = nextCanvas
-    if (pendingCanvasCommitTimer.current) window.clearTimeout(pendingCanvasCommitTimer.current)
-    pendingCanvasCommitTimer.current = window.setTimeout(flushCanvasCommit, studioCanvasCommitDelayMs)
-  }, [flushCanvasCommit])
+  const handlePreviewFrameMount = React.useCallback((sessionId: string, frame: HTMLIFrameElement | null, state?: StudioPreviewIframeMountState) => {
+    if (frame) {
+      previewFrames.current.set(sessionId, frame)
+      previewFrameMountedAt.current.set(sessionId, performance.now())
+      if (!state?.retainedRender) previewGeometryCacheStore.markSessionRenderStarted(sessionId)
+    } else {
+      previewFrames.current.delete(sessionId)
+      previewFrameMountedAt.current.delete(sessionId)
+    }
+  }, [previewGeometryCacheStore])
 
   return {
-    canvas,
+    canvas: canvasUrlState.restoredCanvas,
     debugPreviewPool,
+    debugPreviewQueue,
     disablePreviewPool,
-    frameStates,
-    onChangeCanvas: commitCanvas,
+    onChangeCanvas: canvasUrlState.commitLiveCanvasChange,
     onChangeCanvasViewportPreset(preset) {
       commitWorkspace((current) => changeStudioCanvasViewportPreset(current, preset))
     },
@@ -305,21 +248,14 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
       setSelection(nextUrlState.selection)
       setUrlWarning(nextUrlState.warning)
       setWorkspace(nextUrlState.workspace)
-      setFrameStates({})
-      pushStudioWorkspaceUrlState(nextUrlState.selection, nextUrlState.workspace, { canvas: canvasRef.current })
+      pushStudioWorkspaceUrlState(nextUrlState.selection, nextUrlState.workspace, {
+        canvas: canvasUrlState.liveCanvasRef.current,
+      })
     },
     onChangeViewportPreset(component, preset) {
       commitWorkspace((current) => changeStudioViewportPreset(current, component.coordinate, preset))
     },
-    onPreviewFrameMount(sessionId, frame) {
-      if (frame) {
-        previewFrames.current.set(sessionId, frame)
-        previewFrameMountedAt.current.set(sessionId, performance.now())
-      } else {
-        previewFrames.current.delete(sessionId)
-        previewFrameMountedAt.current.delete(sessionId)
-      }
-    },
+    onPreviewFrameMount: handlePreviewFrameMount,
     onSelectComponent(component, caseFrameStates, options) {
       commitWorkspace((current) =>
         selectStudioComponent(
@@ -331,14 +267,80 @@ function useStudioShellScope(props: StudioShellProps): StudioShellScope {
         ),
       )
     },
-    previewCache,
     previewCacheReady,
+    previewGeometryStore: previewGeometryCacheStore,
     previewRenderQueue,
     selection,
     urlWarning,
-    warmupTargets,
     workspace,
   }
+}
+
+type StudioCanvasUrlState = {
+  commitLiveCanvasChange: (canvas: StudioCanvasTransform) => void
+  liveCanvasRef: React.MutableRefObject<StudioCanvasTransform>
+  restoreCanvasFromUrl: (canvas: StudioCanvasTransform) => void
+  restoredCanvas: StudioCanvasTransform
+}
+
+function useStudioCanvasUrlState(initialCanvas: StudioCanvasTransform): StudioCanvasUrlState {
+  const [restoredCanvas, setRestoredCanvas] = React.useState(initialCanvas)
+  const liveCanvasRef = React.useRef(restoredCanvas)
+  const pendingCanvasUrlCommit = React.useRef<StudioCanvasTransform | null>(null)
+  const pendingCanvasUrlCommitTimer = React.useRef(0)
+
+  const clearPendingCanvasUrlCommit = React.useCallback(() => {
+    pendingCanvasUrlCommit.current = null
+    if (pendingCanvasUrlCommitTimer.current) {
+      window.clearTimeout(pendingCanvasUrlCommitTimer.current)
+      pendingCanvasUrlCommitTimer.current = 0
+    }
+  }, [])
+
+  const flushCanvasUrlCommit = React.useCallback(() => {
+    pendingCanvasUrlCommitTimer.current = 0
+    const nextCanvas = pendingCanvasUrlCommit.current
+    if (!nextCanvas) return
+
+    pendingCanvasUrlCommit.current = null
+    replaceStudioCanvasUrlState(nextCanvas)
+  }, [])
+
+  const commitLiveCanvasChange = React.useCallback(
+    (nextCanvas: StudioCanvasTransform) => {
+      liveCanvasRef.current = nextCanvas
+      pendingCanvasUrlCommit.current = nextCanvas
+      if (pendingCanvasUrlCommitTimer.current) window.clearTimeout(pendingCanvasUrlCommitTimer.current)
+      pendingCanvasUrlCommitTimer.current = window.setTimeout(
+        flushCanvasUrlCommit,
+        studioCanvasUrlCommitDelayMilliseconds,
+      )
+    },
+    [flushCanvasUrlCommit],
+  )
+
+  const restoreCanvasFromUrl = React.useCallback(
+    (nextCanvas: StudioCanvasTransform) => {
+      clearPendingCanvasUrlCommit()
+      liveCanvasRef.current = nextCanvas
+      setRestoredCanvas(nextCanvas)
+    },
+    [clearPendingCanvasUrlCommit],
+  )
+
+  React.useEffect(() => {
+    return () => clearPendingCanvasUrlCommit()
+  }, [clearPendingCanvasUrlCommit])
+
+  return React.useMemo(
+    () => ({
+      commitLiveCanvasChange,
+      liveCanvasRef,
+      restoreCanvasFromUrl,
+      restoredCanvas,
+    }),
+    [commitLiveCanvasChange, restoreCanvasFromUrl, restoredCanvas],
+  )
 }
 
 export default function StudioShell(props: StudioShellProps) {
@@ -349,7 +351,7 @@ export default function StudioShell(props: StudioShellProps) {
       <StudioWorkspaceView
         canvas={scope.canvas}
         debugPreviewPool={scope.debugPreviewPool}
-        frameStates={scope.frameStates}
+        debugPreviewQueue={scope.debugPreviewQueue}
         manifest={props.manifest}
         onChangeCanvas={scope.onChangeCanvas}
         onSelectComponent={scope.onSelectComponent}
@@ -357,14 +359,13 @@ export default function StudioShell(props: StudioShellProps) {
         onChangeSelection={scope.onChangeSelection}
         onChangeViewportPreset={scope.onChangeViewportPreset}
         onPreviewFrameMount={scope.onPreviewFrameMount}
-        previewCache={scope.previewCache}
         previewCacheReady={scope.previewCacheReady}
+        previewGeometryStore={scope.previewGeometryStore}
         previewRenderQueue={scope.previewRenderQueue}
         selection={scope.selection}
         urlWarning={scope.urlWarning}
         workspace={scope.workspace}
       />
-      <StudioPreviewWarmups targets={scope.warmupTargets} />
     </>
   )
 
@@ -377,91 +378,12 @@ export default function StudioShell(props: StudioShellProps) {
   )
 }
 
-function StudioPreviewWarmups(props: { targets: StudioPreviewWarmupTarget[] }) {
-  if (props.targets.length === 0) return null
-
-  return (
-    <div aria-hidden="true" data-gtsx-preview-warmups="true" style={{ height: 0, overflow: "hidden", position: "fixed", width: 0 }}>
-      {props.targets.map((target) => (
-        <div key={target.cacheKey} style={{ height: 0, overflow: "hidden", position: "relative", width: 0 }}>
-          <StudioPreviewIframe
-            size={target.size}
-            slot={{
-              previewUrl: target.previewUrl,
-              sessionId: target.sessionId,
-              title: target.title,
-            }}
-          />
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function applyStudioPreviewMessagesToCache(
-  current: Record<string, StudioPreviewCacheEntry>,
-  messages: { message: GPreviewProtocolMessage; target: StudioPreviewWarmupTarget }[],
-): Record<string, StudioPreviewCacheEntry> {
-  const now = Date.now()
-  let next = current
-
-  for (const { message, target } of messages) {
-    const currentEntry = next[target.cacheKey]
-    const currentFrameState = currentEntry?.frameState ?? {
-      expectedSessionId: message.sessionId,
-      ready: false,
-    }
-    if (next === current) next = { ...current }
-    next[target.cacheKey] = {
-      frameState: applyStudioPreviewMessage(currentFrameState, message),
-      lastUsedAt: now,
-    }
-  }
-
-  return next
-}
-
-function previewCacheEntriesForMessages(
-  cache: Record<string, StudioPreviewCacheEntry>,
-  messages: { target: StudioPreviewWarmupTarget }[],
-): Record<string, StudioPreviewCacheEntry | undefined> {
-  const entries: Record<string, StudioPreviewCacheEntry | undefined> = {}
-  for (const { target } of messages) entries[target.cacheKey] = cache[target.cacheKey]
-  return entries
-}
-
-function pruneStudioPreviewCache(
-  cache: Record<string, StudioPreviewCacheEntry>,
-): Record<string, StudioPreviewCacheEntry> {
-  const entries = Object.entries(cache)
-  if (entries.length <= studioPreviewCacheLimit) return cache
-
-  return Object.fromEntries(
-    entries
-      .sort((left, right) => right[1].lastUsedAt - left[1].lastUsedAt)
-      .slice(0, studioPreviewCacheLimit),
-  )
-}
-
-function scheduleStudioPreviewWarmups(callback: () => void): () => void {
-  if (typeof window === "undefined") return () => {}
-
-  const idleWindow = window as typeof window & {
-    cancelIdleCallback?: (handle: number) => void
-    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
-  }
-
-  if (idleWindow.requestIdleCallback && idleWindow.cancelIdleCallback) {
-    const handle = idleWindow.requestIdleCallback(callback, { timeout: 1500 })
-    return () => idleWindow.cancelIdleCallback?.(handle)
-  }
-
-  const handle = window.setTimeout(callback, 600)
-  return () => window.clearTimeout(handle)
+function shouldHydrateStudioPreviewCacheBeforeLayout(manifest: StudioManifest): boolean {
+  return Boolean(manifest.cache?.namespace) || typeof window !== "undefined"
 }
 
 function dispatchStudioPreviewTiming(
-  target: StudioPreviewWarmupTarget,
+  target: StudioPreviewTarget,
   message: GPreviewProtocolMessage,
   mountedAt: number | undefined,
 ) {

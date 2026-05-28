@@ -1,5 +1,4 @@
-export const studioPreviewPreloadMargin = 360
-export const studioPreviewRetainMargin = 1600
+export const studioPreviewRenderBufferMargin = 3200
 
 export type StudioViewportRect = {
   bottom: number
@@ -41,8 +40,7 @@ export function shouldRenderStudioPreview(
   rect: StudioViewportRect,
   viewport: StudioViewportRect,
 ): boolean {
-  const margin = currentlyRendered ? studioPreviewRetainMargin : studioPreviewPreloadMargin
-  return isRectNearViewport(rect, viewport, margin)
+  return isRectNearViewport(rect, viewport, studioPreviewRenderBufferMargin)
 }
 
 export function studioCanvasRectToViewportRect(

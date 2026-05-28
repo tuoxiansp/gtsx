@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import type { GBoundaryRect, GCases } from "gtsx"
+import { createGScopeHook, type GBoundaryRect, type GCases } from "gtsx"
 
 import ComponentBoundsHitTarget from "./ComponentBoundsHitTarget.g"
 import SelectedBoundaryOutline from "./SelectedBoundaryOutline.g"
@@ -13,7 +13,9 @@ import {
   previewFrameViewportOffset,
   previewFrameVisualBleed,
 } from "../preview-frame-layout"
-import type { StudioPreviewIframeBorrowOrigin } from "../preview-iframe-pool"
+import type { StudioPreviewFrameState } from "../client"
+import type { StudioPreviewIframeBorrowOrigin, StudioPreviewIframeMountState } from "../preview-iframe-pool"
+import { useStudioPreviewIsVisibleSession, useStudioPreviewShouldRenderSession } from "../preview-render-session-store"
 
 type LazyPreviewFrameProps = {
   "data-gtsx-preview-session-id": string
@@ -21,19 +23,41 @@ type LazyPreviewFrameProps = {
   coordinate: string
   debugIndicatorScale?: number
   debugPreviewPool?: boolean
+  debugPreviewQueue?: boolean
+  frameState?: StudioPreviewFrameState
   onSelect?: () => void
-  onPreviewFrameMount?: (sessionId: string, frame: HTMLIFrameElement | null) => void
+  onPreviewFrameMount?: (
+    sessionId: string,
+    frame: HTMLIFrameElement | null,
+    state?: StudioPreviewIframeMountState,
+  ) => void
   previewUrl: string
   selectedBoundaryRect?: GBoundaryRect
-  shouldLoad: boolean
+  shouldLoad?: boolean
   size: { width: number | string; height: number }
   sessionId: string
   title: string
   viewportPreset: "phone" | "tablet" | "desktop"
 }
 
+type LazyPreviewFrameScope = {
+  isVisibleRenderSession: boolean
+  shouldLoadFromRenderQueue: boolean
+}
+
+function useRealLazyPreviewFrameScope(props: LazyPreviewFrameProps): LazyPreviewFrameScope {
+  return {
+    isVisibleRenderSession: useStudioPreviewIsVisibleSession(props.sessionId, props.debugPreviewQueue === true),
+    shouldLoadFromRenderQueue: useStudioPreviewShouldRenderSession(props.sessionId),
+  }
+}
+
+const useLazyPreviewFrameScope = createGScopeHook(useRealLazyPreviewFrameScope)
+
 export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
   const [borrowOrigin, setBorrowOrigin] = React.useState<StudioPreviewIframeBorrowOrigin | null>(null)
+  const scope = useLazyPreviewFrameScope(props)
+  const shouldLoad = props.shouldLoad ?? scope.shouldLoadFromRenderQueue
   const layoutHeight = previewFrameLayoutHeight(props.size, props.boundaryRect)
   const layoutWidth = previewFrameLayoutWidth(props.size, props.boundaryRect)
   const visualBleed = previewFrameVisualBleed(props.size, props.boundaryRect)
@@ -41,10 +65,18 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
   const overlayRect = normalizeBoundaryRect(props.boundaryRect, visualBleed)
   const selectedOverlayRect = normalizeBoundaryRect(props.selectedBoundaryRect, visualBleed)
   const debugIndicatorScale = 1 / Math.max(props.debugIndicatorScale ?? 1, 0.01)
+  const renderLifecycleState = studioPreviewRenderLifecycleDebugState(props.frameState, shouldLoad)
+  const iframeOrigin = borrowOrigin ?? "pending"
+  const renderFlowDebugState = studioPreviewRenderFlowDebugState({
+    iframeOrigin,
+    isVisibleRenderSession: scope.isVisibleRenderSession,
+    renderLifecycleState,
+    shouldLoad,
+  })
 
   React.useEffect(() => {
-    if (!props.shouldLoad) setBorrowOrigin(null)
-  }, [props.shouldLoad])
+    if (!shouldLoad) setBorrowOrigin(null)
+  }, [shouldLoad])
 
   return (
     <div
@@ -58,13 +90,11 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
         width: layoutWidth,
       }}
     >
-      {props.shouldLoad ? (
+      {shouldLoad ? (
         <div
           data-gtsx-preview-clip="true"
           style={{
             contain: "layout paint style",
-            containIntrinsicSize: `${layoutWidth}px ${layoutHeight}px`,
-            contentVisibility: "auto",
             height: layoutHeight,
             left: 0,
             overflow: "hidden",
@@ -85,7 +115,7 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
             }}
           >
             <StudioPreviewIframe
-              onBorrowOriginChange={props.debugPreviewPool ? setBorrowOrigin : undefined}
+              onBorrowOriginChange={props.debugPreviewPool || props.debugPreviewQueue ? setBorrowOrigin : undefined}
               onPreviewFrameMount={props.onPreviewFrameMount}
               size={props.size}
               slot={{
@@ -97,7 +127,65 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
           </div>
         </div>
       ) : null}
-      {props.debugPreviewPool && props.shouldLoad && borrowOrigin ? (
+      {props.debugPreviewQueue ? (
+        <span
+          aria-label="Preview render lifecycle"
+          data-gtsx-preview-render-flow={renderFlowDebugState}
+          data-gtsx-preview-render-iframe-origin={iframeOrigin}
+          data-gtsx-preview-render-lifecycle={renderLifecycleState}
+          data-gtsx-preview-render-queued={shouldLoad ? "true" : "false"}
+          data-gtsx-preview-render-visible={scope.isVisibleRenderSession ? "true" : "false"}
+          style={{
+            alignItems: "center",
+            background: "rgba(255,255,255,0.92)",
+            border: "1px solid rgba(216,222,232,0.96)",
+            borderRadius: 999,
+            bottom: 5,
+            boxShadow: "0 1px 5px rgba(31,35,40,0.16)",
+            display: "grid",
+            gap: 3,
+            gridTemplateColumns: "repeat(4, 6px)",
+            height: 12,
+            justifyContent: "center",
+            padding: "0 4px",
+            pointerEvents: "none",
+            position: "absolute",
+            right: 5,
+            transform: `scale(${debugIndicatorScale})`,
+            transformOrigin: "bottom right",
+            zIndex: 5,
+          }}
+          title={renderFlowDebugState}
+        >
+          <StudioPreviewRenderLifecycleDot active={shouldLoad} color="#57606a" />
+          <StudioPreviewRenderLifecycleDot active={scope.isVisibleRenderSession} color="#0d99ff" />
+          <StudioPreviewRenderLifecycleDot active={borrowOrigin !== null} color={borrowOrigin === "new" ? "#fb8f2d" : "#2da44e"} />
+          <StudioPreviewRenderLifecycleDot active color={studioPreviewRenderLifecycleStateColor(renderLifecycleState)} />
+        </span>
+      ) : null}
+      {props.debugPreviewQueue && shouldLoad && scope.isVisibleRenderSession ? (
+        <span
+          aria-label="Preview task dispatched from visible viewport"
+          data-gtsx-preview-queue-origin="visible"
+          style={{
+            background: "#0d99ff",
+            border: "1px solid rgba(255,255,255,0.92)",
+            borderRadius: 999,
+            boxShadow: "0 1px 5px rgba(31,35,40,0.25)",
+            height: 9,
+            pointerEvents: "none",
+            position: "absolute",
+            right: props.debugPreviewPool ? 18 : 5,
+            top: 5,
+            transform: `scale(${debugIndicatorScale})`,
+            transformOrigin: "top right",
+            width: 9,
+            zIndex: 4,
+          }}
+          title="visible queue task"
+        />
+      ) : null}
+      {props.debugPreviewPool && shouldLoad && borrowOrigin ? (
         <span
           aria-label={borrowOrigin === "pool" ? "Preview iframe reused from pool" : "Preview iframe created"}
           data-gtsx-preview-pool-origin={borrowOrigin}
@@ -140,4 +228,52 @@ LazyPreviewFrame.cases = {
       viewportPreset: "phone",
     },
   },
-} satisfies GCases<LazyPreviewFrameProps>
+} satisfies GCases<LazyPreviewFrameProps, LazyPreviewFrameScope>
+
+function studioPreviewRenderFlowDebugState(input: {
+  iframeOrigin: StudioPreviewIframeBorrowOrigin | "pending"
+  isVisibleRenderSession: boolean
+  renderLifecycleState: "error" | "idle" | "queued" | "ready" | "rendering"
+  shouldLoad: boolean
+}): string {
+  return [
+    input.shouldLoad ? "queued" : "not-queued",
+    input.isVisibleRenderSession ? "visible" : "buffer",
+    `iframe-${input.iframeOrigin}`,
+    input.renderLifecycleState,
+  ].join(" -> ")
+}
+
+function studioPreviewRenderLifecycleDebugState(
+  frameState: StudioPreviewFrameState | undefined,
+  shouldLoad: boolean,
+): "error" | "idle" | "queued" | "ready" | "rendering" {
+  if (frameState?.error) return "error"
+  if (frameState?.ready) return "ready"
+  if (shouldLoad && frameState) return "rendering"
+  if (shouldLoad) return "queued"
+  return "idle"
+}
+
+function studioPreviewRenderLifecycleStateColor(state: "error" | "idle" | "queued" | "ready" | "rendering"): string {
+  if (state === "error") return "#cf222e"
+  if (state === "ready") return "#2da44e"
+  if (state === "rendering") return "#bf8700"
+  if (state === "queued") return "#0d99ff"
+  return "#8c959f"
+}
+
+function StudioPreviewRenderLifecycleDot(props: { active: boolean; color: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        background: props.active ? props.color : "rgba(140,149,159,0.22)",
+        borderRadius: 999,
+        display: "block",
+        height: 6,
+        width: 6,
+      }}
+    />
+  )
+}

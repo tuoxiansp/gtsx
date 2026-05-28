@@ -6,6 +6,7 @@ import {
   createGPreviewErrorMessage,
   createGPreviewPoolReadyMessage,
   createGPreviewReadyMessage,
+  createGPreviewRenderAcceptedMessage,
   createGPreviewResizeMessage,
   createGPreviewTreeMessage,
   createGPreviewValuesMessage,
@@ -32,6 +33,11 @@ export type GTSXPreviewComponentLoader = (entry: string) =>
   | GTSXPreviewComponent
   | Promise<GTSXPreviewComponent | undefined>
   | undefined
+
+type LoadedGTSXPreviewEntry = {
+  component: GTSXPreviewComponent | null
+  entry: string
+}
 
 export type GTSXPreviewRouteParams = {
   caseName: string | null
@@ -64,6 +70,9 @@ export type GTSXPreviewCaseSheetProps<Props extends object = Record<string, unkn
   selectedCases: Array<{ name: string; testCase: GTSXPreviewCase<Props> }>
   showChrome?: boolean
 }
+
+const loadedGTSXPreviewEntriesByLoader = new WeakMap<GTSXPreviewComponentLoader, Map<string, LoadedGTSXPreviewEntry>>()
+const loadingGTSXPreviewEntriesByLoader = new WeakMap<GTSXPreviewComponentLoader, Map<string, Promise<LoadedGTSXPreviewEntry>>>()
 
 export function GTSXReactPreviewClient({
   caseName = null,
@@ -139,23 +148,23 @@ function GTSXEntryPreview({
   showChrome: boolean
   staticMode: boolean
 }) {
-  const [loadedEntry, setLoadedEntry] = React.useState<{
-    component: GTSXPreviewComponent | null
-    entry: string
-  } | null>(null)
+  const cachedEntry = readLoadedGTSXPreviewEntry(loadComponent, entry)
+  const [loadedEntry, setLoadedEntry] = React.useState<LoadedGTSXPreviewEntry | null>(cachedEntry)
+  const effectiveLoadedEntry = cachedEntry ?? loadedEntry
 
   React.useEffect(() => {
+    const cached = readLoadedGTSXPreviewEntry(loadComponent, entry)
+    if (cached) {
+      setLoadedEntry(cached)
+      return
+    }
+
     let ignore = false
 
-    Promise.resolve(loadComponent(entry))
-      .then((component) => {
+    loadGTSXPreviewEntry(loadComponent, entry)
+      .then((loaded) => {
         if (!ignore) {
-          setLoadedEntry({ component: component ?? null, entry })
-        }
-      })
-      .catch(() => {
-        if (!ignore) {
-          setLoadedEntry({ component: null, entry })
+          setLoadedEntry(loaded)
         }
       })
 
@@ -164,11 +173,11 @@ function GTSXEntryPreview({
     }
   }, [entry, loadComponent])
 
-  if (!loadedEntry || loadedEntry.entry !== entry) {
+  if (!effectiveLoadedEntry || effectiveLoadedEntry.entry !== entry) {
     return showChrome ? <GTSXPreviewMessage detail={entry} title="Loading" /> : null
   }
 
-  if (!loadedEntry.component) {
+  if (!effectiveLoadedEntry.component) {
     return <GTSXPreviewMessage detail={entry} sessionId={sessionId} title="Unknown GTSX entry" />
   }
 
@@ -176,13 +185,54 @@ function GTSXEntryPreview({
     <LoadedGTSXEntryPreview
       caseName={caseName}
       caseOverrides={caseOverrides}
-      component={loadedEntry.component}
+      component={effectiveLoadedEntry.component}
       entry={entry}
       sessionId={sessionId}
       showChrome={showChrome}
       staticMode={staticMode}
     />
   )
+}
+
+function readLoadedGTSXPreviewEntry(
+  loadComponent: GTSXPreviewComponentLoader,
+  entry: string,
+): LoadedGTSXPreviewEntry | null {
+  return loadedGTSXPreviewEntriesByLoader.get(loadComponent)?.get(entry) ?? null
+}
+
+function loadGTSXPreviewEntry(
+  loadComponent: GTSXPreviewComponentLoader,
+  entry: string,
+): Promise<LoadedGTSXPreviewEntry> {
+  let loadedEntries = loadedGTSXPreviewEntriesByLoader.get(loadComponent)
+  if (!loadedEntries) {
+    loadedEntries = new Map()
+    loadedGTSXPreviewEntriesByLoader.set(loadComponent, loadedEntries)
+  }
+
+  const loadedEntry = loadedEntries.get(entry)
+  if (loadedEntry) return Promise.resolve(loadedEntry)
+
+  let loadingEntries = loadingGTSXPreviewEntriesByLoader.get(loadComponent)
+  if (!loadingEntries) {
+    loadingEntries = new Map()
+    loadingGTSXPreviewEntriesByLoader.set(loadComponent, loadingEntries)
+  }
+
+  const loadingEntry = loadingEntries.get(entry)
+  if (loadingEntry) return loadingEntry
+
+  const nextLoadingEntry = Promise.resolve(loadComponent(entry))
+    .then((component) => ({ component: component ?? null, entry }))
+    .catch(() => ({ component: null, entry }))
+    .then((loaded) => {
+      loadedEntries.set(entry, loaded)
+      loadingEntries.delete(entry)
+      return loaded
+    })
+  loadingEntries.set(entry, nextLoadingEntry)
+  return nextLoadingEntry
 }
 
 function LoadedGTSXEntryPreview({
@@ -310,21 +360,105 @@ export function readGTSXPreviewRouteParams(params: URLSearchParams): GTSXPreview
   }
 }
 
+type GTSXPreviewRenderTargetSubscriber = (target: GTSXPreviewRouteParams) => void
+
+type GTSXPreviewRenderTargetMailbox = {
+  announcePoolReady: () => void
+  getTarget: () => GTSXPreviewRouteParams | null
+  render: (target: GPreviewRenderTarget) => void
+  subscribe: (subscriber: GTSXPreviewRenderTargetSubscriber) => () => void
+}
+
+declare global {
+  interface Window {
+    __gtsxPreviewPendingRenderTarget?: GPreviewRenderTarget
+    __gtsxPreviewPrehydrationMailboxInstalled?: boolean
+    __gtsxPreviewRenderTargetMailbox?: Pick<GTSXPreviewRenderTargetMailbox, "render">
+  }
+}
+
+let gtsxPreviewRenderTargetMailbox: GTSXPreviewRenderTargetMailbox | null = null
+
 function useGTSXPreviewRenderTarget(routeTarget: GTSXPreviewRouteParams): GTSXPreviewRouteParams {
-  const [messageTarget, setMessageTarget] = React.useState<GTSXPreviewRouteParams | null>(null)
+  const mailbox = routeTarget.poolMode ? ensureGTSXPreviewRenderTargetMailbox() : null
+  const [messageTarget, setMessageTarget] = React.useState<GTSXPreviewRouteParams | null>(() => mailbox?.getTarget() ?? null)
 
   React.useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (!isGPreviewRenderMessage(event.data)) return
-      setMessageTarget(previewRouteParamsFromRenderTarget(event.data.target))
-    }
+    if (!mailbox) return
 
-    window.addEventListener("message", handleMessage)
-    window.parent.postMessage(createGPreviewPoolReadyMessage(), "*")
-    return () => window.removeEventListener("message", handleMessage)
-  }, [])
+    const unsubscribe = mailbox.subscribe(setMessageTarget)
+    mailbox.announcePoolReady()
+    return unsubscribe
+  }, [mailbox])
 
+  if (!routeTarget.poolMode) return routeTarget
   return messageTarget ?? routeTarget
+}
+
+function ensureGTSXPreviewRenderTargetMailbox(): GTSXPreviewRenderTargetMailbox | null {
+  if (typeof window === "undefined") return null
+  if (gtsxPreviewRenderTargetMailbox) return gtsxPreviewRenderTargetMailbox
+
+  const subscribers = new Set<GTSXPreviewRenderTargetSubscriber>()
+  let currentTarget = window.__gtsxPreviewPendingRenderTarget
+    ? previewRouteParamsFromRenderTarget(window.__gtsxPreviewPendingRenderTarget)
+    : null
+  let currentTargetKey = currentTarget ? previewRenderTargetKey(currentTarget) : null
+  let poolReadyAnnounced = false
+
+  const applyRenderTarget = (target: GPreviewRenderTarget, options: { acknowledge: boolean }) => {
+    window.__gtsxPreviewPendingRenderTarget = target
+    if (options.acknowledge && target.sessionId) {
+      window.parent.postMessage(createGPreviewRenderAcceptedMessage(target.sessionId), "*")
+    }
+    const nextTarget = previewRouteParamsFromRenderTarget(target)
+    const nextTargetKey = previewRenderTargetKey(nextTarget)
+    if (currentTargetKey === nextTargetKey) return
+
+    currentTarget = nextTarget
+    currentTargetKey = nextTargetKey
+    for (const subscriber of subscribers) subscriber(currentTarget)
+  }
+
+  const render = (target: GPreviewRenderTarget) => applyRenderTarget(target, { acknowledge: true })
+  const handlePrehydrationRenderTarget = (event: Event) => {
+    const target = (event as CustomEvent<GPreviewRenderTarget>).detail
+    if (isGPreviewRenderTarget(target)) applyRenderTarget(target, { acknowledge: false })
+  }
+
+  window.__gtsxPreviewRenderTargetMailbox = { render }
+  if (window.__gtsxPreviewPrehydrationMailboxInstalled) {
+    window.addEventListener("gtsx:preview-render-target", handlePrehydrationRenderTarget)
+  } else {
+    window.addEventListener("message", (event: MessageEvent) => {
+      if (!isGPreviewRenderMessage(event.data)) return
+      render(event.data.target)
+    })
+  }
+
+  gtsxPreviewRenderTargetMailbox = {
+    announcePoolReady() {
+      if (poolReadyAnnounced) return
+      poolReadyAnnounced = true
+      if (window.__gtsxPreviewPrehydrationMailboxInstalled) return
+      window.setTimeout(() => {
+        window.parent.postMessage(createGPreviewPoolReadyMessage(), "*")
+      }, 0)
+    },
+    getTarget() {
+      return currentTarget
+    },
+    render,
+    subscribe(subscriber) {
+      subscribers.add(subscriber)
+      const target = this.getTarget()
+      if (target) subscriber(target)
+      return () => {
+        subscribers.delete(subscriber)
+      }
+    },
+  }
+  return gtsxPreviewRenderTargetMailbox
 }
 
 function previewRouteParamsFromRenderTarget(target: GPreviewRenderTarget): GTSXPreviewRouteParams {
@@ -347,6 +481,16 @@ function isGPreviewRenderMessage(value: unknown): value is GPreviewRenderMessage
     (value as { protocolVersion?: unknown }).protocolVersion === 1 &&
     typeof (value as { target?: unknown }).target === "object" &&
     (value as { target?: unknown }).target !== null
+  )
+}
+
+function isGPreviewRenderTarget(value: unknown): value is GPreviewRenderTarget {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    Object.prototype.hasOwnProperty.call(value, "entry") &&
+    Object.prototype.hasOwnProperty.call(value, "caseName") &&
+    Object.prototype.hasOwnProperty.call(value, "sessionId")
   )
 }
 

@@ -61,6 +61,7 @@ export type StudioColumnLayout = {
 export type StudioColumnLayoutMeasurement = {
   cardRectsByCoordinate: Record<string, StudioCanvasScreenRect>
   height: number
+  previewFrameRectsBySessionId?: Record<string, StudioCanvasScreenRect>
 }
 
 export type StudioCaseGridItemLayout = {
@@ -87,6 +88,8 @@ export type StudioCanvasWheelInput = {
   deltaMode: number
   deltaX: number
   deltaY: number
+  focalViewportX?: number
+  focalViewportY?: number
   metaKey: boolean
   viewportLeft: number
   viewportTop: number
@@ -127,7 +130,7 @@ export type StudioPreviewCacheEntry = {
   lastUsedAt: number
 }
 
-export type StudioPreviewWarmupTarget = {
+export type StudioPreviewTarget = {
   cacheKey: string
   previewUrl: string
   sessionId: string
@@ -153,20 +156,24 @@ export function applyStudioPreviewMessage(
   }
 
   if (message.type === "gtsx:ready") {
+    if (state.ready && !state.error) return state
     const next = { ...state, ready: true }
     delete next.error
     return next
   }
 
   if (message.type === "gtsx:tree") {
+    if (sameBoundaryTree(state.tree, message.tree)) return state
     return { ...state, tree: message.tree }
   }
 
   if (message.type === "gtsx:resize") {
+    if (state.size?.width === message.size.width && state.size.height === message.size.height) return state
     return { ...state, size: message.size }
   }
 
   if (message.type === "gtsx:error") {
+    if (state.error?.message === message.error.message && state.error.stack === message.error.stack) return state
     return { ...state, error: message.error }
   }
 
@@ -194,11 +201,36 @@ export function applyStudioPreviewMessageToFrameStates(
     expectedSessionId: message.sessionId,
     ready: false,
   }
+  const nextFrameState = applyStudioPreviewMessage(currentFrameState, message)
+  if (nextFrameState === currentFrameState) return frameStates
 
   return {
     ...frameStates,
-    [message.sessionId]: applyStudioPreviewMessage(currentFrameState, message),
+    [message.sessionId]: nextFrameState,
   }
+}
+
+function sameBoundaryTree(left: GBoundaryTreeNode[] | undefined, right: GBoundaryTreeNode[] | undefined): boolean {
+  if (left === right) return true
+  if (!left || !right || left.length !== right.length) return false
+  return left.every((node, index) => sameBoundaryTreeNode(node, right[index]))
+}
+
+function sameBoundaryTreeNode(left: GBoundaryTreeNode, right: GBoundaryTreeNode | undefined): boolean {
+  if (!right) return false
+  return (
+    left.id === right.id &&
+    left.coordinate === right.coordinate &&
+    sameBoundaryRect(left.rect, right.rect) &&
+    sameBoundaryTree(left.children, right.children)
+  )
+}
+
+function sameBoundaryRect(left: GBoundaryRect | undefined, right: GBoundaryRect | undefined): boolean {
+  return (
+    left === right ||
+    (left?.x === right?.x && left?.y === right?.y && left?.width === right?.width && left?.height === right?.height)
+  )
 }
 
 export function createStudioWorkspaceState(manifest: StudioManifest, selection?: string): StudioWorkspaceState {
@@ -665,6 +697,11 @@ export function isStudioPreviewPoolDebugEnabled(params: URLSearchParams): boolea
   )
 }
 
+export function isStudioPreviewQueueDebugEnabled(params: URLSearchParams): boolean {
+  const debugModes = studioDebugModes(params)
+  return debugModes.includes("queue") || debugModes.includes("preview-queue")
+}
+
 export function isStudioPreviewPoolDisabled(params: URLSearchParams): boolean {
   const debugModes = studioDebugModes(params)
   const debugPool = params.get("debugPool")?.trim().toLowerCase()
@@ -691,20 +728,58 @@ function preserveStudioDebugUrlParams(target: URLSearchParams, source: URLSearch
   for (const name of [
     "debug",
     "debugPool",
+    "debounce",
+    "maximumConcurrentRenderTasks",
+    "maximumConcurrentRenderTasksDuringCanvasMovement",
+    "maximumRenderTaskCount",
+    "minimumVisibleRenderTasksDuringCanvasMovement",
+    "previewQueueActiveRenderTimeout",
+    "previewQueueActiveRenderTimeoutMilliseconds",
     "previewQueueActive",
     "previewQueueActiveTimeout",
+    "previewQueueBufferRenderDelay",
+    "previewQueueBufferRenderDelayMilliseconds",
     "previewQueueBuffer",
+    "previewQueueDebounce",
     "previewQueueLength",
-    "previewQueueRetain",
+    "previewQueueMaximumConcurrentRenderTasks",
+    "previewQueueMaximumConcurrentRenderTasksDuringCanvasMovement",
+    "previewQueueMaximumMountedPreviewSessions",
+    "previewQueueMaximumRenderTaskCount",
+    "previewQueueMinimumVisibleRenderTasksDuringCanvasMovement",
+    "previewQueueVisibleRenderFloor",
+    "previewQueueRenderBufferMargin",
+    "previewQueueRenderDebounce",
+    "previewQueueRenderDebounceMilliseconds",
+    "previewQueueRenderThrottle",
+    "previewQueueRenderThrottleMilliseconds",
     "previewQueueSafety",
+    "previewQueueThrottle",
+    "queueActiveRenderTimeout",
     "queueActive",
     "queueActiveTimeout",
+    "queueBufferRenderDelay",
     "queueBuffer",
+    "queueDebounce",
     "queueLength",
-    "queueRetain",
+    "queueMaximumConcurrentRenderTasks",
+    "queueMaximumConcurrentRenderTasksDuringCanvasMovement",
+    "queueMaximumMountedPreviewSessions",
+    "queueMaximumRenderTaskCount",
+    "queueMinimumVisibleRenderTasksDuringCanvasMovement",
+    "queueRenderBufferMargin",
+    "queueRenderDebounce",
+    "queueRenderThrottle",
     "queueSafety",
+    "queueThrottle",
+    "queueVisibleRenderFloor",
     "previewBuffer",
-    "previewRetain",
+    "previewDebounce",
+    "previewRenderBufferMargin",
+    "previewRenderDebounce",
+    "previewRenderThrottle",
+    "previewThrottle",
+    "throttle",
   ]) {
     target.delete(name)
     for (const value of source.getAll(name)) target.append(name, value)
@@ -751,8 +826,8 @@ export function applyStudioCanvasWheel(current: StudioCanvasTransform, input: St
     }
   }
 
-  const viewportX = input.clientX - input.viewportLeft
-  const viewportY = input.clientY - input.viewportTop
+  const viewportX = input.focalViewportX ?? input.clientX - input.viewportLeft
+  const viewportY = input.focalViewportY ?? input.clientY - input.viewportTop
   const focalCanvasX = (viewportX - current.x) / current.scale
   const focalCanvasY = (viewportY - current.y) / current.scale
   const wheelDelta = -input.deltaY * wheelDeltaModeMultiplier(input.deltaMode) * 10
@@ -1161,7 +1236,7 @@ export function currentPreviewSessionIds(workspace: StudioWorkspaceState): Set<s
   )
 }
 
-export function currentStudioPreviewTargets(manifest: StudioManifest, workspace: StudioWorkspaceState): StudioPreviewWarmupTarget[] {
+export function currentStudioPreviewTargets(manifest: StudioManifest, workspace: StudioWorkspaceState): StudioPreviewTarget[] {
   const viewportPreset = canvasViewportPresetForWorkspace(workspace)
   return visibleWorkspaceComponents(workspace).flatMap((component) =>
     component.cases.map((testCase) =>
@@ -1170,69 +1245,20 @@ export function currentStudioPreviewTargets(manifest: StudioManifest, workspace:
   )
 }
 
-export function studioPreviewWarmupTargets(
-  manifest: StudioManifest,
-  workspace: StudioWorkspaceState,
-  options: { limit?: number } = {},
-): StudioPreviewWarmupTarget[] {
-  const viewportPreset = canvasViewportPresetForWorkspace(workspace)
-  const activeCacheKeys = new Set(currentStudioPreviewTargets(manifest, workspace).map((target) => target.cacheKey))
-  const targets = new Map<string, StudioPreviewWarmupTarget>()
-  const limit = options.limit ?? 16
-
-  const addTarget = (component: StudioManifestComponent | undefined, caseName: string | undefined) => {
-    if (!component || !caseName || caseName === "No cases") return
-    const cacheKey = studioPreviewCacheKey(component, caseName, viewportPreset)
-    if (activeCacheKeys.has(cacheKey) || targets.has(cacheKey)) return
-    targets.set(cacheKey, studioPreviewTarget(manifest, component, caseName, viewportPreset, warmupPreviewSessionId(cacheKey)))
-  }
-
-  const componentsByCoordinate = new Map(
-    manifest.files.flatMap((file) => file.components).map((component) => [component.coordinate, component] as const),
-  )
-
-  for (const coordinate of workspace.selectedCoordinatePath) {
-    const component = componentsByCoordinate.get(coordinate)
-    for (const testCase of component?.cases ?? []) addTarget(component, testCase.name)
-  }
-
-  const selectedCoordinate = workspace.selectedCoordinatePath.at(-1)
-  const selectedComponent = selectedCoordinate ? componentsByCoordinate.get(selectedCoordinate) : undefined
-  for (const testCase of selectedComponent?.cases ?? []) addTarget(selectedComponent, testCase.name)
-
-  for (const column of workspace.columns) {
-    const selectedIndex = Math.max(
-      0,
-      column.components.findIndex((component) => workspace.selectedCoordinatePath.includes(component.coordinate)),
-    )
-    for (const index of [selectedIndex - 1, selectedIndex, selectedIndex + 1]) {
-      const component = column.components[index]
-      if (component) addTarget(component, selectedStudioCaseName(workspace, component))
-      for (const testCase of component?.cases ?? []) addTarget(component, testCase.name)
-    }
-  }
-
-  return [...targets.values()].slice(0, limit)
-}
-
 function studioPreviewTarget(
   manifest: StudioManifest,
   component: StudioManifestComponent,
   caseName: string,
   viewportPreset: StudioViewportPreset,
   sessionId: string,
-): StudioPreviewWarmupTarget {
+): StudioPreviewTarget {
   return {
     cacheKey: studioPreviewCacheKey(component, caseName, viewportPreset),
     previewUrl: createStudioPreviewUrl(manifest, component, caseName, sessionId, { static: true }),
     sessionId,
     size: studioPreviewFrameSize(viewportPreset, undefined) as { width: number; height: number },
-    title: `${component.componentName} ${caseName} warmup`,
+    title: `${component.componentName} ${caseName} preview`,
   }
-}
-
-function warmupPreviewSessionId(cacheKey: string): string {
-  return `warmup:${cacheKey}`
 }
 
 export function isGPreviewProtocolMessage(value: unknown): value is GPreviewProtocolMessage {

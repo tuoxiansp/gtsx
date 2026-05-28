@@ -72,6 +72,10 @@ export type GPreviewPoolReadyMessage = {
   protocolVersion: typeof G_PREVIEW_PROTOCOL_VERSION
 }
 
+export type GPreviewRenderAcceptedMessage = GPreviewProtocolBase & {
+  type: "gtsx:render-accepted"
+}
+
 export type GPreviewProtocolMessage =
   | GPreviewReadyMessage
   | GPreviewTreeMessage
@@ -155,5 +159,13 @@ export function createGPreviewPoolReadyMessage(): GPreviewPoolReadyMessage {
   return {
     type: "gtsx:pool-ready",
     protocolVersion: G_PREVIEW_PROTOCOL_VERSION,
+  }
+}
+
+export function createGPreviewRenderAcceptedMessage(sessionId: string): GPreviewRenderAcceptedMessage {
+  return {
+    type: "gtsx:render-accepted",
+    protocolVersion: G_PREVIEW_PROTOCOL_VERSION,
+    sessionId,
   }
 }

@@ -19,14 +19,21 @@ import {
   computeStudioColumnLayout,
   createStudioCanvasTransformFromUrl,
   createStudioPreviewPoolUrl,
+  createStudioPreviewGeometryCacheStore,
+  createStudioPreviewMessageFlush,
+  createStudioPreviewRenderCompletionSource,
+  createStudioPreviewRenderPlan,
+  createStudioPreviewRenderSessionStore,
   createStudioRuntimeValuesRequest,
   createStudioWorkspaceStateFromUrl,
   createStudioWorkspaceState,
   createStudioWorkspaceUrlSearchParams,
-  currentStudioPreviewTargets,
+  defaultStudioPreviewRenderQueueMaximumConcurrentRenderTasksDuringCanvasMovement,
+  defaultStudioPreviewRenderQueueMinimumVisibleRenderTasksDuringCanvasMovement,
   isGPreviewProtocolMessage,
   isStudioPreviewPoolDisabled,
   isStudioPreviewPoolDebugEnabled,
+  isStudioPreviewQueueDebugEnabled,
   mergeStudioPreviewFrameState,
   previewSessionId,
   queuedStudioPreviewSessionIds,
@@ -37,21 +44,43 @@ import {
   selectStudioRuntimeInstance,
   selectStudioComponent,
   studioPreviewCacheKey,
+  studioPreviewGeometryCacheKeys,
+  studioPreviewRenderPlanHasIncompleteVisibleRenderTasks,
+  studioPreviewVisibilityItems,
   studioPreviewRenderQueueOptionsFromParams,
   studioPreviewRenderTargetFromUrl,
-  studioPreviewWarmupTargets,
+  visibleQueuedStudioPreviewSessionIds,
 } from "../src/index.js"
 import ComponentCard from "../src/components/ComponentCard.g.js"
 import LazyPreviewFrame from "../src/components/LazyPreviewFrame.g.js"
 import PreviewCaseSheet from "../src/components/PreviewCaseSheet.g.js"
 import PreviewMessage from "../src/components/PreviewMessage.g.js"
-import { studioPreviewIframeBorrowKey } from "../src/preview-iframe-pool.js"
+import {
+  selectStudioPreviewIframePoolEntryForBorrow,
+  studioPreviewIframeBorrowInputNeedsRender,
+  studioPreviewIframeBorrowKey,
+  studioPreviewIframePendingRenderPostKey,
+  studioPreviewIframePoolPlacementForAnchor,
+  studioPreviewIframePoolEntryNeedsPendingRenderPost,
+  studioPreviewIframePoolNextPendingRenderDeliveryAttemptCount,
+} from "../src/preview-iframe-pool.js"
 import { studioPreviewIndexedDBNamespace } from "../src/preview-cache-indexeddb.js"
+import {
+  mergeStudioPreviewRenderRequestPolicies,
+  mergeStudioPreviewRenderSchedulerRunOptions,
+  studioPreviewRenderQueueOptionsForRun,
+} from "../src/studio-preview-render-request-policy.js"
+import { chooseStudioCanvasWheelZoomFocalPoint } from "../src/use-studio-canvas-controller.js"
+import {
+  createStudioPreviewRenderRequestClock,
+  type StudioPreviewRenderRequestClockScheduler,
+} from "../src/studio-preview-render-request-clock.js"
+import { createStudioPreviewRenderObservation } from "../src/studio-preview-render-observation.js"
+import { studioPreviewRenderExpansionCenterViewportPoint } from "../src/use-studio-preview-render-scheduler.js"
 import {
   isRectNearViewport,
   shouldRenderStudioPreview,
-  studioPreviewPreloadMargin,
-  studioPreviewRetainMargin,
+  studioPreviewRenderBufferMargin,
   visibleStudioPreviewSessionIds,
 } from "../src/preview-lazy-loading.js"
 
@@ -75,6 +104,58 @@ function buildStudioManifest(
     routes: options.routes,
     diagnostics: options.diagnostics,
   })
+}
+
+function createFakeStudioPreviewRenderRequestClockScheduler(): StudioPreviewRenderRequestClockScheduler & {
+  advanceTime: (milliseconds: number) => void
+  flushAnimationFrames: () => void
+} {
+  let currentTime = 0
+  let nextId = 1
+  const animationFrames = new Map<number, () => void>()
+  const timeouts = new Map<number, { at: number; callback: () => void }>()
+
+  return {
+    advanceTime(milliseconds) {
+      const targetTime = currentTime + milliseconds
+      while (true) {
+        const nextTimeout = [...timeouts.entries()]
+          .filter(([, timeout]) => timeout.at <= targetTime)
+          .sort(([, left], [, right]) => left.at - right.at)[0]
+        if (!nextTimeout) break
+
+        const [id, timeout] = nextTimeout
+        currentTime = timeout.at
+        timeouts.delete(id)
+        timeout.callback()
+      }
+      currentTime = targetTime
+    },
+    cancelAnimationFrame(id) {
+      animationFrames.delete(id)
+    },
+    clearTimeout(id) {
+      timeouts.delete(id)
+    },
+    flushAnimationFrames() {
+      const callbacks = [...animationFrames.values()]
+      animationFrames.clear()
+      for (const callback of callbacks) callback()
+    },
+    now() {
+      return currentTime
+    },
+    requestAnimationFrame(callback) {
+      const id = nextId++
+      animationFrames.set(id, callback)
+      return id
+    },
+    setTimeout(callback, delayMilliseconds) {
+      const id = nextId++
+      timeouts.set(id, { at: currentTime + delayMilliseconds, callback })
+      return id
+    },
+  }
 }
 
 describe("GTSX Studio shell", () => {
@@ -144,7 +225,7 @@ describe("GTSX Studio shell", () => {
     expect(cardCoordinates(renderToStaticMarkup(<StudioShell manifest={manifest} />))).toEqual(expectedRootCoordinates)
   })
 
-  it("defers cache-namespaced Studio card layout until browser preview geometry cache hydration", () => {
+  it("keeps cache-namespaced Studio card layout in server HTML before browser cache hydration", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       projectRoot: "src",
@@ -153,9 +234,8 @@ describe("GTSX Studio shell", () => {
     })
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="component:src/UserCard.g.tsx#default" />)
 
-    expect(html).toContain('aria-busy="true"')
     expect(html).toContain('data-gtsx-canvas-viewport="true"')
-    expect(cardCoordinates(html)).toEqual([])
+    expect(cardCoordinates(html)).toEqual(["src/UserCard.g.tsx#default"])
   })
 
   it("names the Studio package's outer visual root as Studio", () => {
@@ -197,7 +277,7 @@ describe("GTSX Studio shell", () => {
 
     expect(html).toContain('data-gtsx-canvas-viewport="true"')
     expect(html).toContain("touch-action:none")
-    expect(html).toContain("overscroll-behavior:contain")
+    expect(html).toContain("overscroll-behavior:none")
   })
 
   it("zooms the canvas quickly around the trackpad focal point", () => {
@@ -221,6 +301,73 @@ describe("GTSX Studio shell", () => {
       x: expect.closeTo(200),
       y: expect.closeTo(160),
     })
+  })
+
+  it("keeps trackpad pinch zoom anchored to an explicit canvas focal point", () => {
+    const next = applyStudioCanvasWheel(
+      { x: 40, y: 40, scale: 1 },
+      {
+        clientX: 0,
+        clientY: 0,
+        ctrlKey: true,
+        deltaMode: 0,
+        deltaX: 0,
+        deltaY: -10,
+        focalViewportX: 320,
+        focalViewportY: 240,
+        metaKey: false,
+        viewportLeft: 0,
+        viewportTop: 0,
+      },
+    )
+
+    expect(screenPointForCanvasPoint(next, { x: 280, y: 200 })).toEqual({
+      x: expect.closeTo(320),
+      y: expect.closeTo(240),
+    })
+  })
+
+  it("chooses the current wheel point before stale remembered pointer points for canvas zoom", () => {
+    expect(
+      chooseStudioCanvasWheelZoomFocalPoint({
+        eventViewportPoint: { x: 320, y: 240 },
+        lastKnownPointerViewportPoint: { x: 80, y: 90 },
+        viewportSize: { height: 720, width: 1280 },
+      }),
+    ).toEqual({ x: 320, y: 240 })
+    expect(
+      chooseStudioCanvasWheelZoomFocalPoint({
+        eventViewportPoint: { x: -1, y: 240 },
+        lastKnownPointerViewportPoint: { x: 80, y: 90 },
+        viewportSize: { height: 720, width: 1280 },
+      }),
+    ).toEqual({ x: 80, y: 90 })
+    expect(
+      chooseStudioCanvasWheelZoomFocalPoint({
+        eventViewportPoint: { x: -1, y: 240 },
+        lastKnownPointerViewportPoint: null,
+        viewportSize: { height: 720, width: 1280 },
+      }),
+    ).toEqual({ x: 640, y: 360 })
+  })
+
+  it("uses a fresh remembered pointer point when trackpad zoom reports no wheel point", () => {
+    expect(
+      chooseStudioCanvasWheelZoomFocalPoint({
+        eventViewportPoint: undefined,
+        lastKnownPointerAgeMilliseconds: 120,
+        lastKnownPointerViewportPoint: { x: 420, y: 260 },
+        viewportSize: { height: 720, width: 1280 },
+      }),
+    ).toEqual({ x: 420, y: 260 })
+    expect(
+      chooseStudioCanvasWheelZoomFocalPoint({
+        eventViewportPoint: { x: 0, y: 0 },
+        lastKnownPointerAgeMilliseconds: 120,
+        lastKnownPointerViewportPoint: { x: 420, y: 260 },
+        viewportSize: { height: 720, width: 1280 },
+      }),
+    ).toEqual({ x: 420, y: 260 })
   })
 
   it("pans the canvas with two-finger wheel movement", () => {
@@ -549,10 +696,37 @@ describe("GTSX Studio shell", () => {
     expect(previewFrameTagHtml(html, "src/Icon.g.tsx#default:ready@phone")).toContain("overflow:visible")
     expect(previewFrameTagHtml(html, "src/Icon.g.tsx#default:ready@phone")).not.toContain("content-visibility:auto")
     expect(previewFrameTagHtml(html, "src/Icon.g.tsx#default:ready@phone")).not.toContain("contain:layout paint style")
-    expect(previewClipHtml(html)).toContain("content-visibility:auto")
+    expect(previewClipHtml(html)).not.toContain("content-visibility:auto")
+    expect(previewClipHtml(html)).not.toContain("contain-intrinsic-size")
     expect(previewClipHtml(html)).toContain("contain:layout paint style")
     expect(previewClipHtml(html)).toContain("overflow:hidden")
     expect(selectionOutlineHtml(html)).toContain('data-gtsx-selection-outline="true"')
+  })
+
+  it("shows the per-case render lifecycle in preview queue debug mode", () => {
+    const html = renderToStaticMarkup(
+      <LazyPreviewFrame
+        data-gtsx-preview-session-id="src/Icon.g.tsx#default:ready@phone"
+        boundaryRect={{ x: 0, y: 0, width: 96, height: 96 }}
+        coordinate="src/Icon.g.tsx#default"
+        debugPreviewQueue
+        frameState={{
+          expectedSessionId: "src/Icon.g.tsx#default:ready",
+          ready: false,
+        }}
+        previewUrl="/gtsx?entry=src%2FIcon.g.tsx%23default&case=ready&chrome=0"
+        shouldLoad
+        size={{ width: 390, height: 844 }}
+        sessionId="src/Icon.g.tsx#default:ready"
+        title="Icon preview"
+        viewportPreset="phone"
+      />,
+    )
+
+    expect(html).toContain('data-gtsx-preview-render-lifecycle="rendering"')
+    expect(html).toContain('data-gtsx-preview-render-queued="true"')
+    expect(html).toContain('data-gtsx-preview-render-visible="false"')
+    expect(html).toContain('data-gtsx-preview-render-iframe-origin="pending"')
   })
 
   it("does not enter card selected state from sidebar or drilldown state alone", () => {
@@ -660,58 +834,80 @@ describe("GTSX Studio shell", () => {
   it("treats transformed preview bounds near the viewport as loadable", () => {
     const viewport = { bottom: 720, left: 0, right: 1280, top: 0 }
 
-    expect(studioPreviewRetainMargin).toBeGreaterThan(studioPreviewPreloadMargin)
-    expect(isRectNearViewport({ bottom: -1, left: 80, right: 360, top: -240 }, viewport, studioPreviewPreloadMargin)).toBe(true)
-    expect(isRectNearViewport({ bottom: -400, left: 80, right: 360, top: -640 }, viewport, studioPreviewPreloadMargin)).toBe(false)
-    expect(isRectNearViewport({ bottom: 300, left: 1281, right: 1520, top: 40 }, viewport, studioPreviewPreloadMargin)).toBe(true)
-    expect(isRectNearViewport({ bottom: 300, left: 1700, right: 1920, top: 40 }, viewport, studioPreviewPreloadMargin)).toBe(false)
+    expect(isRectNearViewport({ bottom: -1, left: 80, right: 360, top: -240 }, viewport, studioPreviewRenderBufferMargin)).toBe(true)
+    expect(
+      isRectNearViewport(
+        {
+          bottom: -studioPreviewRenderBufferMargin - 1,
+          left: 80,
+          right: 360,
+          top: -studioPreviewRenderBufferMargin - 240,
+        },
+        viewport,
+        studioPreviewRenderBufferMargin,
+      ),
+    ).toBe(false)
+    expect(isRectNearViewport({ bottom: 300, left: 1281, right: 1520, top: 40 }, viewport, studioPreviewRenderBufferMargin)).toBe(true)
+    expect(
+      isRectNearViewport(
+        {
+          bottom: 300,
+          left: viewport.right + studioPreviewRenderBufferMargin + 1,
+          right: viewport.right + studioPreviewRenderBufferMargin + 220,
+          top: 40,
+        },
+        viewport,
+        studioPreviewRenderBufferMargin,
+      ),
+    ).toBe(false)
   })
 
-  it("retains loaded previews near the viewport and releases distant previews", () => {
+  it("uses the render buffer as the offscreen recycle boundary", () => {
     const viewport = { bottom: 720, left: 0, right: 1280, top: 0 }
-    const betweenPreloadAndRetain = {
-      bottom: -studioPreviewPreloadMargin - 10,
+    const insideRenderBuffer = {
+      bottom: -studioPreviewRenderBufferMargin + 10,
       left: 80,
       right: 360,
-      top: -studioPreviewPreloadMargin - 240,
+      top: -studioPreviewRenderBufferMargin - 220,
     }
-    const beyondRetain = {
-      bottom: -studioPreviewRetainMargin - 10,
+    const outsideRenderBuffer = {
+      bottom: -studioPreviewRenderBufferMargin - 10,
       left: 80,
       right: 360,
-      top: -studioPreviewRetainMargin - 240,
+      top: -studioPreviewRenderBufferMargin - 240,
     }
 
-    expect(shouldRenderStudioPreview(false, betweenPreloadAndRetain, viewport)).toBe(false)
-    expect(shouldRenderStudioPreview(true, betweenPreloadAndRetain, viewport)).toBe(true)
-    expect(shouldRenderStudioPreview(true, beyondRetain, viewport)).toBe(false)
+    expect(shouldRenderStudioPreview(false, insideRenderBuffer, viewport)).toBe(true)
+    expect(shouldRenderStudioPreview(true, insideRenderBuffer, viewport)).toBe(true)
+    expect(shouldRenderStudioPreview(false, outsideRenderBuffer, viewport)).toBe(false)
+    expect(shouldRenderStudioPreview(true, outsideRenderBuffer, viewport)).toBe(false)
   })
 
   it("computes preview visibility centrally from canvas coordinates", () => {
     expect(
       [...visibleStudioPreviewSessionIds({
         canvas: { x: -420, y: -120, scale: 1 },
-        currentSessionIds: new Set(["retained"]),
+        currentSessionIds: new Set(["buffered"]),
         items: [
           {
             rect: { bottom: 260, left: 360, right: 640, top: 40 },
             sessionIds: ["visible-a", "visible-b"],
           },
           {
-            rect: { bottom: 260, left: 2200, right: 2460, top: 40 },
+            rect: { bottom: 260, left: 8400, right: 8660, top: 40 },
             sessionIds: ["far"],
           },
           {
-            rect: { bottom: 260, left: -1320, right: -1120, top: 40 },
-            sessionIds: ["retained"],
+            rect: { bottom: 260, left: -620, right: -420, top: 40 },
+            sessionIds: ["buffered"],
           },
         ],
         viewport: { bottom: 720, left: 0, right: 1280, top: 0 },
       })].sort(),
-    ).toEqual(["retained", "visible-a", "visible-b"])
+    ).toEqual(["buffered", "visible-a", "visible-b"])
   })
 
-  it("queues preview rendering by viewport priority and active render budget", () => {
+  it("queues visible preview work before spending the active render budget on buffered work", () => {
     const queueInput = {
       canvas: { x: 0, y: 0, scale: 1 },
       items: [
@@ -724,8 +920,8 @@ describe("GTSX Studio shell", () => {
           sessionIds: ["near-a", "near-b"],
         },
       ],
-      maxActive: 2,
-      safetyLimit: 5,
+      maximumConcurrentRenderTasks: 2,
+      maximumRenderTaskCount: 5,
       viewport: { bottom: 100, left: 0, right: 100, top: 0 },
     }
 
@@ -741,7 +937,7 @@ describe("GTSX Studio shell", () => {
       [...queuedStudioPreviewSessionIds({
         ...queueInput,
         currentSessionIds: new Set(["visible-a"]),
-        maxActive: 1,
+        maximumConcurrentRenderTasks: 1,
       })],
     ).toEqual(["visible-a", "visible-b"])
     expect(
@@ -749,7 +945,7 @@ describe("GTSX Studio shell", () => {
         ...queueInput,
         activeSessionIds: new Set(["visible-a"]),
         currentSessionIds: new Set(["visible-a"]),
-        maxActive: 1,
+        maximumConcurrentRenderTasks: 1,
       })],
     ).toEqual(["visible-a"])
     expect(
@@ -763,14 +959,14 @@ describe("GTSX Studio shell", () => {
             sessionIds: ["new-a", "new-b", "done"],
           },
         ],
-        maxActive: 2,
-        safetyLimit: 3,
+        maximumConcurrentRenderTasks: 2,
+        maximumRenderTaskCount: 3,
         viewport: { bottom: 100, left: 0, right: 100, top: 0 },
       })],
     ).toEqual(["new-a", "new-b", "done"])
   })
 
-  it("spreads active render work across visible cards before deeper case rounds", () => {
+  it("round-robins visible preview work inside the render budget", () => {
     expect(
       [...queuedStudioPreviewSessionIds({
         canvas: { x: 0, y: 0, scale: 1 },
@@ -784,11 +980,886 @@ describe("GTSX Studio shell", () => {
             sessionIds: ["bottom-a", "bottom-b"],
           },
         ],
-        maxActive: 2,
-        safetyLimit: 4,
+        maximumConcurrentRenderTasks: 2,
+        maximumRenderTaskCount: 4,
         viewport: { bottom: 100, left: 0, right: 240, top: 0 },
       })],
     ).toEqual(["top-a", "bottom-a"])
+  })
+
+  it("orders visible preview work from the viewport center before buffered work", () => {
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        canvas: { x: 0, y: 0, scale: 1 },
+        items: [
+          {
+            rect: { bottom: 100, left: 0, right: 100, top: 80 },
+            sessionIds: ["visible-edge"],
+          },
+          {
+            rect: { bottom: 55, left: 45, right: 55, top: 45 },
+            sessionIds: ["visible-center"],
+          },
+          {
+            rect: { bottom: 220, left: 45, right: 55, top: 210 },
+            sessionIds: ["buffered-near"],
+          },
+        ],
+        maximumConcurrentRenderTasks: 3,
+        maximumRenderTaskCount: 3,
+        viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      })],
+    ).toEqual(["visible-center", "visible-edge", "buffered-near"])
+  })
+
+  it("separates visible preview queue tasks from buffered queued work", () => {
+    const input = {
+      canvas: { x: 0, y: 0, scale: 1 },
+      items: [
+        {
+          rect: { bottom: 100, left: 0, right: 100, top: 0 },
+          sessionIds: ["visible-a", "visible-b"],
+        },
+        {
+          rect: { bottom: 220, left: 0, right: 100, top: 160 },
+          sessionIds: ["buffered"],
+        },
+      ],
+      maximumConcurrentRenderTasks: 8,
+      renderBufferMargin: 200,
+      maximumRenderTaskCount: 8,
+      viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+    }
+    const queued = queuedStudioPreviewSessionIds(input)
+
+    expect([...queued]).toEqual(["visible-a", "visible-b", "buffered"])
+    expect([...visibleQueuedStudioPreviewSessionIds(input, queued)]).toEqual(["visible-a", "visible-b"])
+  })
+
+  it("orders buffered preview work in the canvas movement direction", () => {
+    const input = {
+      canvas: { x: 0, y: 0, scale: 1 },
+      items: [
+        {
+          rect: { bottom: -20, left: 0, right: 100, top: -120 },
+          sessionIds: ["above-near"],
+        },
+        {
+          rect: { bottom: 220, left: 0, right: 100, top: 120 },
+          sessionIds: ["below-near"],
+        },
+        {
+          rect: { bottom: 460, left: 0, right: 100, top: 360 },
+          sessionIds: ["below-far"],
+        },
+      ],
+      maximumConcurrentRenderTasks: 3,
+      maximumRenderTaskCount: 3,
+      renderBufferMargin: 500,
+      viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+    }
+
+    expect([...queuedStudioPreviewSessionIds({ ...input, canvasMovement: { x: 0, y: -40 } })]).toEqual([
+      "below-near",
+      "below-far",
+      "above-near",
+    ])
+    expect([...queuedStudioPreviewSessionIds({ ...input, canvasMovement: { x: 0, y: 40 } })]).toEqual([
+      "above-near",
+      "below-near",
+      "below-far",
+    ])
+  })
+
+  it("prefers visible work over lower-priority active buffered renders", () => {
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        activeSessionIds: new Set(["buffered-active"]),
+        canvas: { x: 0, y: 0, scale: 1 },
+        currentSessionIds: new Set(["buffered-active"]),
+        items: [
+          {
+            rect: { bottom: 100, left: 0, right: 100, top: 0 },
+            sessionIds: ["visible"],
+          },
+          {
+            rect: { bottom: 460, left: 0, right: 100, top: 360 },
+            sessionIds: ["buffered-active"],
+          },
+        ],
+        maximumConcurrentRenderTasks: 1,
+        maximumRenderTaskCount: 4,
+        viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      })],
+    ).toEqual(["visible"])
+  })
+
+  it("keeps visible active renders on screen when the movement render budget is exhausted", () => {
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        activeSessionIds: new Set(["visible-active", "buffered-active"]),
+        canvas: { x: 0, y: 0, scale: 1 },
+        currentSessionIds: new Set(["visible-active", "buffered-active"]),
+        items: [
+          {
+            rect: { bottom: 100, left: 0, right: 100, top: 0 },
+            sessionIds: ["visible-active", "visible-new"],
+          },
+          {
+            rect: { bottom: 460, left: 0, right: 100, top: 360 },
+            sessionIds: ["buffered-active"],
+          },
+        ],
+        maximumConcurrentRenderTasks: 1,
+        maximumRenderTaskCount: 4,
+        viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      })],
+    ).toEqual(["visible-active"])
+  })
+
+  it("uses the visible render floor before buffered work during canvas movement", () => {
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        canvas: { x: 0, y: 0, scale: 1 },
+        items: [
+          {
+            rect: { bottom: 100, left: 0, right: 100, top: 0 },
+            sessionIds: ["visible-a", "visible-b", "visible-c", "visible-d"],
+          },
+          {
+            rect: { bottom: 300, left: 0, right: 100, top: 200 },
+            sessionIds: ["buffered"],
+          },
+        ],
+        maximumConcurrentRenderTasks: 3,
+        maximumRenderTaskCount: 8,
+        minimumVisibleRenderTasks: 3,
+        renderBufferMargin: 400,
+        viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      })],
+    ).toEqual(["visible-a", "visible-b", "visible-c"])
+  })
+
+  it("caps the visible render floor by the maximum concurrent render task budget", () => {
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        canvas: { x: 0, y: 0, scale: 1 },
+        items: [
+          {
+            rect: { bottom: 100, left: 0, right: 100, top: 0 },
+            sessionIds: ["visible-a", "visible-b", "visible-c", "visible-d"],
+          },
+        ],
+        maximumConcurrentRenderTasks: 1,
+        maximumRenderTaskCount: 8,
+        minimumVisibleRenderTasks: 3,
+        viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      })],
+    ).toEqual(["visible-a"])
+  })
+
+  it("keeps mounted buffered previews outside the active render budget", () => {
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        canvas: { x: 0, y: 0, scale: 1 },
+        completedSessionIds: new Set(["visible-ready", "buffered-ready", "buffered-extra"]),
+        currentSessionIds: new Set(["visible-ready", "buffered-ready", "buffered-extra"]),
+        items: [
+          {
+            rect: { bottom: 100, left: 0, right: 100, top: 0 },
+            sessionIds: ["visible-ready", "visible-new"],
+          },
+          {
+            rect: { bottom: 460, left: 0, right: 100, top: 360 },
+            sessionIds: ["buffered-ready", "buffered-extra"],
+          },
+        ],
+        maximumConcurrentRenderTasks: 2,
+        maximumRenderTaskCount: 6,
+        viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      })],
+    ).toEqual(["visible-ready", "visible-new", "buffered-ready", "buffered-extra"])
+  })
+
+  it("keeps mounted buffered previews within the render buffer during visible-only scheduler runs", () => {
+    const visibleOnlyOptions = studioPreviewRenderQueueOptionsForRun(
+      { renderBufferMargin: 500 },
+      { includeBuffer: false },
+    )
+
+    expect(visibleOnlyOptions).toEqual({ renderBufferMargin: 500, includeBufferedRenderTasks: false })
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        ...visibleOnlyOptions,
+        canvas: { x: 0, y: 0, scale: 1 },
+        completedSessionIds: new Set(["buffered-ready"]),
+        currentSessionIds: new Set(["buffered-ready"]),
+        items: [
+          {
+            rect: { bottom: 100, left: 0, right: 100, top: 0 },
+            sessionIds: ["visible-new"],
+          },
+          {
+            rect: { bottom: 460, left: 0, right: 100, top: 360 },
+            sessionIds: ["buffered-ready"],
+          },
+          {
+            rect: { bottom: 460, left: 140, right: 240, top: 360 },
+            sessionIds: ["buffered-new"],
+          },
+        ],
+        maximumConcurrentRenderTasks: 1,
+        maximumRenderTaskCount: 4,
+        viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      })],
+    ).toEqual(["visible-new", "buffered-ready"])
+  })
+
+  it("uses the smaller canvas-movement render task limit only for moving canvas runs", () => {
+    expect(
+      studioPreviewRenderQueueOptionsForRun(
+        {
+          maximumConcurrentRenderTasks: 16,
+          maximumConcurrentRenderTasksDuringCanvasMovement: 3,
+          minimumVisibleRenderTasksDuringCanvasMovement: 5,
+          renderBufferMargin: 500,
+        },
+        { includeBuffer: false, useCanvasMovementRenderTaskLimit: true },
+      ),
+    ).toEqual({
+      includeBufferedRenderTasks: false,
+      maximumConcurrentRenderTasks: 3,
+      maximumConcurrentRenderTasksDuringCanvasMovement: 3,
+      minimumVisibleRenderTasks: 5,
+      minimumVisibleRenderTasksDuringCanvasMovement: 5,
+      renderBufferMargin: 500,
+    })
+
+    expect(
+      studioPreviewRenderQueueOptionsForRun(
+        {
+          maximumConcurrentRenderTasks: 16,
+          maximumConcurrentRenderTasksDuringCanvasMovement: 3,
+          minimumVisibleRenderTasksDuringCanvasMovement: 5,
+          renderBufferMargin: 500,
+        },
+        { includeBuffer: true, useCanvasMovementRenderTaskLimit: true },
+      ),
+    ).toEqual({
+      maximumConcurrentRenderTasks: 3,
+      maximumConcurrentRenderTasksDuringCanvasMovement: 3,
+      minimumVisibleRenderTasks: 5,
+      minimumVisibleRenderTasksDuringCanvasMovement: 5,
+      renderBufferMargin: 500,
+    })
+
+    expect(
+      studioPreviewRenderQueueOptionsForRun(
+        {
+          maximumConcurrentRenderTasks: 16,
+          maximumConcurrentRenderTasksDuringCanvasMovement: 3,
+        },
+        { includeBuffer: false },
+      ),
+    ).toEqual({
+      includeBufferedRenderTasks: false,
+      maximumConcurrentRenderTasks: 16,
+      maximumConcurrentRenderTasksDuringCanvasMovement: 3,
+    })
+
+    expect(
+      studioPreviewRenderQueueOptionsForRun(
+        { maximumConcurrentRenderTasks: 16 },
+        { useCanvasMovementRenderTaskLimit: true },
+      ),
+    ).toEqual({
+      maximumConcurrentRenderTasks: defaultStudioPreviewRenderQueueMaximumConcurrentRenderTasksDuringCanvasMovement,
+      minimumVisibleRenderTasks: defaultStudioPreviewRenderQueueMinimumVisibleRenderTasksDuringCanvasMovement,
+    })
+  })
+
+  it("merges scheduled preview render runs without coupling buffer scope to movement dispatch", () => {
+    expect(
+      mergeStudioPreviewRenderRequestPolicies(
+        { renderBudget: "canvas-movement", renderScope: "visible" },
+        { renderBudget: "normal", renderScope: "buffer" },
+      ),
+    ).toEqual({ renderBudget: "normal", renderScope: "buffer" })
+    expect(
+      mergeStudioPreviewRenderSchedulerRunOptions(null, {
+        includeBuffer: true,
+        useCanvasMovementRenderTaskLimit: true,
+      }),
+    ).toEqual({ includeBuffer: true, useCanvasMovementRenderTaskLimit: true })
+    expect(
+      mergeStudioPreviewRenderSchedulerRunOptions(
+        { includeBuffer: true, useCanvasMovementRenderTaskLimit: true },
+        { includeBuffer: true, useCanvasMovementRenderTaskLimit: true },
+      ),
+    ).toEqual({ includeBuffer: true, useCanvasMovementRenderTaskLimit: true })
+    expect(
+      mergeStudioPreviewRenderSchedulerRunOptions(
+        { includeBuffer: true, useCanvasMovementRenderTaskLimit: true },
+        { includeBuffer: true },
+      ),
+    ).toEqual({ includeBuffer: true, useCanvasMovementRenderTaskLimit: false })
+    expect(
+      mergeStudioPreviewRenderSchedulerRunOptions(
+        { includeBuffer: false, useCanvasMovementRenderTaskLimit: true },
+        { includeBuffer: true, useCanvasMovementRenderTaskLimit: true },
+      ),
+    ).toEqual({ includeBuffer: true, useCanvasMovementRenderTaskLimit: true })
+  })
+
+  it("reports the render expansion center in viewport coordinates", () => {
+    expect(
+      studioPreviewRenderExpansionCenterViewportPoint({
+        bottom: 720,
+        left: 0,
+        right: 1280,
+        top: 0,
+      }),
+    ).toEqual({ x: 640, y: 360 })
+  })
+
+  it("observes scroll render response from visible session completions", () => {
+    let now = 1_000
+    const observation = createStudioPreviewRenderObservation({ now: () => now })
+
+    expect(
+      observation.observeQueueRun({
+        newVisibleSessionIds: ["visible-a", "visible-b"],
+        renderBudget: "canvas-movement",
+        renderScope: "buffer",
+        visibleSessionIds: ["visible-a", "visible-b"],
+      }).scrollResponse,
+    ).toEqual({
+      completedVisibleSessionCount: 0,
+      firstVisibleCompletionMilliseconds: undefined,
+      latestVisibleCompletionMilliseconds: undefined,
+      pendingVisibleSessionCount: 2,
+      startedAtMilliseconds: 1_000,
+      visibleSessionCount: 2,
+    })
+
+    now += 42
+    expect(
+      observation.observePreviewTiming({ sessionId: "visible-b", type: "gtsx:ready" }).scrollResponse,
+    ).toMatchObject({
+      completedVisibleSessionCount: 1,
+      firstVisibleCompletionMilliseconds: 42,
+      latestVisibleCompletionMilliseconds: 42,
+      pendingVisibleSessionCount: 1,
+      visibleSessionCount: 2,
+    })
+  })
+
+  it("observes full-buffer render speed from queue and preview timing events", () => {
+    let now = 2_000
+    const observation = createStudioPreviewRenderObservation({ now: () => now })
+
+    observation.observeQueueRun({
+      newSessionIds: ["a", "b"],
+      nextSessionIds: ["a", "b", "already-mounted"],
+      renderBudget: "normal",
+      renderScope: "buffer",
+    })
+    now += 50
+    observation.observePreviewTiming({ sessionId: "a", type: "gtsx:ready" })
+    now += 50
+
+    expect(observation.observePreviewTiming({ sessionId: "b", type: "gtsx:error" }).fullRender).toMatchObject({
+      completedSessionCount: 2,
+      firstCompletionMilliseconds: 50,
+      latestCompletionMilliseconds: 100,
+      pendingSessionCount: 0,
+      renderCompletionsPerSecond: 20,
+      sessionCount: 2,
+    })
+  })
+
+  it("does not reset render observations when a queue run reports no new tasks", () => {
+    let now = 3_000
+    const observation = createStudioPreviewRenderObservation({ now: () => now })
+
+    observation.observeQueueRun({
+      newSessionIds: ["a"],
+      nextSessionIds: ["a"],
+      renderBudget: "normal",
+      renderScope: "buffer",
+    })
+    now += 25
+    observation.observePreviewTiming({ sessionId: "a", type: "gtsx:ready" })
+    now += 25
+
+    expect(
+      observation.observeQueueRun({
+        newSessionIds: [],
+        nextSessionIds: ["a", "already-mounted"],
+        renderBudget: "normal",
+        renderScope: "buffer",
+      }).fullRender,
+    ).toMatchObject({
+      completedSessionCount: 1,
+      latestCompletionMilliseconds: 25,
+      pendingSessionCount: 0,
+      sessionCount: 1,
+    })
+  })
+
+  it("does not start a scroll response observation for an explicit empty new visible task set", () => {
+    const observation = createStudioPreviewRenderObservation({ now: () => 4_000 })
+
+    expect(
+      observation.observeQueueRun({
+        newVisibleSessionIds: [],
+        renderBudget: "canvas-movement",
+        renderScope: "buffer",
+        visibleSessionIds: ["already-mounted"],
+      }).scrollResponse,
+    ).toBeUndefined()
+  })
+
+  it("drives canvas movement and idle visible-first render requests from one request clock", () => {
+    const scheduler = createFakeStudioPreviewRenderRequestClockScheduler()
+    const canvas = { x: 0, y: 0, scale: 1 }
+    const requestPolicies: Array<{ renderBudget: string; renderScope: string }> = []
+    const clock = createStudioPreviewRenderRequestClock({
+      getCanvas: () => canvas,
+      getRenderQueueOptions: () => ({
+        activeRenderTimeoutMilliseconds: 5_000,
+        bufferRenderDelayMilliseconds: 240,
+        renderDebounceMilliseconds: 120,
+        renderThrottleMilliseconds: 100,
+      }),
+      runRenderRequest: (_nextCanvas, requestPolicy) => {
+        requestPolicies.push(requestPolicy)
+        return true
+      },
+      scheduler,
+    })
+
+    clock.requestCanvasMovementRender(canvas)
+    expect(requestPolicies).toEqual([{ renderBudget: "canvas-movement", renderScope: "buffer" }])
+
+    scheduler.advanceTime(120)
+    scheduler.flushAnimationFrames()
+    expect(requestPolicies).toEqual([
+      { renderBudget: "canvas-movement", renderScope: "buffer" },
+      { renderBudget: "normal", renderScope: "visible" },
+    ])
+
+    scheduler.advanceTime(240)
+    scheduler.flushAnimationFrames()
+    expect(requestPolicies).toEqual([
+      { renderBudget: "canvas-movement", renderScope: "buffer" },
+      { renderBudget: "normal", renderScope: "visible" },
+      { renderBudget: "normal", renderScope: "buffer" },
+    ])
+
+    clock.dispose()
+  })
+
+  it("keeps idle visible and buffer render requests behind the movement delays", () => {
+    const scheduler = createFakeStudioPreviewRenderRequestClockScheduler()
+    const canvas = { x: 0, y: 0, scale: 1 }
+    const requestPolicies: Array<{ renderBudget: string; renderScope: string }> = []
+    const clock = createStudioPreviewRenderRequestClock({
+      getCanvas: () => canvas,
+      getRenderQueueOptions: () => ({
+        activeRenderTimeoutMilliseconds: 5_000,
+        bufferRenderDelayMilliseconds: 240,
+        renderDebounceMilliseconds: 500,
+        renderThrottleMilliseconds: 100,
+      }),
+      runRenderRequest: (_nextCanvas, requestPolicy) => {
+        requestPolicies.push(requestPolicy)
+        return true
+      },
+      scheduler,
+    })
+
+    clock.requestCanvasMovementRender(canvas)
+    scheduler.advanceTime(100)
+    scheduler.flushAnimationFrames()
+    expect(requestPolicies).toEqual([{ renderBudget: "canvas-movement", renderScope: "buffer" }])
+
+    scheduler.advanceTime(400)
+    scheduler.flushAnimationFrames()
+    expect(requestPolicies).toEqual([
+      { renderBudget: "canvas-movement", renderScope: "buffer" },
+      { renderBudget: "normal", renderScope: "visible" },
+    ])
+
+    scheduler.advanceTime(240)
+    scheduler.flushAnimationFrames()
+    expect(requestPolicies).toEqual([
+      { renderBudget: "canvas-movement", renderScope: "buffer" },
+      { renderBudget: "normal", renderScope: "visible" },
+      { renderBudget: "normal", renderScope: "buffer" },
+    ])
+
+    clock.dispose()
+  })
+
+  it("keeps completion-driven requests visible-only while buffered idle render is delayed", () => {
+    const scheduler = createFakeStudioPreviewRenderRequestClockScheduler()
+    const canvas = { x: 0, y: 0, scale: 1 }
+    const requestPolicies: Array<{ renderBudget: string; renderScope: string }> = []
+    const clock = createStudioPreviewRenderRequestClock({
+      getCanvas: () => canvas,
+      getRenderQueueOptions: () => ({
+        bufferRenderDelayMilliseconds: 300,
+        renderDebounceMilliseconds: 100,
+        renderThrottleMilliseconds: 100,
+      }),
+      runRenderRequest: (_nextCanvas, requestPolicy) => {
+        requestPolicies.push(requestPolicy)
+        return true
+      },
+      scheduler,
+    })
+
+    clock.requestCanvasMovementRender(canvas)
+    scheduler.advanceTime(100)
+    scheduler.flushAnimationFrames()
+    clock.requestRenderAfterPreviewCompletion()
+    scheduler.flushAnimationFrames()
+
+    expect(requestPolicies).toEqual([
+      { renderBudget: "canvas-movement", renderScope: "buffer" },
+      { renderBudget: "normal", renderScope: "visible" },
+      { renderBudget: "normal", renderScope: "visible" },
+    ])
+
+    scheduler.advanceTime(300)
+    scheduler.flushAnimationFrames()
+    expect(requestPolicies).toEqual([
+      { renderBudget: "canvas-movement", renderScope: "buffer" },
+      { renderBudget: "normal", renderScope: "visible" },
+      { renderBudget: "normal", renderScope: "visible" },
+      { renderBudget: "normal", renderScope: "buffer" },
+    ])
+
+    clock.dispose()
+  })
+
+  it("starts ordinary preview render requests with visible work before buffered work", () => {
+    const scheduler = createFakeStudioPreviewRenderRequestClockScheduler()
+    const canvas = { x: 0, y: 0, scale: 1 }
+    const requestPolicies: Array<{ renderBudget: string; renderScope: string }> = []
+    const clock = createStudioPreviewRenderRequestClock({
+      getCanvas: () => canvas,
+      getRenderQueueOptions: () => ({
+        bufferRenderDelayMilliseconds: 300,
+      }),
+      runRenderRequest: (_nextCanvas, requestPolicy) => {
+        requestPolicies.push(requestPolicy)
+        return true
+      },
+      scheduler,
+    })
+
+    clock.requestBufferedRender(canvas)
+    scheduler.flushAnimationFrames()
+    expect(requestPolicies).toEqual([{ renderBudget: "normal", renderScope: "visible" }])
+
+    scheduler.advanceTime(300)
+    scheduler.flushAnimationFrames()
+    expect(requestPolicies).toEqual([
+      { renderBudget: "normal", renderScope: "visible" },
+      { renderBudget: "normal", renderScope: "buffer" },
+    ])
+
+    clock.dispose()
+  })
+
+  it("keeps moving-canvas runs on the render buffer with a smaller render task limit", () => {
+    const input = {
+      canvas: { x: 0, y: 0, scale: 1 },
+      items: [
+        {
+          rect: { bottom: 100, left: 0, right: 100, top: 0 },
+          sessionIds: ["visible-a", "visible-b"],
+        },
+        {
+          rect: { bottom: 700, left: 0, right: 100, top: 600 },
+          sessionIds: ["buffered-a", "buffered-b"],
+        },
+      ],
+      ...studioPreviewRenderQueueOptionsForRun(
+        {
+          maximumConcurrentRenderTasks: 8,
+          maximumConcurrentRenderTasksDuringCanvasMovement: 1,
+          renderBufferMargin: 640,
+        },
+        { includeBuffer: true, useCanvasMovementRenderTaskLimit: true },
+      ),
+      maximumRenderTaskCount: 8,
+      viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+    }
+
+    expect([...queuedStudioPreviewSessionIds(input)]).toEqual(["visible-a"])
+    expect([...queuedStudioPreviewSessionIds({
+      ...input,
+      completedSessionIds: new Set(["visible-a"]),
+      currentSessionIds: new Set(["visible-a"]),
+    })]).toEqual(["visible-a", "visible-b"])
+    expect([...queuedStudioPreviewSessionIds({
+      ...input,
+      completedSessionIds: new Set(["visible-a", "visible-b"]),
+      currentSessionIds: new Set(["visible-a", "visible-b"]),
+    })]).toEqual(["visible-a", "visible-b", "buffered-a"])
+    expect([...queuedStudioPreviewSessionIds({
+      ...input,
+      ...studioPreviewRenderQueueOptionsForRun(
+        {
+          maximumConcurrentRenderTasks: 8,
+          maximumConcurrentRenderTasksDuringCanvasMovement: 1,
+          renderBufferMargin: 640,
+        },
+        { includeBuffer: false, useCanvasMovementRenderTaskLimit: true },
+      ),
+      completedSessionIds: new Set(["visible-a", "visible-b"]),
+      currentSessionIds: new Set(["visible-a", "visible-b"]),
+    })]).toEqual(["visible-a", "visible-b"])
+  })
+
+  it("drops mounted previews outside the render buffer once they are no longer queued", () => {
+    expect([...queuedStudioPreviewSessionIds({
+      canvas: { x: 0, y: 0, scale: 1 },
+      completedSessionIds: new Set(["completed-offscreen"]),
+      currentSessionIds: new Set(["completed-offscreen"]),
+      items: [
+        {
+          rect: { bottom: 900, left: 0, right: 100, top: 800 },
+          sessionIds: ["completed-offscreen"],
+        },
+      ],
+      renderBufferMargin: 100,
+      viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+    })]).toEqual([])
+  })
+
+  it("uses measured case preview rects as canvas visibility items", () => {
+    const component = {
+      cases: [{ name: "ready" }, { name: "loading" }],
+      coordinate: "src/Card.g.tsx#default",
+    }
+    const readySessionId = previewSessionId(component as any, "ready")
+    const loadingSessionId = previewSessionId(component as any, "loading")
+
+    expect(
+      studioPreviewVisibilityItems(
+        {
+          columns: [{ components: [component], parentCoordinate: undefined }],
+          selectedCoordinatePath: [],
+          selectedViewportPresetByCoordinate: {},
+        } as any,
+        "tablet",
+        { 0: { x: 100, y: 200 } },
+        {
+          0: {
+            cardRectsByCoordinate: {
+              "src/Card.g.tsx#default": { bottom: 320, left: 0, right: 240, top: 0 },
+            },
+            height: 320,
+            previewFrameRectsBySessionId: {
+              [readySessionId]: { bottom: 100, left: 8, right: 108, top: 20 },
+              [loadingSessionId]: { bottom: 250, left: 118, right: 218, top: 170 },
+            },
+          },
+        },
+      ),
+    ).toEqual([
+      { rect: { bottom: 300, left: 108, right: 208, top: 220 }, sessionIds: [readySessionId] },
+      { rect: { bottom: 450, left: 218, right: 318, top: 370 }, sessionIds: [loadingSessionId] },
+    ])
+  })
+
+  it("keeps canvas visibility fallback at case preview granularity before frame rects are measured", () => {
+    const component = {
+      cases: [{ name: "first" }, { name: "center" }, { name: "last" }],
+      coordinate: "src/Card.g.tsx#default",
+    }
+    const sessionIds = component.cases.map((testCase) => previewSessionId(component as any, testCase.name, "tablet"))
+
+    const visibilityItems = studioPreviewVisibilityItems(
+      {
+        columns: [{ components: [component], parentCoordinate: undefined }],
+        selectedCoordinatePath: [],
+        selectedViewportPresetByCoordinate: {},
+      } as any,
+      "tablet",
+      { 0: { x: 100, y: 200 } },
+      {
+        0: {
+          cardRectsByCoordinate: {
+            "src/Card.g.tsx#default": { bottom: 1800, left: 0, right: 1700, top: 0 },
+          },
+          height: 1800,
+          previewFrameRectsBySessionId: {},
+        },
+      },
+    )
+
+    expect(visibilityItems.map((item) => item.sessionIds)).toEqual(sessionIds.map((sessionId) => [sessionId]))
+    expect(new Set(visibilityItems.map((item) => `${item.rect.left},${item.rect.top}`)).size).toBe(sessionIds.length)
+  })
+
+  it("uses fallback case preview visibility for center-first render planning before frame rects are measured", () => {
+    const component = {
+      cases: [{ name: "first" }, { name: "center" }, { name: "last" }],
+      coordinate: "src/Card.g.tsx#default",
+    }
+    const centerSessionId = previewSessionId(component as any, "center", "tablet")
+    const workspace = {
+      columns: [{ components: [component], parentCoordinate: undefined }],
+      selectedCoordinatePath: [],
+      selectedViewportPresetByCoordinate: {},
+    } as any
+    const columnMeasurementsByIndex = {
+      0: {
+        cardRectsByCoordinate: {
+          "src/Card.g.tsx#default": { bottom: 1800, left: 0, right: 1700, top: 0 },
+        },
+        height: 1800,
+        previewFrameRectsBySessionId: {},
+      },
+    }
+    const fallbackItems = studioPreviewVisibilityItems(workspace, "tablet", { 0: { x: 0, y: 0 } }, columnMeasurementsByIndex)
+    const centerItem = fallbackItems.find((item) => item.sessionIds[0] === centerSessionId)
+    if (!centerItem) throw new Error("Missing center fallback visibility item")
+
+    const plan = createStudioPreviewRenderPlan({
+      canvas: { x: 0, y: 0, scale: 1 },
+      canvasViewportPreset: "tablet",
+      columnLayoutByIndex: { 0: { x: 0, y: 0 } },
+      columnMeasurementsByIndex,
+      completedSessionIds: new Set<string>(),
+      currentSessionIds: new Set<string>(),
+      mountedAtBySessionId: new Map<string, number>(),
+      queueOptions: {
+        maximumConcurrentRenderTasks: 1,
+        maximumRenderTaskCount: 1,
+        renderBufferMargin: 0,
+      },
+      viewport: centerItem.rect,
+      workspace,
+    })
+
+    expect([...plan.nextSessionIds]).toEqual([centerSessionId])
+  })
+
+  it("creates one render plan for queue membership and visible completion state", () => {
+    const component = {
+      cases: [{ name: "ready" }, { name: "loading" }],
+      coordinate: "src/Card.g.tsx#default",
+    }
+    const readySessionId = previewSessionId(component as any, "ready", "tablet")
+    const loadingSessionId = previewSessionId(component as any, "loading", "tablet")
+    const baseInput = {
+      canvas: { x: 0, y: 0, scale: 1 },
+      canvasViewportPreset: "tablet" as const,
+      columnLayoutByIndex: { 0: { x: 0, y: 0 } },
+      columnMeasurementsByIndex: {
+        0: {
+          cardRectsByCoordinate: {
+            "src/Card.g.tsx#default": { bottom: 260, left: 0, right: 100, top: 0 },
+          },
+          height: 260,
+          previewFrameRectsBySessionId: {
+            [readySessionId]: { bottom: 100, left: 0, right: 100, top: 0 },
+            [loadingSessionId]: { bottom: 260, left: 0, right: 100, top: 160 },
+          },
+        },
+      },
+      currentSessionIds: new Set<string>(),
+      mountedAtBySessionId: new Map<string, number>(),
+      queueOptions: {
+        maximumConcurrentRenderTasks: 1,
+        maximumRenderTaskCount: 4,
+        renderBufferMargin: 500,
+      },
+      viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      workspace: {
+        columns: [{ components: [component], parentCoordinate: undefined }],
+        selectedCoordinatePath: [],
+        selectedViewportPresetByCoordinate: {},
+      } as any,
+    }
+
+    const plan = createStudioPreviewRenderPlan({
+      ...baseInput,
+      completedSessionIds: new Set<string>(),
+    })
+
+    expect([...plan.nextSessionIds]).toEqual([readySessionId])
+    expect([...plan.visibleSessionIds]).toEqual([readySessionId])
+    expect([...plan.allVisibleSessionIds]).toEqual([readySessionId])
+    expect(plan.hasIncompleteVisibleRenderTasks).toBe(true)
+    expect(plan.visibleRects.map((rect) => rect.sessionId)).toEqual([readySessionId])
+
+    expect(
+      createStudioPreviewRenderPlan({
+        ...baseInput,
+        completedSessionIds: new Set([readySessionId]),
+      }).hasIncompleteVisibleRenderTasks,
+    ).toBe(false)
+    expect(
+      studioPreviewRenderPlanHasIncompleteVisibleRenderTasks(new Set([readySessionId]), new Set([readySessionId])),
+    ).toBe(false)
+  })
+
+  it("adapts preview completion facts from frame state or geometry cache storage", () => {
+    const frameStateSource = createStudioPreviewRenderCompletionSource({
+      frameStates: {
+        "frame-error": {
+          error: { message: "Preview unavailable" },
+          expectedSessionId: "frame-error",
+          ready: false,
+        },
+        "frame-ready": {
+          expectedSessionId: "frame-ready",
+          ready: true,
+        },
+        "frame-running": {
+          expectedSessionId: "frame-running",
+          ready: false,
+        },
+      },
+      previewGeometryStore: undefined,
+    })
+
+    expect([...frameStateSource.completedSessionIdsFor(new Set(["frame-ready"]))].sort()).toEqual([
+      "frame-error",
+      "frame-ready",
+    ])
+
+    const geometryStore = createStudioPreviewGeometryCacheStore({
+      cacheKeys: ["tablet\nhash\nsrc/Card.g.tsx#default\nready"],
+      namespace: "completion-source-test",
+    })
+    geometryStore.putMessages([
+      {
+        target: { cacheKey: "tablet\nhash\nsrc/Card.g.tsx#default\nready" },
+        message: {
+          protocolVersion: 1,
+          sessionId: "geometry-ready",
+          type: "gtsx:ready",
+        },
+      },
+    ], new Set(["geometry-ready"]))
+
+    const geometrySource = createStudioPreviewRenderCompletionSource({
+      frameStates: undefined,
+      previewGeometryStore: geometryStore,
+    })
+
+    expect([...geometrySource.completedSessionIdsFor(new Set(["geometry-ready", "geometry-missing"]))]).toEqual([
+      "geometry-ready",
+    ])
+    expect([...geometrySource.completedSessionIdsFor(new Set(["geometry-missing"]))]).toEqual([])
   })
 
   it("reorders the preview render queue when the canvas moves", () => {
@@ -803,8 +1874,8 @@ describe("GTSX Studio shell", () => {
           sessionIds: ["lower-a", "lower-b"],
         },
       ],
-      maxActive: 2,
-      safetyLimit: 4,
+      maximumConcurrentRenderTasks: 2,
+      maximumRenderTaskCount: 4,
       viewport: { bottom: 100, left: 0, right: 100, top: 0 },
     }
 
@@ -813,6 +1884,29 @@ describe("GTSX Studio shell", () => {
       "lower-a",
       "lower-b",
     ])
+  })
+
+  it("accounts for canvas scale when choosing visible preview work", () => {
+    const input = {
+      canvas: { x: 40, y: -2360, scale: 0.6 },
+      items: [
+        {
+          rect: { bottom: 2368, left: 0, right: 320, top: 1788 },
+          sessionIds: ["above-if-scaled"],
+        },
+        {
+          rect: { bottom: 4726, left: 0, right: 320, top: 4147 },
+          sessionIds: ["visible-at-scale"],
+        },
+      ],
+      maximumConcurrentRenderTasks: 4,
+      renderBufferMargin: 0,
+      maximumRenderTaskCount: 4,
+      viewport: { bottom: 720, left: 0, right: 1280, top: 0 },
+    }
+
+    expect([...queuedStudioPreviewSessionIds(input)]).toEqual(["visible-at-scale"])
+    expect([...visibleQueuedStudioPreviewSessionIds(input)]).toEqual(["visible-at-scale"])
   })
 
   it("uses explicit preview queue safety cap without dropping completed mounted previews", () => {
@@ -827,8 +1921,8 @@ describe("GTSX Studio shell", () => {
             sessionIds: ["a", "b", "c"],
           },
         ],
-        maxActive: 1,
-        safetyLimit: 2,
+        maximumConcurrentRenderTasks: 1,
+        maximumRenderTaskCount: 2,
         viewport: { bottom: 100, left: 0, right: 100, top: 0 },
       })],
     ).toEqual(["a", "b", "c"])
@@ -841,8 +1935,8 @@ describe("GTSX Studio shell", () => {
             sessionIds: ["a", "b", "c", "d"],
           },
         ],
-        maxActive: 4,
-        safetyLimit: 2,
+        maximumConcurrentRenderTasks: 4,
+        maximumRenderTaskCount: 2,
         viewport: { bottom: 100, left: 0, right: 100, top: 0 },
       })],
     ).toEqual(["a", "b"])
@@ -860,10 +1954,31 @@ describe("GTSX Studio shell", () => {
             sessionIds,
           },
         ],
-        maxActive: 32,
+        maximumConcurrentRenderTasks: 32,
         viewport: { bottom: 100, left: 0, right: 100, top: 0 },
       })],
     ).toEqual(sessionIds)
+  })
+
+  it("caps mounted buffered previews without dropping visible previews", () => {
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        canvas: { x: 0, y: 0, scale: 1 },
+        items: [
+          {
+            rect: { bottom: 100, left: 0, right: 100, top: 0 },
+            sessionIds: ["visible-a", "visible-b", "visible-c"],
+          },
+          {
+            rect: { bottom: 230, left: 0, right: 100, top: 130 },
+            sessionIds: ["buffered-a", "buffered-b", "buffered-c"],
+          },
+        ],
+        maximumConcurrentRenderTasks: 6,
+        maximumMountedPreviewSessions: 4,
+        viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      })],
+    ).toEqual(["visible-a", "visible-b", "visible-c", "buffered-a"])
   })
 
   it("uses an adjustable preload buffer for near-canvas preview work", () => {
@@ -875,13 +1990,65 @@ describe("GTSX Studio shell", () => {
           sessionIds: ["buffered"],
         },
       ],
-      maxActive: 2,
-      safetyLimit: 4,
+      maximumConcurrentRenderTasks: 2,
+      maximumRenderTaskCount: 4,
       viewport: { bottom: 100, left: 0, right: 100, top: 0 },
     }
 
-    expect([...queuedStudioPreviewSessionIds({ ...input, preloadMargin: 100 })]).toEqual([])
-    expect([...queuedStudioPreviewSessionIds({ ...input, preloadMargin: 500 })]).toEqual(["buffered"])
+    expect([...queuedStudioPreviewSessionIds({ ...input, renderBufferMargin: 100 })]).toEqual([])
+    expect([...queuedStudioPreviewSessionIds({ ...input, renderBufferMargin: 500 })]).toEqual(["buffered"])
+  })
+
+  it("notifies only preview sessions whose subscribed membership fact changes", () => {
+    const store = createStudioPreviewRenderSessionStore()
+    const visibleRenderListener = vi.fn()
+    const visibleTaskListener = vi.fn()
+    const bufferedRenderListener = vi.fn()
+    const bufferedTaskListener = vi.fn()
+
+    const unsubscribeVisibleRender = store.subscribeToRenderSession("visible", visibleRenderListener)
+    store.subscribeToVisibleSession("visible", visibleTaskListener)
+    store.subscribeToRenderSession("buffered", bufferedRenderListener)
+    store.subscribeToVisibleSession("buffered", bufferedTaskListener)
+
+    expect(store.setSessionIds(new Set(["visible"]), new Set(["visible"]))).toBe(true)
+    expect(visibleRenderListener).toHaveBeenCalledTimes(1)
+    expect(visibleTaskListener).toHaveBeenCalledTimes(1)
+    expect(bufferedRenderListener).not.toHaveBeenCalled()
+    expect(bufferedTaskListener).not.toHaveBeenCalled()
+    expect(store.hasSessionId("visible")).toBe(true)
+    expect(store.isVisibleSessionId("visible")).toBe(true)
+
+    expect(store.setSessionIds(new Set(["visible"]), new Set(["visible"]))).toBe(false)
+    expect(visibleRenderListener).toHaveBeenCalledTimes(1)
+    expect(visibleTaskListener).toHaveBeenCalledTimes(1)
+
+    expect(store.setSessionIds(new Set(["visible", "buffered"]), new Set(["visible"]))).toBe(true)
+    expect(visibleRenderListener).toHaveBeenCalledTimes(1)
+    expect(visibleTaskListener).toHaveBeenCalledTimes(1)
+    expect(bufferedRenderListener).toHaveBeenCalledTimes(1)
+    expect(bufferedTaskListener).not.toHaveBeenCalled()
+
+    expect(store.setSessionIds(new Set(["visible", "buffered"]), new Set())).toBe(true)
+    expect(visibleRenderListener).toHaveBeenCalledTimes(1)
+    expect(visibleTaskListener).toHaveBeenCalledTimes(2)
+    expect(bufferedRenderListener).toHaveBeenCalledTimes(1)
+    expect(bufferedTaskListener).not.toHaveBeenCalled()
+    expect(store.hasSessionId("visible")).toBe(true)
+    expect(store.isVisibleSessionId("visible")).toBe(false)
+
+    expect(store.setSessionIds(new Set(["buffered"]), new Set())).toBe(true)
+    expect(visibleRenderListener).toHaveBeenCalledTimes(2)
+    expect(visibleTaskListener).toHaveBeenCalledTimes(2)
+    expect(bufferedRenderListener).toHaveBeenCalledTimes(1)
+    expect(bufferedTaskListener).not.toHaveBeenCalled()
+
+    unsubscribeVisibleRender()
+    expect(store.setSessionIds(new Set(["visible", "buffered"]), new Set(["visible"]))).toBe(true)
+    expect(visibleRenderListener).toHaveBeenCalledTimes(2)
+    expect(visibleTaskListener).toHaveBeenCalledTimes(3)
+    expect(bufferedRenderListener).toHaveBeenCalledTimes(1)
+    expect(bufferedTaskListener).not.toHaveBeenCalled()
   })
 
   it("creates stable pooled iframe URLs and render targets for preview slots", () => {
@@ -903,34 +2070,6 @@ describe("GTSX Studio shell", () => {
     })
   })
 
-  it("derives warmup previews near the selected workspace path without duplicating active cards", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
-    const state = selectStudioComponent(
-      createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
-      manifest,
-      "src/UserCard.g.tsx#default",
-      [
-        {
-          id: "root",
-          coordinate: "src/UserCard.g.tsx#default",
-          children: [{ id: "child", coordinate: "src/MultiExport.g.tsx#NamedBadge", children: [] }],
-        },
-      ],
-    )
-
-    const activeTargets = currentStudioPreviewTargets(manifest, state)
-    const warmupTargets = studioPreviewWarmupTargets(manifest, state)
-
-    expect(activeTargets.map((target) => target.sessionId)).toEqual([
-      "src/UserCard.g.tsx#default:loading",
-      "src/UserCard.g.tsx#default:ready",
-      "src/MultiExport.g.tsx#NamedBadge:ready",
-    ])
-    expect(warmupTargets.map((target) => target.sessionId)).not.toContain("src/UserCard.g.tsx#default:loading")
-    expect(warmupTargets.map((target) => target.sessionId)).not.toContain("src/UserCard.g.tsx#default:ready")
-    expect(warmupTargets.map((target) => target.sessionId)).not.toContain("src/MultiExport.g.tsx#NamedBadge:ready")
-  })
-
   it("uses cached preview geometry while the active preview is still loading", () => {
     expect(
       mergeStudioPreviewFrameState(
@@ -940,7 +2079,7 @@ describe("GTSX Studio shell", () => {
           ready: true,
         },
         {
-          expectedSessionId: "warmup:tablet\nsrc/UserCard.g.tsx#default\nready",
+          expectedSessionId: "cached:tablet\nsrc/UserCard.g.tsx#default\nready",
           ready: true,
           size: { width: 768, height: 1024 },
           tree: [
@@ -977,7 +2116,7 @@ describe("GTSX Studio shell", () => {
           [studioPreviewCacheKey(component, "ready", "tablet")]: {
             lastUsedAt: 1,
             frameState: {
-              expectedSessionId: `warmup:${studioPreviewCacheKey(component, "ready", "tablet")}`,
+              expectedSessionId: `cached:${studioPreviewCacheKey(component, "ready", "tablet")}`,
               ready: true,
               tree: [
                 {
@@ -1010,15 +2149,169 @@ describe("GTSX Studio shell", () => {
     )
   })
 
+  it("derives geometry cache keys for every manifest case and canvas viewport", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const expectedKeys = manifest.files.flatMap((file) =>
+      file.components.flatMap((component) =>
+        component.cases.flatMap((testCase) =>
+          (["phone", "tablet", "desktop"] as const).map((viewportPreset) =>
+            studioPreviewCacheKey(component, testCase.name, viewportPreset),
+          ),
+        ),
+      ),
+    )
+
+    expect(studioPreviewGeometryCacheKeys(manifest).sort()).toEqual([...new Set(expectedKeys)].sort())
+  })
+
+  it("keeps preview geometry cache updates inside the cache store", () => {
+    const store = createStudioPreviewGeometryCacheStore({
+      cacheKeys: ["tablet\nhash\nsrc/UserCard.g.tsx#default\nready"],
+      namespace: "project:fixture",
+    })
+    const userCardListener = vi.fn()
+    const unrelatedListener = vi.fn()
+    store.subscribe(["src/UserCard.g.tsx#default:ready", "tablet\nhash\nsrc/UserCard.g.tsx#default\nready"], userCardListener)
+    store.subscribe(["src/Other.g.tsx#default:ready", "tablet\nhash\nsrc/Other.g.tsx#default\nready"], unrelatedListener)
+
+    const update = store.putMessages([
+      {
+        target: { cacheKey: "tablet\nhash\nsrc/UserCard.g.tsx#default\nready" },
+        message: {
+          type: "gtsx:tree",
+          protocolVersion: 1,
+          sessionId: "src/UserCard.g.tsx#default:ready",
+          tree: [
+            {
+              id: "root",
+              coordinate: "src/UserCard.g.tsx#default",
+              rect: { x: 0, y: 12, width: 320, height: 88 },
+              children: [],
+            },
+          ],
+        },
+      },
+    ], new Set(["src/UserCard.g.tsx#default:ready"]))
+
+    expect(update.changed).toBe(true)
+    expect(userCardListener).toHaveBeenCalledTimes(1)
+    expect(unrelatedListener).not.toHaveBeenCalled()
+    expect(update.snapshot).toBe(store.getSnapshot())
+    expect(store.getFrameState("src/UserCard.g.tsx#default:ready")?.tree?.[0]?.rect).toEqual({
+      x: 0,
+      y: 12,
+      width: 320,
+      height: 88,
+    })
+    expect(Object.keys(update.entriesToWrite)).toEqual(["tablet\nhash\nsrc/UserCard.g.tsx#default\nready"])
+    expect(store.getSnapshot()["tablet\nhash\nsrc/UserCard.g.tsx#default\nready"]?.frameState.tree?.[0]?.rect).toEqual({
+      x: 0,
+      y: 12,
+      width: 320,
+      height: 88,
+    })
+    expect(
+      store.getLayoutFrameState(
+        "src/UserCard.g.tsx#default:ready",
+        "tablet\nhash\nsrc/UserCard.g.tsx#default\nready",
+      )?.tree?.[0]?.rect,
+    ).toEqual({
+      x: 0,
+      y: 12,
+      width: 320,
+      height: 88,
+    })
+    expect(store.markSessionRenderStarted("src/UserCard.g.tsx#default:ready")).toBe(true)
+    expect(userCardListener).toHaveBeenCalledTimes(2)
+    expect(store.getFrameState("src/UserCard.g.tsx#default:ready")).toEqual({
+      expectedSessionId: "src/UserCard.g.tsx#default:ready",
+      ready: false,
+    })
+    expect(
+      store.getMergedFrameState(
+        "src/UserCard.g.tsx#default:ready",
+        "tablet\nhash\nsrc/UserCard.g.tsx#default\nready",
+      )?.tree?.[0]?.rect,
+    ).toEqual({
+      x: 0,
+      y: 12,
+      width: 320,
+      height: 88,
+    })
+    expect(store.markSessionRenderStarted("src/UserCard.g.tsx#default:ready")).toBe(false)
+    expect(userCardListener).toHaveBeenCalledTimes(2)
+
+    expect(
+      store.putMessages([
+        {
+          target: { cacheKey: "tablet\nhash\nsrc/UserCard.g.tsx#default\nready" },
+          message: {
+            type: "gtsx:tree",
+            protocolVersion: 1,
+            sessionId: "src/UserCard.g.tsx#default:ready",
+            tree: [
+              {
+                id: "root",
+                coordinate: "src/UserCard.g.tsx#default",
+                rect: { x: 0, y: 12, width: 320, height: 88 },
+                children: [],
+              },
+            ],
+          },
+        },
+      ], new Set(["src/UserCard.g.tsx#default:ready"])).changed,
+    ).toBe(true)
+    expect(userCardListener).toHaveBeenCalledTimes(3)
+
+    const dynamicUpdate = store.putMessages([
+      {
+        target: { cacheKey: "tablet\nhash\nsrc/UserCard.g.tsx#default\nready" },
+        message: {
+          type: "gtsx:tree",
+          protocolVersion: 1,
+          sessionId: "src/UserCard.g.tsx#default:ready",
+          tree: [
+            {
+              id: "root",
+              coordinate: "src/UserCard.g.tsx#default",
+              rect: { x: 0, y: 12, width: 360, height: 96 },
+              children: [],
+            },
+          ],
+        },
+      },
+    ], new Set(["src/UserCard.g.tsx#default:ready"]))
+
+    expect(dynamicUpdate.changed).toBe(true)
+    expect(userCardListener).toHaveBeenCalledTimes(4)
+    expect(store.getFrameState("src/UserCard.g.tsx#default:ready")?.tree?.[0]?.rect).toEqual({
+      x: 0,
+      y: 12,
+      width: 360,
+      height: 96,
+    })
+    expect(
+      store.getLayoutFrameState(
+        "src/UserCard.g.tsx#default:ready",
+        "tablet\nhash\nsrc/UserCard.g.tsx#default\nready",
+      )?.tree?.[0]?.rect,
+    ).toEqual({
+      x: 0,
+      y: 12,
+      width: 320,
+      height: 88,
+    })
+  })
+
   it("uses a project namespace for the browser preview geometry cache", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       projectRoot: "src",
       routes: { preview: "/gtsx" },
-      cache: { namespace: "yuckuolie" },
+      cache: { namespace: "test-cache-namespace" },
     })
 
-    expect(studioPreviewIndexedDBNamespace(manifest)).toBe("project:yuckuolie")
+    expect(studioPreviewIndexedDBNamespace(manifest)).toBe("project:test-cache-namespace")
   })
 
   it("derives a stable fallback namespace from the Studio manifest shape", () => {
@@ -1127,6 +2420,14 @@ describe("GTSX Studio shell", () => {
     expect(isStudioPreviewPoolDebugEnabled(new URLSearchParams("debug=layout"))).toBe(false)
   })
 
+  it("reads preview queue debug mode from URL params", () => {
+    expect(isStudioPreviewQueueDebugEnabled(new URLSearchParams("debug=queue"))).toBe(true)
+    expect(isStudioPreviewQueueDebugEnabled(new URLSearchParams("debug=layout,queue"))).toBe(true)
+    expect(isStudioPreviewQueueDebugEnabled(new URLSearchParams("debug=layout&debug=preview-queue"))).toBe(true)
+    expect(isStudioPreviewQueueDebugEnabled(new URLSearchParams("debug=pool"))).toBe(false)
+    expect(isStudioPreviewQueueDebugEnabled(new URLSearchParams("debug=no-pool"))).toBe(false)
+  })
+
   it("reads preview pool disable mode from URL params", () => {
     expect(isStudioPreviewPoolDisabled(new URLSearchParams("debug=no-pool"))).toBe(true)
     expect(isStudioPreviewPoolDisabled(new URLSearchParams("debug=layout,disable-pool"))).toBe(true)
@@ -1142,36 +2443,79 @@ describe("GTSX Studio shell", () => {
     expect(
       studioPreviewRenderQueueOptionsFromParams(
         new URLSearchParams(
-          "previewQueueActive=3&previewQueueSafety=9&previewQueueBuffer=640&previewQueueRetain=1800&previewQueueActiveTimeout=900",
+          "previewQueueMinimumVisibleRenderTasksDuringCanvasMovement=5&previewQueueMaximumConcurrentRenderTasks=3&previewQueueMaximumConcurrentRenderTasksDuringCanvasMovement=2&previewQueueMaximumRenderTaskCount=9&previewQueueMaximumMountedPreviewSessions=11&previewQueueRenderBufferMargin=640&previewQueueActiveRenderTimeoutMilliseconds=900&previewQueueRenderThrottleMilliseconds=100&previewQueueRenderDebounceMilliseconds=240&previewQueueBufferRenderDelayMilliseconds=800",
         ),
       ),
     ).toEqual({
-      activeTimeoutMs: 900,
-      maxActive: 3,
-      preloadMargin: 640,
-      retainMargin: 1800,
-      safetyLimit: 9,
+      activeRenderTimeoutMilliseconds: 900,
+      bufferRenderDelayMilliseconds: 800,
+      renderDebounceMilliseconds: 240,
+      maximumConcurrentRenderTasks: 3,
+      maximumConcurrentRenderTasksDuringCanvasMovement: 2,
+      minimumVisibleRenderTasksDuringCanvasMovement: 5,
+      renderBufferMargin: 640,
+      maximumRenderTaskCount: 9,
+      maximumMountedPreviewSessions: 11,
+      renderThrottleMilliseconds: 100,
+    })
+    expect(
+      studioPreviewRenderQueueOptionsFromParams(
+        new URLSearchParams(
+          "previewQueueActive=3&previewQueueSafety=9&previewQueueBuffer=640&previewQueueActiveTimeout=900&previewQueueThrottle=100&previewQueueDebounce=240&previewQueueBufferDelay=800",
+        ),
+      ),
+    ).toMatchObject({
+      activeRenderTimeoutMilliseconds: 900,
+      bufferRenderDelayMilliseconds: 800,
+      renderDebounceMilliseconds: 240,
+      maximumConcurrentRenderTasks: 3,
+      renderBufferMargin: 640,
+      maximumRenderTaskCount: 9,
+      maximumMountedPreviewSessions: undefined,
+      renderThrottleMilliseconds: 100,
     })
     expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("queueActive=4&queueSafety=12&queueBuffer=700"))).toEqual({
-      activeTimeoutMs: undefined,
-      maxActive: 4,
-      preloadMargin: 700,
-      retainMargin: undefined,
-      safetyLimit: 12,
+      activeRenderTimeoutMilliseconds: undefined,
+      bufferRenderDelayMilliseconds: undefined,
+      renderDebounceMilliseconds: undefined,
+      maximumConcurrentRenderTasks: 4,
+      maximumConcurrentRenderTasksDuringCanvasMovement: undefined,
+      minimumVisibleRenderTasksDuringCanvasMovement: undefined,
+      renderBufferMargin: 700,
+      maximumRenderTaskCount: 12,
+      maximumMountedPreviewSessions: undefined,
+      renderThrottleMilliseconds: undefined,
+    })
+    expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("throttle=0&debounce=0"))).toMatchObject({
+      renderDebounceMilliseconds: 0,
+      renderThrottleMilliseconds: 0,
     })
     expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("previewQueueLength=10&queueLength=12"))).toEqual({
-      activeTimeoutMs: undefined,
-      maxActive: undefined,
-      preloadMargin: undefined,
-      retainMargin: undefined,
-      safetyLimit: 10,
+      activeRenderTimeoutMilliseconds: undefined,
+      bufferRenderDelayMilliseconds: undefined,
+      renderDebounceMilliseconds: undefined,
+      maximumConcurrentRenderTasks: undefined,
+      maximumConcurrentRenderTasksDuringCanvasMovement: undefined,
+      minimumVisibleRenderTasksDuringCanvasMovement: undefined,
+      renderBufferMargin: undefined,
+      maximumRenderTaskCount: 10,
+      maximumMountedPreviewSessions: undefined,
+      renderThrottleMilliseconds: undefined,
     })
     expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("queueActive=0&queueLength=nope"))).toEqual({
-      activeTimeoutMs: undefined,
-      maxActive: undefined,
-      preloadMargin: undefined,
-      retainMargin: undefined,
-      safetyLimit: undefined,
+      activeRenderTimeoutMilliseconds: undefined,
+      bufferRenderDelayMilliseconds: undefined,
+      renderDebounceMilliseconds: undefined,
+      maximumConcurrentRenderTasks: undefined,
+      maximumConcurrentRenderTasksDuringCanvasMovement: undefined,
+      minimumVisibleRenderTasksDuringCanvasMovement: undefined,
+      renderBufferMargin: undefined,
+      maximumRenderTaskCount: undefined,
+      maximumMountedPreviewSessions: undefined,
+      renderThrottleMilliseconds: undefined,
+    })
+    expect(studioPreviewRenderQueueOptionsFromParams(new URLSearchParams("previewQueueBuffer=0"))).toMatchObject({
+      renderBufferMargin: 0,
     })
   })
 
@@ -1407,6 +2751,92 @@ describe("GTSX Studio shell", () => {
     })
   })
 
+  it("keeps duplicate preview layout messages idempotent", () => {
+    const tree = [
+      {
+        id: "root",
+        coordinate: "src/UserCard.g.tsx#default",
+        rect: { x: 10, y: 20, width: 320, height: 88 },
+        children: [],
+      },
+    ]
+    const state = {
+      expectedSessionId: "current-session",
+      ready: true,
+      size: { width: 390, height: 844 },
+      tree,
+    }
+
+    expect(
+      applyStudioPreviewMessage(state, {
+        type: "gtsx:ready",
+        protocolVersion: 1,
+        sessionId: "current-session",
+      }),
+    ).toBe(state)
+    expect(
+      applyStudioPreviewMessage(state, {
+        type: "gtsx:resize",
+        protocolVersion: 1,
+        sessionId: "current-session",
+        size: { width: 390, height: 844 },
+      }),
+    ).toBe(state)
+    expect(
+      applyStudioPreviewMessage(state, {
+        type: "gtsx:tree",
+        protocolVersion: 1,
+        sessionId: "current-session",
+        tree: [
+          {
+            id: "root",
+            coordinate: "src/UserCard.g.tsx#default",
+            rect: { x: 10, y: 20, width: 320, height: 88 },
+            children: [],
+          },
+        ],
+      }),
+    ).toBe(state)
+  })
+
+  it("flushes only new preview completion messages", () => {
+    const readyMessage = {
+      type: "gtsx:ready",
+      protocolVersion: 1,
+      sessionId: "current-session",
+    } as const
+    const treeMessage = {
+      type: "gtsx:tree",
+      protocolVersion: 1,
+      sessionId: "current-session",
+      tree: [],
+    } as const
+
+    expect(
+      createStudioPreviewMessageFlush({
+        getFrameState: () => ({ expectedSessionId: "current-session", ready: false }),
+        messages: [
+          { message: readyMessage },
+          { message: readyMessage },
+          { message: treeMessage },
+        ],
+      }),
+    ).toEqual({
+      completionMessages: [{ message: readyMessage }],
+      messagesToApply: [{ message: readyMessage }, { message: treeMessage }],
+    })
+
+    expect(
+      createStudioPreviewMessageFlush({
+        getFrameState: () => ({ expectedSessionId: "current-session", ready: true }),
+        messages: [{ message: readyMessage }],
+      }),
+    ).toEqual({
+      completionMessages: [],
+      messagesToApply: [],
+    })
+  })
+
   it("updates frame state only for active iframe sessions", () => {
     const current = {
       "current-session": {
@@ -1443,6 +2873,24 @@ describe("GTSX Studio shell", () => {
         ready: true,
       },
     })
+
+    const ready = {
+      "current-session": {
+        expectedSessionId: "current-session",
+        ready: true,
+      },
+    }
+    expect(
+      applyStudioPreviewMessageToFrameStates(
+        ready,
+        {
+          type: "gtsx:ready",
+          protocolVersion: 1,
+          sessionId: "current-session",
+        },
+        new Set(["current-session"]),
+      ),
+    ).toBe(ready)
   })
 
   it("keeps pooled iframe handshake messages out of session frame state", () => {
@@ -1479,6 +2927,149 @@ describe("GTSX Studio shell", () => {
         slot: { ...input.slot, sessionId: "src/UserCard.g.tsx#default:error" },
       }),
     ).not.toBe(studioPreviewIframeBorrowKey(input))
+  })
+
+  it("does not post a pooled iframe render for non-rendering borrow updates", () => {
+    const input = {
+      size: { width: 768, height: 1024 },
+      slot: {
+        previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0",
+        sessionId: "src/UserCard.g.tsx#default:ready",
+        title: "UserCard ready preview",
+      },
+    }
+
+    expect(studioPreviewIframeBorrowInputNeedsRender(undefined, input)).toBe(true)
+    expect(studioPreviewIframeBorrowInputNeedsRender(input, { ...input })).toBe(false)
+    expect(
+      studioPreviewIframeBorrowInputNeedsRender(input, {
+        ...input,
+        slot: { ...input.slot, title: "Updated title" },
+      }),
+    ).toBe(false)
+    expect(
+      studioPreviewIframeBorrowInputNeedsRender(input, {
+        ...input,
+        size: { width: 390, height: 844 },
+      }),
+    ).toBe(true)
+    expect(
+      studioPreviewIframeBorrowInputNeedsRender(input, {
+        ...input,
+        slot: { ...input.slot, previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=error&chrome=0" },
+      }),
+    ).toBe(true)
+  })
+
+  it("prevents repeated pooled iframe render posts for the same pending target", () => {
+    const input = {
+      size: { width: 768, height: 1024 },
+      slot: {
+        previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0",
+        sessionId: "src/UserCard.g.tsx#default:ready",
+        title: "UserCard ready preview",
+      },
+    }
+    const renderKey = studioPreviewIframePendingRenderPostKey(input)
+
+    expect(studioPreviewIframePoolEntryNeedsPendingRenderPost({}, renderKey)).toBe(true)
+    expect(studioPreviewIframePoolEntryNeedsPendingRenderPost({ lastPostedRenderKey: renderKey }, renderKey)).toBe(false)
+    expect(studioPreviewIframePoolEntryNeedsPendingRenderPost({ lastPostedRenderKey: renderKey }, renderKey, { force: true })).toBe(true)
+    expect(studioPreviewIframePoolNextPendingRenderDeliveryAttemptCount({}, renderKey)).toBe(1)
+    expect(studioPreviewIframePoolNextPendingRenderDeliveryAttemptCount({ lastPostedRenderKey: renderKey, pendingRenderDeliveryAttemptCount: 1 }, renderKey)).toBe(2)
+    expect(
+      studioPreviewIframePoolEntryNeedsPendingRenderPost(
+        { lastPostedRenderKey: renderKey },
+        studioPreviewIframePendingRenderPostKey({
+          ...input,
+          slot: { ...input.slot, previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=error&chrome=0" },
+        }),
+      ),
+    ).toBe(true)
+  })
+
+  it("borrows a ready idle iframe before creating another pooled iframe", () => {
+    const poolUrl = "/gtsx?chrome=0&pool=1"
+    const exact = {
+      lastRenderedSessionId: "src/UserCard.g.tsx#default:ready",
+      poolUrl,
+      ready: true,
+    }
+    const unreadyExact = {
+      lastRenderedSessionId: "src/UserCard.g.tsx#default:ready",
+      poolUrl,
+      ready: false,
+    }
+    const readyStateless = { poolUrl, ready: true }
+    const readyStale = {
+      lastRenderedSessionId: "src/OtherCard.g.tsx#default:ready",
+      poolUrl,
+      ready: true,
+    }
+    const unreadyStale = {
+      lastRenderedSessionId: "src/SlowCard.g.tsx#default:ready",
+      poolUrl,
+      ready: false,
+    }
+
+    expect(
+      selectStudioPreviewIframePoolEntryForBorrow([readyStale], {
+        maximumRetainedFrames: 48,
+        poolUrl,
+        sessionId: "src/UserCard.g.tsx#default:ready",
+      }),
+    ).toBe(readyStale)
+    expect(
+      selectStudioPreviewIframePoolEntryForBorrow([unreadyStale], {
+        maximumRetainedFrames: 48,
+        poolUrl,
+        sessionId: "src/UserCard.g.tsx#default:ready",
+      }),
+    ).toBe(undefined)
+    expect(
+      selectStudioPreviewIframePoolEntryForBorrow(new Array(48).fill(null).map(() => unreadyStale), {
+        maximumRetainedFrames: 48,
+        poolUrl,
+        sessionId: "src/UserCard.g.tsx#default:ready",
+      }),
+    ).toBe(undefined)
+    expect(
+      selectStudioPreviewIframePoolEntryForBorrow([unreadyExact, readyStateless], {
+        maximumRetainedFrames: 48,
+        poolUrl,
+        sessionId: "src/UserCard.g.tsx#default:ready",
+      }),
+    ).toBe(readyStateless)
+    expect(
+      selectStudioPreviewIframePoolEntryForBorrow([readyStale, exact, readyStateless], {
+        maximumRetainedFrames: 48,
+        poolUrl,
+        sessionId: "src/UserCard.g.tsx#default:ready",
+      }),
+    ).toBe(exact)
+    expect(
+      selectStudioPreviewIframePoolEntryForBorrow([readyStale, readyStateless], {
+        maximumRetainedFrames: 48,
+        poolUrl,
+        sessionId: "src/UserCard.g.tsx#default:ready",
+      }),
+    ).toBe(readyStateless)
+  })
+
+  it("positions pooled iframes from a stable host without changing their layout viewport", () => {
+    expect(
+      studioPreviewIframePoolPlacementForAnchor({
+        anchorRect: { bottom: 522, height: 422, left: 80, right: 275, top: 100, width: 195 },
+        clipRect: { bottom: 400, height: 240, left: 95, right: 260, top: 160, width: 165 },
+        layoutSize: { height: 844, width: 390 },
+      }),
+    ).toEqual({
+      clipPath: "inset(120px 30px 244px 30px)",
+      height: "844px",
+      transform: "translate3d(80px, 100px, 0) scale(0.5, 0.5)",
+      visibility: "visible",
+      width: "390px",
+    })
   })
 
   it("stores runtime values responses by boundary id", () => {

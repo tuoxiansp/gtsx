@@ -34,6 +34,7 @@ export {
   isGPreviewProtocolMessage,
   isStudioPreviewPoolDisabled,
   isStudioPreviewPoolDebugEnabled,
+  isStudioPreviewQueueDebugEnabled,
   previewSessionId,
   replaceStudioCanvasUrlState,
   resolveStudioSelection,
@@ -45,7 +46,6 @@ export {
   studioPreviewCacheKey,
   studioPreviewRenderTargetFromUrl,
   studioPreviewFrameSize,
-  studioPreviewWarmupTargets,
 } from "./client"
 export type {
   StudioCanvasTransform,
@@ -59,7 +59,7 @@ export type {
   StudioColumnLayoutMeasurement,
   StudioPreviewCacheEntry,
   StudioPreviewFrameState,
-  StudioPreviewWarmupTarget,
+  StudioPreviewTarget,
   StudioRuntimeInstance,
   StudioRuntimeValuesRequest,
   StudioViewportPreset,
@@ -70,10 +70,73 @@ export type {
 export { StudioShell, StudioWorkspaceView } from "./client-entry"
 export type { StudioShellProps, StudioWorkspaceViewProps } from "./client-entry"
 export {
-  defaultStudioPreviewRenderQueueMaxActive,
-  defaultStudioPreviewRenderQueueMaxLength,
-  defaultStudioPreviewRenderQueueSafetyLimit,
+  defaultStudioPreviewRenderQueueActiveRenderTimeoutMilliseconds,
+  defaultStudioPreviewRenderQueueMaximumConcurrentRenderTasks,
+  defaultStudioPreviewRenderQueueMaximumConcurrentRenderTasksDuringCanvasMovement,
+  defaultStudioPreviewRenderQueueMinimumVisibleRenderTasksDuringCanvasMovement,
+  defaultStudioPreviewRenderQueueMaximumRenderTaskCount,
+  defaultStudioPreviewRenderQueueBufferRenderDelayMilliseconds,
+  defaultStudioPreviewRenderQueueRenderDebounceMilliseconds,
+  defaultStudioPreviewRenderQueueRenderThrottleMilliseconds,
   queuedStudioPreviewSessionIds,
   studioPreviewRenderQueueOptionsFromParams,
+  visibleQueuedStudioPreviewSessionIds,
 } from "./preview-render-queue"
-export type { StudioPreviewRenderQueueInput, StudioPreviewRenderQueueOptions } from "./preview-render-queue"
+export type {
+  StudioCanvasMovement,
+  StudioPreviewRenderQueueInput,
+  StudioPreviewRenderQueueOptions,
+  StudioPreviewRenderQueueRunOptions,
+} from "./preview-render-queue"
+export { createStudioPreviewRenderSessionStore } from "./preview-render-session-store"
+export type { StudioPreviewRenderSessionStore } from "./preview-render-session-store"
+export {
+  allVisibleStudioPreviewRenderPlanSessionIds,
+  createStudioPreviewRenderPlan,
+  studioPreviewRenderPlanHasIncompleteVisibleRenderTasks,
+} from "./studio-preview-render-plan"
+export type { StudioPreviewRenderPlan, StudioPreviewRenderPlanInput } from "./studio-preview-render-plan"
+export {
+  createStudioPreviewRenderCompletionSource,
+  createStudioPreviewRenderCompletionSourceFromFrameStates,
+  createStudioPreviewRenderCompletionSourceFromGeometryStore,
+} from "./studio-preview-render-completion-source"
+export type { StudioPreviewRenderCompletionSource } from "./studio-preview-render-completion-source"
+export {
+  mergeStudioPreviewRenderRequestPolicies,
+  mergeStudioPreviewRenderSchedulerRunOptions,
+  movingCanvasBufferedPreviewRenderRequestPolicy,
+  normalBufferedPreviewRenderRequestPolicy,
+  normalVisiblePreviewRenderRequestPolicy,
+  studioPreviewRenderQueueOptionsForRequestPolicy,
+  studioPreviewRenderQueueOptionsForRun,
+  studioPreviewRenderRequestPolicyFromSchedulerRunOptions,
+  studioPreviewRenderSchedulerRunOptionsFromRequestPolicy,
+} from "./studio-preview-render-request-policy"
+export type {
+  StudioPreviewRenderRequestPolicy,
+  StudioPreviewRenderSchedulerRunOptions,
+} from "./studio-preview-render-request-policy"
+export { createStudioPreviewRenderRequestClock } from "./studio-preview-render-request-clock"
+export type {
+  StudioPreviewRenderRequestClock,
+  StudioPreviewRenderRequestClockScheduler,
+} from "./studio-preview-render-request-clock"
+export { createStudioPreviewRenderObservation } from "./studio-preview-render-observation"
+export type {
+  StudioPreviewFullRenderObservationSnapshot,
+  StudioPreviewRenderObservation,
+  StudioPreviewRenderObservationSnapshot,
+  StudioPreviewRenderQueueDebugObservationInput,
+  StudioPreviewScrollResponseObservationSnapshot,
+  StudioPreviewTimingObservationInput,
+} from "./studio-preview-render-observation"
+export { createStudioPreviewMessageFlush } from "./studio-preview-message-flush"
+export type { StudioPreviewMessageFlush, StudioPreviewMessageFlushItem } from "./studio-preview-message-flush"
+export {
+  createStudioPreviewGeometryCacheStore,
+  studioPreviewGeometryCacheKeys,
+  studioPreviewGeometrySubscriptionKeys,
+} from "./preview-geometry-cache-store"
+export type { StudioPreviewGeometryCacheMessage, StudioPreviewGeometryCacheStore } from "./preview-geometry-cache-store"
+export { studioPreviewVisibilityItems } from "./studio-canvas-geometry"

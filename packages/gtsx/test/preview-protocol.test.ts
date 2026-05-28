@@ -5,6 +5,7 @@ import {
   createGPreviewErrorMessage,
   createGPreviewPoolReadyMessage,
   createGPreviewReadyMessage,
+  createGPreviewRenderAcceptedMessage,
   createGPreviewRenderMessage,
   createGPreviewResizeMessage,
   createGPreviewTreeMessage,
@@ -109,6 +110,12 @@ describe("GTSX preview iframe protocol", () => {
     expect(createGPreviewPoolReadyMessage()).toEqual({
       type: "gtsx:pool-ready",
       protocolVersion: 1,
+    })
+
+    expect(createGPreviewRenderAcceptedMessage("src/Card.g.tsx#default:ready")).toEqual({
+      type: "gtsx:render-accepted",
+      protocolVersion: 1,
+      sessionId: "src/Card.g.tsx#default:ready",
     })
   })
 })

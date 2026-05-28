@@ -49,7 +49,7 @@ export function studioPreviewIndexedDBNamespace(manifest: StudioManifest): strin
 
 export async function readStudioPreviewIndexedDBCache(
   namespace: string,
-  cacheKeys: string[],
+  cacheKeys: readonly string[],
 ): Promise<Record<string, StudioPreviewCacheEntry>> {
   if (!canUseIndexedDB() || cacheKeys.length === 0) return {}
 

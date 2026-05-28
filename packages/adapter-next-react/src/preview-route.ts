@@ -10,6 +10,29 @@ export type GTSXNextPreviewRouteProps = {
   staticMode?: boolean
 }
 
+export const gtsxNextPreviewPoolMailboxScriptId = "gtsx-preview-pool-mailbox"
+
+export const GTSX_NEXT_PREVIEW_POOL_MAILBOX_SCRIPT = `(() => {
+  if (window.__gtsxPreviewPrehydrationMailboxInstalled) return;
+  window.__gtsxPreviewPrehydrationMailboxInstalled = true;
+  const render = (target) => {
+    window.__gtsxPreviewPendingRenderTarget = target;
+    if (target && target.sessionId) {
+      window.parent.postMessage({ type: "gtsx:render-accepted", protocolVersion: 1, sessionId: target.sessionId }, "*");
+    }
+    window.dispatchEvent(new CustomEvent("gtsx:preview-render-target", { detail: target }));
+  };
+  window.__gtsxPreviewRenderTargetMailbox = { render };
+  window.addEventListener("message", (event) => {
+    const message = event.data;
+    if (!message || message.type !== "gtsx:render" || message.protocolVersion !== 1 || !message.target) return;
+    render(message.target);
+  });
+  window.setTimeout(() => {
+    window.parent.postMessage({ type: "gtsx:pool-ready", protocolVersion: 1 }, "*");
+  }, 0);
+})();`
+
 export function readGTSXNextPreviewProps(searchParams: GTSXNextPreviewSearchParams): GTSXNextPreviewRouteProps {
   const params = searchParams instanceof URLSearchParams ? searchParams : searchParamsFromNextRecord(searchParams)
 
@@ -22,6 +45,24 @@ export function readGTSXNextPreviewProps(searchParams: GTSXNextPreviewSearchPara
     sessionId: params.get("sessionId"),
     staticMode: params.get("static") === "1",
   }
+}
+
+export function createGTSXNextPreviewPoolMailboxScriptProps(): {
+  dangerouslySetInnerHTML: { __html: string }
+  id: string
+  strategy: "beforeInteractive"
+} {
+  return {
+    dangerouslySetInnerHTML: {
+      __html: GTSX_NEXT_PREVIEW_POOL_MAILBOX_SCRIPT,
+    },
+    id: gtsxNextPreviewPoolMailboxScriptId,
+    strategy: "beforeInteractive",
+  }
+}
+
+export function shouldInstallGTSXNextPreviewPoolMailbox(routeProps: Pick<GTSXNextPreviewRouteProps, "pool">): boolean {
+  return routeProps.pool === "1"
 }
 
 function searchParamsFromNextRecord(searchParams: Record<string, string | string[] | undefined> | undefined): URLSearchParams {

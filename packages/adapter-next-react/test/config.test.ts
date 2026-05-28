@@ -5,7 +5,13 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { gtsxNextReact } from "../src/index.js"
-import { readGTSXNextPreviewProps } from "../src/preview-route.js"
+import {
+  GTSX_NEXT_PREVIEW_POOL_MAILBOX_SCRIPT,
+  createGTSXNextPreviewPoolMailboxScriptProps,
+  gtsxNextPreviewPoolMailboxScriptId,
+  readGTSXNextPreviewProps,
+  shouldInstallGTSXNextPreviewPoolMailbox,
+} from "../src/preview-route.js"
 
 const require = createRequire(import.meta.url)
 
@@ -192,5 +198,17 @@ describe("gtsx Next React adapter", () => {
       ["src/Child.g.tsx#default", "open"],
       ["src/Menu.g.tsx#default", "hover"],
     ])
+  })
+
+  it("installs the preview pool mailbox only for pooled preview routes", () => {
+    const scriptProps = createGTSXNextPreviewPoolMailboxScriptProps()
+
+    expect(shouldInstallGTSXNextPreviewPoolMailbox({ pool: "1" })).toBe(true)
+    expect(shouldInstallGTSXNextPreviewPoolMailbox({ pool: null })).toBe(false)
+    expect(scriptProps.id).toBe(gtsxNextPreviewPoolMailboxScriptId)
+    expect(scriptProps.strategy).toBe("beforeInteractive")
+    expect(scriptProps.dangerouslySetInnerHTML.__html).toBe(GTSX_NEXT_PREVIEW_POOL_MAILBOX_SCRIPT)
+    expect(GTSX_NEXT_PREVIEW_POOL_MAILBOX_SCRIPT).toContain("__gtsxPreviewRenderTargetMailbox")
+    expect(GTSX_NEXT_PREVIEW_POOL_MAILBOX_SCRIPT).toContain("gtsx:render-accepted")
   })
 })
