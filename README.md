@@ -19,8 +19,14 @@ Every component declares its visual states. Studio renders them. The CLI checks 
 Give this to an AI coding agent inside your project:
 
 ```
-Install gtsx in this project: install the `setup-gtsx`, `authoring-gtsx`,
-and `refactor-to-gtsx` skills from this repository, then run `setup-gtsx`.
+Install gtsx in this project. Fetch and install these Codex skills from
+https://github.com/tuoxiansp/gtsx:
+
+- skills/setup-gtsx
+- skills/authoring-gtsx
+- skills/refactor-to-gtsx
+
+After installing them, run the newly installed `setup-gtsx` skill in this project.
 ```
 
 The agent detects your TypeScript project and Host (Next.js or Vite), installs the right packages, wires `/gtsx/studio`, and verifies everything works.

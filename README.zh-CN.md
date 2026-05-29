@@ -18,8 +18,14 @@
 把下面这段提示词交给项目里的 AI 编程 agent：
 
 ```
-Install gtsx in this project: install the `setup-gtsx`, `authoring-gtsx`,
-and `refactor-to-gtsx` skills from this repository, then run `setup-gtsx`.
+Install gtsx in this project. Fetch and install these Codex skills from
+https://github.com/tuoxiansp/gtsx:
+
+- skills/setup-gtsx
+- skills/authoring-gtsx
+- skills/refactor-to-gtsx
+
+After installing them, run the newly installed `setup-gtsx` skill in this project.
 ```
 
 agent 会自己认准你的 TypeScript 项目和 Host（Next.js 或 Vite），装好该装的包，把 `/gtsx/studio` 接进去，再端到端跑一遍验证。

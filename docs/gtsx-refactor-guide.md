@@ -2,7 +2,7 @@
 
 Turn existing React TSX into production `.g.tsx` UI models.
 
-Use this guide when a component already exists. For authoring patterns in the resulting `.g.tsx`, see the [Authoring Guide](./gtsx-authoring-guide.md). If the project isn't wired for gtsx yet, run the [`setup-gtsx`](../skill/setup-gtsx/SKILL.md) skill first.
+Use this guide when a component already exists. For authoring patterns in the resulting `.g.tsx`, see the [Authoring Guide](./gtsx-authoring-guide.md). If the project isn't wired for gtsx yet, run the [`setup-gtsx`](../skills/setup-gtsx/SKILL.md) skill first.
 
 ## Invariant
 

@@ -2,7 +2,7 @@
 
 Write `.g.tsx` components that own real visual UI, enumerate meaningful states, and pass `gtsx check`.
 
-Start here for new gtsx components. If converting existing TSX, start with the [Refactor Guide](./gtsx-refactor-guide.md) then return here. If the project isn't wired for gtsx yet, run the [`setup-gtsx`](../skill/setup-gtsx/SKILL.md) skill first.
+Start here for new gtsx components. If converting existing TSX, start with the [Refactor Guide](./gtsx-refactor-guide.md) then return here. If the project isn't wired for gtsx yet, run the [`setup-gtsx`](../skills/setup-gtsx/SKILL.md) skill first.
 
 ## What `.g.tsx` Is
 
