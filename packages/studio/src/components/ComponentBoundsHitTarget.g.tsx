@@ -1,4 +1,4 @@
-import type { GBoundaryRect, GCases } from "gtsx"
+import type { GBoundaryRect, GCases } from "@gtsx/core"
 
 type ComponentBoundsHitTargetProps = {
   coordinate: string

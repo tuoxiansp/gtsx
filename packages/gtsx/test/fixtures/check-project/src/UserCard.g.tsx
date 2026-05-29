@@ -2,7 +2,7 @@ import {
   createGProvider,
   createGScopeHook,
   type GCases,
-} from "gtsx"
+} from "@gtsx/core"
 
 export type Props = {
   userId: string

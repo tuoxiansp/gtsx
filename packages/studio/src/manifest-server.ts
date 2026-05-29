@@ -1,6 +1,6 @@
-import { loadGTSXConfig, resolveGTSXConfig } from "gtsx/config"
-import type { GTSXConfig } from "gtsx"
-import { createCachedGTSXProjectIndexBuilder } from "gtsx/project-index"
+import { loadGTSXConfig, resolveGTSXConfig } from "@gtsx/core/config"
+import type { GTSXConfig } from "@gtsx/core"
+import { createCachedGTSXProjectIndexBuilder } from "@gtsx/core/project-index"
 
 import { createStudioManifestFromGTSXConfig, type StudioManifest } from "./manifest"
 

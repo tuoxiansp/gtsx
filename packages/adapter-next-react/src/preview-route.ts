@@ -1,4 +1,4 @@
-import { GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT, gtsxPreviewSsrBootstrapScriptId } from "gtsx/preview-protocol"
+import { GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT, gtsxPreviewSsrBootstrapScriptId } from "@gtsx/core/preview-protocol"
 
 export type GTSXNextPreviewSearchParams = Record<string, string | string[] | undefined> | URLSearchParams | undefined
 

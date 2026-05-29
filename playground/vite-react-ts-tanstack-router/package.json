@@ -11,9 +11,9 @@
   "dependencies": {
     "@gtsx/adapter-vite-react": "workspace:*",
     "@vitejs/plugin-react": "^5.1.2",
-    "gtsx": "workspace:*",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "vite": "^8.0.14"
+    "vite": "^8.0.14",
+    "@gtsx/core": "workspace:*"
   }
 }

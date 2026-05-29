@@ -52,7 +52,7 @@ JavaScript-only React projects, non-React projects, and projects without a selec
 
 ## Common Configuration Rules
 
-- Always install `gtsx` and `@gtsx/studio`.
+- Always install `@gtsx/core` and `@gtsx/studio`.
 - Install `@gtsx/adapter-vite-react` only for Vite-compatible client-only hosts.
 - Install `@gtsx/adapter-next-react` only for Next.js App Router.
 - Put selected root, optional tsconfig, stable cache namespace, routes, and preview commands in `gtsx.config.ts`.

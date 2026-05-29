@@ -1,6 +1,6 @@
 "use client"
 
-import type { GBoundaryTreeNode } from "gtsx"
+import type { GBoundaryTreeNode } from "@gtsx/core"
 
 import type { StudioManifest } from "./manifest"
 import type { StudioPreviewCacheEntry, StudioPreviewFrameState } from "./client"

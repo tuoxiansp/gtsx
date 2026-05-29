@@ -6,7 +6,7 @@ Use this profile for Next.js App Router projects. setup-gtsx 0.0.1 does not prov
 
 Install:
 
-- `gtsx`
+- `@gtsx/core`
 - `@gtsx/studio`
 - `@gtsx/adapter-next-react`
 
@@ -37,7 +37,7 @@ export default gtsxNextReact({ config: gtsxConfig })(nextConfig)
 `gtsx.config.ts`:
 
 ```ts
-import { defineGTSXConfig } from "gtsx"
+import { defineGTSXConfig } from "@gtsx/core"
 
 export default defineGTSXConfig({
   project: {

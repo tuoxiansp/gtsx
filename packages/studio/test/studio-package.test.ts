@@ -2,7 +2,7 @@ import { join, resolve } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { buildGTSXProjectIndex } from "gtsx/project-index"
+import { buildGTSXProjectIndex } from "@gtsx/core/project-index"
 import { runCLI } from "../../gtsx/src/cli.js"
 import { createStudioManifest } from "../src/index.js"
 

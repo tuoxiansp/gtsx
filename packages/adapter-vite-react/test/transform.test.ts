@@ -1,6 +1,6 @@
 import { resolve } from "node:path"
 
-import { buildGTSXProjectIndex } from "gtsx/project-index"
+import { buildGTSXProjectIndex } from "@gtsx/core/project-index"
 import { describe, expect, it } from "vitest"
 
 import { gtsxViteReact } from "../src/index.js"
@@ -22,7 +22,7 @@ Card.cases = {
       "/repo/src/Card.g.tsx?import",
     )
 
-    expect(result?.code).toContain('import { defineGComponent as __gtsxDefineGComponent } from "gtsx"')
+    expect(result?.code).toContain('import { defineGComponent as __gtsxDefineGComponent } from "@gtsx/core"')
     expect(result?.code).toContain('const Card = __gtsxDefineGComponent("src/Card.g.tsx#default", CardGTSXImpl)')
   })
 

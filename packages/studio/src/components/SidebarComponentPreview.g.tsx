@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GBoundaryRect, type GBoundaryTreeNode, type GCases, type GPreviewProtocolMessage } from "gtsx"
+import { createGScopeHook, type GBoundaryRect, type GBoundaryTreeNode, type GCases, type GPreviewProtocolMessage } from "@gtsx/core"
 
 import type { StudioPreviewFrameState } from "../client"
 import type { StudioManifest, StudioManifestComponent } from "../manifest"

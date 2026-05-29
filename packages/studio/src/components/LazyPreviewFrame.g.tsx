@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GBoundaryRect, type GCases } from "gtsx"
+import { createGScopeHook, type GBoundaryRect, type GCases } from "@gtsx/core"
 
 import ComponentBoundsHitTarget from "./ComponentBoundsHitTarget.g"
 import SelectedBoundaryOutline from "./SelectedBoundaryOutline.g"

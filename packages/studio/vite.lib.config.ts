@@ -27,10 +27,10 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
-        "gtsx",
-        "gtsx/config",
-        "gtsx/config-model",
-        "gtsx/project-index",
+        "@gtsx/core",
+        "@gtsx/core/config",
+        "@gtsx/core/config-model",
+        "@gtsx/core/project-index",
         "react",
         "react-dom",
         "react-dom/client",

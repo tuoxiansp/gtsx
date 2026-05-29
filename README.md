@@ -20,7 +20,7 @@ Give this to an AI coding agent inside your project:
 
 ```
 Install gtsx in this project: install the `setup-gtsx`, `authoring-gtsx`,
-and `refactor-to-gtsx` skills from the `gtsx` package, then run `setup-gtsx`.
+and `refactor-to-gtsx` skills from this repository, then run `setup-gtsx`.
 ```
 
 The agent detects your TypeScript project and Host (Next.js or Vite), installs the right packages, wires `/gtsx/studio`, and verifies everything works.
@@ -55,4 +55,4 @@ You get:
 
 pnpm workspace. `pnpm install && pnpm build && pnpm test && pnpm typecheck`.
 
-Packages: `gtsx` (protocol, CLI), `@gtsx/studio` (shell, manifests), `@gtsx/adapter-vite-react` (Vite adapter). Cross-framework validation fixtures live in [`playground/`](playground/).
+Packages: `@gtsx/core` (protocol, CLI), `@gtsx/studio` (shell, manifests), `@gtsx/adapter-vite-react` (Vite adapter). Cross-framework validation fixtures live in [`playground/`](playground/).

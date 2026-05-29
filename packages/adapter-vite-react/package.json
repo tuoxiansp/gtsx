@@ -44,8 +44,8 @@
     "@gtsx/preview-react": "workspace:*"
   },
   "peerDependencies": {
-    "gtsx": "workspace:*",
     "react": ">=18",
-    "vite": ">=5"
+    "vite": ">=5",
+    "@gtsx/core": "workspace:*"
   }
 }

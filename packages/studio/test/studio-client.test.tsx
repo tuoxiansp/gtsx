@@ -1,7 +1,7 @@
 import { join } from "node:path"
-import type { GBoundaryTreeNode } from "gtsx"
+import type { GBoundaryTreeNode } from "@gtsx/core"
 import { renderToStaticMarkup } from "react-dom/server"
-import { buildGTSXProjectIndex } from "gtsx/project-index"
+import { buildGTSXProjectIndex } from "@gtsx/core/project-index"
 import { describe, expect, it, vi } from "vitest"
 
 import {

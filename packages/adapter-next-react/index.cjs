@@ -10,7 +10,7 @@ const ignoredPreviewEntryDirs = new Set(["node_modules", "dist", ".next", ".git"
 function gtsxNextReact(options = {}) {
   const root = options.root ?? process.cwd()
   const loaderPath = resolve(__dirname, "loader.cjs")
-  const transformPath = require.resolve("gtsx/react-transform", {
+  const transformPath = require.resolve("@gtsx/core/react-transform", {
     paths: [root, process.cwd()],
   })
   const previewEntries = resolvePreviewEntriesOptions(root, options)

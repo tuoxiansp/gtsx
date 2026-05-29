@@ -10,10 +10,10 @@
       "@gtsx/adapter-vite-react/preview": ["../adapter-vite-react/src/preview.ts"],
       "@gtsx/studio": ["./src/index.ts"],
       "@gtsx/preview-react": ["../preview-react/src/index.tsx"],
-      "gtsx": ["../gtsx/src/index.ts"],
-      "gtsx/config": ["../gtsx/src/config.ts"],
-      "gtsx/config-model": ["../gtsx/src/config-model.ts"],
-      "gtsx/project-index": ["../gtsx/src/project-index.ts"]
+      "@gtsx/core": ["../gtsx/src/index.ts"],
+      "@gtsx/core/config": ["../gtsx/src/config.ts"],
+      "@gtsx/core/config-model": ["../gtsx/src/config-model.ts"],
+      "@gtsx/core/project-index": ["../gtsx/src/project-index.ts"]
     }
   },
   "include": ["src", "test/**/*.ts", "test/**/*.tsx", "vite.config.ts", "gtsx.config.ts"]

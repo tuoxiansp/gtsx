@@ -1,4 +1,4 @@
-import { createGScopeHook, type GCases } from "gtsx"
+import { createGScopeHook, type GCases } from "@gtsx/core"
 
 type NotificationBellProps = {
   label: string

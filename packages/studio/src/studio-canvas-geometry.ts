@@ -1,6 +1,6 @@
 "use client"
 
-import type { GBoundaryRect, GBoundaryTreeNode } from "gtsx"
+import type { GBoundaryRect, GBoundaryTreeNode } from "@gtsx/core"
 
 import {
   clipPreviewBoundaryRectToViewport,

@@ -42,7 +42,7 @@ export default function BadgePreview(props: BadgeProps) {
 Every preview state described by props alone:
 
 ```tsx
-import type { GCases } from "gtsx"
+import type { GCases } from "@gtsx/core"
 
 type BadgeProps = {
   tone: "neutral" | "warning"
@@ -72,7 +72,7 @@ Use `createGScopeHook` when the UI depends on application state:
 
 ```tsx
 import { useState } from "react"
-import { createGScopeHook, type GCases } from "gtsx"
+import { createGScopeHook, type GCases } from "@gtsx/core"
 
 type CounterProps = { title: string }
 
@@ -144,7 +144,7 @@ Use `createGProvider` when cases need controlled context:
 
 ```tsx
 import React from "react"
-import { createGProvider, useGContext, type GCases } from "gtsx"
+import { createGProvider, useGContext, type GCases } from "@gtsx/core"
 
 type ThemeScope = { mode: "light" | "dark" }
 

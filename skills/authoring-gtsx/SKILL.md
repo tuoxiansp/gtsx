@@ -20,7 +20,7 @@ For existing TSX conversions, use `refactor-to-gtsx` first, then return here.
 ## Quick start
 
 ```tsx
-import type { GCases } from "gtsx"
+import type { GCases } from "@gtsx/core"
 
 export default function Badge(props: { tone: "ok" | "warn"; label: string }) {
   return <span data-tone={props.tone}>{props.label}</span>

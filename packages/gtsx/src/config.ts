@@ -81,7 +81,7 @@ function loadCommonJSConfig(configPath: string): GTSXConfig {
 }
 
 function requireGTSXConfigDependency(specifier: string): unknown {
-  if (specifier === "gtsx") return { defineGTSXConfig }
+  if (specifier === "@gtsx/core") return { defineGTSXConfig }
   throw new Error(`Unsupported config import: ${specifier}`)
 }
 

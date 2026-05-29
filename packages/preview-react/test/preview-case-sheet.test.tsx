@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
-import { createGScopeHook } from "gtsx"
+import { createGScopeHook } from "@gtsx/core"
 import { GTSXPreviewCaseSheet, type GTSXPreviewComponent } from "../src/index.js"
 
 describe("GTSXPreviewCaseSheet", () => {

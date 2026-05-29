@@ -38,8 +38,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
-    "gtsx": "workspace:*",
-    "react": ">=18"
+    "react": ">=18",
+    "@gtsx/core": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.2.15",

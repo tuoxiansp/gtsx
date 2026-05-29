@@ -7,9 +7,9 @@
       "@gtsx/adapter-next-react/preview-entries": ["./src/preview-entries.ts"],
       "@gtsx/adapter-next-react/preview-route": ["./src/preview-route.ts"],
       "@gtsx/preview-react": ["../preview-react/src/index.tsx"],
-      "gtsx": ["../gtsx/src/index.ts"],
-      "gtsx/config-model": ["../gtsx/src/config-model.ts"],
-      "gtsx/preview-protocol": ["../gtsx/src/preview-protocol.ts"]
+      "@gtsx/core": ["../gtsx/src/index.ts"],
+      "@gtsx/core/config-model": ["../gtsx/src/config-model.ts"],
+      "@gtsx/core/preview-protocol": ["../gtsx/src/preview-protocol.ts"]
     }
   },
   "include": ["src", "test/**/*.ts"]

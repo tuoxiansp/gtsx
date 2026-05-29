@@ -1,4 +1,4 @@
-import { defineGTSXConfig } from "gtsx"
+import { defineGTSXConfig } from "@gtsx/core"
 
 export default defineGTSXConfig({
   project: {

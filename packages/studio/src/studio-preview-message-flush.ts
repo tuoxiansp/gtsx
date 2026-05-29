@@ -1,4 +1,4 @@
-import type { GPreviewProtocolMessage } from "gtsx"
+import type { GPreviewProtocolMessage } from "@gtsx/core"
 
 import type { StudioPreviewFrameState } from "./client"
 

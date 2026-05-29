@@ -1,4 +1,4 @@
-import type { GCases } from "gtsx"
+import type { GCases } from "@gtsx/core"
 
 export type BadgeProps = {
   tone: "neutral" | "warning"

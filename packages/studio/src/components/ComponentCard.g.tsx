@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import type { GBoundaryRect, GBoundaryTreeNode, GCases } from "gtsx"
+import type { GBoundaryRect, GBoundaryTreeNode, GCases } from "@gtsx/core"
 
 import {
   clipPreviewBoundaryRectToViewport,

@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGPreviewRenderMessage, type GPreviewRenderTarget } from "gtsx"
+import { createGPreviewRenderMessage, type GPreviewRenderTarget } from "@gtsx/core"
 
 import { studioPreviewRenderTargetFromUrl } from "./client"
 import type { StudioPreviewFrameSlot } from "./preview-frame-slot"

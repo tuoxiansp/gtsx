@@ -12,7 +12,7 @@ describe("gtsx config", () => {
     try {
       writeFileSync(
         join(root, "gtsx.config.ts"),
-        `import { defineGTSXConfig } from "gtsx"
+        `import { defineGTSXConfig } from "@gtsx/core"
 
 export default defineGTSXConfig({
   project: {

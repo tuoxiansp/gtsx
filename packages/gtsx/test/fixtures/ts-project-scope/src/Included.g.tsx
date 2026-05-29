@@ -1,4 +1,4 @@
-import type { GCases } from "gtsx"
+import type { GCases } from "@gtsx/core"
 
 import { Child } from "@fixture/Child.g"
 

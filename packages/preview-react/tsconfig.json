@@ -4,7 +4,7 @@
     "noEmit": true,
     "types": ["node"],
     "paths": {
-      "gtsx": ["../gtsx/src/index.ts"]
+      "@gtsx/core": ["../gtsx/src/index.ts"]
     }
   },
   "include": ["src", "test/**/*.ts", "test/**/*.tsx"]

@@ -6,7 +6,7 @@ import gtsxConfig from "./gtsx.config"
 
 export default defineConfig({
   optimizeDeps: {
-    exclude: ["gtsx"],
+    exclude: ["@gtsx/core"],
   },
   plugins: [gtsxViteReact({ config: gtsxConfig }), react()],
 })

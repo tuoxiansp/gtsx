@@ -16,7 +16,7 @@ import {
   type GPreviewProtocolMessage,
   type GPreviewRenderMessage,
   type GPreviewRenderTarget,
-} from "gtsx"
+} from "@gtsx/core"
 
 export type GTSXPreviewCase<Props extends object = Record<string, unknown>> = {
   props: Props

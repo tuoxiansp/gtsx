@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
-import { buildGTSXProjectIndex } from "gtsx/project-index"
+import { buildGTSXProjectIndex } from "@gtsx/core/project-index"
 import { createStudioManifest, studioUrlSearchFromSearchParams } from "../src/index.js"
 import { createStudioManifestProvider } from "../src/manifest-server.js"
 

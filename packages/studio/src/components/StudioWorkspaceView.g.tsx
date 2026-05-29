@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GCases } from "gtsx"
+import { createGScopeHook, type GCases } from "@gtsx/core"
 
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import {

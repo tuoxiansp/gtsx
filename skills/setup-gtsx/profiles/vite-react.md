@@ -6,7 +6,7 @@ Use this profile for Vite React TypeScript apps and Vite-compatible client-only 
 
 Install:
 
-- `gtsx`
+- `@gtsx/core`
 - `@gtsx/studio`
 - `@gtsx/adapter-vite-react`
 
@@ -36,7 +36,7 @@ export default defineConfig({
 `gtsx.config.ts`:
 
 ```ts
-import { defineGTSXConfig } from "gtsx"
+import { defineGTSXConfig } from "@gtsx/core"
 
 export default defineGTSXConfig({
   project: {
@@ -117,14 +117,14 @@ export function GTSXPreviewApp() {
 /// <reference types="vite/client" />
 
 declare module "virtual:gtsx/project-index" {
-  import type { GTSXProjectIndex } from "gtsx/project-index"
+  import type { GTSXProjectIndex } from "@gtsx/core/project-index"
 
   const projectIndex: GTSXProjectIndex
   export default projectIndex
 }
 
 declare module "virtual:gtsx/config" {
-  import type { ResolvedGTSXConfig } from "gtsx"
+  import type { ResolvedGTSXConfig } from "@gtsx/core"
 
   const config: ResolvedGTSXConfig
   export default config

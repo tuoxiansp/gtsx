@@ -119,7 +119,7 @@ export function transformGTSXComponentBoundaries(input: GTSXReactTransformInput)
   const importInsertionIndex = directivePrologueEnd(sourceFile)
   insertions.push({
     index: importInsertionIndex,
-    text: `${importInsertionIndex === 0 ? "" : "\n"}import { defineGComponent as __gtsxDefineGComponent } from "gtsx"\n`,
+    text: `${importInsertionIndex === 0 ? "" : "\n"}import { defineGComponent as __gtsxDefineGComponent } from "@gtsx/core"\n`,
   })
 
   return applyEdits(input.code, {

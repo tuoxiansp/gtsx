@@ -1,4 +1,4 @@
-import type { GBoundaryRect } from "gtsx"
+import type { GBoundaryRect } from "@gtsx/core"
 
 type PreviewFrameSize = {
   height?: number

@@ -1,9 +1,9 @@
-import { buildGTSXProjectIndex } from "gtsx/project-index"
-import { transformGTSXReactModule } from "gtsx/react-transform"
-import { resolveGTSXConfig } from "gtsx/config-model"
-import type { GTSXConfig, ResolvedGTSXConfig } from "gtsx"
+import { buildGTSXProjectIndex } from "@gtsx/core/project-index"
+import { transformGTSXReactModule } from "@gtsx/core/react-transform"
+import { resolveGTSXConfig } from "@gtsx/core/config-model"
+import type { GTSXConfig, ResolvedGTSXConfig } from "@gtsx/core"
 
-export { transformGTSXComponentBoundaries, transformGTSXReactModule } from "gtsx/react-transform"
+export { transformGTSXComponentBoundaries, transformGTSXReactModule } from "@gtsx/core/react-transform"
 
 type ViteLikeConfig = {
   root: string

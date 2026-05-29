@@ -64,7 +64,7 @@ For components that mix hooks/effects/state with visual TSX:
 6. Add cases injecting `scope` for each important visual state.
 
 ```tsx
-import { createGScopeHook, type GCases } from "gtsx"
+import { createGScopeHook, type GCases } from "@gtsx/core"
 
 type OrderProps = { orderId: string }
 

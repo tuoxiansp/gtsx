@@ -1,6 +1,6 @@
 "use client"
 
-import type { GCases } from "gtsx"
+import type { GCases } from "@gtsx/core"
 
 import type { StudioPreviewFrameSlot } from "../preview-frame-slot"
 import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"

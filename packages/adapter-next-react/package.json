@@ -65,8 +65,8 @@
     "@gtsx/preview-react": "workspace:*"
   },
   "peerDependencies": {
-    "gtsx": "workspace:*",
     "next": ">=13",
-    "react": ">=18"
+    "react": ">=18",
+    "@gtsx/core": "workspace:*"
   }
 }

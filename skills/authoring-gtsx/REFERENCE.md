@@ -7,7 +7,7 @@ Complete patterns for `.g.tsx` components, from simple to advanced.
 Every preview state described by props alone.
 
 ```tsx
-import type { GCases } from "gtsx"
+import type { GCases } from "@gtsx/core"
 
 type AlertProps = {
   severity: "info" | "warning" | "error"
@@ -40,7 +40,7 @@ Component depends on application state (hooks, stores, queries, routers).
 
 ```tsx
 import { useState } from "react"
-import { createGScopeHook, type GCases } from "gtsx"
+import { createGScopeHook, type GCases } from "@gtsx/core"
 
 type SearchProps = { placeholder: string }
 
@@ -92,7 +92,7 @@ Key points:
 Multi-state components where each case represents one branch.
 
 ```tsx
-import { createGScopeHook, type GCases } from "gtsx"
+import { createGScopeHook, type GCases } from "@gtsx/core"
 
 type Props = { resourceId: string }
 
@@ -142,7 +142,7 @@ Component reads shared context (theme, locale, auth, feature flags).
 
 ```tsx
 import React from "react"
-import { createGProvider, useGContext, type GCases } from "gtsx"
+import { createGProvider, useGContext, type GCases } from "@gtsx/core"
 
 type ThemeValue = { mode: "light" | "dark"; accent: string }
 
@@ -179,7 +179,7 @@ Key points:
 One `.g.tsx` file, multiple components, each with its own coordinate.
 
 ```tsx
-import type { GCases } from "gtsx"
+import type { GCases } from "@gtsx/core"
 
 type ButtonProps = { label: string; variant: "primary" | "ghost" }
 
@@ -207,7 +207,7 @@ Coordinates: `src/Buttons.g.tsx#default`, `src/Buttons.g.tsx#PrimaryButton`.
 The scope hook accepts props when state depends on prop values.
 
 ```tsx
-import { createGScopeHook, type GCases } from "gtsx"
+import { createGScopeHook, type GCases } from "@gtsx/core"
 
 type Props = { userId: string }
 type Scope = { name: string; online: boolean }
@@ -236,7 +236,7 @@ Internal state and external context together. The scope hook receives provider v
 
 ```tsx
 import React from "react"
-import { createGProvider, createGScopeHook, type GCases } from "gtsx"
+import { createGProvider, createGScopeHook, type GCases } from "@gtsx/core"
 
 type AuthValue = { role: "admin" | "viewer" }
 
@@ -286,7 +286,7 @@ Page.cases = {
 A `.g.tsx` component rendering another `.g.tsx` component. The parent imports the child directly — no special composition API needed.
 
 ```tsx
-import type { GCases } from "gtsx"
+import type { GCases } from "@gtsx/core"
 import Badge from "./Badge.g"
 
 type NotificationProps = {
@@ -366,5 +366,5 @@ scope: { count: 0, increment() {}, reset() {} }
 | `.cases` on the scope hook | Move to the component export |
 | Template literals as case keys | Use plain string literals |
 | Missing `satisfies GCases<…>` | Always add for type safety |
-| Importing from `"/gtsx/runtime"` | Import from `"gtsx"` |
+| Importing from `"/gtsx/runtime"` | Import from `"@gtsx/core"` |
 | Cases depending on runtime values | Cases must be statically evaluable |

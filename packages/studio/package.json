@@ -53,18 +53,18 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
-    "gtsx": "workspace:*",
     "react": ">=18",
-    "react-dom": ">=18"
+    "react-dom": ">=18",
+    "@gtsx/core": "workspace:*"
   },
   "devDependencies": {
     "@gtsx/adapter-vite-react": "workspace:*",
-    "gtsx": "workspace:*",
     "@gtsx/preview-react": "workspace:*",
     "@vitejs/plugin-react": "^5.1.2",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "vite": "^8.0.14",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "@gtsx/core": "workspace:*"
   }
 }

@@ -1,4 +1,4 @@
-import type { GCases } from "gtsx"
+import type { GCases } from "@gtsx/core"
 
 import { studioPreviewCacheKey, type StudioPreviewCacheEntry } from "../client"
 import type { StudioManifest, StudioManifestFile } from "../manifest"

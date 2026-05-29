@@ -65,7 +65,7 @@ function mergePackageScripts(cwd: string) {
 }
 
 function configTemplate(): string {
-  return `import { defineGTSXConfig } from "gtsx"
+  return `import { defineGTSXConfig } from "@gtsx/core"
 
 export default defineGTSXConfig({
   project: {

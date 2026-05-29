@@ -19,7 +19,7 @@ This file is the router. Read the detection profile first, then enter exactly on
 
 ## Global Rules
 
-- Install packages from npm as `gtsx`, `@gtsx/studio`, and the selected adapter package.
+- Install packages from npm as `@gtsx/core`, `@gtsx/studio`, and the selected adapter package.
 - Never add `@gtsx/preview-react` directly to the user project; it is adapter internals.
 - Host preview code owns only framework wiring: search params, CSS/setup imports, providers/mocks, and adapter loading.
 - Do not reimplement preview runtime in the app. No custom `GPreviewProvider`, boundary collectors, iframe `postMessage` handlers, resize observers, boundary rect readers, case override merging, or scope fallback logic.

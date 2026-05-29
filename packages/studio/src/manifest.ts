@@ -1,6 +1,6 @@
-import { resolveGTSXConfig } from "gtsx/config-model"
-import type { GTSXConfig, GTSXDiagnostic } from "gtsx"
-import type { GTSXProjectIndex, GTSXProjectIndexComponent } from "gtsx/project-index"
+import { resolveGTSXConfig } from "@gtsx/core/config-model"
+import type { GTSXConfig, GTSXDiagnostic } from "@gtsx/core"
+import type { GTSXProjectIndex, GTSXProjectIndexComponent } from "@gtsx/core/project-index"
 
 export type StudioManifestRouteConfig = {
   preview: string

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { GCases } from "gtsx"
+import type { GCases } from "@gtsx/core"
 
 type Props = {
   label: string

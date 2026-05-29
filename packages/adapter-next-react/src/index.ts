@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { createRequire } from "node:module"
 import { dirname, relative, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
-import { resolveGTSXConfig } from "gtsx/config-model"
-import type { GTSXConfig } from "gtsx"
+import { resolveGTSXConfig } from "@gtsx/core/config-model"
+import type { GTSXConfig } from "@gtsx/core"
 
 type WebpackRule = {
   enforce?: string
@@ -135,7 +135,7 @@ function prependRule(
 }
 
 function resolveGTSXReactTransform(root: string): string {
-  return createRequire(import.meta.url).resolve("gtsx/react-transform", {
+  return createRequire(import.meta.url).resolve("@gtsx/core/react-transform", {
     paths: [root, process.cwd()],
   })
 }

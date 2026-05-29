@@ -25,7 +25,7 @@ Card.cases = {
 `,
     })
 
-    expect(output).toContain('import { defineGComponent as __gtsxDefineGComponent } from "gtsx"')
+    expect(output).toContain('import { defineGComponent as __gtsxDefineGComponent } from "@gtsx/core"')
     expect(output).toContain("function CardGTSXImpl(props: { label: string })")
     expect(output).toContain('const Card = __gtsxDefineGComponent("src/Card.g.tsx#default", CardGTSXImpl)')
     expect(output).toContain("export default Card")
@@ -48,7 +48,7 @@ Card.cases = {
 `,
     })
 
-    expect(output.startsWith('"use client"\nimport { defineGComponent as __gtsxDefineGComponent } from "gtsx"')).toBe(true)
+    expect(output.startsWith('"use client"\nimport { defineGComponent as __gtsxDefineGComponent } from "@gtsx/core"')).toBe(true)
   })
 
   it("wraps named component exports that declare cases", () => {

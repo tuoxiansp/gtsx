@@ -1,6 +1,6 @@
 "use client"
 
-import type { GPreviewProtocolMessage } from "gtsx"
+import type { GPreviewProtocolMessage } from "@gtsx/core"
 
 import type { StudioManifest, StudioManifestComponent } from "./manifest"
 import {

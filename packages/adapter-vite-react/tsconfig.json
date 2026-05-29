@@ -5,8 +5,8 @@
     "types": ["node"],
     "paths": {
       "@gtsx/preview-react": ["../preview-react/src/index.tsx"],
-      "gtsx": ["../gtsx/src/index.ts"],
-      "gtsx/config-model": ["../gtsx/src/config-model.ts"]
+      "@gtsx/core": ["../gtsx/src/index.ts"],
+      "@gtsx/core/config-model": ["../gtsx/src/config-model.ts"]
     }
   },
   "include": ["src"]

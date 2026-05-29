@@ -7,7 +7,7 @@ import {
   type GRuntimeValuesSnapshot,
   type GPreviewProtocolMessage,
   type GPreviewRequestValuesMessage,
-} from "gtsx"
+} from "@gtsx/core"
 import type { StudioManifest, StudioManifestComponent } from "./manifest"
 import { previewFrameLayoutWidth } from "./preview-frame-layout"
 

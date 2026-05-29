@@ -2,7 +2,7 @@ import {
   createGProvider,
   createGScopeHook,
   type GCases,
-} from "gtsx"
+} from "@gtsx/core"
 import React from "react"
 
 export type RootProps = {
