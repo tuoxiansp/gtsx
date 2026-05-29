@@ -25,7 +25,7 @@ describe("gtsx init", () => {
 
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain("Would create gtsx.config.ts")
-    expect(result.stdout).toContain("Would create .cursor/rules/gtsx.md")
+    expect(result.stdout).toContain("Would create AGENTS.md")
     expect(existsSync(join(root, "gtsx.config.ts"))).toBe(false)
   })
 
@@ -40,7 +40,7 @@ describe("gtsx init", () => {
 
     expect(result.exitCode).toBe(0)
     expect(readFileSync(join(root, "gtsx.config.ts"), "utf8")).toContain("preview")
-    expect(readFileSync(join(root, ".cursor/rules/gtsx.md"), "utf8")).toContain(".g.tsx")
+    expect(readFileSync(join(root, "AGENTS.md"), "utf8")).toContain(".g.tsx")
     expect(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).scripts).toMatchObject({
       "gtsx:check": "gtsx check",
       "gtsx:serve": "gtsx serve",

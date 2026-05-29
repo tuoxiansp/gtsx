@@ -19,7 +19,7 @@ Every component declares its visual states. Studio renders them. The CLI checks 
 Give this to an AI coding agent inside your project:
 
 ```
-Install gtsx in this project. Fetch and install these Codex skills from
+Install gtsx in this project. Fetch and install these Agent Skills from
 https://github.com/tuoxiansp/gtsx:
 
 - skills/setup-gtsx

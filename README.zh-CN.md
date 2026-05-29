@@ -18,7 +18,7 @@
 把下面这段提示词交给项目里的 AI 编程 agent：
 
 ```
-Install gtsx in this project. Fetch and install these Codex skills from
+Install gtsx in this project. Fetch and install these Agent Skills from
 https://github.com/tuoxiansp/gtsx:
 
 - skills/setup-gtsx

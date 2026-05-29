@@ -13,7 +13,7 @@ export type InitResult = {
 }
 
 const CONFIG_FILE = "gtsx.config.ts"
-const INSTRUCTIONS_FILE = ".cursor/rules/gtsx.md"
+const INSTRUCTIONS_FILE = "AGENTS.md"
 
 export function initGTSX(options: InitOptions): InitResult {
   const changes = [
