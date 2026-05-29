@@ -35,6 +35,7 @@ export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
     config() {
       return {
         optimizeDeps: {
+          include: ["react-tracked", "scheduler", "use-context-selector"],
           exclude: ["@gtsx/adapter-vite-react", "typescript", virtualConfigId, virtualProjectIndexId],
         },
       }

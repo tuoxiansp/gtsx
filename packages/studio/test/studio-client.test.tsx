@@ -1,4 +1,5 @@
 import { join } from "node:path"
+import type { GBoundaryTreeNode } from "gtsx"
 import { renderToStaticMarkup } from "react-dom/server"
 import { buildGTSXProjectIndex } from "gtsx/project-index"
 import { describe, expect, it, vi } from "vitest"
@@ -2809,7 +2810,7 @@ describe("GTSX Studio shell", () => {
       type: "gtsx:tree",
       protocolVersion: 1,
       sessionId: "current-session",
-      tree: [],
+      tree: [] as GBoundaryTreeNode[],
     } as const
 
     expect(

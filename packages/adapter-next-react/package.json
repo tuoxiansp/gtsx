@@ -1,7 +1,27 @@
 {
   "name": "@gtsx/adapter-next-react",
-  "version": "0.0.0",
+  "version": "0.0.1",
+  "description": "Next.js React adapter for GTSX component preview integration.",
+  "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuoxiansp/gtsx.git",
+    "directory": "packages/adapter-next-react"
+  },
+  "bugs": {
+    "url": "https://github.com/tuoxiansp/gtsx/issues"
+  },
+  "homepage": "https://github.com/tuoxiansp/gtsx#readme",
+  "keywords": [
+    "gtsx",
+    "nextjs",
+    "react",
+    "component-preview"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

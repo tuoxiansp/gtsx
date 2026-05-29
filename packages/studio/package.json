@@ -1,44 +1,70 @@
 {
   "name": "@gtsx/studio",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.0.1",
+  "description": "Studio UI for browsing and previewing GTSX component cases.",
+  "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuoxiansp/gtsx.git",
+    "directory": "packages/studio"
+  },
+  "bugs": {
+    "url": "https://github.com/tuoxiansp/gtsx/issues"
+  },
+  "homepage": "https://github.com/tuoxiansp/gtsx#readme",
+  "keywords": [
+    "gtsx",
+    "studio",
+    "react",
+    "component-preview"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./client": {
-      "types": "./src/client-entry.ts",
-      "import": "./src/client-entry.ts"
+      "types": "./dist/client-entry.d.ts",
+      "import": "./dist/client.js"
     },
     "./manifest": {
-      "types": "./src/manifest.ts",
-      "import": "./src/manifest.ts"
+      "types": "./dist/manifest.d.ts",
+      "import": "./dist/manifest.js"
     },
     "./manifest-server": {
-      "types": "./src/manifest-server.ts",
-      "import": "./src/manifest-server.ts"
+      "types": "./dist/manifest-server.d.ts",
+      "import": "./dist/manifest-server.js"
     }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
+    "build": "vite build --config vite.lib.config.ts && tsc -p tsconfig.build.json",
+    "build:app": "vite build",
     "gtsx:check": "gtsx check src",
     "gtsx:serve": "gtsx serve",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "dependencies": {
-    "@gtsx/adapter-vite-react": "workspace:*",
-    "@gtsx/preview-react": "workspace:*",
-    "@vitejs/plugin-react": "^5.1.2",
+  "peerDependencies": {
     "gtsx": "workspace:*",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "vite": "^8.0.14"
+    "react": ">=18",
+    "react-dom": ">=18"
   },
   "devDependencies": {
+    "@gtsx/adapter-vite-react": "workspace:*",
+    "gtsx": "workspace:*",
+    "@gtsx/preview-react": "workspace:*",
+    "@vitejs/plugin-react": "^5.1.2",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "vite": "^8.0.14",
     "typescript": "^6.0.3"
   }
 }

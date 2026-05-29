@@ -178,7 +178,17 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       const port = readOption(args, "--port") ?? "4300"
       const viewport = readOption(args, "--viewport") ?? "1440x900"
       const gcases = readOptions(args, "--gcase")
-      const previewServer = await startPreviewServer(config.config.preview.serve, cwd, { port })
+      const readyUrl = expandUrl(config.config.preview.allUrl, {
+        entry: resolvedEntries.entries[0] ?? "",
+        caseName: "",
+        port,
+        gcases,
+      })
+      const previewServer = await startPreviewServer(config.config.preview.serve, cwd, {
+        port,
+        readyUrl,
+        detached: true,
+      })
       if (previewServer.exitCode !== 0) return previewServer
 
       try {
@@ -262,7 +272,25 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       ])
     }
 
-    const previewServer = await startPreviewServer(config.config.preview.serve, cwd, { port })
+    if (!captureAllCases && !selectedCase) {
+      return diagnosticsResult([
+        {
+          stage: "contract-extraction",
+          code: "missing-cases",
+          message: `No cases found for ${entry}.`,
+          file: entry,
+        },
+      ])
+    }
+
+    const captureUrl = captureAllCases
+      ? expandUrl(config.config.preview.allUrl ?? "", { entry: selectedEntry, caseName: "", port, gcases })
+      : expandUrl(config.config.preview.url ?? "", { entry: selectedEntry, caseName: selectedCase ?? "", port, gcases })
+    const previewServer = await startPreviewServer(config.config.preview.serve, cwd, {
+      port,
+      readyUrl: captureUrl,
+      detached: true,
+    })
     if (previewServer.exitCode !== 0) return previewServer
 
     try {
@@ -270,27 +298,16 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
         const outPath = outForEntryContactSheet(out, selectedEntry)
         await capturePreviewPage({
           cwd,
-          url: expandUrl(config.config.preview.allUrl ?? "", { entry: selectedEntry, caseName: "", port, gcases }),
+          url: captureUrl,
           viewport,
           out: outPath,
         })
         return { exitCode: 0, stdout: `Captured ${selectedEntry} contact sheet to ${outPath}\n`, stderr: context.stderr }
       }
 
-      if (!selectedCase) {
-        return diagnosticsResult([
-          {
-            stage: "contract-extraction",
-            code: "missing-cases",
-            message: `No cases found for ${entry}.`,
-            file: entry,
-          },
-        ])
-      }
-
       await capturePreviewPage({
         cwd,
-        url: expandUrl(config.config.preview.url ?? "", { entry: selectedEntry, caseName: selectedCase, port, gcases }),
+        url: captureUrl,
         viewport,
         out,
       })
@@ -329,6 +346,16 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
 function resolveProjectSelection(args: string[], cwd: string): ProjectSelection {
   const projectOptionIndex = args.findIndex((arg) => arg === "-p" || arg === "--project")
   if (projectOptionIndex < 0) {
+    const configProjectTSConfig = resolveConfiguredTSConfig(cwd)
+    if (configProjectTSConfig) {
+      return {
+        args,
+        cwd: dirname(configProjectTSConfig),
+        tsconfigPath: configProjectTSConfig,
+        diagnostics: [],
+      }
+    }
+
     const tsconfigPath = findNearestTSConfig(cwd)
     if (!tsconfigPath) {
       return { args, cwd, diagnostics: [] }
@@ -382,6 +409,14 @@ function resolveProjectSelection(args: string[], cwd: string): ProjectSelection 
     tsconfigPath,
     diagnostics: [],
   }
+}
+
+function resolveConfiguredTSConfig(cwd: string): string | undefined {
+  const config = loadGTSXConfig(cwd)
+  if (!config.config?.project?.tsconfig) return undefined
+
+  const tsconfigPath = resolve(cwd, config.config.project.tsconfig)
+  return statOrUndefined(tsconfigPath)?.isFile() ? tsconfigPath : undefined
 }
 
 function isDirectory(cwd: string, target: string): boolean {
@@ -562,7 +597,7 @@ function sanitizeFilePathSegment(value: string): string {
 async function startPreviewServer(
   serveCommand: string | undefined,
   cwd: string,
-  params: { port: string; readyUrl?: string },
+  params: { port: string; readyUrl?: string; detached?: boolean },
 ): Promise<CLIResult & { stop(): void }> {
   if (!serveCommand) {
     return {
@@ -575,6 +610,7 @@ async function startPreviewServer(
 
   const child = spawn(expandCommand(serveCommand, { cwd, port: params.port }), {
     cwd,
+    detached: Boolean(params.detached && process.platform !== "win32"),
     shell: true,
     stdio: ["ignore", "pipe", "pipe"],
   })
@@ -588,7 +624,18 @@ async function startPreviewServer(
     stderr += String(chunk)
   })
   const stop = () => {
-    if (exitCode === undefined) child.kill()
+    if (exitCode !== undefined) return
+    if (!params.detached || process.platform === "win32") {
+      child.kill()
+      return
+    }
+
+    try {
+      if (child.pid === undefined) throw new Error("Preview server pid is unavailable")
+      process.kill(-child.pid, "SIGTERM")
+    } catch {
+      child.kill()
+    }
   }
   const exitPromise = new Promise<number>((resolve) => {
     child.on("exit", (code) => {

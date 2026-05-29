@@ -1,7 +1,27 @@
 {
   "name": "@gtsx/adapter-vite-react",
-  "version": "0.0.0",
+  "version": "0.0.1",
+  "description": "Vite React adapter for GTSX component preview integration.",
+  "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuoxiansp/gtsx.git",
+    "directory": "packages/adapter-vite-react"
+  },
+  "bugs": {
+    "url": "https://github.com/tuoxiansp/gtsx/issues"
+  },
+  "homepage": "https://github.com/tuoxiansp/gtsx#readme",
+  "keywords": [
+    "gtsx",
+    "vite",
+    "react",
+    "component-preview"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

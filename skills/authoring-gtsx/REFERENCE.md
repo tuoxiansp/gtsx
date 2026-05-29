@@ -366,5 +366,5 @@ scope: { count: 0, increment() {}, reset() {} }
 | `.cases` on the scope hook | Move to the component export |
 | Template literals as case keys | Use plain string literals |
 | Missing `satisfies GCases<…>` | Always add for type safety |
-| Importing from `"gtsx/runtime"` | Import from `"gtsx"` |
+| Importing from `"/gtsx/runtime"` | Import from `"gtsx"` |
 | Cases depending on runtime values | Cases must be statically evaluable |

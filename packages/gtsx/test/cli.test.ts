@@ -98,6 +98,15 @@ describe("gtsx CLI", () => {
     expect(result.stdout).not.toContain("stories/Outside.g.tsx")
   })
 
+  it("uses project.tsconfig from gtsx.config.ts when the root TypeScript config only contains references", async () => {
+    const projectRoot = join(import.meta.dirname, "fixtures/config-tsconfig-scope")
+
+    const result = await runCLI(["check", "src"], { cwd: projectRoot, stdout: "", stderr: "" })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain("GTSX pure entry: src/Included.g.tsx")
+  })
+
   it("checks named-only component files without requiring a default export", async () => {
     const projectRoot = join(import.meta.dirname, "fixtures/check-project")
 

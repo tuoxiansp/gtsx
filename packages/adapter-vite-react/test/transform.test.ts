@@ -34,6 +34,16 @@ Card.cases = {
     expect(plugin.resolveId("virtual:gtsx/studio-manifest")).toBeNull()
   })
 
+  it("pre-optimizes CommonJS runtime dependencies needed by packed consumers", () => {
+    const plugin = gtsxViteReact({ root: "/repo" })
+
+    expect(plugin.config()).toMatchObject({
+      optimizeDeps: {
+        include: ["react-tracked", "scheduler", "use-context-selector"],
+      },
+    })
+  })
+
   it("loads a low-level GTSX project index through a virtual module", () => {
     const fixtureRoot = resolve(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
     const plugin = gtsxViteReact({ root: fixtureRoot, projectRoot: "src" })

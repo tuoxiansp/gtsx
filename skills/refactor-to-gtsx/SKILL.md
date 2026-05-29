@@ -9,9 +9,8 @@ Convert existing React components into `.g.tsx` UI models.
 
 ## Read First
 
-- [Refactor Guide](../../docs/gtsx-refactor-guide.md) — decision gates, patterns, anti-patterns
-- [Authoring Guide](../../docs/gtsx-authoring-guide.md) — best practices for the resulting `.g.tsx`
-- [Authoring Reference](../authoring-gtsx/REFERENCE.md) — code patterns
+- This skill owns the refactor workflow and decision gates.
+- For concrete `.g.tsx` writing patterns, route to `authoring-gtsx` and read [Authoring Reference](../authoring-gtsx/REFERENCE.md).
 
 If the project isn't wired for gtsx yet, run the `setup-gtsx` skill first.
 

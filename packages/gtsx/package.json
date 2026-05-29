@@ -1,7 +1,25 @@
 {
   "name": "gtsx",
-  "version": "0.0.0",
+  "version": "0.0.1",
+  "description": "Core runtime and CLI for authoring and previewing GTSX React components.",
+  "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuoxiansp/gtsx.git",
+    "directory": "packages/gtsx"
+  },
+  "bugs": {
+    "url": "https://github.com/tuoxiansp/gtsx/issues"
+  },
+  "homepage": "https://github.com/tuoxiansp/gtsx#readme",
+  "keywords": [
+    "gtsx",
+    "react",
+    "tsx",
+    "component-preview",
+    "agent"
+  ],
   "bin": {
     "gtsx": "./dist/cli.js"
   },

@@ -314,22 +314,25 @@ describe("GTSX Studio manifest", () => {
 
     expect(packageJson.exports).toEqual({
       ".": {
-        types: "./src/index.ts",
-        import: "./src/index.ts",
+        types: "./dist/index.d.ts",
+        import: "./dist/index.js",
       },
       "./client": {
-        types: "./src/client-entry.ts",
-        import: "./src/client-entry.ts",
+        types: "./dist/client-entry.d.ts",
+        import: "./dist/client.js",
       },
       "./manifest": {
-        types: "./src/manifest.ts",
-        import: "./src/manifest.ts",
+        types: "./dist/manifest.d.ts",
+        import: "./dist/manifest.js",
       },
       "./manifest-server": {
-        types: "./src/manifest-server.ts",
-        import: "./src/manifest-server.ts",
+        types: "./dist/manifest-server.d.ts",
+        import: "./dist/manifest-server.js",
       },
     })
+    expect(packageJson.private).toBeUndefined()
+    expect(packageJson.files).toEqual(["dist"])
+    expect(packageJson.dependencies).toBeUndefined()
   })
 
 

@@ -76,7 +76,3 @@ gtsx capture <file.g.tsx> --all     # screenshot all cases
 ## Reference
 
 Full patterns (stateful, providers, discriminated unions, multiple exports, composition): [REFERENCE.md](./REFERENCE.md)
-
-Authoring best practices and principles: [Authoring Guide](../../docs/gtsx-authoring-guide.md)
-
-Existing TSX migrations: [Refactor Guide](../../docs/gtsx-refactor-guide.md)

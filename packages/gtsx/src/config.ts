@@ -63,10 +63,7 @@ function loadTypeScriptConfig(configPath: string): GTSXConfig {
   vm.runInNewContext(compiled, {
     exports: moduleValue.exports,
     module: moduleValue,
-    require: (specifier: string) => {
-      if (specifier === "gtsx") return { defineGTSXConfig }
-      throw new Error(`Unsupported config import: ${specifier}`)
-    },
+    require: requireGTSXConfigDependency,
   })
 
   return readDefaultExport(moduleValue.exports)
@@ -78,12 +75,14 @@ function loadCommonJSConfig(configPath: string): GTSXConfig {
   vm.runInNewContext(source, {
     exports: moduleValue.exports,
     module: moduleValue,
-    require: (specifier: string) => {
-      if (specifier === "gtsx") return { defineGTSXConfig }
-      throw new Error(`Unsupported config import: ${specifier}`)
-    },
+    require: requireGTSXConfigDependency,
   })
   return readDefaultExport(moduleValue.exports)
+}
+
+function requireGTSXConfigDependency(specifier: string): unknown {
+  if (specifier === "gtsx") return { defineGTSXConfig }
+  throw new Error(`Unsupported config import: ${specifier}`)
 }
 
 function readDefaultExport(exportsValue: Record<string, unknown>): GTSXConfig {

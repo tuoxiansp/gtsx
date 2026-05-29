@@ -36,7 +36,7 @@ export function visibleStudioPreviewSessionIds(input: StudioCanvasPreviewVisibil
 }
 
 export function shouldRenderStudioPreview(
-  currentlyRendered: boolean,
+  _currentlyRendered: boolean,
   rect: StudioViewportRect,
   viewport: StudioViewportRect,
 ): boolean {
