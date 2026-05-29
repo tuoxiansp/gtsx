@@ -1,7 +1,7 @@
 {
   "name": "gtsx-workspace",
   "private": true,
-  "description": "Agent-oriented React component authoring and preview toolkit.",
+  "description": "Preview and verify every React UI state with typed .g.tsx components.",
   "license": "MIT",
   "type": "module",
   "repository": {
