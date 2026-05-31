@@ -8,6 +8,7 @@ import type {
   GCases,
   GCase,
   GProvider,
+  GProviderOptions,
   GProviderStates,
   GProviderUpdate,
   GProviderUpdateFn,
@@ -153,6 +154,19 @@ export function createGBoundaryCollector(): GBoundaryCollector {
 
 export function createGProvider<Props extends object, State, Update extends GProviderUpdateFn>(
   useValue: GProviderUseValue<Props, State, Update>,
+): GProvider<State, Update, Props>
+export function createGProvider<
+  Props extends object,
+  State,
+  Update extends GProviderUpdateFn,
+  Variants extends readonly string[],
+>(
+  useValue: GProviderUseValue<Props, State, Update>,
+  options: GProviderOptions<Variants> & { variants: Variants },
+): GProvider<State, Update, Props, Variants[number]>
+export function createGProvider<Props extends object, State, Update extends GProviderUpdateFn>(
+  useValue: GProviderUseValue<Props, State, Update>,
+  options?: GProviderOptions,
 ): GProvider<State, Update, Props> {
   const PresenceContext = React.createContext(false)
   const container = createContainer<State, Update, Props & { children?: React.ReactNode }>(useValue)
@@ -181,12 +195,13 @@ export function createGProvider<Props extends object, State, Update extends GPro
     __gtsxPresenceContext: { value: PresenceContext },
     __gtsxUseTrackedState: { value: container.useTrackedState },
     __gtsxUseUpdate: { value: container.useUpdate },
+    ...(options?.variants ? { __gtsxVariants: { value: options.variants } } : {}),
   })
 
   return Provider
 }
 
-export function useGContextUpdate<Provider extends GProvider<any, any, any>>(
+export function useGContextUpdate<Provider extends GProvider<any, any, any, any>>(
   provider: Provider,
 ): GProviderUpdate<Provider> {
   if (isManagedGProvider(provider)) {
@@ -207,11 +222,11 @@ export function useGContextUpdate<Provider extends GProvider<any, any, any>>(
 
 export function createGScopeHook<Scope>(useRealScope: () => Scope): () => Scope
 export function createGScopeHook<Props, Scope>(useRealScope: (props: Props) => Scope): (props: Props) => Scope
-export function createGScopeHook<Props, Providers extends readonly GProvider<any, any, any>[], Scope>(
+export function createGScopeHook<Props, Providers extends readonly GProvider<any, any, any, any>[], Scope>(
   useRealScope: (props: Props, providers: GProviderStates<Providers>) => Scope,
   providers: Providers,
 ): (props: Props) => Scope
-export function createGScopeHook<Props, Providers extends readonly GProvider<any, any, any>[], Scope>(
+export function createGScopeHook<Props, Providers extends readonly GProvider<any, any, any, any>[], Scope>(
   useRealScope: (() => Scope) | ((props: Props) => Scope) | ((props: Props, providers: GProviderStates<Providers>) => Scope),
   providers?: Providers,
 ): ((props: Props) => Scope) | (() => Scope) {

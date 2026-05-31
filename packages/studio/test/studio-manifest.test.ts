@@ -261,6 +261,7 @@ describe("GTSX Studio manifest", () => {
       ThemeProvider: {
         name: "ThemeProvider",
         cases: [],
+        variants: ["light", "dark"],
       },
     })
   })

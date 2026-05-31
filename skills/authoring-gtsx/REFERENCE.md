@@ -110,14 +110,15 @@ const useScope = createGScopeHook(useRealScope)
 export default function Resource(props: Props) {
   const scope = useScope(props)
 
-  switch (scope.status) {
-    case "loading":
-      return <p>Loading {props.resourceId}…</p>
-    case "error":
-      return <div><p>{scope.message}</p><button onClick={scope.retry}>Retry</button></div>
-    case "ready":
-      return <div><h1>{scope.title}</h1><p>{scope.data.length} items</p></div>
+  if (scope.status === "loading") {
+    return <p>Loading {props.resourceId}…</p>
   }
+
+  if (scope.status === "error") {
+    return <div><p>{scope.message}</p><button onClick={scope.retry}>Retry</button></div>
+  }
+
+  return <div><h1>{scope.title}</h1><p>{scope.data.length} items</p></div>
 }
 
 Resource.cases = {
@@ -142,12 +143,13 @@ Component reads shared context (theme, locale, auth, feature flags).
 
 ```tsx
 import React from "react"
-import { createGProvider, useGContext, type GCases } from "@gtsx/core"
+import { createGProvider, useGContext, type GCases, type GProviderCase } from "@gtsx/core"
 
 type ThemeValue = { mode: "light" | "dark"; accent: string }
 
 const ThemeProvider = createGProvider((_props: Record<string, never>) =>
   React.useState<ThemeValue>({ mode: "light", accent: "#0066cc" }),
+  { variants: ["light", "dark"] as const },
 )
 
 type CardProps = { title: string }
@@ -161,17 +163,19 @@ Card.cases = {
   lightCard: {
     props: { title: "Settings" },
     providers: [[ThemeProvider, { mode: "light", accent: "#0066cc" }]],
-  },
+  } satisfies GProviderCase<typeof ThemeProvider, "light", CardProps, never, [typeof ThemeProvider]>,
   darkCard: {
     props: { title: "Settings" },
     providers: [[ThemeProvider, { mode: "dark", accent: "#66ccff" }]],
-  },
+  } satisfies GProviderCase<typeof ThemeProvider, "dark", CardProps, never, [typeof ThemeProvider]>,
 } satisfies GCases<CardProps, never, [typeof ThemeProvider]>
 ```
 
 Key points:
 - `createGProvider(useValue)` creates the provider.
+- `createGProvider(useValue, { variants })` declares a finite environment axis for Studio and static coverage.
 - Cases supply fallback state: `providers: [[Provider, state]]`.
+- `GProviderCase<typeof Provider, "variant">` marks which variant a case covers; it does not supply provider state by itself.
 - Third type parameter of `GCases` lists providers as a tuple.
 
 ## Pattern 5: Multiple Exports
@@ -236,12 +240,13 @@ Internal state and external context together. The scope hook receives provider v
 
 ```tsx
 import React from "react"
-import { createGProvider, createGScopeHook, type GCases } from "@gtsx/core"
+import { createGProvider, createGScopeHook, type GCases, type GProviderCase } from "@gtsx/core"
 
 type AuthValue = { role: "admin" | "viewer" }
 
 const AuthProvider = createGProvider((_props: Record<string, never>) =>
   React.useState<AuthValue>({ role: "viewer" }),
+  { variants: ["admin", "viewer"] as const },
 )
 
 const providers = [AuthProvider] as const
@@ -272,12 +277,12 @@ Page.cases = {
     props: { pageId: "p1" },
     providers: [[AuthProvider, { role: "admin" }]],
     scope: { title: "Dashboard", canEdit: true },
-  },
+  } satisfies GProviderCase<typeof AuthProvider, "admin", Props, Scope, typeof providers>,
   viewerView: {
     props: { pageId: "p1" },
     providers: [[AuthProvider, { role: "viewer" }]],
     scope: { title: "Dashboard", canEdit: false },
-  },
+  } satisfies GProviderCase<typeof AuthProvider, "viewer", Props, Scope, typeof providers>,
 } satisfies GCases<Props, Scope, typeof providers>
 ```
 
@@ -310,6 +315,58 @@ Notification.cases = {
 ```
 
 The child (`Badge.g`) has its own cases for isolated preview. The parent's cases exercise the composition — Studio shows both, with children reachable by drilldown.
+
+## Pattern 9: Traceable Collection Branches
+
+When JSX is produced inside a collection callback, the collection must come from props, gtsx scope, or gtsx provider context. The item parameter then becomes part of that source for branch coverage.
+
+```tsx
+import type { GCases } from "@gtsx/core"
+
+type Row = { id: string; label: string; visible: boolean }
+type Props = { rows: Row[] }
+
+export default function RowList(props: Props) {
+  return (
+    <ul>
+      {props.rows.map((row) => (row.visible ? <li key={row.id}>{row.label}</li> : null))}
+    </ul>
+  )
+}
+
+RowList.cases = {
+  allHidden: { props: { rows: [{ id: "1", label: "Draft", visible: false }] } },
+  visibleRow: { props: { rows: [{ id: "2", label: "Published", visible: true }] } },
+} satisfies GCases<Props>
+```
+
+Avoid moving the predicate into a helper such as `shouldShow(row)`. That hides the JSX branch from static analysis and `gtsx check` reports opaque control flow.
+
+## Pattern 10: Provider Variant Projection
+
+A child component may receive plain props that were shaped by a parent provider variant. It does not need to read the provider just to preserve that environment axis in Studio.
+
+```tsx
+import type { GCases, GProviderCase } from "@gtsx/core"
+import { UserSignProvider } from "./environment.g"
+
+type Props = { userName: string }
+
+export default function AccountName(props: Props) {
+  return <span>{props.userName}</span>
+}
+
+AccountName.cases = {
+  loginName: {
+    props: { userName: "Ada" },
+  } satisfies GProviderCase<typeof UserSignProvider, "login", Props>,
+  anonymousName: {
+    props: { userName: "Guest" },
+  } satisfies GProviderCase<typeof UserSignProvider, "anonymous", Props>,
+} satisfies GCases<Props>
+```
+
+Use this only when the props really are projections of that provider environment. If the child has no relationship to the provider axis, leave the cases unmarked.
 
 ## Case Design Guidelines
 

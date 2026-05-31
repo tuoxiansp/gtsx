@@ -6,6 +6,7 @@ import type { StudioPreviewFrameSlot } from "../preview-frame-slot"
 import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
 
 type BufferedPreviewIframeProps = {
+  dimmed?: boolean
   onPreviewFrameMount?: (
     sessionId: string,
     frame: HTMLIFrameElement | null,
@@ -17,25 +18,43 @@ type BufferedPreviewIframeProps = {
 
 export default function BufferedPreviewIframe(props: BufferedPreviewIframeProps) {
   return (
-    <iframe
-      aria-hidden="true"
-      loading="eager"
-      ref={(frame) => props.onPreviewFrameMount?.(props.slot.sessionId, frame)}
-      src={props.slot.previewUrl}
-      style={{
-        background: "transparent",
-        border: 0,
-        height: props.size.height,
-        left: 0,
-        pointerEvents: "none",
-        position: "absolute",
-        top: 0,
-        width: props.size.width,
-        zIndex: 1,
-      }}
-      tabIndex={-1}
-      title={props.slot.title}
-    />
+    <>
+      <iframe
+        aria-hidden="true"
+        loading="eager"
+        ref={(frame) => props.onPreviewFrameMount?.(props.slot.sessionId, frame)}
+        src={props.slot.previewUrl}
+        style={{
+          background: "transparent",
+          border: 0,
+          filter: props.dimmed ? "grayscale(0.9)" : undefined,
+          height: props.size.height,
+          left: 0,
+          opacity: props.dimmed ? 0.42 : undefined,
+          pointerEvents: "none",
+          position: "absolute",
+          top: 0,
+          width: props.size.width,
+          zIndex: 1,
+        }}
+        tabIndex={-1}
+        title={props.slot.title}
+      />
+      {props.dimmed ? (
+        <div
+          aria-hidden="true"
+          data-gtsx-buffered-preview-dim-overlay={props.slot.sessionId}
+          style={{
+            background:
+              "repeating-linear-gradient(135deg, rgba(87,96,106,0.42) 0, rgba(87,96,106,0.42) 7px, rgba(255,255,255,0.12) 7px, rgba(255,255,255,0.12) 14px), rgba(87,96,106,0.18)",
+            inset: 0,
+            pointerEvents: "none",
+            position: "absolute",
+            zIndex: 2,
+          }}
+        />
+      ) : null}
+    </>
   )
 }
 

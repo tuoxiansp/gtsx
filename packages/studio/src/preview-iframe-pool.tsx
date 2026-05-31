@@ -10,6 +10,7 @@ import { studioCanvasTransformChangedEventType } from "./studio-canvas-transform
 export type StudioPreviewIframeBorrowOrigin = "pool" | "new"
 
 export type StudioPreviewIframeBorrowInput = {
+  dimmed?: boolean
   onPreviewFrameMount?: (
     sessionId: string,
     frame: HTMLIFrameElement | null,
@@ -45,6 +46,7 @@ type StudioPreviewIframePoolEntry = {
   lastPostedRenderKey?: string
   lastRenderedSessionId?: string
   owner?: symbol
+  overlay: HTMLDivElement
   pendingInput?: StudioPreviewIframeBorrowInput
   pendingRenderDeliveryAttemptCount?: number
   pendingRenderEndpointRetryTimeout?: number
@@ -205,9 +207,11 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
 
   const createEntry = React.useCallback((): StudioPreviewIframePoolEntry => {
     const frame = document.createElement("iframe")
+    const overlay = document.createElement("div")
     const entry: StudioPreviewIframePoolEntry = {
       frame,
       id: nextIdRef.current++,
+      overlay,
       poolUrl: props.poolUrl,
       ready: false,
     }
@@ -231,6 +235,22 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
       width: "0",
       zIndex: "1",
     } satisfies Partial<CSSStyleDeclaration>)
+    overlay.setAttribute("aria-hidden", "true")
+    overlay.dataset.gtsxPooledPreviewDimOverlay = "true"
+    Object.assign(overlay.style, {
+      background:
+        "repeating-linear-gradient(135deg, rgba(87,96,106,0.42) 0, rgba(87,96,106,0.42) 7px, rgba(255,255,255,0.12) 7px, rgba(255,255,255,0.12) 14px), rgba(87,96,106,0.18)",
+      boxShadow: "inset 0 0 0 2px rgba(87,96,106,0.46)",
+      height: "0",
+      left: "0",
+      pointerEvents: "none",
+      position: "fixed",
+      top: "0",
+      transformOrigin: "0 0",
+      visibility: "hidden",
+      width: "0",
+      zIndex: "2",
+    } satisfies Partial<CSSStyleDeclaration>)
     frame.src = props.poolUrl
 
     entriesRef.current.push(entry)
@@ -242,8 +262,8 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
     const host = hostRef.current
     if (!host) return
 
-      const entry = createEntry()
-    host.appendChild(entry.frame)
+    const entry = createEntry()
+    appendStudioPreviewIframePoolEntry(host, entry)
   }, [createEntry])
 
   const topUpIdleReserve = React.useCallback(() => {
@@ -288,6 +308,7 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
       if (!removable.has(entry.id)) return true
       clearStudioPreviewIframePoolPendingRenderDelivery(entry)
       entry.frame.remove()
+      entry.overlay.remove()
       return false
     })
   }, [maximumIdleFrames, maximumRetainedFrames])
@@ -320,7 +341,9 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
       }
       entry.owner = owner
       entry.container = container
-      if (host && entry.frame.parentElement !== host) host.appendChild(entry.frame)
+      if (host && (entry.frame.parentElement !== host || entry.overlay.parentElement !== host)) {
+        appendStudioPreviewIframePoolEntry(host, entry)
+      }
       applyBorrowInput(entry, input, postPendingRenderIfPoolEntryIsReady)
       publishPoolStats()
       scheduleIdleReserveTopUp()
@@ -427,7 +450,7 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
         entry.lastCompletedPreviewUrl = entry.pendingInput.slot.previewUrl
         entry.lastCompletedSize = entry.pendingInput.size
         clearStudioPreviewIframePoolPendingRenderDelivery(entry)
-        entry.frame.style.opacity = "1"
+        entry.frame.style.opacity = studioPreviewIframePoolFrameReadyOpacity(entry.pendingInput)
       }
     }
 
@@ -444,6 +467,7 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
       for (const entry of entriesRef.current) {
         clearStudioPreviewIframePoolPendingRenderDelivery(entry)
         entry.frame.remove()
+        entry.overlay.remove()
       }
       if (poolStatsFrameRef.current) window.cancelAnimationFrame(poolStatsFrameRef.current)
       if (placementFrameRef.current) window.cancelAnimationFrame(placementFrameRef.current)
@@ -485,13 +509,14 @@ export function StudioPooledPreviewIframe(props: StudioPooledPreviewIframeProps)
   onBorrowOriginChangeRef.current = props.onBorrowOriginChange
   const borrowInput = React.useMemo<StudioPreviewIframeBorrowInput>(
     () => ({
+      dimmed: props.dimmed,
       size: props.size,
       slot: props.slot,
       onPreviewFrameMount(sessionId, frame, state) {
         onPreviewFrameMountRef.current?.(sessionId, frame, state)
       },
     }),
-    [props.size.height, props.size.width, props.slot.previewUrl, props.slot.sessionId, props.slot.title],
+    [props.dimmed, props.size.height, props.size.width, props.slot.previewUrl, props.slot.sessionId, props.slot.title],
   )
   borrowInputRef.current = borrowInput
 
@@ -588,6 +613,15 @@ type StudioPreviewIframePoolRect = {
   width: number
 }
 
+const emptyStudioPreviewIframePoolRect: StudioPreviewIframePoolRect = {
+  bottom: 0,
+  height: 0,
+  left: 0,
+  right: 0,
+  top: 0,
+  width: 0,
+}
+
 export type StudioPreviewIframePoolPlacement = {
   clipPath: string
   height: string
@@ -642,10 +676,43 @@ function applyStudioPreviewIframePoolEntryPlacement(entry: StudioPreviewIframePo
       layoutSize: input.size,
     }) satisfies Partial<CSSStyleDeclaration>,
   )
+  applyStudioPreviewIframePoolEntryVisualState(entry)
 }
 
 function hideStudioPreviewIframePoolEntryFrame(entry: StudioPreviewIframePoolEntry) {
   Object.assign(entry.frame.style, hiddenStudioPreviewIframePoolPlacement(entry.pendingInput?.size ?? { width: 0, height: 0 }))
+  Object.assign(entry.overlay.style, hiddenStudioPreviewIframePoolPlacement(entry.pendingInput?.size ?? { width: 0, height: 0 }))
+}
+
+function applyStudioPreviewIframePoolEntryVisualState(entry: StudioPreviewIframePoolEntry) {
+  const input = entry.pendingInput
+  if (!input?.dimmed) {
+    entry.frame.style.filter = ""
+    Object.assign(entry.overlay.style, hiddenStudioPreviewIframePoolPlacement(input?.size ?? { width: 0, height: 0 }))
+    return
+  }
+
+  entry.frame.style.filter = "grayscale(0.9)"
+  const anchorRect = entry.container?.getBoundingClientRect() ?? emptyStudioPreviewIframePoolRect
+  const clipElement = entry.container?.closest("[data-gtsx-preview-clip]")
+  const clipRect = clipElement instanceof HTMLElement ? clipElement.getBoundingClientRect() : anchorRect
+  Object.assign(entry.overlay.style, {
+    ...studioPreviewIframePoolPlacementForAnchor({
+      anchorRect,
+      clipRect,
+      layoutSize: input.size,
+    }),
+    visibility: "visible",
+  } satisfies Partial<CSSStyleDeclaration>)
+}
+
+function studioPreviewIframePoolFrameReadyOpacity(input: StudioPreviewIframeBorrowInput | undefined): string {
+  return input?.dimmed ? "0.42" : "1"
+}
+
+function appendStudioPreviewIframePoolEntry(host: HTMLElement, entry: StudioPreviewIframePoolEntry) {
+  host.appendChild(entry.frame)
+  host.appendChild(entry.overlay)
 }
 
 function hiddenStudioPreviewIframePoolPlacement(size: { width: number | string; height: number | string }): StudioPreviewIframePoolPlacement {
@@ -693,7 +760,7 @@ function applyBorrowInput(
   entry.frame.style.height = cssSize(input.size.height)
   entry.frame.style.width = cssSize(input.size.width)
   applyStudioPreviewIframePoolEntryPlacement(entry)
-  if (retainedRender) entry.frame.style.opacity = "1"
+  if (retainedRender) entry.frame.style.opacity = studioPreviewIframePoolFrameReadyOpacity(input)
 
   if (previousSessionId !== nextSessionId) {
     if (retainedRender) {

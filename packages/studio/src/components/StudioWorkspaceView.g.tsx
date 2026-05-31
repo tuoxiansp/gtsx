@@ -10,14 +10,19 @@ import {
   revealStudioCanvasRect,
   resolveStudioSelection,
   selectedStudioCaseName,
+  studioManifestProviderVariantAxes,
+  studioProviderVariantContextForPath,
+  studioProviderVariantSelectionContextForPath,
   type StudioPreviewCacheEntry,
   type StudioColumnLayout,
   visibleWorkspaceComponents,
   type StudioCanvasTransform,
   type StudioComponentSelectionOptions,
   type StudioPreviewFrameState,
+  type StudioProviderVariantAxis,
   type StudioViewportPreset,
   type StudioWorkspaceState,
+  findManifestComponent,
 } from "../client"
 import {
   studioPreviewRenderQueueRenderBufferMargin,
@@ -65,7 +70,8 @@ export type StudioWorkspaceViewProps = {
   previewRenderQueue?: StudioPreviewRenderQueueOptions
   frameStates?: Record<string, StudioPreviewFrameState>
   onChangeSelection?: (selection: string) => void
-  onChangeCase?: (component: StudioManifestComponent, caseName: string, options?: { keepDrilldown?: boolean }) => void
+  onChangeProviderVariant?: (path: string[], providerName: string, variant: string | undefined) => void
+  onChangeRootProviderVariant?: (providerName: string, variant: string | undefined) => void
   onChangeCanvasViewportPreset?: (preset: StudioViewportPreset) => void
   onChangeCanvas?: (canvas: StudioCanvasTransform) => void
   onChangeViewportPreset?: (component: StudioManifestComponent, preset: StudioViewportPreset) => void
@@ -99,6 +105,13 @@ type StudioWorkspaceViewScope = {
     columnIndex: number,
     source: "keyboard" | "pointer",
   ) => void
+  onChangeCardProviderVariant: (
+    component: StudioManifestComponent,
+    providerName: string,
+    variant: string | undefined,
+    columnIndex: number,
+  ) => void
+  onChangeRootProviderVariant: (providerName: string, variant: string | undefined) => void
   onViewportPresetChange: (preset: StudioViewportPreset) => void
   onPreviewGeometryChange: () => void
   previewRenderSessionStore: StudioPreviewRenderSessionStore
@@ -345,6 +358,26 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     },
     [scheduleRevealCardOnCanvas],
   )
+  const handleChangeRootProviderVariant = React.useCallback(
+    (providerName: string, variant: string | undefined) => {
+      props.onChangeRootProviderVariant?.(providerName, variant)
+    },
+    [props.onChangeRootProviderVariant],
+  )
+
+  const handleChangeCardProviderVariant = React.useCallback(
+    (
+      component: StudioManifestComponent,
+      providerName: string,
+      variant: string | undefined,
+      columnIndex: number,
+    ) => {
+      const path = studioComponentPathForColumn(workspaceRef.current, columnIndex, component.coordinate)
+      setSelectedCardPathKey(studioPathKey(path))
+      props.onChangeProviderVariant?.(path, providerName, variant)
+    },
+    [props.onChangeProviderVariant],
+  )
 
   return {
     canvas: canvasController.canvas,
@@ -365,6 +398,8 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
         }
       : undefined,
     onSelectCard: handleSelectCard,
+    onChangeCardProviderVariant: handleChangeCardProviderVariant,
+    onChangeRootProviderVariant: handleChangeRootProviderVariant,
     onPreviewGeometryChange: layout.scheduleMeasurement,
     onViewportPresetChange(preset) {
       if (props.onChangeCanvasViewportPreset) {
@@ -472,6 +507,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
   const scope = useStudioWorkspaceViewScope(props)
   const previewCacheReady = props.previewCacheReady ?? true
   const canvasSurfaceTransform = studioCanvasTransformStyle(scope.canvas)
+  const rootProviderVariantAxes = studioManifestProviderVariantAxes(props.manifest, props.workspace.rootProviderVariants)
 
   return (
     <StudioPreviewRenderSessionStoreProvider store={scope.previewRenderSessionStore}>
@@ -511,6 +547,12 @@ export default function Studio(props: StudioWorkspaceViewProps) {
             tabIndex={0}
           >
             <ViewportPresetTabs floating onChange={scope.onViewportPresetChange} selectedPreset={scope.canvasViewportPreset} />
+            {rootProviderVariantAxes.length > 0 ? (
+              <StudioRootProviderVariantControls
+                axes={rootProviderVariantAxes}
+                onChange={scope.onChangeRootProviderVariant}
+              />
+            ) : null}
             {scope.renderExpansionCenterPulse ? (
               <span
                 aria-label="Preview render expansion center"
@@ -595,6 +637,11 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                       const component = card.component
                       const cardRect =
                         card.rect ?? scope.columnMeasurementsByIndex[columnIndex]?.cardRectsByCoordinate[component.coordinate]
+                      const providerVariantPath = studioComponentPathForColumn(
+                        props.workspace,
+                        columnIndex,
+                        component.coordinate,
+                      )
                       return (
                         <div
                           key={component.coordinate}
@@ -616,10 +663,19 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                             fallbackFrameStates={props.frameStates}
                             fallbackPreviewCache={props.previewCache}
                             manifest={props.manifest}
+                            onChangeProviderVariant={
+                              props.onChangeProviderVariant ? scope.onChangeCardProviderVariant : undefined
+                            }
                             onPreviewFrameMount={props.onPreviewFrameMount}
                             onPreviewGeometryChange={scope.onPreviewGeometryChange}
                             onSelect={scope.onSelectCard}
                             previewGeometryStore={props.previewGeometryStore}
+                            providerVariantComponent={findManifestComponent(props.manifest, component.coordinate) ?? component}
+                            providerVariantContext={studioProviderVariantContextForPath(props.workspace, providerVariantPath)}
+                            providerVariantSelectionContext={studioProviderVariantSelectionContextForPath(
+                              props.workspace,
+                              providerVariantPath,
+                            )}
                             selected={scope.selectedCardPathKey === card.pathKey}
                             selectedCaseName={selectedStudioCaseName(props.workspace, component)}
                             viewportPreset={scope.canvasViewportPreset}
@@ -635,6 +691,130 @@ export default function Studio(props: StudioWorkspaceViewProps) {
         </section>
       </main>
     </StudioPreviewRenderSessionStoreProvider>
+  )
+}
+
+function StudioRootProviderVariantControls(props: {
+  axes: StudioProviderVariantAxis[]
+  onChange: (providerName: string, variant: string | undefined) => void
+}) {
+  return (
+    <div
+      aria-label="Provider variants"
+      data-gtsx-canvas-wheel-exempt
+      data-gtsx-root-env-controls="true"
+      onPointerDown={(event) => event.stopPropagation()}
+      style={{
+        alignItems: "start",
+        background: "rgba(255,255,255,0.9)",
+        border: "1px solid rgba(216,222,228,0.95)",
+        borderRadius: 6,
+        bottom: 16,
+        boxShadow: "0 8px 24px rgba(31,35,40,0.12)",
+        display: "grid",
+        gap: 6,
+        maxHeight: "min(320px, calc(100vh - 32px))",
+        maxWidth: "min(420px, calc(100vw - 32px))",
+        overflow: "auto",
+        padding: "8px 9px",
+        position: "absolute",
+        right: 16,
+        zIndex: 4,
+      }}
+    >
+      {props.axes.map((axis) => (
+        <div
+          data-gtsx-root-env-axis={axis.providerName}
+          key={axis.providerName}
+          style={{
+            alignItems: "center",
+            display: "grid",
+            gap: 7,
+            gridTemplateColumns: "minmax(82px, max-content) 1fr",
+            minWidth: 0,
+          }}
+        >
+          <span
+            title={axis.providerName}
+            style={{
+              color: "#57606a",
+              fontSize: 11,
+              fontWeight: 650,
+              lineHeight: 1.1,
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {providerVariantAxisLabel(axis.providerName)}
+          </span>
+          <div
+            aria-label={`${axis.providerName} root variants`}
+            role="group"
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 4,
+              minWidth: 0,
+            }}
+          >
+            <StudioProviderVariantButton
+              pressed={!axis.selectedVariant}
+              variantName="all"
+              onClick={() => props.onChange(axis.providerName, undefined)}
+            />
+            {axis.variants.map((variant) => (
+              <StudioProviderVariantButton
+                key={variant.name}
+                pressed={variant.selected}
+                variantName={variant.name}
+                onClick={() => props.onChange(axis.providerName, variant.name)}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function StudioProviderVariantButton(props: {
+  onClick: () => void
+  pressed: boolean
+  variantName: string
+}) {
+  return (
+    <button
+      aria-pressed={props.pressed}
+      data-gtsx-root-env-selected={props.pressed ? "true" : undefined}
+      data-gtsx-root-env-variant={props.variantName}
+      onClick={(event) => {
+        event.stopPropagation()
+        props.onClick()
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
+      style={{
+        appearance: "none",
+        background: props.pressed ? "#0969da" : "#ffffff",
+        border: `1px solid ${props.pressed ? "#0969da" : "#d0d7de"}`,
+        borderRadius: 5,
+        color: props.pressed ? "#ffffff" : "#24292f",
+        cursor: "pointer",
+        fontSize: 10,
+        fontWeight: 650,
+        lineHeight: 1.1,
+        maxWidth: 112,
+        overflow: "hidden",
+        padding: "5px 7px",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+      }}
+      title={props.variantName}
+      type="button"
+    >
+      {props.variantName}
+    </button>
   )
 }
 
@@ -695,6 +875,10 @@ function formatObservationRate(value: number | undefined): string {
   return typeof value === "number" ? `${value}/s` : ".../s"
 }
 
+function providerVariantAxisLabel(providerName: string): string {
+  return providerName.endsWith("Provider") ? providerName.slice(0, -"Provider".length) : providerName
+}
+
 Studio.cases = {
   multiExportFile: {
     props: {
@@ -748,8 +932,10 @@ Studio.cases = {
             ],
           },
         ],
+        rootProviderVariants: {},
         selectedCaseByCoordinate: {},
         selectedCoordinatePath: [],
+        selectedProviderVariantsByPath: {},
         selectedRuntimeInstanceByCoordinate: {},
         selectedViewportPresetByCoordinate: {},
       },
@@ -765,6 +951,8 @@ Studio.cases = {
       onCanvasPointerMove() {},
       onCanvasPointerUp() {},
       onPreviewGeometryChange() {},
+      onChangeCardProviderVariant() {},
+      onChangeRootProviderVariant() {},
       onSelectCard() {},
       onViewportPresetChange() {},
       previewRenderSessionStore: createStudioPreviewRenderSessionStore(),

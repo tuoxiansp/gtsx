@@ -6,6 +6,7 @@ import type { GBoundaryTreeNode } from "@gtsx/core"
 import {
   type StudioPreviewFrameState,
   type StudioPreviewCacheEntry,
+  type StudioProviderVariantContext,
   type StudioViewportPreset,
 } from "../client"
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
@@ -34,6 +35,12 @@ type StudioComponentCardSlotProps = {
     frame: HTMLIFrameElement | null,
     state?: StudioPreviewIframeMountState,
   ) => void
+  onChangeProviderVariant?: (
+    component: StudioManifestComponent,
+    providerName: string,
+    variant: string | undefined,
+    columnIndex: number,
+  ) => void
   onPreviewGeometryChange?: () => void
   onSelect: (
     component: StudioManifestComponent,
@@ -42,6 +49,9 @@ type StudioComponentCardSlotProps = {
     source: "keyboard" | "pointer",
   ) => void
   previewGeometryStore?: StudioPreviewGeometryCacheStore
+  providerVariantComponent?: StudioManifestComponent
+  providerVariantContext?: StudioProviderVariantContext
+  providerVariantSelectionContext?: StudioProviderVariantContext
   selected: boolean
   selectedCaseName: string
   viewportPreset: StudioViewportPreset
@@ -51,8 +61,10 @@ const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : 
 
 function StudioComponentCardSlotView(props: StudioComponentCardSlotProps) {
   const onPreviewGeometryChangeRef = React.useRef(props.onPreviewGeometryChange)
+  const onChangeProviderVariantRef = React.useRef(props.onChangeProviderVariant)
   const onSelectRef = React.useRef(props.onSelect)
   onPreviewGeometryChangeRef.current = props.onPreviewGeometryChange
+  onChangeProviderVariantRef.current = props.onChangeProviderVariant
   onSelectRef.current = props.onSelect
   const previewGeometryStoreVersion = useStudioComponentPreviewGeometryVersion({
     component: props.component,
@@ -107,6 +119,12 @@ function StudioComponentCardSlotView(props: StudioComponentCardSlotProps) {
     },
     [],
   )
+  const handleChangeProviderVariant = React.useCallback(
+    (component: StudioManifestComponent, providerName: string, variant: string | undefined) => {
+      onChangeProviderVariantRef.current?.(component, providerName, variant, props.columnIndex)
+    },
+    [props.columnIndex],
+  )
 
   useStudioLayoutEffect(() => {
     onPreviewGeometryChangeRef.current?.()
@@ -122,8 +140,12 @@ function StudioComponentCardSlotView(props: StudioComponentCardSlotProps) {
       debugPreviewPool={props.debugPreviewPool}
       debugPreviewQueue={props.debugPreviewQueue}
       manifest={props.manifest}
+      onChangeProviderVariant={props.onChangeProviderVariant ? handleChangeProviderVariant : undefined}
       onPreviewFrameMount={props.onPreviewFrameMount}
       onSelect={handleSelect}
+      providerVariantComponent={props.providerVariantComponent}
+      providerVariantContext={props.providerVariantContext}
+      providerVariantSelectionContext={props.providerVariantSelectionContext}
       selected={props.selected}
       selectedCaseName={props.selectedCaseName}
       viewportPreset={props.viewportPreset}
@@ -148,10 +170,14 @@ function areStudioComponentCardSlotPropsEqual(
     previous.fallbackFrameStates === next.fallbackFrameStates &&
     previous.fallbackPreviewCache === next.fallbackPreviewCache &&
     previous.manifest === next.manifest &&
+    previous.onChangeProviderVariant === next.onChangeProviderVariant &&
     previous.onPreviewGeometryChange === next.onPreviewGeometryChange &&
     previous.onPreviewFrameMount === next.onPreviewFrameMount &&
     previous.onSelect === next.onSelect &&
     previous.previewGeometryStore === next.previewGeometryStore &&
+    previous.providerVariantComponent === next.providerVariantComponent &&
+    previous.providerVariantContext === next.providerVariantContext &&
+    previous.providerVariantSelectionContext === next.providerVariantSelectionContext &&
     previous.selected === next.selected &&
     previous.selectedCaseName === next.selectedCaseName &&
     previous.viewportPreset === next.viewportPreset

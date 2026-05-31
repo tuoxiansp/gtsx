@@ -35,8 +35,10 @@ export type StudioWorkspaceColumn = {
 export type StudioWorkspaceState = {
   canvasViewportPreset?: StudioViewportPreset
   columns: StudioWorkspaceColumn[]
+  rootProviderVariants: StudioProviderVariantContext
   selectedCaseByCoordinate: Record<string, string>
   selectedCoordinatePath: string[]
+  selectedProviderVariantsByPath: Record<string, StudioProviderVariantContext>
   selectedRuntimeInstanceByCoordinate: Record<string, string>
   selectedViewportPresetByCoordinate: Record<string, StudioViewportPreset>
 }
@@ -126,6 +128,20 @@ export type StudioRuntimeValuesRequest = {
   message: GPreviewRequestValuesMessage
 }
 
+export type StudioProviderVariantOption = {
+  caseName?: string
+  name: string
+  selected: boolean
+}
+
+export type StudioProviderVariantAxis = {
+  providerName: string
+  selectedVariant?: string
+  variants: StudioProviderVariantOption[]
+}
+
+export type StudioProviderVariantContext = Record<string, string>
+
 export type StudioPreviewCacheEntry = {
   frameState: StudioPreviewFrameState
   lastUsedAt: number
@@ -137,6 +153,18 @@ export type StudioPreviewTarget = {
   sessionId: string
   size: { width: number; height: number }
   title: string
+}
+
+export type StudioPreviewCaseOverride = {
+  caseName: string
+  coordinate: string
+}
+
+export type StudioProviderVariantCaseState = "match" | "mismatch" | "neutral"
+
+export type StudioProviderVariantCaseStatus = {
+  state: StudioProviderVariantCaseState
+  title?: string
 }
 
 export type StudioWorkspaceUrlState = {
@@ -239,8 +267,10 @@ export function createStudioWorkspaceState(manifest: StudioManifest, selection?:
   return {
     canvasViewportPreset: "tablet",
     columns: [{ components: selected.components }],
+    rootProviderVariants: {},
     selectedCaseByCoordinate: {},
     selectedCoordinatePath: [],
+    selectedProviderVariantsByPath: {},
     selectedRuntimeInstanceByCoordinate: {},
     selectedViewportPresetByCoordinate: {},
   }
@@ -270,8 +300,15 @@ export function selectStudioComponent(
   return {
     canvasViewportPreset: canvasViewportPresetForWorkspace(state),
     columns: nextColumns,
+    rootProviderVariants: state.rootProviderVariants,
     selectedCaseByCoordinate: omitStudioSelectedCases(state.selectedCaseByCoordinate, selectedPath),
     selectedCoordinatePath: selectedPath,
+    selectedProviderVariantsByPath: omitStudioSelectedProviderVariantsByPath(
+      state.selectedProviderVariantsByPath,
+      nextColumns.flatMap((column, columnIndex) =>
+        column.components.map((component) => studioProviderVariantPathKey(pathForWorkspaceColumn(nextColumns, selectedPath, columnIndex, component.coordinate))),
+      ),
+    ),
     selectedRuntimeInstanceByCoordinate: state.selectedRuntimeInstanceByCoordinate,
     selectedViewportPresetByCoordinate: state.selectedViewportPresetByCoordinate,
   }
@@ -296,7 +333,227 @@ export function selectedStudioCaseName(
   state: Pick<StudioWorkspaceState, "selectedCaseByCoordinate">,
   component: StudioManifestComponent,
 ): string {
-  return state.selectedCaseByCoordinate[component.coordinate] ?? component.cases[0]?.name ?? "No cases"
+  const selectedCaseName = state.selectedCaseByCoordinate[component.coordinate]
+  if (selectedCaseName && component.cases.some((testCase) => testCase.name === selectedCaseName)) return selectedCaseName
+  return component.cases[0]?.name ?? "No cases"
+}
+
+export function studioProviderVariantAxes(
+  component: StudioManifestComponent,
+  context: StudioProviderVariantContext = {},
+): StudioProviderVariantAxis[] {
+  const providerNames = new Set<string>()
+
+  for (const [providerName, provider] of Object.entries(component.providers)) {
+    if (provider.variants && provider.variants.length > 0) providerNames.add(providerName)
+  }
+  for (const testCase of component.cases) {
+    for (const providerName of Object.keys(testCase.providerVariants ?? {})) providerNames.add(providerName)
+  }
+
+  return [...providerNames].flatMap((providerName) => {
+    const caseVariants = uniqueStrings(
+      component.cases.flatMap((testCase) => {
+        const variant = testCase.providerVariants?.[providerName]
+        return variant ? [variant] : []
+      }),
+    )
+    const declaredVariants = component.providers[providerName]?.variants ?? []
+    const variants = declaredVariants.length > 0 ? declaredVariants.filter((variant) => caseVariants.includes(variant)) : caseVariants
+    if (variants.length < 2) return []
+
+    const selectedVariant = context[providerName]
+    const hasSelectedVariant = selectedVariant !== undefined
+    return [
+      {
+        providerName,
+        ...(hasSelectedVariant ? { selectedVariant } : {}),
+        variants: variants.map((variant) => ({
+          caseName: component.cases.find((testCase) => testCase.providerVariants?.[providerName] === variant)?.name,
+          name: variant,
+          selected: hasSelectedVariant && selectedVariant === variant,
+        })),
+      },
+    ]
+  })
+}
+
+export function studioManifestProviderVariantAxes(
+  manifest: StudioManifest,
+  selectedVariants: StudioProviderVariantContext = {},
+): StudioProviderVariantAxis[] {
+  const variantsByProvider = new Map<string, string[]>()
+
+  for (const component of manifest.files.flatMap((file) => file.components)) {
+    for (const [providerName, provider] of Object.entries(component.providers)) {
+      if (!provider.variants || provider.variants.length < 2) continue
+      variantsByProvider.set(providerName, uniqueStrings([...(variantsByProvider.get(providerName) ?? []), ...provider.variants]))
+    }
+  }
+
+  return [...variantsByProvider.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([providerName, variants]) => ({
+      providerName,
+      ...(selectedVariants[providerName] ? { selectedVariant: selectedVariants[providerName] } : {}),
+      variants: variants.map((variant) => ({
+        name: variant,
+        selected: selectedVariants[providerName] === variant,
+      })),
+    }))
+}
+
+export function studioProviderVariantContextForPath(
+  workspace: Pick<StudioWorkspaceState, "rootProviderVariants" | "selectedProviderVariantsByPath">,
+  path: string[],
+): StudioProviderVariantContext {
+  const context: StudioProviderVariantContext = { ...workspace.rootProviderVariants }
+  for (let index = 1; index <= path.length; index += 1) {
+    Object.assign(context, workspace.selectedProviderVariantsByPath[studioProviderVariantPathKey(path.slice(0, index))])
+  }
+  return context
+}
+
+export function studioProviderVariantSelectionContextForPath(
+  workspace: Pick<StudioWorkspaceState, "selectedProviderVariantsByPath">,
+  path: string[],
+): StudioProviderVariantContext {
+  return { ...(workspace.selectedProviderVariantsByPath[studioProviderVariantPathKey(path)] ?? {}) }
+}
+
+export function studioFilteredCasesForProviderVariantContext(
+  component: StudioManifestComponent,
+  context: StudioProviderVariantContext,
+): StudioManifestComponent["cases"] {
+  void context
+  return component.cases
+}
+
+export function studioProviderVariantCaseStatus(
+  component: StudioManifestComponent,
+  testCase: StudioManifestComponent["cases"][number],
+  context: StudioProviderVariantContext = {},
+): StudioProviderVariantCaseStatus {
+  const mismatches: string[] = []
+  let matched = false
+
+  for (const [providerName, selectedVariant] of Object.entries(context)) {
+    const caseVariants = uniqueStrings(
+      component.cases.flatMap((candidate) => {
+        const variant = candidate.providerVariants?.[providerName]
+        return variant ? [variant] : []
+      }),
+    )
+    const declaredVariants = component.providers[providerName]?.variants ?? []
+    if (caseVariants.length === 0 && !declaredVariants.includes(selectedVariant)) continue
+
+    const caseVariant = testCase.providerVariants?.[providerName]
+    if (caseVariant === selectedVariant) {
+      matched = true
+      continue
+    }
+
+    mismatches.push(
+      caseVariant
+        ? `${providerName}: ${caseVariant} does not match ${selectedVariant}`
+        : `${providerName}: no case variant for ${selectedVariant}`,
+    )
+  }
+
+  if (mismatches.length > 0) return { state: "mismatch", title: mismatches.join("; ") }
+  return { state: matched ? "match" : "neutral" }
+}
+
+function studioProviderVariantCaseForContext(
+  component: StudioManifestComponent,
+  context: StudioProviderVariantContext,
+): StudioManifestComponent["cases"][number] | undefined {
+  const activeProviderNames = Object.keys(context)
+  if (activeProviderNames.length === 0) return undefined
+
+  return component.cases.find((testCase) => {
+    let matched = false
+    for (const providerName of activeProviderNames) {
+      const selectedVariant = context[providerName]
+      if (!selectedVariant) continue
+
+      const caseVariants = uniqueStrings(
+        component.cases.flatMap((candidate) => {
+          const variant = candidate.providerVariants?.[providerName]
+          return variant ? [variant] : []
+        }),
+      )
+      const declaredVariants = component.providers[providerName]?.variants ?? []
+      if (caseVariants.length === 0 && !declaredVariants.includes(selectedVariant)) continue
+
+      if (testCase.providerVariants?.[providerName] !== selectedVariant) return false
+      matched = true
+    }
+
+    return matched
+  })
+}
+
+export function studioComponentWithProviderVariantContext(
+  component: StudioManifestComponent,
+  context: StudioProviderVariantContext,
+): StudioManifestComponent {
+  void context
+  return component
+}
+
+export function studioWorkspaceWithProviderVariantFilters(workspace: StudioWorkspaceState): StudioWorkspaceState {
+  return workspace
+}
+
+export function studioPreviewCaseOverridesForProviderVariantContext(
+  manifest: StudioManifest,
+  context: StudioProviderVariantContext = {},
+): StudioPreviewCaseOverride[] {
+  if (Object.keys(context).length === 0) return []
+
+  return manifest.files
+    .flatMap((file) => file.components)
+    .flatMap((component) => {
+      const testCase = studioProviderVariantCaseForContext(component, context)
+      return testCase ? [{ caseName: testCase.name, coordinate: component.coordinate }] : []
+    })
+    .sort((left, right) => left.coordinate.localeCompare(right.coordinate) || left.caseName.localeCompare(right.caseName))
+}
+
+export function changeStudioRootProviderVariant(
+  state: StudioWorkspaceState,
+  providerName: string,
+  variant: string | undefined,
+): StudioWorkspaceState {
+  return {
+    ...state,
+    rootProviderVariants: setStudioProviderVariantContextValue(state.rootProviderVariants, providerName, variant),
+  }
+}
+
+export function changeStudioComponentProviderVariant(
+  state: StudioWorkspaceState,
+  path: string[],
+  providerName: string,
+  variant: string | undefined,
+): StudioWorkspaceState {
+  const pathKey = studioProviderVariantPathKey(path)
+  const current = state.selectedProviderVariantsByPath[pathKey] ?? {}
+  const nextVariant = variant !== undefined && current[providerName] === variant ? undefined : variant
+  const next = setStudioProviderVariantContextValue(current, providerName, nextVariant)
+  const selectedProviderVariantsByPath = { ...state.selectedProviderVariantsByPath }
+  if (Object.keys(next).length === 0) {
+    delete selectedProviderVariantsByPath[pathKey]
+  } else {
+    selectedProviderVariantsByPath[pathKey] = next
+  }
+
+  return {
+    ...state,
+    selectedCoordinatePath: pathIsPrefix(path, state.selectedCoordinatePath) ? state.selectedCoordinatePath : path,
+    selectedProviderVariantsByPath,
+  }
 }
 
 export function changeStudioComponentCase(
@@ -313,6 +570,7 @@ export function changeStudioComponentCase(
   return {
     canvasViewportPreset: canvasViewportPresetForWorkspace(state),
     columns,
+    rootProviderVariants: state.rootProviderVariants,
     selectedCaseByCoordinate: {
       ...state.selectedCaseByCoordinate,
       [coordinate]: caseName,
@@ -321,6 +579,7 @@ export function changeStudioComponentCase(
       options.keepDrilldown || selectedColumnIndex < 0
         ? state.selectedCoordinatePath
         : [...state.selectedCoordinatePath.slice(0, selectedColumnIndex), coordinate],
+    selectedProviderVariantsByPath: state.selectedProviderVariantsByPath,
     selectedRuntimeInstanceByCoordinate: {},
     selectedViewportPresetByCoordinate: state.selectedViewportPresetByCoordinate,
   }
@@ -333,6 +592,7 @@ export function selectStudioRuntimeInstance(
 ): StudioWorkspaceState {
   return {
     ...state,
+    rootProviderVariants: state.rootProviderVariants,
     selectedRuntimeInstanceByCoordinate: {
       ...state.selectedRuntimeInstanceByCoordinate,
       [coordinate]: boundaryId,
@@ -381,6 +641,9 @@ export function createStudioWorkspaceUrlSearchParams(
     params.append("path", coordinate)
   }
 
+  appendStudioProviderVariantContextUrlParams(params, "rootEnv", workspace.rootProviderVariants)
+  appendStudioProviderVariantPathUrlParams(params, workspace.selectedProviderVariantsByPath)
+
   for (const coordinate of workspace.selectedCoordinatePath) {
     const caseName = workspace.selectedCaseByCoordinate[coordinate]
     if (caseName) params.append("case", `${coordinate}:${caseName}`)
@@ -393,6 +656,29 @@ export function createStudioWorkspaceUrlSearchParams(
   }
 
   return params
+}
+
+function appendStudioProviderVariantContextUrlParams(
+  params: URLSearchParams,
+  key: string,
+  context: StudioProviderVariantContext,
+) {
+  for (const [providerName, variant] of Object.entries(context).sort(([left], [right]) => left.localeCompare(right))) {
+    params.append(key, `${providerName}:${formatStudioProviderVariantUrlValue(variant)}`)
+  }
+}
+
+function appendStudioProviderVariantPathUrlParams(
+  params: URLSearchParams,
+  selectedProviderVariantsByPath: Record<string, StudioProviderVariantContext>,
+) {
+  for (const [pathKey, context] of Object.entries(selectedProviderVariantsByPath).sort(([left], [right]) =>
+    left.localeCompare(right),
+  )) {
+    for (const [providerName, variant] of Object.entries(context).sort(([left], [right]) => left.localeCompare(right))) {
+      params.append("env", `${pathKey}:${providerName}:${formatStudioProviderVariantUrlValue(variant)}`)
+    }
+  }
 }
 
 export function createStudioWorkspaceStateFromUrl(
@@ -424,8 +710,10 @@ export function createStudioWorkspaceStateFromUrl(
       workspace: {
         canvasViewportPreset,
         columns: [{ components: resolvedSelection.components }],
+        rootProviderVariants: rootProviderVariantsFromUrl(params),
         selectedCaseByCoordinate,
         selectedCoordinatePath: [],
+        selectedProviderVariantsByPath: selectedProviderVariantsFromUrl(params, selectedCoordinatePath),
         selectedRuntimeInstanceByCoordinate,
         selectedViewportPresetByCoordinate,
       },
@@ -449,8 +737,10 @@ export function createStudioWorkspaceStateFromUrl(
           }
         }),
       ],
+      rootProviderVariants: rootProviderVariantsFromUrl(params),
       selectedCaseByCoordinate,
       selectedCoordinatePath,
+      selectedProviderVariantsByPath: selectedProviderVariantsFromUrl(params, selectedCoordinatePath),
       selectedRuntimeInstanceByCoordinate,
       selectedViewportPresetByCoordinate,
     },
@@ -526,6 +816,34 @@ function selectedViewportPresetsFromUrl(
   return selectedPresets
 }
 
+function rootProviderVariantsFromUrl(params: URLSearchParams): StudioProviderVariantContext {
+  const rootProviderVariants: StudioProviderVariantContext = {}
+  for (const value of params.getAll("rootEnv")) {
+    const parsed = parseStudioProviderVariantValue(value)
+    if (parsed) rootProviderVariants[parsed.providerName] = parsed.variant
+  }
+  return rootProviderVariants
+}
+
+function selectedProviderVariantsFromUrl(
+  params: URLSearchParams,
+  selectedCoordinatePath: string[],
+): Record<string, StudioProviderVariantContext> {
+  const selectedPathKeys = new Set(selectedCoordinatePath.map((_, index) => studioProviderVariantPathKey(selectedCoordinatePath.slice(0, index + 1))))
+  const selectedProviderVariantsByPath: Record<string, StudioProviderVariantContext> = {}
+
+  for (const value of params.getAll("env")) {
+    const parsed = parseStudioProviderVariantPathValue(value)
+    if (!parsed || (selectedPathKeys.size > 0 && !selectedPathKeys.has(parsed.pathKey))) continue
+    selectedProviderVariantsByPath[parsed.pathKey] = {
+      ...(selectedProviderVariantsByPath[parsed.pathKey] ?? {}),
+      [parsed.providerName]: parsed.variant,
+    }
+  }
+
+  return selectedProviderVariantsByPath
+}
+
 function canvasViewportPresetFromUrl(
   params: URLSearchParams,
   selectedViewportPresetByCoordinate: Record<string, StudioViewportPreset>,
@@ -582,6 +900,27 @@ function parseCoordinateValuePair(manifest: StudioManifest, value: string): { co
   }
 }
 
+function parseStudioProviderVariantValue(value: string): { providerName: string; variant: string } | undefined {
+  const separatorIndex = value.lastIndexOf(":")
+  if (separatorIndex <= 0 || separatorIndex >= value.length - 1) return undefined
+  return {
+    providerName: value.slice(0, separatorIndex),
+    variant: parseStudioProviderVariantUrlValue(value.slice(separatorIndex + 1)),
+  }
+}
+
+function parseStudioProviderVariantPathValue(value: string): { pathKey: string; providerName: string; variant: string } | undefined {
+  const variantSeparatorIndex = value.lastIndexOf(":")
+  if (variantSeparatorIndex <= 0 || variantSeparatorIndex >= value.length - 1) return undefined
+  const providerSeparatorIndex = value.lastIndexOf(":", variantSeparatorIndex - 1)
+  if (providerSeparatorIndex <= 0 || providerSeparatorIndex >= variantSeparatorIndex - 1) return undefined
+  return {
+    pathKey: value.slice(0, providerSeparatorIndex),
+    providerName: value.slice(providerSeparatorIndex + 1, variantSeparatorIndex),
+    variant: parseStudioProviderVariantUrlValue(value.slice(variantSeparatorIndex + 1)),
+  }
+}
+
 function directChildComponentsForCoordinate(
   manifest: StudioManifest,
   trees: GBoundaryTreeNode[][],
@@ -592,19 +931,27 @@ function directChildComponentsForCoordinate(
   )
   const seen = new Set<string>()
   const components: StudioManifestComponent[] = []
+  const appendComponent = (childCoordinate: string) => {
+    if (seen.has(childCoordinate)) return
+
+    const component = componentsByCoordinate.get(childCoordinate)
+    if (!component) return
+
+    seen.add(childCoordinate)
+    components.push(component)
+  }
+
+  const selectedComponent = componentsByCoordinate.get(coordinate)
+  for (const dependencyCoordinate of selectedComponent?.dependencies ?? []) {
+    appendComponent(dependencyCoordinate)
+  }
 
   for (const tree of trees) {
     const node = findStudioBoundaryNode(tree, coordinate)
     if (!node) continue
 
     for (const child of node.children) {
-      if (seen.has(child.coordinate)) continue
-
-      const component = componentsByCoordinate.get(child.coordinate)
-      if (component) {
-        seen.add(child.coordinate)
-        components.push(component)
-      }
+      appendComponent(child.coordinate)
     }
   }
 
@@ -623,6 +970,56 @@ function omitStudioSelectedCases(
   const omitted = new Set(coordinates)
   const next = Object.fromEntries(Object.entries(selectedCaseByCoordinate).filter(([coordinate]) => !omitted.has(coordinate)))
   return next
+}
+
+function omitStudioSelectedProviderVariantsByPath(
+  selectedProviderVariantsByPath: Record<string, StudioProviderVariantContext>,
+  keptPathKeys: string[],
+): Record<string, StudioProviderVariantContext> {
+  const kept = new Set(keptPathKeys)
+  return Object.fromEntries(Object.entries(selectedProviderVariantsByPath).filter(([pathKey]) => kept.has(pathKey)))
+}
+
+function studioProviderVariantPathKey(path: string[]): string {
+  return path.join("\n")
+}
+
+function pathIsPrefix(prefix: string[], path: string[]): boolean {
+  return prefix.length <= path.length && prefix.every((coordinate, index) => path[index] === coordinate)
+}
+
+function pathForWorkspaceColumn(
+  columns: StudioWorkspaceColumn[],
+  selectedCoordinatePath: string[],
+  columnIndex: number,
+  coordinate: string,
+): string[] {
+  if (columns[columnIndex]?.components.some((component) => component.coordinate === coordinate)) {
+    return [...selectedCoordinatePath.slice(0, columnIndex), coordinate]
+  }
+  return [coordinate]
+}
+
+function setStudioProviderVariantContextValue(
+  current: StudioProviderVariantContext,
+  providerName: string,
+  variant: string | undefined,
+): StudioProviderVariantContext {
+  const next = { ...current }
+  if (variant) {
+    next[providerName] = variant
+  } else {
+    delete next[providerName]
+  }
+  return next
+}
+
+function formatStudioProviderVariantUrlValue(variant: string): string {
+  return variant
+}
+
+function parseStudioProviderVariantUrlValue(variant: string): string {
+  return variant
 }
 
 export function initialStudioUrlSearchParams(selection: string | undefined, urlSearch: string | undefined): URLSearchParams {
@@ -779,6 +1176,10 @@ function preserveStudioDebugUrlParams(target: URLSearchParams, source: URLSearch
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)]
 }
 
 const studioCanvasMinScale = 0.2
@@ -1129,6 +1530,22 @@ export function visibleWorkspaceComponents(workspace: StudioWorkspaceState): Stu
   return components
 }
 
+export type StudioWorkspaceComponentEntry = {
+  columnIndex: number
+  component: StudioManifestComponent
+  path: string[]
+}
+
+export function visibleWorkspaceComponentEntries(workspace: StudioWorkspaceState): StudioWorkspaceComponentEntry[] {
+  return workspace.columns.flatMap((column, columnIndex) =>
+    column.components.map((component) => ({
+      columnIndex,
+      component,
+      path: pathForWorkspaceColumn(workspace.columns, workspace.selectedCoordinatePath, columnIndex, component.coordinate),
+    })),
+  )
+}
+
 export function findManifestComponent(manifest: StudioManifest, coordinate: string): StudioManifestComponent | undefined {
   return manifest.files.flatMap((file) => file.components).find((component) => component.coordinate === coordinate)
 }
@@ -1138,7 +1555,7 @@ export function createStudioPreviewUrl(
   component: StudioManifestComponent,
   caseName: string,
   sessionId = previewSessionId(component, caseName),
-  options: { static?: boolean } = {},
+  options: { caseOverrides?: readonly StudioPreviewCaseOverride[]; static?: boolean } = {},
 ): string {
   const params = new URLSearchParams({
     entry: component.coordinate,
@@ -1147,6 +1564,9 @@ export function createStudioPreviewUrl(
     sessionId,
   })
   if (options.static) params.set("static", "1")
+  for (const override of options.caseOverrides ?? []) {
+    params.append("gcase", `${override.coordinate}:${override.caseName}`)
+  }
   return `${manifest.routes.preview}?${params.toString()}`
 }
 
@@ -1185,7 +1605,11 @@ export function previewSessionId(
   return `${component.coordinate}:${caseName}${viewportPreset && viewportPreset !== "tablet" ? `@${viewportPreset}` : ""}`
 }
 
-export function studioPreviewCacheKey(component: StudioManifestComponent, caseName: string, viewportPreset: StudioViewportPreset): string {
+export function studioPreviewCacheKey(
+  component: StudioManifestComponent,
+  caseName: string,
+  viewportPreset: StudioViewportPreset,
+): string {
   return `${viewportPreset}\n${component.sourceHash ?? "no-source-hash"}\n${component.coordinate}\n${caseName}`
 }
 
@@ -1229,11 +1653,22 @@ export function currentPreviewSessionIds(workspace: StudioWorkspaceState): Set<s
 
 export function currentStudioPreviewTargets(manifest: StudioManifest, workspace: StudioWorkspaceState): StudioPreviewTarget[] {
   const viewportPreset = canvasViewportPresetForWorkspace(workspace)
-  return visibleWorkspaceComponents(workspace).flatMap((component) =>
-    component.cases.map((testCase) =>
-      studioPreviewTarget(manifest, component, testCase.name, viewportPreset, previewSessionId(component, testCase.name, viewportPreset)),
-    ),
-  )
+  return visibleWorkspaceComponentEntries(workspace).flatMap(({ component, path }) => {
+    const caseOverrides = studioPreviewCaseOverridesForProviderVariantContext(
+      manifest,
+      studioProviderVariantContextForPath(workspace, path),
+    )
+    return component.cases.map((testCase) =>
+      studioPreviewTarget(
+        manifest,
+        component,
+        testCase.name,
+        viewportPreset,
+        previewSessionId(component, testCase.name, viewportPreset),
+        caseOverrides,
+      ),
+    )
+  })
 }
 
 function studioPreviewTarget(
@@ -1242,10 +1677,11 @@ function studioPreviewTarget(
   caseName: string,
   viewportPreset: StudioViewportPreset,
   sessionId: string,
+  caseOverrides: readonly StudioPreviewCaseOverride[] = [],
 ): StudioPreviewTarget {
   return {
     cacheKey: studioPreviewCacheKey(component, caseName, viewportPreset),
-    previewUrl: createStudioPreviewUrl(manifest, component, caseName, sessionId, { static: true }),
+    previewUrl: createStudioPreviewUrl(manifest, component, caseName, sessionId, { caseOverrides, static: true }),
     sessionId,
     size: studioPreviewFrameSize(viewportPreset, undefined) as { width: number; height: number },
     title: `${component.componentName} ${caseName} preview`,

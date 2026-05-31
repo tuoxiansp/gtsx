@@ -22,12 +22,14 @@ export type GTSXDiagnostic = {
 export type GTSXCaseSummary = {
   kind: "pure" | "scope"
   name: string
+  providerVariants?: Record<string, string>
   providers?: string[]
 }
 
 export type GTSXProviderSummary = {
   name: string
   cases: string[]
+  variants?: string[]
 }
 
 export type GTSXAnalysisResult = {
@@ -44,6 +46,8 @@ export type GTSXAnalysisCache = {
   exportedComponentTargetsByPath: Map<string, Map<string, ComponentDependencyTarget>>
   importedGTSXPathByKey: Map<string, string | null>
   importedScopeHookNamesByPath: Map<string, Set<string>>
+  providerSummariesByPath: Map<string, Map<string, GTSXProviderSummary>>
+  scopeHookProviderNamesByPath: Map<string, Map<string, string[]>>
   sourceFilesByPath: Map<string, ts.SourceFile>
   topLevelFunctionLikeBodiesByPath: Map<string, Map<string, ts.ConciseBody>>
 }
@@ -54,6 +58,8 @@ export function createGTSXAnalysisCache(sourceFilesByPath = new Map<string, ts.S
     exportedComponentTargetsByPath: new Map(),
     importedGTSXPathByKey: new Map(),
     importedScopeHookNamesByPath: new Map(),
+    providerSummariesByPath: new Map(),
+    scopeHookProviderNamesByPath: new Map(),
     sourceFilesByPath,
     topLevelFunctionLikeBodiesByPath: new Map(),
   }
@@ -68,6 +74,53 @@ export type AnalyzeEntryOptions = {
 type CasesAssignment = {
   targetName: string
   cases: GTSXCaseSummary[]
+  staticCases: GTSXCaseStaticFacts[]
+}
+
+type GTSXCaseStaticFacts = {
+  name: string
+  providerVariants?: Record<string, string>
+  values: Map<string, StaticBranchValue>
+}
+
+type StaticBranchValue =
+  | { kind: "array"; length: number }
+  | { kind: "boolean"; value: boolean }
+  | { kind: "null" }
+  | { kind: "number"; value: number }
+  | { kind: "object" }
+  | { kind: "oneOf"; values: StaticBranchValue[] }
+  | { kind: "string"; value: string }
+  | { kind: "truthy" }
+  | { kind: "unknown" }
+  | { kind: "undefined" }
+
+type GTSXFactorReference =
+  | { root: "props" | "scope"; path: string[] }
+  | { root: "context"; providerName: string; path: string[] }
+
+type JSXBranchPredicate =
+  | { kind: "always" }
+  | { kind: "and"; predicates: JSXBranchPredicate[] }
+  | { kind: "equals"; ref: GTSXFactorReference; value: StaticBranchValue }
+  | { kind: "equals-ref"; left: GTSXFactorReference; right: GTSXFactorReference }
+  | { kind: "not"; predicate: JSXBranchPredicate }
+  | { kind: "opaque"; reason: string; text: string }
+  | { kind: "or"; predicates: JSXBranchPredicate[] }
+  | { kind: "relation"; operator: "<" | "<=" | ">" | ">="; ref: GTSXFactorReference; value: StaticBranchValue }
+  | { kind: "static"; value: boolean }
+  | { kind: "truthy"; ref: GTSXFactorReference }
+
+type JSXReachableDependency = {
+  condition: JSXBranchPredicate
+  tagName: string
+  target: ComponentDependencyTarget
+}
+
+type JSXBranchAnalysisContext = {
+  expressionAliases: Map<string, ts.Expression>
+  factorBindings: Map<string, GTSXFactorReference>
+  sourceFile: ts.SourceFile
 }
 
 type EntryCoordinate = {
@@ -149,7 +202,7 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
     ...getImportedScopeHookNames(sourceFile, entryPath, options.cwd, options.cache),
   ])
   const providerCases: Record<string, GTSXProviderSummary> = Object.fromEntries(
-    [...getGProviderNames(sourceFile)].map((name) => [name, { name, cases: [] }]),
+    getGProviderSummariesForFile(sourceFile, entryPath, options.cwd, options.cache),
   )
   const componentAssignments: CasesAssignment[] = []
   const scopeAssignments: CasesAssignment[] = []
@@ -230,6 +283,7 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
   }
 
   const componentCases = componentAssignments.flatMap((assignment) => assignment.cases)
+  const componentStaticCases = componentAssignments.flatMap((assignment) => assignment.staticCases)
   const mode =
     componentCases.length === 0
       ? "unknown"
@@ -261,6 +315,25 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
 
   for (const testCase of selectedCases) {
     validateProviderSelections(testCase, providerCases, diagnostics, options.entry)
+    validateProviderVariantSelections(testCase, providerCases, diagnostics, options.entry)
+  }
+
+  if (componentExportName) {
+    const consumedProviderNames = getGProviderConsumers(sourceFile, componentExportName, {
+      cwd: options.cwd,
+      entryPath,
+      cache: options.cache,
+      sourceFilesByPath: options.cache?.sourceFilesByPath ?? new Map([[entryPath, sourceFile]]),
+      visitedComponents: new Set(),
+    })
+    validateProviderVariantCoverage(consumedProviderNames, providerCases, selectedCases, diagnostics, options.entry)
+    validateJSXTreeCaseReachability(sourceFile, componentExportName, scopeHookNames, componentStaticCases, diagnostics, options.entry, {
+      cwd: options.cwd,
+      entryPath,
+      cache: options.cache,
+      sourceFilesByPath: options.cache?.sourceFilesByPath ?? new Map([[entryPath, sourceFile]]),
+      visitedComponents: new Set(),
+    })
   }
 
   return {
@@ -391,21 +464,154 @@ function getScopeHookNames(sourceFile: ts.SourceFile): Set<string> {
   return names
 }
 
-function getGProviderNames(sourceFile: ts.SourceFile): Set<string> {
-  const names = new Set<string>()
+function getScopeHookProviderNamesForFile(
+  sourceFile: ts.SourceFile,
+  filePath: string,
+  cache?: GTSXAnalysisCache,
+): Map<string, string[]> {
+  const cached = cache?.scopeHookProviderNamesByPath.get(filePath)
+  if (cached) return cached
+
+  const hookProviders = new Map<string, string[]>()
 
   for (const statement of sourceFile.statements) {
     if (!ts.isVariableStatement(statement)) continue
 
     for (const declaration of statement.declarationList.declarations) {
       if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue
-      if (isCreateGProviderCall(unwrapExpression(declaration.initializer))) {
-        names.add(declaration.name.text)
+      const initializer = unwrapExpression(declaration.initializer)
+      if (!isCreateGScopeCall(initializer)) continue
+
+      const providersExpression = initializer.arguments[1]
+      if (!providersExpression) continue
+
+      const providerNames = readProviderNameList(providersExpression, sourceFile)
+      if (providerNames.length > 0) hookProviders.set(declaration.name.text, providerNames)
+    }
+  }
+
+  cache?.scopeHookProviderNamesByPath.set(filePath, hookProviders)
+  return hookProviders
+}
+
+function readProviderNameList(expression: ts.Expression, sourceFile: ts.SourceFile, visited = new Set<string>()): string[] {
+  const value = unwrapExpression(expression)
+  if (ts.isArrayLiteralExpression(value)) {
+    return value.elements.flatMap((element) => {
+      const provider = unwrapExpression(element)
+      return ts.isIdentifier(provider) ? [provider.text] : []
+    })
+  }
+
+  if (ts.isIdentifier(value)) {
+    if (visited.has(value.text)) return []
+    visited.add(value.text)
+
+    const initializer = topLevelVariableInitializer(sourceFile, value.text)
+    return initializer ? readProviderNameList(initializer, sourceFile, visited) : []
+  }
+
+  return []
+}
+
+function topLevelVariableInitializer(sourceFile: ts.SourceFile, name: string): ts.Expression | undefined {
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) continue
+
+    for (const declaration of statement.declarationList.declarations) {
+      if (ts.isIdentifier(declaration.name) && declaration.name.text === name) return declaration.initializer
+    }
+  }
+
+  return undefined
+}
+
+function getGProviderSummaries(sourceFile: ts.SourceFile): Map<string, GTSXProviderSummary> {
+  const providers = new Map<string, GTSXProviderSummary>()
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) continue
+
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue
+      const initializer = unwrapExpression(declaration.initializer)
+      if (!isCreateGProviderCall(initializer)) continue
+
+      const variants = readCreateGProviderVariants(initializer)
+      providers.set(declaration.name.text, {
+        name: declaration.name.text,
+        cases: [],
+        ...(variants && variants.length > 0 ? { variants } : {}),
+      })
+    }
+  }
+
+  return providers
+}
+
+function getGProviderSummariesForFile(
+  sourceFile: ts.SourceFile,
+  filePath: string,
+  cwd: string,
+  cache?: GTSXAnalysisCache,
+): Map<string, GTSXProviderSummary> {
+  const cached = cache?.providerSummariesByPath.get(filePath)
+  if (cached) return cached
+
+  const providers = new Map(getGProviderSummaries(sourceFile))
+  cache?.providerSummariesByPath.set(filePath, providers)
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || !statement.importClause || !ts.isStringLiteral(statement.moduleSpecifier)) continue
+
+    const targetPath = resolveImportedGTSXPath(filePath, cwd, statement.moduleSpecifier.text, cache)
+    if (!targetPath) continue
+
+    const targetSource = sourceFileForAbsolutePath(targetPath, cache)
+    if (!targetSource) continue
+
+    const targetProviders = getGProviderSummariesForFile(targetSource, targetPath, cwd, cache)
+    const importClause = statement.importClause
+
+    if (importClause.name) {
+      const importedDefault = targetProviders.get("default")
+      if (importedDefault) {
+        providers.set(importClause.name.text, { ...importedDefault, name: importClause.name.text })
+      }
+    }
+
+    const namedBindings = importClause.namedBindings
+    if (!namedBindings || !ts.isNamedImports(namedBindings)) continue
+
+    for (const element of namedBindings.elements) {
+      const importedName = element.propertyName?.text ?? element.name.text
+      const importedProvider = targetProviders.get(importedName)
+      if (importedProvider) {
+        providers.set(element.name.text, { ...importedProvider, name: element.name.text })
       }
     }
   }
 
-  return names
+  return providers
+}
+
+function readCreateGProviderVariants(expression: ts.CallExpression): string[] | undefined {
+  const options = expression.arguments[1] ? unwrapExpression(expression.arguments[1]) : undefined
+  if (!options || !ts.isObjectLiteralExpression(options)) return undefined
+
+  const variantsProperty = options.properties.find(
+    (property): property is ts.PropertyAssignment =>
+      ts.isPropertyAssignment(property) && getStaticPropertyName(property.name) === "variants",
+  )
+  if (!variantsProperty) return undefined
+
+  const variantsValue = unwrapExpression(variantsProperty.initializer)
+  if (!ts.isArrayLiteralExpression(variantsValue)) return undefined
+
+  return variantsValue.elements.flatMap((element) => {
+    const variant = unwrapExpression(element)
+    return ts.isStringLiteral(variant) ? [variant.text] : []
+  })
 }
 
 function getImportedScopeHookNames(
@@ -535,19 +741,34 @@ function resolveImportedGTSXPathFromBase(
 }
 
 function resolveImportBasePath(entryPath: string, cwd: string, specifier: string): string | undefined {
-  if (specifier.startsWith("@/")) return resolve(cwd, specifier.slice(2))
+  if (specifier.startsWith("@/")) {
+    const direct = resolve(cwd, specifier.slice(2))
+    if (
+      importedGTSXPathCandidates(direct).some((candidate) => isFile(candidate)) ||
+      importedTSXBarrelCandidates(direct).some((candidate) => isFile(candidate))
+    ) {
+      return direct
+    }
+    return resolve(cwd, "src", specifier.slice(2))
+  }
   if (specifier.startsWith(".")) return resolve(dirname(entryPath), specifier)
   return undefined
 }
 
 function importedGTSXPathCandidates(basePath: string): string[] {
   const extensionCandidate = /\.(?:tsx|ts|jsx|js)$/.test(basePath) ? basePath.replace(/\.(?:tsx|ts|jsx|js)$/, ".g.tsx") : undefined
+  const extensionTypeCandidate = /\.(?:tsx|ts|jsx|js)$/.test(basePath) ? basePath.replace(/\.(?:tsx|ts|jsx|js)$/, ".g.ts") : undefined
   const candidates = [
     basePath.endsWith(".g.tsx") ? basePath : undefined,
+    basePath.endsWith(".g.ts") ? basePath : undefined,
     basePath.endsWith(".g") ? `${basePath}.tsx` : undefined,
+    basePath.endsWith(".g") ? `${basePath}.ts` : undefined,
     `${basePath}.g.tsx`,
+    `${basePath}.g.ts`,
     extensionCandidate,
+    extensionTypeCandidate,
     join(basePath, "index.g.tsx"),
+    join(basePath, "index.g.ts"),
   ]
 
   return [...new Set(candidates.filter((candidate): candidate is string => Boolean(candidate)))]
@@ -613,6 +834,1212 @@ function validateProviderSelections(
       })
     }
   }
+}
+
+function validateProviderVariantSelections(
+  testCase: GTSXCaseSummary,
+  providerCases: Record<string, GTSXProviderSummary>,
+  diagnostics: GTSXDiagnostic[],
+  file: string,
+) {
+  if (!testCase.providerVariants) return
+
+  for (const [providerName, variant] of Object.entries(testCase.providerVariants)) {
+    const provider = providerCases[providerName]
+    if (!provider) {
+      diagnostics.push({
+        stage: "contract-extraction",
+        code: "missing-provider",
+        message: `Case "${testCase.name}" marks unknown provider "${providerName}" variant "${variant}".`,
+        file,
+        caseName: testCase.name,
+      })
+      continue
+    }
+
+    if (!provider.variants || provider.variants.length === 0) {
+      diagnostics.push({
+        stage: "contract-extraction",
+        code: "missing-provider-variants",
+        message: `Case "${testCase.name}" marks provider "${providerName}" variant "${variant}", but "${providerName}" does not declare variants.`,
+        file,
+        caseName: testCase.name,
+      })
+      continue
+    }
+
+    if (!provider.variants.includes(variant)) {
+      diagnostics.push({
+        stage: "contract-extraction",
+        code: "unknown-provider-variant",
+        message: `Case "${testCase.name}" marks unknown "${providerName}" variant "${variant}". Expected one of: ${provider.variants.join(", ")}.`,
+        file,
+        caseName: testCase.name,
+      })
+    }
+  }
+}
+
+function validateProviderVariantCoverage(
+  consumedProviderNames: ReadonlySet<string>,
+  providerCases: Record<string, GTSXProviderSummary>,
+  selectedCases: GTSXCaseSummary[],
+  diagnostics: GTSXDiagnostic[],
+  file: string,
+) {
+  for (const providerName of consumedProviderNames) {
+    const provider = providerCases[providerName]
+    if (!provider?.variants || provider.variants.length === 0) continue
+
+    const coveredVariants = new Set(
+      selectedCases.flatMap((testCase) => {
+        const variant = testCase.providerVariants?.[providerName]
+        return variant ? [variant] : []
+      }),
+    )
+    const missingVariants = provider.variants.filter((variant) => !coveredVariants.has(variant))
+    if (missingVariants.length === 0) continue
+
+    diagnostics.push({
+      stage: "contract-extraction",
+      code: "missing-provider-variant-cases",
+      message: `GTSX entry consumes provider "${providerName}" but its cases do not cover variants: ${missingVariants.join(", ")}.`,
+      file,
+    })
+  }
+}
+
+function validateJSXTreeCaseReachability(
+  sourceFile: ts.SourceFile,
+  componentName: string,
+  scopeHookNames: Set<string>,
+  staticCases: GTSXCaseStaticFacts[],
+  diagnostics: GTSXDiagnostic[],
+  file: string,
+  context: NonGTSXHookAnalysisContext,
+) {
+  if (staticCases.length === 0) return
+
+  const component = getFunctionLikeDeclaration(sourceFile, componentName)
+  if (!component?.body) return
+
+  const branchContext = createJSXBranchAnalysisContext(sourceFile, component, scopeHookNames)
+  const defaultValues = defaultStaticValuesForFunctionLike(component)
+  const caseFacts = staticCases.map((testCase) => ({
+    ...testCase,
+    values: new Map([...defaultValues, ...testCase.values]),
+  }))
+  const dependencies = reachableJSXDependenciesForComponent(sourceFile, componentName, branchContext, context)
+  const reported = new Set<string>()
+
+  for (const dependency of dependencies) {
+    const opaque = firstOpaqueJSXBranchPredicate(dependency.condition)
+    if (opaque) {
+      const key = `opaque:${dependency.tagName}:${opaque.text}`
+      if (reported.has(key)) continue
+      reported.add(key)
+      diagnostics.push({
+        stage: "contract-extraction",
+        code: "opaque-jsx-control-flow",
+        message: `JSX dependency <${dependency.tagName}> is controlled by an opaque expression "${opaque.text}". Use props, GTSX context, or GScope values directly so cases can cover the tree structure.`,
+        file,
+      })
+      continue
+    }
+
+    const evaluations = caseFacts.map((testCase) => evaluateJSXBranchPredicate(dependency.condition, testCase.values))
+    const coveredCaseNames = caseFacts
+      .filter((_testCase, index) => evaluations[index] === true)
+      .map((testCase) => testCase.name)
+    if (coveredCaseNames.length > 0) continue
+
+    const unknownCaseNames = caseFacts
+      .filter((_testCase, index) => evaluations[index] === "unknown")
+      .map((testCase) => testCase.name)
+    if (unknownCaseNames.length > 0) {
+      const key = `unknown:${dependency.tagName}:${formatJSXBranchPredicate(dependency.condition)}`
+      if (reported.has(key)) continue
+      reported.add(key)
+      diagnostics.push({
+        stage: "contract-extraction",
+        code: "unknown-jsx-branch-coverage",
+        message: `JSX dependency <${dependency.tagName}> is controlled by "${formatJSXBranchPredicate(dependency.condition)}", but case values are not static enough to prove coverage. Unknown cases: ${unknownCaseNames.join(", ")}.`,
+        file,
+      })
+      continue
+    }
+
+    const key = `uncovered:${dependency.tagName}:${formatJSXBranchPredicate(dependency.condition)}`
+    if (reported.has(key)) continue
+    reported.add(key)
+    diagnostics.push({
+      stage: "contract-extraction",
+      code: "uncovered-jsx-branch",
+      message: `No case renders JSX dependency <${dependency.tagName}> behind "${formatJSXBranchPredicate(dependency.condition)}". Add a case whose props, GTSX context, or GScope values make that branch reachable.`,
+      file,
+    })
+  }
+}
+
+function createJSXBranchAnalysisContext(
+  sourceFile: ts.SourceFile,
+  component: ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction,
+  scopeHookNames: Set<string>,
+): JSXBranchAnalysisContext {
+  const context: JSXBranchAnalysisContext = {
+    expressionAliases: new Map(),
+    factorBindings: new Map(),
+    sourceFile,
+  }
+
+  bindFunctionParameters(component, context)
+
+  if (component.body && ts.isBlock(component.body)) {
+    for (const statement of component.body.statements) {
+      bindTopLevelBranchVariableStatement(statement, context, scopeHookNames)
+    }
+  }
+
+  return context
+}
+
+function bindFunctionParameters(
+  component: ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction,
+  context: JSXBranchAnalysisContext,
+) {
+  const propsParameter = component.parameters[0]
+  if (!propsParameter) return
+
+  if (ts.isIdentifier(propsParameter.name)) {
+    context.factorBindings.set(propsParameter.name.text, { root: "props", path: [] })
+    return
+  }
+
+  if (ts.isObjectBindingPattern(propsParameter.name)) {
+    bindObjectBindingPattern(propsParameter.name, { root: "props", path: [] }, context)
+  }
+}
+
+function bindTopLevelBranchVariableStatement(
+  statement: ts.Statement,
+  context: JSXBranchAnalysisContext,
+  scopeHookNames: Set<string>,
+) {
+  if (!ts.isVariableStatement(statement)) return
+
+  for (const declaration of statement.declarationList.declarations) {
+    if (!declaration.initializer) continue
+
+    const initializer = unwrapExpression(declaration.initializer)
+    const scopeProvider = scopeHookProviderFromCall(initializer, scopeHookNames)
+    const contextProvider = ts.isCallExpression(initializer) ? gContextProviderNameFromCall(initializer) : undefined
+    const rootReference: GTSXFactorReference | undefined = scopeProvider
+      ? { root: "scope", path: [] }
+      : contextProvider
+        ? { root: "context", providerName: contextProvider, path: [] }
+        : factorReferenceForExpression(initializer, context)
+
+    if (rootReference) {
+      if (ts.isIdentifier(declaration.name)) {
+        context.factorBindings.set(declaration.name.text, rootReference)
+      } else if (ts.isObjectBindingPattern(declaration.name)) {
+        bindObjectBindingPattern(declaration.name, rootReference, context)
+      }
+      continue
+    }
+
+    if (ts.isIdentifier(declaration.name) && !expressionContainsJSX(initializer)) {
+      context.expressionAliases.set(declaration.name.text, initializer)
+    }
+  }
+}
+
+function bindObjectBindingPattern(
+  pattern: ts.ObjectBindingPattern,
+  rootReference: GTSXFactorReference,
+  context: JSXBranchAnalysisContext,
+) {
+  for (const element of pattern.elements) {
+    if (element.dotDotDotToken) continue
+
+    const propertyName = element.propertyName ? bindingNameText(element.propertyName) : bindingNameText(element.name)
+    if (!propertyName) continue
+
+    const nextReference = appendFactorReferencePath(rootReference, propertyName)
+    if (ts.isIdentifier(element.name)) {
+      context.factorBindings.set(element.name.text, nextReference)
+    } else if (ts.isObjectBindingPattern(element.name)) {
+      bindObjectBindingPattern(element.name, nextReference, context)
+    }
+  }
+}
+
+function bindingNameText(name: ts.BindingName | ts.PropertyName): string | undefined {
+  if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) return name.text
+  return undefined
+}
+
+function cloneJSXBranchAnalysisContext(context: JSXBranchAnalysisContext): JSXBranchAnalysisContext {
+  return {
+    expressionAliases: new Map(context.expressionAliases),
+    factorBindings: new Map(context.factorBindings),
+    sourceFile: context.sourceFile,
+  }
+}
+
+function bindCallbackItemParameter(
+  callback: ts.ArrowFunction | ts.FunctionExpression,
+  sourceReference: GTSXFactorReference,
+  context: JSXBranchAnalysisContext,
+): JSXBranchAnalysisContext {
+  const callbackContext = cloneJSXBranchAnalysisContext(context)
+  const itemReference = appendFactorReferencePath(sourceReference, "number")
+  const parameter = callback.parameters[0]
+  if (!parameter) return callbackContext
+
+  if (ts.isIdentifier(parameter.name)) {
+    callbackContext.factorBindings.set(parameter.name.text, itemReference)
+  } else if (ts.isObjectBindingPattern(parameter.name)) {
+    bindObjectBindingPattern(parameter.name, itemReference, callbackContext)
+  }
+
+  return callbackContext
+}
+
+function bindFunctionCallArguments(
+  functionLike: ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction,
+  args: ts.NodeArray<ts.Expression>,
+  context: JSXBranchAnalysisContext,
+): JSXBranchAnalysisContext {
+  const callContext = cloneJSXBranchAnalysisContext(context)
+
+  for (let index = 0; index < functionLike.parameters.length; index += 1) {
+    const parameter = functionLike.parameters[index]
+    const argument = args[index]
+    if (!parameter || !argument) continue
+
+    const argumentReference = factorReferenceForExpression(argument, context)
+    if (argumentReference) {
+      if (ts.isIdentifier(parameter.name)) {
+        callContext.factorBindings.set(parameter.name.text, argumentReference)
+      } else if (ts.isObjectBindingPattern(parameter.name)) {
+        bindObjectBindingPattern(parameter.name, argumentReference, callContext)
+      }
+      continue
+    }
+
+    if (ts.isIdentifier(parameter.name) && !expressionContainsJSX(argument)) {
+      callContext.expressionAliases.set(parameter.name.text, argument)
+    }
+  }
+
+  return callContext
+}
+
+function nonEmptyCollectionPredicate(reference: GTSXFactorReference): JSXBranchPredicate {
+  return {
+    kind: "relation",
+    operator: ">",
+    ref: appendFactorReferencePath(reference, "length"),
+    value: { kind: "number", value: 0 },
+  }
+}
+
+function opaqueJSXBranchPredicate(expression: ts.Expression, context: JSXBranchAnalysisContext): JSXBranchPredicate {
+  return {
+    kind: "opaque",
+    reason: "JSX callback source is not a direct props/context/scope expression",
+    text: expression.getText(context.sourceFile),
+  }
+}
+
+function jsxAttributeFactorReference(
+  attributes: ts.JsxAttributes,
+  context: JSXBranchAnalysisContext,
+): GTSXFactorReference | undefined {
+  for (const property of attributes.properties) {
+    if (!ts.isJsxAttribute(property) || !property.initializer) continue
+    if (!ts.isIdentifier(property.name)) continue
+    if (!new Set(["items", "rows", "data", "options"]).has(property.name.text)) continue
+    if (!ts.isJsxExpression(property.initializer) || !property.initializer.expression) continue
+
+    const reference = factorReferenceForExpression(property.initializer.expression, context)
+    if (reference) return reference
+  }
+
+  return undefined
+}
+
+function defaultStaticValuesForFunctionLike(
+  component: ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction,
+): Map<string, StaticBranchValue> {
+  const values = new Map<string, StaticBranchValue>()
+  const propsParameter = component.parameters[0]
+  if (!propsParameter || !ts.isObjectBindingPattern(propsParameter.name)) return values
+
+  collectBindingDefaults(propsParameter.name, { root: "props", path: [] }, values)
+  return values
+}
+
+function collectBindingDefaults(
+  pattern: ts.ObjectBindingPattern,
+  rootReference: GTSXFactorReference,
+  values: Map<string, StaticBranchValue>,
+) {
+  for (const element of pattern.elements) {
+    if (element.dotDotDotToken) continue
+
+    const propertyName = element.propertyName ? bindingNameText(element.propertyName) : bindingNameText(element.name)
+    if (!propertyName) continue
+
+    const nextReference = appendFactorReferencePath(rootReference, propertyName)
+    if (element.initializer) {
+      const value = readStaticBranchValue(element.initializer)
+      if (value) values.set(factorReferenceKey(nextReference), value)
+    }
+
+    if (ts.isObjectBindingPattern(element.name)) {
+      collectBindingDefaults(element.name, nextReference, values)
+    }
+  }
+}
+
+function scopeHookProviderFromCall(expression: ts.Expression, scopeHookNames: Set<string>): string | undefined {
+  return ts.isCallExpression(expression) && ts.isIdentifier(expression.expression) && scopeHookNames.has(expression.expression.text)
+    ? expression.expression.text
+    : undefined
+}
+
+function reachableJSXDependenciesForComponent(
+  sourceFile: ts.SourceFile,
+  componentName: string,
+  branchContext: JSXBranchAnalysisContext,
+  context: NonGTSXHookAnalysisContext,
+): JSXReachableDependency[] {
+  const dependencies: JSXReachableDependency[] = []
+  const componentBody = getFunctionLikeBody(sourceFile, componentName)
+  if (!componentBody) return dependencies
+
+  const helperFunctions = getTopLevelFunctionLikeBodiesForPath(sourceFile, context.entryPath, context.cache)
+  const localComponentNames = helperFunctions
+  const importBindings = componentDependencyBindingsForFile(sourceFile, context.entryPath, context)
+  const localAliases = localComponentAliasBindingsForBody(componentBody)
+  const always: JSXBranchPredicate = { kind: "always" }
+
+  const visitedHelpers = new Set<string>([componentName])
+
+  if (ts.isBlock(componentBody)) {
+    for (const statement of componentBody.statements) visitStatement(statement, always, branchContext, visitedHelpers)
+  } else {
+    visitExpression(componentBody, always, branchContext, visitedHelpers)
+  }
+
+  return dependencies
+
+  function visitStatement(
+    statement: ts.Statement,
+    condition: JSXBranchPredicate,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ) {
+    if (ts.isBlock(statement)) {
+      for (const child of statement.statements) visitStatement(child, condition, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    if (ts.isReturnStatement(statement)) {
+      if (statement.expression) visitExpression(statement.expression, condition, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    if (ts.isIfStatement(statement)) {
+      const predicate = parseJSXBranchPredicate(statement.expression, currentBranchContext)
+      visitStatementOrBlock(statement.thenStatement, andJSXBranchPredicates(condition, predicate), currentBranchContext, currentVisitedHelpers)
+      if (statement.elseStatement) {
+        visitStatementOrBlock(
+          statement.elseStatement,
+          andJSXBranchPredicates(condition, notJSXBranchPredicate(predicate)),
+          currentBranchContext,
+          currentVisitedHelpers,
+        )
+      }
+      return
+    }
+
+    if (ts.isExpressionStatement(statement)) {
+      visitExpression(statement.expression, condition, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    if (nodeContainsJSX(statement)) {
+      visitOpaqueJSXSubtree(statement, condition, currentBranchContext, currentVisitedHelpers)
+    }
+  }
+
+  function visitStatementOrBlock(
+    statement: ts.Statement,
+    condition: JSXBranchPredicate,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ) {
+    if (ts.isBlock(statement)) {
+      for (const child of statement.statements) visitStatement(child, condition, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    visitStatement(statement, condition, currentBranchContext, currentVisitedHelpers)
+  }
+
+  function visitExpression(
+    expression: ts.Expression,
+    condition: JSXBranchPredicate,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ) {
+    const value = unwrapExpression(expression)
+
+    if (ts.isJsxElement(value)) {
+      visitJSXOpeningLike(value.openingElement, condition, currentBranchContext, currentVisitedHelpers)
+      for (const child of value.children) visitJSXChild(child, condition, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    if (ts.isJsxSelfClosingElement(value)) {
+      visitJSXOpeningLike(value, condition, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    if (ts.isJsxFragment(value)) {
+      for (const child of value.children) visitJSXChild(child, condition, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    if (ts.isConditionalExpression(value)) {
+      const predicate = parseJSXBranchPredicate(value.condition, currentBranchContext)
+      visitExpression(value.whenTrue, andJSXBranchPredicates(condition, predicate), currentBranchContext, currentVisitedHelpers)
+      visitExpression(
+        value.whenFalse,
+        andJSXBranchPredicates(condition, notJSXBranchPredicate(predicate)),
+        currentBranchContext,
+        currentVisitedHelpers,
+      )
+      return
+    }
+
+    if (ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
+      const predicate = parseJSXBranchPredicate(value.left, currentBranchContext)
+      visitExpression(value.right, andJSXBranchPredicates(condition, predicate), currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    if (ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.BarBarToken) {
+      const predicate = parseJSXBranchPredicate(value.left, currentBranchContext)
+      visitExpression(
+        value.right,
+        andJSXBranchPredicates(condition, notJSXBranchPredicate(predicate)),
+        currentBranchContext,
+        currentVisitedHelpers,
+      )
+      return
+    }
+
+    if (ts.isArrowFunction(value) || ts.isFunctionExpression(value)) {
+      visitFunctionLikeBody(value, condition, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    if (ts.isCallExpression(value) && visitJSXProducingCall(value, condition, currentBranchContext, currentVisitedHelpers)) {
+      return
+    }
+
+    ts.forEachChild(value, (child) => {
+      if (isExpressionWithPossibleJSX(child)) visitExpression(child, condition, currentBranchContext, currentVisitedHelpers)
+    })
+  }
+
+  function visitFunctionLikeBody(
+    functionLike: ts.ArrowFunction | ts.FunctionExpression | ts.FunctionDeclaration,
+    condition: JSXBranchPredicate,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ) {
+    if (!functionLike.body) return
+    if (ts.isBlock(functionLike.body)) {
+      for (const statement of functionLike.body.statements) visitStatement(statement, condition, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    visitExpression(functionLike.body, condition, currentBranchContext, currentVisitedHelpers)
+  }
+
+  function visitJSXProducingCall(
+    call: ts.CallExpression,
+    condition: JSXBranchPredicate,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ): boolean {
+    if (ts.isPropertyAccessExpression(call.expression) && call.expression.name.text === "map") {
+      const callback = call.arguments[0] ? unwrapExpression(call.arguments[0]) : undefined
+      if (callback && (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback))) {
+        const sourceReference = factorReferenceForExpression(call.expression.expression, currentBranchContext)
+        const callbackCondition = sourceReference
+          ? andJSXBranchPredicates(condition, nonEmptyCollectionPredicate(sourceReference))
+          : andJSXBranchPredicates(condition, opaqueJSXBranchPredicate(call.expression.expression, currentBranchContext))
+        const callbackContext = sourceReference
+          ? bindCallbackItemParameter(callback, sourceReference, currentBranchContext)
+          : cloneJSXBranchAnalysisContext(currentBranchContext)
+        visitFunctionLikeBody(callback, callbackCondition, callbackContext, currentVisitedHelpers)
+        return true
+      }
+    }
+
+    if (ts.isIdentifier(call.expression)) {
+      const helper = getFunctionLikeDeclaration(sourceFile, call.expression.text)
+      if (helper?.body && expressionContainsJSX(helper.body) && !currentVisitedHelpers.has(call.expression.text)) {
+        const helperVisited = new Set(currentVisitedHelpers)
+        helperVisited.add(call.expression.text)
+        const helperContext = bindFunctionCallArguments(helper, call.arguments, currentBranchContext)
+        visitFunctionLikeBody(helper, condition, helperContext, helperVisited)
+        return true
+      }
+    }
+
+    let handled = false
+    for (const argument of call.arguments) {
+      if (!expressionContainsJSX(argument)) continue
+      visitExpression(argument, condition, currentBranchContext, currentVisitedHelpers)
+      handled = true
+    }
+    return handled
+  }
+
+  function visitOpaqueJSXSubtree(
+    node: ts.Node,
+    condition: JSXBranchPredicate,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ) {
+    const opaqueCondition = andJSXBranchPredicates(condition, {
+      kind: "opaque",
+      reason: "JSX is produced from unsupported statement-level control flow",
+      text: summarizeNodeText(node, currentBranchContext.sourceFile),
+    })
+
+    visit(node)
+
+    function visit(current: ts.Node) {
+      if (ts.isJsxElement(current)) {
+        visitJSXOpeningLike(current.openingElement, opaqueCondition, currentBranchContext, currentVisitedHelpers)
+        for (const child of current.children) visit(child)
+        return
+      }
+
+      if (ts.isJsxSelfClosingElement(current)) {
+        visitJSXOpeningLike(current, opaqueCondition, currentBranchContext, currentVisitedHelpers)
+        return
+      }
+
+      if (ts.isJsxFragment(current)) {
+        for (const child of current.children) visit(child)
+        return
+      }
+
+      ts.forEachChild(current, visit)
+    }
+  }
+
+  function visitJSXChild(
+    child: ts.JsxChild,
+    condition: JSXBranchPredicate,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ) {
+    if (ts.isJsxText(child)) return
+    if (ts.isJsxExpression(child)) {
+      if (child.expression) visitExpression(child.expression, condition, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    visitExpression(child, condition, currentBranchContext, currentVisitedHelpers)
+  }
+
+  function visitJSXOpeningLike(
+    node: ts.JsxOpeningElement | ts.JsxSelfClosingElement,
+    condition: JSXBranchPredicate,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ) {
+    const target = componentDependencyTargetForJsxTag(node.tagName, {
+      filePath: context.entryPath,
+      importBindings,
+      localAliases,
+      localComponentNames,
+    })
+    if (target) {
+      dependencies.push({
+        condition,
+        tagName: jsxTagNameText(node.tagName, sourceFile),
+        target,
+      })
+    }
+
+    visitJSXAttributes(node.attributes, condition, currentBranchContext, currentVisitedHelpers)
+  }
+
+  function visitJSXAttributes(
+    attributes: ts.JsxAttributes,
+    condition: JSXBranchPredicate,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ) {
+    const itemSource = jsxAttributeFactorReference(attributes, currentBranchContext)
+    for (const property of attributes.properties) {
+      if (!ts.isJsxAttribute(property) || !property.initializer) continue
+
+      const initializer = property.initializer
+      const expression = ts.isJsxExpression(initializer) ? initializer.expression : initializer
+      if (!expression || !expressionContainsJSX(expression)) continue
+
+      const value = unwrapExpression(expression)
+      if ((ts.isArrowFunction(value) || ts.isFunctionExpression(value)) && value.parameters.length > 0) {
+        const callbackCondition = itemSource
+          ? andJSXBranchPredicates(condition, nonEmptyCollectionPredicate(itemSource))
+          : andJSXBranchPredicates(condition, opaqueJSXBranchPredicate(value, currentBranchContext))
+        const callbackContext = itemSource ? bindCallbackItemParameter(value, itemSource, currentBranchContext) : currentBranchContext
+        visitFunctionLikeBody(value, callbackCondition, callbackContext, currentVisitedHelpers)
+        continue
+      }
+
+      visitExpression(expression, condition, currentBranchContext, currentVisitedHelpers)
+    }
+  }
+}
+
+function isExpressionWithPossibleJSX(node: ts.Node): node is ts.Expression {
+  return ts.isExpression(node) && nodeContainsJSX(node)
+}
+
+function expressionContainsJSX(node: ts.Node): boolean {
+  return nodeContainsJSX(node)
+}
+
+function nodeContainsJSX(node: ts.Node): boolean {
+  let found = false
+  visit(node)
+  return found
+
+  function visit(current: ts.Node) {
+    if (found) return
+    if (ts.isJsxElement(current) || ts.isJsxSelfClosingElement(current) || ts.isJsxFragment(current)) {
+      found = true
+      return
+    }
+    ts.forEachChild(current, visit)
+  }
+}
+
+function summarizeNodeText(node: ts.Node, sourceFile: ts.SourceFile): string {
+  const text = node.getText(sourceFile).replace(/\s+/g, " ").trim()
+  return text.length > 140 ? `${text.slice(0, 137)}...` : text
+}
+
+function parseJSXBranchPredicate(
+  expression: ts.Expression,
+  context: JSXBranchAnalysisContext,
+  resolvingAliases = new Set<string>(),
+): JSXBranchPredicate {
+  const value = unwrapExpression(expression)
+
+  if (value.kind === ts.SyntaxKind.TrueKeyword) return { kind: "static", value: true }
+  if (value.kind === ts.SyntaxKind.FalseKeyword) return { kind: "static", value: false }
+
+  if (ts.isPrefixUnaryExpression(value) && value.operator === ts.SyntaxKind.ExclamationToken) {
+    return notJSXBranchPredicate(parseJSXBranchPredicate(value.operand, context, resolvingAliases))
+  }
+
+  if (ts.isBinaryExpression(value)) {
+    if (value.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
+      return andJSXBranchPredicates(
+        parseJSXBranchPredicate(value.left, context, resolvingAliases),
+        parseJSXBranchPredicate(value.right, context, resolvingAliases),
+      )
+    }
+
+    if (value.operatorToken.kind === ts.SyntaxKind.BarBarToken) {
+      return orJSXBranchPredicates(
+        parseJSXBranchPredicate(value.left, context, resolvingAliases),
+        parseJSXBranchPredicate(value.right, context, resolvingAliases),
+      )
+    }
+
+    const equalityPredicate = parseBinaryComparisonPredicate(value, context, resolvingAliases)
+    if (equalityPredicate) return equalityPredicate
+  }
+
+  if (
+    ts.isCallExpression(value) &&
+    ts.isIdentifier(value.expression) &&
+    value.expression.text === "Boolean" &&
+    value.arguments.length === 1 &&
+    value.arguments[0]
+  ) {
+    return parseJSXBranchPredicate(value.arguments[0], context, resolvingAliases)
+  }
+
+  if (ts.isIdentifier(value)) {
+    const alias = context.expressionAliases.get(value.text)
+    if (alias && !resolvingAliases.has(value.text)) {
+      resolvingAliases.add(value.text)
+      const predicate = parseJSXBranchPredicate(alias, context, resolvingAliases)
+      resolvingAliases.delete(value.text)
+      return predicate
+    }
+  }
+
+  const reference = factorReferenceForExpression(value, context)
+  if (reference) return { kind: "truthy", ref: reference }
+
+  const staticValue = readStaticBranchValue(value)
+  const staticTruthy = staticValue ? staticBranchValueTruthy(staticValue) : undefined
+  if (staticTruthy !== undefined) return { kind: "static", value: staticTruthy }
+
+  return {
+    kind: "opaque",
+    reason: "condition is not a direct props/context/scope expression",
+    text: value.getText(context.sourceFile),
+  }
+}
+
+function parseBinaryComparisonPredicate(
+  expression: ts.BinaryExpression,
+  context: JSXBranchAnalysisContext,
+  resolvingAliases: Set<string>,
+): JSXBranchPredicate | undefined {
+  const leftReference = factorReferenceForExpression(expression.left, context)
+  const rightReference = factorReferenceForExpression(expression.right, context)
+  const leftValue = readStaticBranchValue(expression.left)
+  const rightValue = readStaticBranchValue(expression.right)
+
+  const equalityOperators = new Set([
+    ts.SyntaxKind.EqualsEqualsEqualsToken,
+    ts.SyntaxKind.EqualsEqualsToken,
+    ts.SyntaxKind.ExclamationEqualsEqualsToken,
+    ts.SyntaxKind.ExclamationEqualsToken,
+  ])
+  if (equalityOperators.has(expression.operatorToken.kind)) {
+    if (leftReference && rightReference) {
+      const predicate: JSXBranchPredicate = { kind: "equals-ref", left: leftReference, right: rightReference }
+      return expression.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken ||
+        expression.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsToken
+        ? notJSXBranchPredicate(predicate)
+        : predicate
+    }
+
+    const reference = leftReference ?? rightReference
+    const staticValue = leftReference ? rightValue : rightReference ? leftValue : undefined
+    if (!reference || !staticValue) return undefined
+
+    const predicate: JSXBranchPredicate = { kind: "equals", ref: reference, value: staticValue }
+    return expression.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken ||
+      expression.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsToken
+      ? notJSXBranchPredicate(predicate)
+      : predicate
+  }
+
+  const relationOperator = relationOperatorText(expression.operatorToken.kind)
+  if (relationOperator) {
+    if (leftReference && rightValue) return { kind: "relation", operator: relationOperator, ref: leftReference, value: rightValue }
+    if (rightReference && leftValue) {
+      const invertedOperator = invertRelationOperator(relationOperator)
+      return { kind: "relation", operator: invertedOperator, ref: rightReference, value: leftValue }
+    }
+  }
+
+  return undefined
+}
+
+function relationOperatorText(kind: ts.SyntaxKind): "<" | "<=" | ">" | ">=" | undefined {
+  if (kind === ts.SyntaxKind.LessThanToken) return "<"
+  if (kind === ts.SyntaxKind.LessThanEqualsToken) return "<="
+  if (kind === ts.SyntaxKind.GreaterThanToken) return ">"
+  if (kind === ts.SyntaxKind.GreaterThanEqualsToken) return ">="
+  return undefined
+}
+
+function invertRelationOperator(operator: "<" | "<=" | ">" | ">="): "<" | "<=" | ">" | ">=" {
+  if (operator === "<") return ">"
+  if (operator === "<=") return ">="
+  if (operator === ">") return "<"
+  return "<="
+}
+
+function factorReferenceForExpression(expression: ts.Expression, context: JSXBranchAnalysisContext): GTSXFactorReference | undefined {
+  const value = unwrapExpression(expression)
+
+  if (ts.isIdentifier(value)) {
+    const direct = context.factorBindings.get(value.text)
+    if (direct) return direct
+
+    const alias = context.expressionAliases.get(value.text)
+    return alias ? factorReferenceForExpression(alias, context) : undefined
+  }
+
+  if (ts.isPropertyAccessExpression(value)) {
+    const base = factorReferenceForExpression(value.expression, context)
+    return base ? appendFactorReferencePath(base, value.name.text) : undefined
+  }
+
+  if (ts.isElementAccessExpression(value) && ts.isStringLiteralLike(value.argumentExpression)) {
+    const base = factorReferenceForExpression(value.expression, context)
+    return base ? appendFactorReferencePath(base, value.argumentExpression.text) : undefined
+  }
+
+  if (ts.isElementAccessExpression(value) && ts.isNumericLiteral(value.argumentExpression)) {
+    const base = factorReferenceForExpression(value.expression, context)
+    return base ? appendFactorReferencePath(base, "number") : undefined
+  }
+
+  return undefined
+}
+
+function appendFactorReferencePath(reference: GTSXFactorReference, propertyName: string): GTSXFactorReference {
+  if (reference.root === "context") {
+    return { root: "context", providerName: reference.providerName, path: [...reference.path, propertyName] }
+  }
+
+  return { root: reference.root, path: [...reference.path, propertyName] }
+}
+
+function andJSXBranchPredicates(left: JSXBranchPredicate, right: JSXBranchPredicate): JSXBranchPredicate {
+  if (left.kind === "always") return right
+  if (right.kind === "always") return left
+  if (left.kind === "static" && left.value) return right
+  if (right.kind === "static" && right.value) return left
+  if (left.kind === "static" && !left.value) return left
+  if (right.kind === "static" && !right.value) return right
+  return {
+    kind: "and",
+    predicates: [
+      ...(left.kind === "and" ? left.predicates : [left]),
+      ...(right.kind === "and" ? right.predicates : [right]),
+    ],
+  }
+}
+
+function orJSXBranchPredicates(left: JSXBranchPredicate, right: JSXBranchPredicate): JSXBranchPredicate {
+  if (left.kind === "static" && left.value) return left
+  if (right.kind === "static" && right.value) return right
+  if (left.kind === "static" && !left.value) return right
+  if (right.kind === "static" && !right.value) return left
+  return {
+    kind: "or",
+    predicates: [
+      ...(left.kind === "or" ? left.predicates : [left]),
+      ...(right.kind === "or" ? right.predicates : [right]),
+    ],
+  }
+}
+
+function notJSXBranchPredicate(predicate: JSXBranchPredicate): JSXBranchPredicate {
+  if (predicate.kind === "static") return { kind: "static", value: !predicate.value }
+  if (predicate.kind === "not") return predicate.predicate
+  return { kind: "not", predicate }
+}
+
+function firstOpaqueJSXBranchPredicate(predicate: JSXBranchPredicate): Extract<JSXBranchPredicate, { kind: "opaque" }> | undefined {
+  if (predicate.kind === "opaque") return predicate
+  if (predicate.kind === "not") return firstOpaqueJSXBranchPredicate(predicate.predicate)
+  if (predicate.kind === "and" || predicate.kind === "or") {
+    for (const child of predicate.predicates) {
+      const opaque = firstOpaqueJSXBranchPredicate(child)
+      if (opaque) return opaque
+    }
+  }
+  return undefined
+}
+
+function evaluateJSXBranchPredicate(
+  predicate: JSXBranchPredicate,
+  values: Map<string, StaticBranchValue>,
+): boolean | "unknown" {
+  if (predicate.kind === "always") return true
+  if (predicate.kind === "static") return predicate.value
+  if (predicate.kind === "opaque") return "unknown"
+  if (predicate.kind === "truthy") {
+    return evaluateStaticBranchValueTruthy(staticBranchValueForReference(values, predicate.ref) ?? { kind: "undefined" })
+  }
+  if (predicate.kind === "equals") {
+    return evaluateSameStaticBranchValue(staticBranchValueForReference(values, predicate.ref) ?? { kind: "undefined" }, predicate.value)
+  }
+  if (predicate.kind === "equals-ref") {
+    return evaluateSameStaticBranchValue(
+      staticBranchValueForReference(values, predicate.left) ?? { kind: "undefined" },
+      staticBranchValueForReference(values, predicate.right) ?? { kind: "undefined" },
+    )
+  }
+  if (predicate.kind === "relation") {
+    return evaluateStaticBranchRelation(
+      staticBranchValueForReference(values, predicate.ref) ?? { kind: "undefined" },
+      predicate.operator,
+      predicate.value,
+    )
+  }
+  if (predicate.kind === "not") {
+    return evaluateNegatedJSXBranchPredicate(predicate.predicate, values)
+  }
+  if (predicate.kind === "and") {
+    let unknown = false
+    for (const child of predicate.predicates) {
+      const value = evaluateJSXBranchPredicate(child, values)
+      if (value === false) return false
+      if (value === "unknown") unknown = true
+    }
+    return unknown ? "unknown" : true
+  }
+  if (predicate.kind === "or") {
+    let unknown = false
+    for (const child of predicate.predicates) {
+      const value = evaluateJSXBranchPredicate(child, values)
+      if (value === true) return true
+      if (value === "unknown") unknown = true
+    }
+    return unknown ? "unknown" : false
+  }
+  return "unknown"
+}
+
+function evaluateNegatedJSXBranchPredicate(
+  predicate: JSXBranchPredicate,
+  values: Map<string, StaticBranchValue>,
+): boolean | "unknown" {
+  if (predicate.kind === "truthy") {
+    const value = staticBranchValueForReference(values, predicate.ref) ?? { kind: "undefined" }
+    if (value.kind === "oneOf") {
+      let unknown = false
+      for (const option of value.values) {
+        const result = evaluateStaticBranchValueTruthy(option)
+        if (result === false) return true
+        if (result === "unknown") unknown = true
+      }
+      return unknown ? "unknown" : false
+    }
+    const truthy = evaluateStaticBranchValueTruthy(value)
+    return truthy === "unknown" ? "unknown" : !truthy
+  }
+  if (predicate.kind === "equals") {
+    const value = staticBranchValueForReference(values, predicate.ref) ?? { kind: "undefined" }
+    if (value.kind === "oneOf") {
+      let unknown = false
+      for (const option of value.values) {
+        const result = evaluateSameStaticBranchValue(option, predicate.value)
+        if (result === false) return true
+        if (result === "unknown") unknown = true
+      }
+      return unknown ? "unknown" : false
+    }
+    const result = evaluateSameStaticBranchValue(value, predicate.value)
+    return result === "unknown" ? "unknown" : !result
+  }
+  if (predicate.kind === "equals-ref") {
+    const left = staticBranchValueForReference(values, predicate.left) ?? { kind: "undefined" }
+    const right = staticBranchValueForReference(values, predicate.right) ?? { kind: "undefined" }
+    if (left.kind === "oneOf") {
+      let unknown = false
+      for (const option of left.values) {
+        const result = evaluateSameStaticBranchValue(option, right)
+        if (result === false) return true
+        if (result === "unknown") unknown = true
+      }
+      return unknown ? "unknown" : false
+    }
+    if (right.kind === "oneOf") {
+      let unknown = false
+      for (const option of right.values) {
+        const result = evaluateSameStaticBranchValue(left, option)
+        if (result === false) return true
+        if (result === "unknown") unknown = true
+      }
+      return unknown ? "unknown" : false
+    }
+    const result = evaluateSameStaticBranchValue(left, right)
+    return result === "unknown" ? "unknown" : !result
+  }
+  if (predicate.kind === "relation") {
+    const value = staticBranchValueForReference(values, predicate.ref) ?? { kind: "undefined" }
+    if (value.kind === "oneOf") {
+      let unknown = false
+      for (const option of value.values) {
+        const result = evaluateStaticBranchRelation(option, predicate.operator, predicate.value)
+        if (result === false) return true
+        if (result === "unknown") unknown = true
+      }
+      return unknown ? "unknown" : false
+    }
+    const result = evaluateStaticBranchRelation(value, predicate.operator, predicate.value)
+    return result === "unknown" ? "unknown" : !result
+  }
+  if (predicate.kind === "and") return evaluateJSXBranchPredicate({ kind: "or", predicates: predicate.predicates.map(notJSXBranchPredicate) }, values)
+  if (predicate.kind === "or") return evaluateJSXBranchPredicate({ kind: "and", predicates: predicate.predicates.map(notJSXBranchPredicate) }, values)
+
+  const value = evaluateJSXBranchPredicate(predicate, values)
+  return value === "unknown" ? "unknown" : !value
+}
+
+function staticBranchValueForReference(
+  values: Map<string, StaticBranchValue>,
+  reference: GTSXFactorReference,
+): StaticBranchValue | undefined {
+  const key = factorReferenceKey(reference)
+  const exact = values.get(key)
+  if (exact) return exact
+
+  const parts = key.split(".")
+  while (parts.length > 1) {
+    parts.pop()
+    const ancestor = values.get(parts.join("."))
+    if (ancestor && staticBranchValueIncludesUnknown(ancestor)) return { kind: "unknown" }
+  }
+
+  return undefined
+}
+
+function staticBranchValueIncludesUnknown(value: StaticBranchValue): boolean {
+  return value.kind === "unknown" || (value.kind === "oneOf" && value.values.some(staticBranchValueIncludesUnknown))
+}
+
+function evaluateStaticBranchValueTruthy(value: StaticBranchValue): boolean | "unknown" {
+  if (value.kind === "unknown") return "unknown"
+  if (value.kind === "oneOf") {
+    let unknown = false
+    for (const option of value.values) {
+      const result = evaluateStaticBranchValueTruthy(option)
+      if (result === true) return true
+      if (result === "unknown") unknown = true
+    }
+    return unknown ? "unknown" : false
+  }
+
+  return staticBranchValueTruthy(value)
+}
+
+function evaluateSameStaticBranchValue(left: StaticBranchValue, right: StaticBranchValue): boolean | "unknown" {
+  if (left.kind === "unknown" || right.kind === "unknown") return "unknown"
+  if (left.kind === "oneOf") {
+    let unknown = false
+    for (const option of left.values) {
+      const result = evaluateSameStaticBranchValue(option, right)
+      if (result === true) return true
+      if (result === "unknown") unknown = true
+    }
+    return unknown ? "unknown" : false
+  }
+  if (right.kind === "oneOf") {
+    let unknown = false
+    for (const option of right.values) {
+      const result = evaluateSameStaticBranchValue(left, option)
+      if (result === true) return true
+      if (result === "unknown") unknown = true
+    }
+    return unknown ? "unknown" : false
+  }
+
+  return sameStaticBranchValue(left, right)
+}
+
+function staticBranchValueTruthy(value: StaticBranchValue): boolean {
+  if (value.kind === "unknown") return false
+  if (value.kind === "oneOf") return value.values.some(staticBranchValueTruthy)
+  if (value.kind === "undefined" || value.kind === "null") return false
+  if (value.kind === "boolean") return value.value
+  if (value.kind === "number") return value.value !== 0 && !Number.isNaN(value.value)
+  if (value.kind === "string") return value.value.length > 0
+  if (value.kind === "array" || value.kind === "object" || value.kind === "truthy") return true
+  return false
+}
+
+function sameStaticBranchValue(left: StaticBranchValue, right: StaticBranchValue): boolean {
+  if (left.kind === "oneOf") return left.values.some((value) => sameStaticBranchValue(value, right))
+  if (right.kind === "oneOf") return right.values.some((value) => sameStaticBranchValue(left, value))
+  if (left.kind === "undefined" && right.kind === "undefined") return true
+  if (left.kind === "null" && right.kind === "null") return true
+  if (left.kind === "boolean" && right.kind === "boolean") return left.value === right.value
+  if (left.kind === "number" && right.kind === "number") return left.value === right.value
+  if (left.kind === "string" && right.kind === "string") return left.value === right.value
+  if (left.kind === "array" && right.kind === "array") return left.length === right.length
+  return false
+}
+
+function evaluateStaticBranchRelation(
+  left: StaticBranchValue,
+  operator: "<" | "<=" | ">" | ">=",
+  right: StaticBranchValue,
+): boolean | "unknown" {
+  if (left.kind === "unknown" || right.kind === "unknown") return "unknown"
+  if (left.kind === "oneOf") {
+    let unknown = false
+    for (const value of left.values) {
+      const result = evaluateStaticBranchRelation(value, operator, right)
+      if (result === true) return true
+      if (result === "unknown") unknown = true
+    }
+    return unknown ? "unknown" : false
+  }
+  if (right.kind === "oneOf") {
+    let unknown = false
+    for (const value of right.values) {
+      const result = evaluateStaticBranchRelation(left, operator, value)
+      if (result === true) return true
+      if (result === "unknown") unknown = true
+    }
+    return unknown ? "unknown" : false
+  }
+  const leftNumber = staticBranchValueNumber(left)
+  const rightNumber = staticBranchValueNumber(right)
+  if (leftNumber === undefined || rightNumber === undefined) return "unknown"
+  if (operator === "<") return leftNumber < rightNumber
+  if (operator === "<=") return leftNumber <= rightNumber
+  if (operator === ">") return leftNumber > rightNumber
+  return leftNumber >= rightNumber
+}
+
+function staticBranchValueNumber(value: StaticBranchValue): number | undefined {
+  if (value.kind === "number") return value.value
+  if (value.kind === "array") return value.length
+  return undefined
+}
+
+function factorReferenceKey(reference: GTSXFactorReference): string {
+  if (reference.root === "context") return ["context", reference.providerName, ...reference.path].join(".")
+  return [reference.root, ...reference.path].join(".")
+}
+
+function formatJSXBranchPredicate(predicate: JSXBranchPredicate): string {
+  if (predicate.kind === "always") return "always"
+  if (predicate.kind === "static") return String(predicate.value)
+  if (predicate.kind === "truthy") return factorReferenceKey(predicate.ref)
+  if (predicate.kind === "equals") return `${factorReferenceKey(predicate.ref)} === ${formatStaticBranchValue(predicate.value)}`
+  if (predicate.kind === "equals-ref") return `${factorReferenceKey(predicate.left)} === ${factorReferenceKey(predicate.right)}`
+  if (predicate.kind === "relation") {
+    return `${factorReferenceKey(predicate.ref)} ${predicate.operator} ${formatStaticBranchValue(predicate.value)}`
+  }
+  if (predicate.kind === "not") return `!(${formatJSXBranchPredicate(predicate.predicate)})`
+  if (predicate.kind === "and") return predicate.predicates.map(formatJSXBranchPredicate).join(" && ")
+  if (predicate.kind === "or") return predicate.predicates.map(formatJSXBranchPredicate).join(" || ")
+  return predicate.text
+}
+
+function formatStaticBranchValue(value: StaticBranchValue): string {
+  if (value.kind === "boolean") return String(value.value)
+  if (value.kind === "number") return String(value.value)
+  if (value.kind === "string") return JSON.stringify(value.value)
+  if (value.kind === "array") return `array(length=${value.length})`
+  if (value.kind === "oneOf") return `oneOf(${value.values.map(formatStaticBranchValue).join(", ")})`
+  return value.kind
+}
+
+function jsxTagNameText(tagName: ts.JsxTagNameExpression, sourceFile: ts.SourceFile): string {
+  if (ts.isIdentifier(tagName)) return tagName.text
+  return tagName.getText(sourceFile)
 }
 
 function getNonGTSXHookCalls(
@@ -695,6 +2122,85 @@ function getNonGTSXHookCalls(
   }
 }
 
+function getGProviderConsumers(
+  sourceFile: ts.SourceFile,
+  componentName: string,
+  context: NonGTSXHookAnalysisContext,
+): Set<string> {
+  const providers = new Set<string>()
+
+  visitComponent(sourceFile, context.entryPath, componentName)
+  return providers
+
+  function visitComponent(currentSourceFile: ts.SourceFile, currentPath: string, currentComponentName: string) {
+    const componentKey = `${currentPath}#${currentComponentName}`
+    if (context.visitedComponents.has(componentKey)) return
+    context.visitedComponents.add(componentKey)
+
+    const componentBody = getFunctionLikeBody(currentSourceFile, currentComponentName)
+    if (!componentBody) return
+
+    const scopeHookProviderNames = getScopeHookProviderNamesForFile(currentSourceFile, currentPath, context.cache)
+    const helperFunctions = getTopLevelFunctionLikeBodiesForPath(currentSourceFile, currentPath, context.cache)
+    const visitedHelpers = new Set<string>([currentComponentName])
+    const localComponentNames = helperFunctions
+    const importBindings = componentDependencyBindingsForFile(currentSourceFile, currentPath, context)
+
+    visit(componentBody, localComponentAliasBindingsForBody(componentBody))
+
+    function visit(node: ts.Node, localAliases: LocalComponentAliasBindings) {
+      if (ts.isCallExpression(node)) {
+        const contextProvider = gContextProviderNameFromCall(node)
+        if (contextProvider) {
+          providers.add(contextProvider)
+        } else if (ts.isIdentifier(node.expression) && scopeHookProviderNames.has(node.expression.text)) {
+          for (const providerName of scopeHookProviderNames.get(node.expression.text) ?? []) providers.add(providerName)
+        } else if (ts.isIdentifier(node.expression) && !isHookName(node.expression.text)) {
+          visitHelper(node.expression.text)
+        }
+      }
+
+      if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+        visitJSXDependency(node.tagName, localAliases)
+      }
+
+      ts.forEachChild(node, (child) => visit(child, localAliases))
+    }
+
+    function visitHelper(functionName: string) {
+      if (visitedHelpers.has(functionName)) return
+      const helperBody = helperFunctions.get(functionName)
+      if (!helperBody) return
+
+      visitedHelpers.add(functionName)
+      visit(helperBody, localComponentAliasBindingsForBody(helperBody))
+    }
+
+    function visitJSXDependency(tagName: ts.JsxTagNameExpression, localAliases: LocalComponentAliasBindings) {
+      const target = componentDependencyTargetForJsxTag(tagName, {
+        filePath: currentPath,
+        importBindings,
+        localAliases,
+        localComponentNames,
+      })
+      if (!target) return
+
+      const targetSourceFile = sourceFileForPath(target.filePath, context)
+      if (!targetSourceFile) return
+
+      visitComponent(targetSourceFile, target.filePath, target.componentName)
+    }
+  }
+}
+
+function gContextProviderNameFromCall(node: ts.CallExpression): string | undefined {
+  if (!ts.isIdentifier(node.expression)) return undefined
+  if (node.expression.text !== "useGContext" && node.expression.text !== "useGContextUpdate") return undefined
+
+  const provider = node.arguments[0] ? unwrapExpression(node.arguments[0]) : undefined
+  return provider && ts.isIdentifier(provider) ? provider.text : undefined
+}
+
 function localComponentAliasBindingsForBody(body: ts.ConciseBody): LocalComponentAliasBindings {
   const aliases = new Map<string, string>()
   if (!ts.isBlock(body)) return aliases
@@ -716,9 +2222,16 @@ function localComponentAliasBindingsForBody(body: ts.ConciseBody): LocalComponen
 }
 
 function getFunctionLikeBody(sourceFile: ts.SourceFile, functionName: string): ts.ConciseBody | undefined {
+  return getFunctionLikeDeclaration(sourceFile, functionName)?.body
+}
+
+function getFunctionLikeDeclaration(
+  sourceFile: ts.SourceFile,
+  functionName: string,
+): ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction | undefined {
   for (const statement of sourceFile.statements) {
     if (ts.isFunctionDeclaration(statement) && statement.name?.text === functionName) {
-      return statement.body
+      return statement
     }
 
     if (!ts.isVariableStatement(statement)) continue
@@ -727,7 +2240,7 @@ function getFunctionLikeBody(sourceFile: ts.SourceFile, functionName: string): t
 
       const initializer = unwrapExpression(declaration.initializer)
       if (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) {
-        return initializer.body
+        return initializer
       }
     }
   }
@@ -1066,12 +2579,12 @@ function getCasesAssignment(
       message: "GTSX cases must be a statically enumerable object literal.",
       file: sourceFile.fileName,
     })
-    return { targetName: expression.left.expression.text, cases: [] }
+    return { targetName: expression.left.expression.text, cases: [], staticCases: [] }
   }
 
   return {
     targetName: expression.left.expression.text,
-    cases: readCasesObject(casesExpression, sourceFile, diagnostics),
+    ...readCasesObject(casesExpression, sourceFile, diagnostics),
   }
 }
 
@@ -1079,8 +2592,9 @@ function readCasesObject(
   objectLiteral: ts.ObjectLiteralExpression,
   sourceFile: ts.SourceFile,
   diagnostics: GTSXDiagnostic[],
-): GTSXCaseSummary[] {
+): Pick<CasesAssignment, "cases" | "staticCases"> {
   const cases: GTSXCaseSummary[] = []
+  const staticCases: GTSXCaseStaticFacts[] = []
 
   for (const property of objectLiteral.properties) {
     if (ts.isSpreadAssignment(property)) {
@@ -1106,17 +2620,188 @@ function readCasesObject(
       continue
     }
 
+    const providerVariants = readProviderVariantMarkers(property.initializer)
     const caseValue = unwrapExpression(property.initializer)
     const providers = ts.isObjectLiteralExpression(caseValue) ? readProviderSelections(caseValue) : undefined
     const kind = ts.isObjectLiteralExpression(caseValue) && hasStaticProperty(caseValue, "scope") ? "scope" : "pure"
     cases.push({
       kind,
       name: caseName,
+      ...(providerVariants && Object.keys(providerVariants).length > 0 ? { providerVariants } : {}),
       ...(providers && Object.keys(providers).length > 0 ? { providers } : {}),
     })
+    staticCases.push(readCaseStaticFacts(caseName, caseValue, providerVariants))
   }
 
-  return cases
+  return { cases, staticCases }
+}
+
+function readProviderVariantMarkers(expression: ts.Expression): Record<string, string> | undefined {
+  if (ts.isSatisfiesExpression(expression)) return readProviderVariantMarkersFromType(expression.type)
+  if (ts.isAsExpression(expression) || ts.isParenthesizedExpression(expression)) return readProviderVariantMarkers(expression.expression)
+  return undefined
+}
+
+function readCaseStaticFacts(
+  caseName: string,
+  caseValue: ts.Expression,
+  providerVariants: Record<string, string> | undefined,
+): GTSXCaseStaticFacts {
+  const values = new Map<string, StaticBranchValue>()
+
+  if (ts.isObjectLiteralExpression(caseValue)) {
+    const props = objectLiteralPropertyExpression(caseValue, "props")
+    if (props) flattenStaticObjectExpression(props, "props", values)
+
+    const scope = objectLiteralPropertyExpression(caseValue, "scope")
+    if (scope) flattenStaticObjectExpression(scope, "scope", values)
+
+    const providers = objectLiteralPropertyExpression(caseValue, "providers")
+    if (providers) flattenProviderStaticValues(providers, values)
+  }
+
+  for (const [providerName, variant] of Object.entries(providerVariants ?? {})) {
+    values.set(`context.${providerName}.variant`, { kind: "string", value: variant })
+  }
+
+  return {
+    name: caseName,
+    ...(providerVariants && Object.keys(providerVariants).length > 0 ? { providerVariants } : {}),
+    values,
+  }
+}
+
+function objectLiteralPropertyExpression(objectLiteral: ts.ObjectLiteralExpression, propertyName: string): ts.Expression | undefined {
+  const property = objectLiteral.properties.find(
+    (candidate): candidate is ts.PropertyAssignment =>
+      ts.isPropertyAssignment(candidate) && getStaticPropertyName(candidate.name) === propertyName,
+  )
+  return property ? unwrapExpression(property.initializer) : undefined
+}
+
+function flattenProviderStaticValues(expression: ts.Expression, values: Map<string, StaticBranchValue>) {
+  const providersValue = unwrapExpression(expression)
+  if (!ts.isArrayLiteralExpression(providersValue)) return
+
+  for (const element of providersValue.elements) {
+    const entry = unwrapExpression(element)
+    if (!ts.isArrayLiteralExpression(entry)) continue
+
+    const providerExpression = entry.elements[0] ? unwrapExpression(entry.elements[0]) : undefined
+    const valueExpression = entry.elements[1] ? unwrapExpression(entry.elements[1]) : undefined
+    if (!providerExpression || !ts.isIdentifier(providerExpression) || !valueExpression) continue
+
+    flattenStaticObjectExpression(valueExpression, `context.${providerExpression.text}`, values)
+  }
+}
+
+function flattenStaticObjectExpression(expression: ts.Expression, prefix: string, values: Map<string, StaticBranchValue>) {
+  const value = unwrapExpression(expression)
+  const staticValue = readStaticBranchValue(value)
+  if (staticValue) {
+    setStaticBranchValue(values, prefix, staticValue)
+    if (staticValue.kind === "array") setStaticBranchValue(values, `${prefix}.length`, { kind: "number", value: staticValue.length })
+    if (staticValue.kind === "string") setStaticBranchValue(values, `${prefix}.length`, { kind: "number", value: staticValue.value.length })
+  }
+
+  if (ts.isArrayLiteralExpression(value)) {
+    for (const element of value.elements) {
+      if (ts.isSpreadElement(element)) {
+        setStaticBranchValue(values, `${prefix}.number`, { kind: "unknown" })
+        continue
+      }
+      flattenStaticObjectExpression(element, `${prefix}.number`, values)
+    }
+    return
+  }
+
+  if (!ts.isObjectLiteralExpression(value)) {
+    if (!staticValue) setStaticBranchValue(values, prefix, { kind: "unknown" })
+    return
+  }
+
+  for (const property of value.properties) {
+    if (ts.isSpreadAssignment(property)) {
+      setStaticBranchValue(values, prefix, { kind: "unknown" })
+      continue
+    }
+
+    if (!ts.isPropertyAssignment(property)) continue
+
+    const propertyName = getStaticPropertyName(property.name)
+    if (!propertyName) continue
+
+    flattenStaticObjectExpression(property.initializer, `${prefix}.${propertyName}`, values)
+  }
+}
+
+function setStaticBranchValue(values: Map<string, StaticBranchValue>, key: string, value: StaticBranchValue) {
+  const existing = values.get(key)
+  if (!existing) {
+    values.set(key, value)
+    return
+  }
+
+  if (sameStaticBranchValue(existing, value)) return
+  values.set(key, { kind: "oneOf", values: [...staticBranchValueOptions(existing), value] })
+}
+
+function staticBranchValueOptions(value: StaticBranchValue): StaticBranchValue[] {
+  return value.kind === "oneOf" ? value.values : [value]
+}
+
+function readStaticBranchValue(expression: ts.Expression): StaticBranchValue | undefined {
+  const value = unwrapExpression(expression)
+
+  if (value.kind === ts.SyntaxKind.TrueKeyword) return { kind: "boolean", value: true }
+  if (value.kind === ts.SyntaxKind.FalseKeyword) return { kind: "boolean", value: false }
+  if (value.kind === ts.SyntaxKind.NullKeyword) return { kind: "null" }
+  if (ts.isIdentifier(value) && value.text === "undefined") return { kind: "undefined" }
+  if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) return { kind: "string", value: value.text }
+  if (ts.isNumericLiteral(value)) return { kind: "number", value: Number(value.text) }
+  if (ts.isArrayLiteralExpression(value)) {
+    if (value.elements.some((element) => ts.isSpreadElement(element))) return undefined
+    return { kind: "array", length: value.elements.length }
+  }
+  if (ts.isObjectLiteralExpression(value)) return { kind: "object" }
+  if (ts.isArrowFunction(value) || ts.isFunctionExpression(value)) return { kind: "truthy" }
+  if (ts.isPrefixUnaryExpression(value) && value.operator === ts.SyntaxKind.ExclamationToken) {
+    const inner = readStaticBranchValue(value.operand)
+    const truthy = inner ? staticBranchValueTruthy(inner) : undefined
+    return truthy === undefined ? undefined : { kind: "boolean", value: !truthy }
+  }
+
+  return undefined
+}
+
+function readProviderVariantMarkersFromType(typeNode: ts.TypeNode): Record<string, string> {
+  const variants: Record<string, string> = {}
+
+  visit(typeNode)
+  return variants
+
+  function visit(node: ts.TypeNode) {
+    if (ts.isIntersectionTypeNode(node) || ts.isUnionTypeNode(node)) {
+      for (const child of node.types) visit(child)
+      return
+    }
+
+    if (ts.isParenthesizedTypeNode(node)) {
+      visit(node.type)
+      return
+    }
+
+    if (!ts.isTypeReferenceNode(node)) return
+    if (!ts.isIdentifier(node.typeName) || node.typeName.text !== "GProviderCase") return
+
+    const providerType = node.typeArguments?.[0]
+    const variantType = node.typeArguments?.[1]
+    if (!providerType || !variantType || !ts.isTypeQueryNode(providerType)) return
+    if (!ts.isIdentifier(providerType.exprName)) return
+    if (!ts.isLiteralTypeNode(variantType) || !ts.isStringLiteral(variantType.literal)) return
+
+    variants[providerType.exprName.text] = variantType.literal.text
+  }
 }
 
 function readProviderSelections(caseValue: ts.ObjectLiteralExpression): string[] | undefined {
@@ -1159,11 +2844,11 @@ function unwrapExpression(expression: ts.Expression): ts.Expression {
   return expression
 }
 
-function isCreateGScopeCall(expression: ts.Expression): boolean {
+function isCreateGScopeCall(expression: ts.Expression): expression is ts.CallExpression {
   return ts.isCallExpression(expression) && ts.isIdentifier(expression.expression) && expression.expression.text === "createGScopeHook"
 }
 
-function isCreateGProviderCall(expression: ts.Expression): boolean {
+function isCreateGProviderCall(expression: ts.Expression): expression is ts.CallExpression {
   return ts.isCallExpression(expression) && ts.isIdentifier(expression.expression) && expression.expression.text === "createGProvider"
 }
 

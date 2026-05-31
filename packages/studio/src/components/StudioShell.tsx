@@ -7,11 +7,12 @@ import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import {
   canvasViewportPresetForWorkspace,
   changeStudioCanvasViewportPreset,
+  changeStudioComponentProviderVariant,
+  changeStudioRootProviderVariant,
   changeStudioViewportPreset,
   createStudioPreviewPoolUrl,
   createStudioWorkspaceStateFromUrl,
   currentStudioPreviewTargets,
-  currentPreviewSessionIds,
   initialStudioUrlSearchParams,
   isGPreviewProtocolMessage,
   isStudioPreviewPoolDisabled,
@@ -20,6 +21,7 @@ import {
   pushStudioWorkspaceUrlState,
   replaceStudioCanvasUrlState,
   selectStudioComponent,
+  studioWorkspaceWithProviderVariantFilters,
   type StudioCanvasTransform,
   type StudioComponentSelectionOptions,
   type StudioPreviewFrameState,
@@ -69,6 +71,8 @@ type StudioShellScope = {
   disablePreviewPool: boolean
   onChangeCanvas: (canvas: StudioCanvasTransform) => void
   onChangeCanvasViewportPreset: (preset: StudioViewportPreset) => void
+  onChangeProviderVariant: (path: string[], providerName: string, variant: string | undefined) => void
+  onChangeRootProviderVariant: (providerName: string, variant: string | undefined) => void
   onChangeSelection: (selection: string) => void
   onChangeViewportPreset: (component: StudioManifestComponent, preset: StudioViewportPreset) => void
   onPreviewFrameMount: (
@@ -117,10 +121,11 @@ function useStudioShellScope(props: StudioShellLoadedProps): StudioShellScope {
   const canvasUrlState = useStudioCanvasUrlState(initialUrlState.canvas)
   const [urlWarning, setUrlWarning] = React.useState(initialUrlState.warning)
   const [workspace, setWorkspace] = React.useState(initialUrlState.workspace)
+  const filteredWorkspace = React.useMemo(() => studioWorkspaceWithProviderVariantFilters(workspace), [workspace])
   const previewFrames = React.useRef(new Map<string, HTMLIFrameElement>())
   const previewFrameMountedAt = React.useRef(new Map<string, number>())
-  const sessionIds = React.useMemo(() => currentPreviewSessionIds(workspace), [workspace])
-  const currentTargets = React.useMemo(() => currentStudioPreviewTargets(props.manifest, workspace), [props.manifest, workspace])
+  const currentTargets = React.useMemo(() => currentStudioPreviewTargets(props.manifest, filteredWorkspace), [props.manifest, filteredWorkspace])
+  const sessionIds = React.useMemo(() => new Set(currentTargets.map((target) => target.sessionId)), [currentTargets])
   const previewCacheNamespace = React.useMemo(() => studioPreviewIndexedDBNamespace(props.manifest), [props.manifest])
   const previewGeometryCacheKeys = React.useMemo(() => studioPreviewGeometryCacheKeys(props.manifest), [props.manifest])
   const previewGeometryCacheStore = React.useMemo(
@@ -253,6 +258,12 @@ function useStudioShellScope(props: StudioShellLoadedProps): StudioShellScope {
     onChangeCanvasViewportPreset(preset) {
       commitWorkspace((current) => changeStudioCanvasViewportPreset(current, preset))
     },
+    onChangeProviderVariant(path, providerName, variant) {
+      commitWorkspace((current) => changeStudioComponentProviderVariant(current, path, providerName, variant))
+    },
+    onChangeRootProviderVariant(providerName, variant) {
+      commitWorkspace((current) => changeStudioRootProviderVariant(current, providerName, variant))
+    },
     onChangeSelection(nextSelection) {
       const params = new URLSearchParams()
       params.set("selection", nextSelection)
@@ -287,7 +298,7 @@ function useStudioShellScope(props: StudioShellLoadedProps): StudioShellScope {
     previewRenderQueue,
     selection,
     urlWarning,
-    workspace,
+    workspace: filteredWorkspace,
   }
 }
 
@@ -572,6 +583,8 @@ function StudioShellLoaded(props: StudioShellLoadedProps) {
         debugPreviewQueue={scope.debugPreviewQueue}
         manifest={props.manifest}
         onChangeCanvas={scope.onChangeCanvas}
+        onChangeProviderVariant={scope.onChangeProviderVariant}
+        onChangeRootProviderVariant={scope.onChangeRootProviderVariant}
         onSelectComponent={scope.onSelectComponent}
         onChangeCanvasViewportPreset={scope.onChangeCanvasViewportPreset}
         onChangeSelection={scope.onChangeSelection}

@@ -31,6 +31,9 @@ export type {
   GProviderStates,
   GProviderUpdate,
   GProviderUseValue,
+  GProviderVariant,
+  GProviderCase,
+  GProviderOptions,
   GCase,
   GCases,
 } from "./types.js"

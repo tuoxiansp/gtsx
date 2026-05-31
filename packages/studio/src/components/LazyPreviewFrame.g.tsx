@@ -24,6 +24,7 @@ type LazyPreviewFrameProps = {
   debugIndicatorScale?: number
   debugPreviewPool?: boolean
   debugPreviewQueue?: boolean
+  dimmed?: boolean
   frameState?: StudioPreviewFrameState
   onSelect?: () => void
   onPreviewFrameMount?: (
@@ -124,6 +125,7 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
             <StudioPreviewIframe
               onBorrowOriginChange={props.debugPreviewPool || props.debugPreviewQueue ? scope.setBorrowOrigin : undefined}
               onPreviewFrameMount={props.onPreviewFrameMount}
+              dimmed={props.dimmed}
               size={props.size}
               slot={{
                 previewUrl: props.previewUrl,

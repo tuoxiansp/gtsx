@@ -16,9 +16,11 @@ The protocol layer is small. It adds three things, all optional, all additive:
 
 1. **A naming convention** — the `.g.tsx` extension marks files that participate in the protocol.
 2. **A static export** — `Component.cases = { ... }` declares the component's visual states.
-3. **Two seam helpers** — `createGScopeHook` for previewing stateful components, `createGProvider` for previewing context-dependent components.
+3. **Two seam helpers** — `createGScopeHook` for previewing stateful components, `createGProvider` for previewing context-dependent components and, when useful, declaring named provider variants.
 
 None of these modify React. None change how your component renders in production. None require modifying the component's own runtime code.
+
+The important constraint is that the protocol must remain statically visible. gtsx does not need to understand every possible JavaScript execution path, but it does need to understand the visual branches a `.g.tsx` component exposes. If props, gtsx scope, or gtsx provider context decide whether JSX appears, that decision must be written in a form `gtsx check` can inspect and the cases must include a state that reaches it.
 
 ## What gtsx Will Not Do To Your Project
 
@@ -91,6 +93,30 @@ In Studio and preview, a substitution happens at exactly one boundary — the sc
 - The render path is the same component, the same TSX, the same React.
 
 The component code itself does not branch on "am I in preview?". The substitution happens above it, at the seam. This means your component code stays simple, your production behavior stays correct, and there is exactly one well-defined place where preview differs from production.
+
+## The Static Contract
+
+Cases are more than named screenshots. They are the static contract between a component's visual structure and the values that drive it.
+
+For a `.g.tsx` component, gtsx treats three inputs as the source of visual state:
+
+- `props`
+- the value returned from a `createGScopeHook(...)` hook
+- values read through `useGContext(Provider)`
+
+Provider variants are a semantic label on that third input. A provider can opt into a finite axis such as `login | anonymous`, `light | dark`, or `reviewer | regular`. Cases then mark which variant they represent with `GProviderCase<typeof Provider, "variant">`. The marker is static metadata: it tells Studio and `gtsx check` what environment state the case covers. Runtime context state is still supplied separately through `providers: [[Provider, value]]`.
+
+When one of those values controls whether a child component or JSX subtree is rendered, `gtsx check` follows that control flow and asks a narrow question: does at least one case make this branch reachable? It does not try to prove every combination of every prop. It only prevents a visual branch from being present in the component while disappearing entirely from the case set.
+
+This is why JSX-producing control flow must stay first-order over the gtsx inputs. Direct conditionals, `if` returns, `&&`, `||`, direct comparisons, JSX children, slots, and collection callbacks such as `props.items.map((item) => item.visible ? <Row /> : null)` are inspectable because the JSX branch can be traced back to `props`, scope, or context. Helper predicates, statement-level branching such as `switch` or loops that return JSX, stored JSX variables, and callback sources that cannot be traced to gtsx inputs are opaque. They may be valid React, but they are not valid gtsx protocol shape unless refactored into inspectable expressions.
+
+Case values follow the same rule. Literal props, scope values, provider values, and literal arrays can be inspected. Values imported from helpers or composed through spread may still typecheck, but they are not static enough for branch coverage; when they affect JSX reachability, `gtsx check` reports that uncertainty instead of silently accepting it.
+
+Provider variant coverage follows the same philosophy. If a component consumes a provider with declared variants, its cases must cover those variants. A child component that only receives plain props can still mark cases with `GProviderCase` when those props are projections of a parent environment; this lets Studio show the same environment axis without forcing the child to read context.
+
+In Studio, declared provider variants become environment controls. A root selection acts like an upstream variant constraint for the canvas. A component-level selection acts like a local override. Cases remain visible; matching and mismatching cases are distinguished instead of being filtered away, so the canvas keeps showing the full state model while making the active environment obvious.
+
+All of these diagnostics are fatal. `gtsx check` exits non-zero for opaque control flow, unknown branch coverage, or uncovered JSX branches. The point is not to restrict how production React works. The point is to make sure Studio's map of a component's visual states cannot drift away from the component's real TSX.
 
 ## Easy Exit
 

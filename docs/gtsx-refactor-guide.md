@@ -63,6 +63,10 @@ For components that mix hooks/effects/state with visual TSX:
 5. The `.g.tsx` component calls only the gtsx hook and renders real TSX.
 6. Add cases injecting `scope` for each important visual state.
 
+If the UI reads context through `useGContext(Provider)` or through a scope hook that depends on provider values, decide whether that provider has a meaningful finite environment axis. For axes such as auth state, role, theme, locale, or platform, declare provider variants and mark cases with `GProviderCase`. Omit variants when the provider only carries arbitrary data.
+
+Keep JSX-producing branches inspectable while splitting. Direct `if` returns, ternaries, `&&`, `||`, and traceable collection callbacks are valid gtsx shape. Helper predicates, `switch`, JSX-returning loops, and local variables that store JSX hide reachability from `gtsx check`; refactor them before considering the migration complete.
+
 ```tsx
 import { createGScopeHook, type GCases } from "@gtsx/core"
 
@@ -143,6 +147,8 @@ Also avoid:
 - Passing routers, query clients, stores, or entire payloads through scope (pass only what the view renders)
 - Cases named `case1`, `test`, `withData` (name by visual state)
 - Sweeping a directory and generating `.g.tsx` for every file
+- Hiding JSX reachability behind helper predicates, `switch`, JSX-returning loops, or local JSX variables
+- Marking provider variants just because a provider exists; variants should represent a useful environment axis
 
 ## Completion Standard
 
@@ -152,10 +158,11 @@ A refactor is done when:
 - [ ] Export names and props contracts remain stable
 - [ ] Local imports point at the `.g` module (or barrel re-exports it)
 - [ ] Cases enumerate meaningful visual states (at least two, happy-path first)
+- [ ] Consumed provider variants are declared and covered, when the provider has a meaningful finite axis
 - [ ] Stateful cases use concrete scope values and no-op callbacks
 - [ ] The old TSX no longer owns the migrated visual branches
 - [ ] `gtsx check` passes
 - [ ] Project typecheck passes
 - [ ] At least one case renders in Studio/preview (when available)
 
-`gtsx check` validates protocol shape — it does not prove the refactor moved real UI. That remains a design judgment.
+`gtsx check` validates protocol shape and catches unreachable, unknown, or opaque JSX branches. It still does not prove the refactor moved the right UI or chose meaningful cases — that remains a design judgment.

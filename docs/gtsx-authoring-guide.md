@@ -140,16 +140,17 @@ export default function Counter(props: CounterProps) {
 
 ## Providers
 
-Use `createGProvider` when cases need controlled context:
+Use `createGProvider` when cases need controlled context. If the provider has named environment states that Studio should expose, declare them as variants:
 
 ```tsx
 import React from "react"
-import { createGProvider, useGContext, type GCases } from "@gtsx/core"
+import { createGProvider, useGContext, type GCases, type GProviderCase } from "@gtsx/core"
 
 type ThemeScope = { mode: "light" | "dark" }
 
 const ThemeProvider = createGProvider((_props: Record<string, never>) =>
   React.useState<ThemeScope>({ mode: "light" }),
+  { variants: ["light", "dark"] as const },
 )
 
 type PanelProps = { title: string }
@@ -163,15 +164,50 @@ Panel.cases = {
   light: {
     props: { title: "Settings" },
     providers: [[ThemeProvider, { mode: "light" }]],
-  },
+  } satisfies GProviderCase<typeof ThemeProvider, "light", PanelProps, never, [typeof ThemeProvider]>,
   dark: {
     props: { title: "Settings" },
     providers: [[ThemeProvider, { mode: "dark" }]],
-  },
+  } satisfies GProviderCase<typeof ThemeProvider, "dark", PanelProps, never, [typeof ThemeProvider]>,
 } satisfies GCases<PanelProps, never, [typeof ThemeProvider]>
 ```
 
 `createGProvider(useValue)` follows the `react-tracked` model: the Provider owns state and update, `useGContext(Provider)` reads tracked state, `useGContextUpdate(Provider)` reads the update function.
+
+Variants are optional. Use them only when the provider represents a meaningful environment axis such as theme, sign-in state, role, locale, or platform. Omit `variants` for providers that merely pass arbitrary data.
+
+`GProviderCase` is a static marker. It does not inject provider state by itself; `providers: [[Provider, value]]` still supplies the preview context value. Keep the marker and value aligned when the component reads that provider.
+
+You can also use `GProviderCase` on a child that does not read the provider directly when its props are a projection of that environment:
+
+```tsx
+AccountName.cases = {
+  loginName: {
+    props: { userName: "Ada" },
+  } satisfies GProviderCase<typeof UserSignProvider, "login", AccountNameProps>,
+  anonymousName: {
+    props: { userName: "Guest" },
+  } satisfies GProviderCase<typeof UserSignProvider, "anonymous", AccountNameProps>,
+} satisfies GCases<AccountNameProps>
+```
+
+If a component consumes a provider with declared variants through `useGContext(Provider)` or a `createGScopeHook(..., [Provider])`, its cases must cover every declared variant.
+
+## JSX Branches
+
+If `props`, gtsx scope, or gtsx provider context decides whether JSX renders, write that branch so `gtsx check` can trace it back to those values.
+
+Good first-order branch shapes:
+
+```tsx
+return props.open ? <Panel /> : null
+
+if (scope.status === "ready") return <Panel />
+
+return props.items.map((item) => (item.visible ? <Row item={item} /> : null))
+```
+
+Avoid hiding JSX reachability behind helper predicates, `switch`, loops that return JSX, or local variables that store JSX. Those are valid React, but not inspectable gtsx protocol shape; `gtsx check` reports them as opaque control flow.
 
 ## Cases
 
@@ -246,8 +282,14 @@ gtsx check src                  # directory
 | `non-static-case-key` | Use literal case keys |
 | `non-gtsx-hook` | Wrap hook with `createGScopeHook`, call only the returned gtsx hook |
 | `scope-hook-cases-unsupported` | Move `.cases` from the scope hook to the component export |
+| `missing-provider-variant-cases` | Add cases marked with `GProviderCase` for every consumed provider variant |
+| `missing-provider-variants` | Add `variants: [...]` to the provider or remove the `GProviderCase` marker |
+| `unknown-provider-variant` | Use one of the provider's declared variants |
+| `opaque-jsx-control-flow` | Rewrite JSX-producing branches as direct props/scope/context expressions |
+| `unknown-jsx-branch-coverage` | Inline the case values that affect JSX reachability; avoid helper variables or spread there |
+| `uncovered-jsx-branch` | Add a case whose props, scope, or provider values make that JSX branch reachable |
 
-`gtsx check` validates protocol shape. It does not prove that the file owns real UI or that cases are meaningful — that remains a design judgment.
+`gtsx check` diagnostics are errors: any diagnostic makes the command exit non-zero. It validates protocol shape and branch reachability. It does not prove that the file owns real UI or that cases are meaningful — that remains a design judgment.
 
 ## Examples
 

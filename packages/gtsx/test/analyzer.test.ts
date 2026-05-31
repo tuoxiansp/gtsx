@@ -5,6 +5,7 @@ import { analyzeEntry } from "../src/analyzer.js"
 import { runCLI } from "../src/cli.js"
 
 const fixtureRoot = join(import.meta.dirname, "fixtures/check-project")
+const jsxControlFlowRoot = join(import.meta.dirname, "fixtures/jsx-control-flow")
 
 describe("GTSX analyzer", () => {
   it("discovers pure component cases through component-level metadata", () => {
@@ -24,15 +25,21 @@ describe("GTSX analyzer", () => {
       {
         kind: "scope",
         name: "loading",
+        providerVariants: { ThemeProvider: "light" },
         providers: ["ThemeProvider"],
       },
       {
         kind: "scope",
         name: "ready",
+        providerVariants: { ThemeProvider: "dark" },
         providers: ["ThemeProvider"],
       },
     ])
-    expect(result.providers.ThemeProvider.cases).toEqual([])
+    expect(result.providers.ThemeProvider).toEqual({
+      name: "ThemeProvider",
+      cases: [],
+      variants: ["light", "dark"],
+    })
   })
 
   it("discovers named component cases by file export coordinate", () => {
@@ -110,6 +117,7 @@ describe("GTSX analyzer", () => {
     const aliasChainHookDependency = analyzeEntry({ cwd: fixtureRoot, entry: "src/AliasChainHookDependency.g.tsx" })
     const aliasImportedDependency = analyzeEntry({ cwd: fixtureRoot, entry: "src/AliasImportedDependency.g.tsx" })
     const aliasPureDependency = analyzeEntry({ cwd: fixtureRoot, entry: "src/AliasPureDependency.g.tsx" })
+    const missingProviderVariant = analyzeEntry({ cwd: fixtureRoot, entry: "src/MissingProviderVariant.g.tsx" })
     const thinWrapper = analyzeEntry({ cwd: fixtureRoot, entry: "src/ThinWrapper.g.tsx" })
 
     expect(missingDefault.diagnostics).toContainEqual(
@@ -149,7 +157,65 @@ describe("GTSX analyzer", () => {
       expect.objectContaining({ code: "non-gtsx-hook", stage: "contract-extraction" }),
     )
     expect(aliasPureDependency.diagnostics).toEqual([])
+    expect(missingProviderVariant.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "missing-provider-variant-cases", stage: "contract-extraction" }),
+    )
     expect(thinWrapper.diagnostics).toEqual([])
+  })
+
+  it("allows provider variant projection cases without injecting provider values", () => {
+    const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/ProviderVariantProjection.g.tsx" })
+
+    expect(result.diagnostics).toEqual([])
+    expect(result.cases).toEqual([
+      {
+        kind: "pure",
+        name: "loginName",
+        providerVariants: { LoginProvider: "login" },
+      },
+      {
+        kind: "pure",
+        name: "anonymousName",
+        providerVariants: { LoginProvider: "anonymous" },
+      },
+    ])
+    expect(result.providers.LoginProvider).toEqual({
+      name: "LoginProvider",
+      cases: [],
+      variants: ["login", "anonymous"],
+    })
+  })
+
+  it("checks JSX tree reachability against props, scope, and GTSX context cases", () => {
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByProps" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByScope" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByContext" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByMapItem" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByMapItemNegation" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByRenderProp" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredBySlot" }).diagnostics).toEqual([])
+
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#UncoveredByProps" }).diagnostics).toContainEqual(
+      expect.objectContaining({ code: "uncovered-jsx-branch", stage: "contract-extraction" }),
+    )
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#UncoveredByMapItem" }).diagnostics).toContainEqual(
+      expect.objectContaining({ code: "uncovered-jsx-branch", stage: "contract-extraction" }),
+    )
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#OpaqueByHelper" }).diagnostics).toContainEqual(
+      expect.objectContaining({ code: "opaque-jsx-control-flow", stage: "contract-extraction" }),
+    )
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#OpaqueByMapHelper" }).diagnostics).toContainEqual(
+      expect.objectContaining({ code: "opaque-jsx-control-flow", stage: "contract-extraction" }),
+    )
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#OpaqueBySwitch" }).diagnostics).toContainEqual(
+      expect.objectContaining({ code: "opaque-jsx-control-flow", stage: "contract-extraction" }),
+    )
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#OpaqueByStoredJSX" }).diagnostics).toContainEqual(
+      expect.objectContaining({ code: "opaque-jsx-control-flow", stage: "contract-extraction" }),
+    )
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#OpaqueByForOf" }).diagnostics).toContainEqual(
+      expect.objectContaining({ code: "opaque-jsx-control-flow", stage: "contract-extraction" }),
+    )
   })
 
   it("prints stable JSON from gtsx check without invoking an adapter", async () => {

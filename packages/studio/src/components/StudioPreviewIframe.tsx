@@ -8,6 +8,7 @@ import type { StudioPreviewIframeBorrowOrigin, StudioPreviewIframeMountState } f
 import type { StudioPreviewFrameSlot } from "../preview-frame-slot"
 
 type StudioPreviewIframeProps = {
+  dimmed?: boolean
   onBorrowOriginChange?: (origin: StudioPreviewIframeBorrowOrigin | null) => void
   onPreviewFrameMount?: (
     sessionId: string,

@@ -8,7 +8,12 @@ import {
   computeStudioCaseGridLayout,
   createStudioPreviewUrl,
   previewSessionId,
+  studioPreviewCaseOverridesForProviderVariantContext,
   studioPreviewFrameSize,
+  studioProviderVariantCaseStatus,
+  studioProviderVariantAxes,
+  type StudioPreviewCaseOverride,
+  type StudioProviderVariantContext,
   type StudioPreviewFrameState,
 } from "../client"
 import {
@@ -50,6 +55,15 @@ type ComponentCardProps = {
     columnIndex: number,
     source: StudioCardSelectionSource,
   ) => void
+  onChangeProviderVariant?: (
+    component: StudioManifestComponent,
+    providerName: string,
+    variant: string | undefined,
+  ) => void
+  providerVariantComponent?: StudioManifestComponent
+  providerVariantContext?: StudioProviderVariantContext
+  providerVariantSelectionContext?: StudioProviderVariantContext
+  previewCaseOverrides?: readonly StudioPreviewCaseOverride[]
   selected: boolean
   selectedCaseName: string
   viewportPreset: StudioViewportPreset
@@ -57,6 +71,10 @@ type ComponentCardProps = {
 
 function ComponentCardView(props: ComponentCardProps) {
   const previewError = getPreviewError(props.component)
+  const providerVariantComponent = props.providerVariantComponent ?? props.component
+  const previewCaseOverrides =
+    props.previewCaseOverrides ??
+    studioPreviewCaseOverridesForProviderVariantContext(props.manifest, props.providerVariantContext ?? {})
   const effectiveCaseFrameStates = Object.fromEntries(
     props.component.cases.map((testCase) => [
       testCase.name,
@@ -74,11 +92,19 @@ function ComponentCardView(props: ComponentCardProps) {
     const layoutFrameState = effectiveCaseLayoutFrameStates[testCase.name]
     const sessionId = previewSessionId(props.component, testCase.name, props.viewportPreset)
     const displaySize = studioPreviewFrameSize(props.viewportPreset, layoutFrameState?.size)
-    const previewUrl = createStudioPreviewUrl(props.manifest, props.component, testCase.name, sessionId, { static: true })
+    const previewUrl = createStudioPreviewUrl(props.manifest, props.component, testCase.name, sessionId, {
+      caseOverrides: previewCaseOverrides,
+      static: true,
+    })
     const boundaryRect = boundaryRectForComponent(layoutFrameState?.tree, props.component.coordinate)
     const visibleBoundaryRect = clipPreviewBoundaryRectToViewport(boundaryRect, displaySize)
     const layoutWidth = Number(previewFrameLayoutWidth(displaySize, visibleBoundaryRect))
     const layoutHeight = previewFrameLayoutHeight(displaySize, visibleBoundaryRect)
+    const providerVariantStatus = studioProviderVariantCaseStatus(
+      providerVariantComponent,
+      testCase,
+      props.providerVariantContext,
+    )
 
     return {
       displaySize,
@@ -87,6 +113,7 @@ function ComponentCardView(props: ComponentCardProps) {
       layoutWidth,
       name: testCase.name,
       previewUrl,
+      providerVariantStatus,
       sessionId,
       visibleBoundaryRect,
     }
@@ -102,6 +129,9 @@ function ComponentCardView(props: ComponentCardProps) {
   const cardWidth = Math.max(280, caseGridLayout.width)
   const columnIndex = props.columnIndex ?? 0
   const firstCaseName = props.component.cases[0]?.name ?? props.selectedCaseName
+  const variantAxes = props.onChangeProviderVariant
+    ? studioProviderVariantAxes(providerVariantComponent, props.providerVariantSelectionContext ?? {})
+    : []
 
   return (
     <article
@@ -127,6 +157,94 @@ function ComponentCardView(props: ComponentCardProps) {
       >
         {props.component.componentName}
       </strong>
+      {variantAxes.length > 0 ? (
+        <div
+          data-gtsx-env-controls={props.component.coordinate}
+          style={{
+            alignItems: "start",
+            display: "grid",
+            gap: 5,
+          }}
+        >
+          {variantAxes.map((axis) => (
+            <div
+              data-gtsx-env-axis={axis.providerName}
+              key={axis.providerName}
+              style={{
+                alignItems: "center",
+                display: "grid",
+                gap: 6,
+                gridTemplateColumns: "minmax(72px, max-content) 1fr",
+                minWidth: 0,
+              }}
+            >
+              <span
+                title={axis.providerName}
+                style={{
+                  color: "#57606a",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  lineHeight: 1.1,
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {providerVariantAxisLabel(axis.providerName)}
+              </span>
+              <div
+                aria-label={`${axis.providerName} variants`}
+                role="group"
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 4,
+                  minWidth: 0,
+                }}
+              >
+                {axis.variants.map((variant) => (
+                  <button
+                    aria-pressed={variant.selected}
+                    data-gtsx-env-selected={variant.selected ? "true" : undefined}
+                    data-gtsx-env-variant={variant.name}
+                    key={variant.name}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      props.onChangeProviderVariant?.(
+                        props.component,
+                        axis.providerName,
+                        variant.selected ? undefined : variant.name,
+                      )
+                    }}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    title={variant.selected ? `${axis.providerName}: inherit` : `${axis.providerName}: ${variant.name}`}
+                    type="button"
+                    style={{
+                      appearance: "none",
+                      background: variant.selected ? "#0969da" : "#ffffff",
+                      border: `1px solid ${variant.selected ? "#0969da" : "#d0d7de"}`,
+                      borderRadius: 5,
+                      color: variant.selected ? "#ffffff" : "#24292f",
+                      cursor: "pointer",
+                      fontSize: 10,
+                      fontWeight: 650,
+                      lineHeight: 1.1,
+                      maxWidth: 108,
+                      overflow: "hidden",
+                      padding: "4px 6px",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {variant.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {previewError ? (
         <PreviewError
           caseName={firstCaseName}
@@ -151,6 +269,7 @@ function ComponentCardView(props: ComponentCardProps) {
         >
           {caseTiles.map((tile) => (
             <div
+              data-gtsx-case-provider-variant-state={tile.providerVariantStatus.state}
               data-gtsx-case-tile={tile.name}
               key={tile.name}
               onClick={() => props.onSelect?.(props.component, effectiveCaseFrameStates, columnIndex, "pointer")}
@@ -170,10 +289,11 @@ function ComponentCardView(props: ComponentCardProps) {
                 width: caseGridLayout.cellWidth,
               }}
               tabIndex={0}
+              title={tile.providerVariantStatus.title}
             >
               <strong
                 style={{
-                  color: "#57606a",
+                  color: tile.providerVariantStatus.state === "mismatch" ? "#8c959f" : "#57606a",
                   fontSize: 11,
                   lineHeight: `${studioComponentCaseChromeHeight - 5}px`,
                   overflow: "hidden",
@@ -195,9 +315,12 @@ function ComponentCardView(props: ComponentCardProps) {
                 }}
               >
                 <div
+                  data-gtsx-case-preview-content={tile.name}
                   style={{
+                    filter: tile.providerVariantStatus.state === "mismatch" ? "grayscale(0.9)" : undefined,
                     height: tile.layoutHeight,
                     left: 0,
+                    opacity: tile.providerVariantStatus.state === "mismatch" ? 0.42 : undefined,
                     position: "absolute",
                     top: 0,
                     transform: `scale(${caseGridLayout.previewScale})`,
@@ -212,6 +335,7 @@ function ComponentCardView(props: ComponentCardProps) {
                     debugIndicatorScale={caseGridLayout.previewScale}
                     debugPreviewPool={props.debugPreviewPool}
                     debugPreviewQueue={props.debugPreviewQueue}
+                    dimmed={tile.providerVariantStatus.state === "mismatch"}
                     frameState={tile.frameState}
                     onSelect={() => props.onSelect?.(props.component, effectiveCaseFrameStates, columnIndex, "pointer")}
                     onPreviewFrameMount={props.onPreviewFrameMount}
@@ -239,6 +363,20 @@ function ComponentCardView(props: ComponentCardProps) {
                     </div>
                   ) : null}
                 </div>
+                {tile.providerVariantStatus.state === "mismatch" ? (
+                  <div
+                    data-gtsx-case-provider-variant-overlay={tile.name}
+                    style={{
+                      background:
+                        "repeating-linear-gradient(135deg, rgba(87,96,106,0.42) 0, rgba(87,96,106,0.42) 7px, rgba(255,255,255,0.12) 7px, rgba(255,255,255,0.12) 14px), rgba(87,96,106,0.18)",
+                      boxShadow: "inset 0 0 0 2px rgba(87,96,106,0.46)",
+                      inset: 0,
+                      pointerEvents: "none",
+                      position: "absolute",
+                      zIndex: 6,
+                    }}
+                  />
+                ) : null}
               </div>
             </div>
           ))}
@@ -323,8 +461,13 @@ function areComponentCardPropsEqual(previous: ComponentCardProps, next: Componen
     previous.debugPreviewQueue !== next.debugPreviewQueue ||
     previous.frameState !== next.frameState ||
     previous.manifest !== next.manifest ||
+    previous.onChangeProviderVariant !== next.onChangeProviderVariant ||
     previous.onPreviewFrameMount !== next.onPreviewFrameMount ||
     previous.onSelect !== next.onSelect ||
+    previous.providerVariantComponent !== next.providerVariantComponent ||
+    previous.providerVariantContext !== next.providerVariantContext ||
+    previous.providerVariantSelectionContext !== next.providerVariantSelectionContext ||
+    previous.previewCaseOverrides !== next.previewCaseOverrides ||
     previous.selected !== next.selected ||
     previous.selectedCaseName !== next.selectedCaseName ||
     previous.viewportPreset !== next.viewportPreset
@@ -370,6 +513,10 @@ function componentCardPreviewFrameStateName(frameState: ComponentCardFrameState 
   if (frameState?.error) return "error"
   if (frameState?.ready) return "ready"
   return "loading"
+}
+
+function providerVariantAxisLabel(providerName: string): string {
+  return providerName.endsWith("Provider") ? providerName.slice(0, -"Provider".length) : providerName
 }
 
 function boundaryRectForComponent(tree: ComponentCardFrameState["tree"], coordinate: string): GBoundaryRect | undefined {

@@ -7,13 +7,16 @@ import { describe, expect, it, vi } from "vitest"
 import {
   StudioShell,
   StudioWorkspaceView,
+  type StudioManifestComponent,
   createStudioManifest,
   applyStudioCardSelectionAction,
   applyStudioPreviewMessage,
   applyStudioPreviewMessageToFrameStates,
   applyStudioCanvasWheel,
   changeStudioComponentCase,
+  changeStudioComponentProviderVariant,
   changeStudioCanvasViewportPreset,
+  changeStudioRootProviderVariant,
   changeStudioViewportPreset,
   computeStudioCaseGridLayout,
   componentCardLayoutWidth,
@@ -45,8 +48,16 @@ import {
   selectedStudioCaseName,
   selectStudioRuntimeInstance,
   selectStudioComponent,
+  studioFilteredCasesForProviderVariantContext,
+  studioManifestProviderVariantAxes,
+  studioPreviewCaseOverridesForProviderVariantContext,
   studioPreviewCacheKey,
   studioPreviewGeometryCacheKeys,
+  studioProviderVariantAxes,
+  studioProviderVariantCaseStatus,
+  studioProviderVariantContextForPath,
+  studioProviderVariantSelectionContextForPath,
+  studioWorkspaceWithProviderVariantFilters,
   studioCanvasCardIndex,
   studioPreviewRenderPlanHasIncompleteVisibleRenderTasks,
   studioPreviewVisibilityItems,
@@ -813,6 +824,62 @@ describe("GTSX Studio shell", () => {
     expect(selectedGrid).not.toContain("border-radius")
     expect(selectionOutlineCount(html)).toBe(0)
     expect(html).not.toContain("data-gtsx-case-tile-selected")
+  })
+
+  it("renders provider variant controls as local toggles for component cases that model environments", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
+    if (!component) throw new Error("Missing UserCard fixture")
+
+    const html = renderToStaticMarkup(
+      <ComponentCard
+        component={component}
+        manifest={manifest}
+        onChangeProviderVariant={() => {}}
+        providerVariantContext={{ ThemeProvider: "light" }}
+        providerVariantSelectionContext={{}}
+        selected
+        selectedCaseName="loading"
+        viewportPreset="tablet"
+      />,
+    )
+
+    expect(html).toContain('data-gtsx-env-controls="src/UserCard.g.tsx#default"')
+    expect(html).toContain('data-gtsx-env-axis="ThemeProvider"')
+    expect(html).not.toContain('data-gtsx-env-variant="all"')
+    expect(envVariantButtonHtml(html, "light")).toContain('aria-pressed="false"')
+    expect(envVariantButtonHtml(html, "dark")).toContain('aria-pressed="false"')
+    expect(html).not.toContain("data-gtsx-case-tile-selected")
+  })
+
+  it("dims provider variant mismatches while keeping every case visible", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
+    if (!component) throw new Error("Missing UserCard fixture")
+
+    const html = renderToStaticMarkup(
+      <ComponentCard
+        component={component}
+        manifest={manifest}
+        onChangeProviderVariant={() => {}}
+        providerVariantComponent={component}
+        providerVariantContext={{ ThemeProvider: "dark" }}
+        providerVariantSelectionContext={{ ThemeProvider: "dark" }}
+        selected
+        selectedCaseName="ready"
+        viewportPreset="tablet"
+      />,
+    )
+
+    expect(caseTileHtml(html, "ready")).toContain('data-gtsx-case-tile="ready"')
+    expect(caseTileHtml(html, "ready")).toContain('data-gtsx-case-provider-variant-state="match"')
+    expect(caseTileHtml(html, "loading")).toContain('data-gtsx-case-tile="loading"')
+    expect(caseTileHtml(html, "loading")).toContain('data-gtsx-case-provider-variant-state="mismatch"')
+    expect(html).toContain('data-gtsx-case-provider-variant-overlay="loading"')
+    expect(html).toContain("repeating-linear-gradient(135deg")
+    expect(html).not.toContain('data-gtsx-env-variant="all"')
+    expect(envVariantButtonHtml(html, "light")).toContain('aria-pressed="false"')
+    expect(envVariantButtonHtml(html, "dark")).toContain('aria-pressed="true"')
   })
 
   it("keeps preview rendering containment below selection overlays", () => {
@@ -3144,6 +3211,12 @@ describe("GTSX Studio shell", () => {
     expect(
       studioPreviewIframeBorrowInputNeedsRender(input, {
         ...input,
+        dimmed: true,
+      }),
+    ).toBe(false)
+    expect(
+      studioPreviewIframeBorrowInputNeedsRender(input, {
+        ...input,
         size: { width: 390, height: 844 },
       }),
     ).toBe(true)
@@ -3334,6 +3407,26 @@ describe("GTSX Studio shell", () => {
     expect(nextState.selectedCoordinatePath).toEqual(["src/UserCard.g.tsx#default"])
   })
 
+  it("creates a child column from static dependencies even when they are absent from the current render tree", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const coordinate = "src/ImportedHookDependency.g.tsx#default"
+    const state = createStudioWorkspaceState(manifest, `component:${coordinate}`)
+
+    const nextState = selectStudioComponent(state, manifest, coordinate, [
+      {
+        id: "root",
+        coordinate,
+        children: [],
+      },
+    ])
+
+    expect(nextState.columns.map((column) => column.components.map((component) => component.coordinate))).toEqual([
+      [coordinate],
+      ["src/HookDependencyChild.g.tsx#HookDependencyChild"],
+    ])
+    expect(nextState.columns[1]?.parentCoordinate).toBe(coordinate)
+  })
+
   it("creates drilldown from all case trees without storing a highlighted case", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
     const coordinate = "src/UserCard.g.tsx#default"
@@ -3470,6 +3563,209 @@ describe("GTSX Studio shell", () => {
     if (!component) throw new Error("Missing component")
 
     expect(selectedStudioCaseName(createStudioWorkspaceState(manifest), component)).toBe("defaultReady")
+  })
+
+  it("derives Studio environment variant axes from annotated provider cases", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const component = manifest.files
+      .flatMap((file) => file.components)
+      .find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
+    if (!component) throw new Error("Missing component")
+    const loadingCase = component.cases.find((testCase) => testCase.name === "loading")
+    const readyCase = component.cases.find((testCase) => testCase.name === "ready")
+    if (!loadingCase || !readyCase) throw new Error("Missing UserCard cases")
+
+    expect(studioProviderVariantAxes(component, { ThemeProvider: "light" })).toEqual([
+      {
+        providerName: "ThemeProvider",
+        selectedVariant: "light",
+        variants: [
+          { caseName: "loading", name: "light", selected: true },
+          { caseName: "ready", name: "dark", selected: false },
+        ],
+      },
+    ])
+    expect(studioFilteredCasesForProviderVariantContext(component, { ThemeProvider: "dark" }).map((testCase) => testCase.name)).toEqual([
+      "loading",
+      "ready",
+    ])
+    expect(studioProviderVariantCaseStatus(component, loadingCase, { ThemeProvider: "dark" })).toMatchObject({
+      state: "mismatch",
+    })
+    expect(studioProviderVariantCaseStatus(component, readyCase, { ThemeProvider: "dark" })).toEqual({
+      state: "match",
+    })
+    expect(
+      studioManifestProviderVariantAxes(manifest, { ThemeProvider: "dark" }).find(
+        (axis) => axis.providerName === "ThemeProvider",
+      ),
+    ).toEqual({
+      providerName: "ThemeProvider",
+      selectedVariant: "dark",
+      variants: [
+        { name: "light", selected: false },
+        { name: "dark", selected: true },
+      ],
+    })
+  })
+
+  it("classifies component cases against every active provider variant", () => {
+    const component = {
+      coordinate: "src/Home.g.tsx#default",
+      filePath: "src/Home.g.tsx",
+      exportName: "default",
+      componentName: "Home",
+      mode: "scope",
+      cases: [
+        {
+          kind: "scope",
+          name: "loginReviewer",
+          providerVariants: { ReviewCapabilityProvider: "reviewer", UserSignProvider: "login" },
+        },
+        {
+          kind: "scope",
+          name: "loginRegular",
+          providerVariants: { ReviewCapabilityProvider: "regular", UserSignProvider: "login" },
+        },
+        {
+          kind: "scope",
+          name: "anonymousRegular",
+          providerVariants: { ReviewCapabilityProvider: "regular", UserSignProvider: "anonymous" },
+        },
+      ],
+      providers: {
+        ReviewCapabilityProvider: {
+          name: "ReviewCapabilityProvider",
+          cases: [],
+          variants: ["reviewer", "regular"],
+        },
+        UserSignProvider: {
+          name: "UserSignProvider",
+          cases: [],
+          variants: ["login", "anonymous"],
+        },
+      },
+      diagnostics: [],
+    } satisfies StudioManifestComponent
+
+    expect(studioFilteredCasesForProviderVariantContext(component, { ReviewCapabilityProvider: "regular" }).map((testCase) => testCase.name)).toEqual([
+      "loginReviewer",
+      "loginRegular",
+      "anonymousRegular",
+    ])
+    expect(
+      component.cases.map((testCase) => [
+        testCase.name,
+        studioProviderVariantCaseStatus(component, testCase, { ReviewCapabilityProvider: "regular" }).state,
+      ]),
+    ).toEqual([
+      ["loginReviewer", "mismatch"],
+      ["loginRegular", "match"],
+      ["anonymousRegular", "match"],
+    ])
+    expect(
+      component.cases.map((testCase) => [
+        testCase.name,
+        studioProviderVariantCaseStatus(component, testCase, {
+          ReviewCapabilityProvider: "regular",
+          UserSignProvider: "anonymous",
+        }).state,
+      ]),
+    ).toEqual([
+      ["loginReviewer", "mismatch"],
+      ["loginRegular", "mismatch"],
+      ["anonymousRegular", "match"],
+    ])
+    expect(studioFilteredCasesForProviderVariantContext(component, { ThemeProvider: "dark" }).map((testCase) => testCase.name)).toEqual([
+      "loginReviewer",
+      "loginRegular",
+      "anonymousRegular",
+    ])
+    const firstCase = component.cases[0]
+    if (!firstCase) throw new Error("Missing first case")
+    expect(studioProviderVariantCaseStatus(component, firstCase, { ThemeProvider: "dark" })).toEqual({
+      state: "neutral",
+    })
+  })
+
+  it("keeps all cases visible while root and component variants change match state", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const coordinate = "src/UserCard.g.tsx#default"
+    const rooted = changeStudioRootProviderVariant(createStudioWorkspaceState(manifest, `component:${coordinate}`), "ThemeProvider", "light")
+    const overridden = changeStudioComponentProviderVariant(rooted, [coordinate], "ThemeProvider", "dark")
+
+    const rootFiltered = studioWorkspaceWithProviderVariantFilters(rooted)
+    const overriddenFiltered = studioWorkspaceWithProviderVariantFilters(overridden)
+
+    const rootComponent = rootFiltered.columns[0]?.components[0]
+    const overriddenComponent = overriddenFiltered.columns[0]?.components[0]
+    if (!rootComponent || !overriddenComponent) throw new Error("Missing UserCard component")
+
+    expect(rootComponent.cases.map((testCase) => testCase.name)).toEqual(["loading", "ready"])
+    expect(overriddenComponent.cases.map((testCase) => testCase.name)).toEqual(["loading", "ready"])
+    expect(rootComponent.cases.map((testCase) => studioProviderVariantCaseStatus(rootComponent, testCase, { ThemeProvider: "light" }).state)).toEqual([
+      "match",
+      "mismatch",
+    ])
+    expect(
+      overriddenComponent.cases.map((testCase) =>
+        studioProviderVariantCaseStatus(overriddenComponent, testCase, { ThemeProvider: "dark" }).state,
+      ),
+    ).toEqual(["mismatch", "match"])
+    expect(studioProviderVariantContextForPath(overridden, [coordinate])).toEqual({ ThemeProvider: "dark" })
+    expect(studioProviderVariantSelectionContextForPath(rooted, [coordinate])).toEqual({})
+    expect(studioProviderVariantSelectionContextForPath(overridden, [coordinate])).toEqual({ ThemeProvider: "dark" })
+
+    const params = createStudioWorkspaceUrlSearchParams(undefined, overridden)
+    expect(params.getAll("rootEnv")).toEqual(["ThemeProvider:light"])
+    expect(params.getAll("env")).toEqual([`${coordinate}:ThemeProvider:dark`])
+
+    const restored = createStudioWorkspaceStateFromUrl(manifest, params).workspace
+    expect(studioProviderVariantContextForPath(restored, [coordinate])).toEqual({ ThemeProvider: "dark" })
+
+    const inherited = changeStudioComponentProviderVariant(overridden, [coordinate], "ThemeProvider", "dark")
+    expect(inherited.selectedProviderVariantsByPath).toEqual({})
+    expect(createStudioWorkspaceUrlSearchParams(undefined, inherited).getAll("env")).toEqual([])
+    expect(studioProviderVariantContextForPath(inherited, [coordinate])).toEqual({ ThemeProvider: "light" })
+    expect(studioProviderVariantSelectionContextForPath(inherited, [coordinate])).toEqual({})
+    expect(studioProviderVariantAxes(rootComponent, studioProviderVariantSelectionContextForPath(inherited, [coordinate]))[0]?.selectedVariant).toBeUndefined()
+  })
+
+  it("projects provider variant selection into preview case overrides", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const workspace = changeStudioRootProviderVariant(
+      createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
+      "ThemeProvider",
+      "dark",
+    )
+    const html = renderToStaticMarkup(<StudioWorkspaceView manifest={manifest} workspace={studioWorkspaceWithProviderVariantFilters(workspace)} />)
+
+    expect(studioPreviewCaseOverridesForProviderVariantContext(manifest, { ThemeProvider: "dark" })).toEqual([
+      { coordinate: "src/UserCard.g.tsx#default", caseName: "ready" },
+    ])
+    expect(previewSources(html)).toEqual([
+      "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=loading&chrome=0&sessionId=src%2FUserCard.g.tsx%23default%3Aloading&static=1&gcase=src%2FUserCard.g.tsx%23default%3Aready",
+      "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0&sessionId=src%2FUserCard.g.tsx%23default%3Aready&static=1&gcase=src%2FUserCard.g.tsx%23default%3Aready",
+    ])
+  })
+
+  it("keeps components with no matching case for a selected provider variant renderable", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const component = manifest.files
+      .flatMap((file) => file.components)
+      .find((candidate) => candidate.coordinate === "src/MissingProviderVariant.g.tsx#default")
+    if (!component) throw new Error("Missing component")
+    const loginCase = component.cases.find((testCase) => testCase.name === "login")
+    if (!loginCase) throw new Error("Missing login case")
+
+    expect(
+      studioFilteredCasesForProviderVariantContext(component, { LoginProvider: "anonymous" }).map(
+        (testCase) => testCase.name,
+      ),
+    ).toEqual(["login"])
+    expect(studioProviderVariantCaseStatus(component, loginCase, { LoginProvider: "anonymous" })).toMatchObject({
+      state: "mismatch",
+    })
   })
 
   it("stores selected cases per component coordinate and clears deeper columns", () => {
@@ -3742,11 +4038,13 @@ describe("GTSX Studio shell", () => {
             ],
           },
         ],
+        rootProviderVariants: {},
         selectedCaseByCoordinate: {
           "src/UserCard.g.tsx#default": "ready",
           "src/MultiExport.g.tsx#NamedBadge": "ready",
         },
         selectedCoordinatePath: ["src/UserCard.g.tsx#default", "src/MultiExport.g.tsx#NamedBadge"],
+        selectedProviderVariantsByPath: {},
         selectedRuntimeInstanceByCoordinate: {
           "src/MultiExport.g.tsx#NamedBadge": "gtsx-boundary:1",
         },
@@ -4072,6 +4370,14 @@ function previewFrameHtml(html: string, sessionId: string): string {
 
 function casePreviewFrameHtml(html: string, caseName: string): string {
   return html.match(new RegExp(`<div[^>]+data-gtsx-case-preview-frame="${escapeRegExp(caseName)}"[^>]*>`))?.[0] ?? ""
+}
+
+function caseTileHtml(html: string, caseName: string): string {
+  return html.match(new RegExp(`<div[^>]+data-gtsx-case-tile="${escapeRegExp(caseName)}"[^>]*>`))?.[0] ?? ""
+}
+
+function envVariantButtonHtml(html: string, variant: string): string {
+  return html.match(new RegExp(`<button[^>]+data-gtsx-env-variant="${escapeRegExp(variant)}"[^>]*>`))?.[0] ?? ""
 }
 
 function canvasViewportPresets(html: string): string[] {

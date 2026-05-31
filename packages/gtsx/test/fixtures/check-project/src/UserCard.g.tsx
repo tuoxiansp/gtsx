@@ -2,6 +2,7 @@ import {
   createGProvider,
   createGScopeHook,
   type GCases,
+  type GProviderCase,
 } from "@gtsx/core"
 
 export type Props = {
@@ -18,6 +19,7 @@ export type Scope =
 
 export const ThemeProvider = createGProvider((_props: Record<string, never>) =>
   React.useState<ThemeScope>({ mode: "light" }),
+  { variants: ["light", "dark"] as const },
 )
 
 const providers = [ThemeProvider] as const
@@ -39,10 +41,10 @@ UserCard.cases = {
     props: { userId: "user_1" },
     providers: [[ThemeProvider, { mode: "light" }]],
     scope: { status: "loading" },
-  },
+  } satisfies GProviderCase<typeof ThemeProvider, "light">,
   ready: {
     props: { userId: "user_1" },
     providers: [[ThemeProvider, { mode: "dark" }]],
     scope: { status: "ready", title: "Ada Lovelace", onOpen: () => {} },
-  },
+  } satisfies GProviderCase<typeof ThemeProvider, "dark">,
 } satisfies GCases<Props, Scope, typeof providers>

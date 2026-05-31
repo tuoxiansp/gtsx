@@ -30,8 +30,10 @@ If the project isn't wired for gtsx yet, run the `setup-gtsx` skill first.
 4. For `descend`: keep reading until finding real visual surfaces.
 5. For `migrate`: move real UI + types + helpers into `.g.tsx`, add static cases, update imports.
 6. For `split`: define `Scope` type, move production behavior behind `useRealScope`, wrap with `createGScopeHook`, render real TSX from `.g.tsx` component.
-7. Update imports from `./Component` to `./Component.g`. Preserve barrels.
-8. Run `gtsx check` + project typecheck. Render a case in Studio if available.
+7. For provider-dependent UI, declare variants only when the provider has a meaningful finite environment axis, then mark coverage with `GProviderCase`; keep provider values in `providers: [[Provider, value]]`.
+8. Keep JSX-producing branches inspectable: direct conditionals over props/scope/providers, `if` returns, `&&`, `||`, and traceable `map`/render callbacks. Refactor helper predicates, `switch`, JSX-returning loops, and stored JSX variables before calling the refactor done.
+9. Update imports from `./Component` to `./Component.g`. Preserve barrels.
+10. Run `gtsx check` + project typecheck. Render a case in Studio if available.
 
 ## Never
 
@@ -41,6 +43,8 @@ If the project isn't wired for gtsx yet, run the `setup-gtsx` skill first.
 - gtsx-ifying route/provider/layout orchestration
 - Bulk-generating `*.impl.tsx` or `*.preview.g.tsx` files
 - Preserving old paths by adding wrappers (update imports or use barrels)
+- Hiding JSX branch reachability behind helper predicates, `switch`, loops, or local JSX variables
+- Marking provider variants when the provider is just arbitrary data instead of an environment axis
 
 ## Done When
 
