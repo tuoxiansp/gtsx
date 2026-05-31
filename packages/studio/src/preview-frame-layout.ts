@@ -12,8 +12,6 @@ type PreviewFrameBleed = {
   top: number
 }
 
-const previewFrameVisualBleedPx = 16
-
 export function previewFrameLayoutHeight(displaySize: { height: number }, rect: GBoundaryRect | undefined): number {
   if (!rect) return displaySize.height
   const bleed = previewFrameVisualBleed(displaySize, rect)
@@ -43,14 +41,6 @@ export function normalizeBoundaryRect(rect: GBoundaryRect | undefined, bleed: Pr
   }
 }
 
-export function previewFrameVisualBleed(displaySize: Partial<PreviewFrameSize>, rect: GBoundaryRect | undefined): PreviewFrameBleed {
-  if (!rect) return { bottom: 0, left: 0, right: 0, top: 0 }
-
-  const viewportWidth = typeof displaySize.width === "number" ? displaySize.width : Number.POSITIVE_INFINITY
-  return {
-    bottom: Math.min(previewFrameVisualBleedPx, Math.max(0, (displaySize.height ?? Number.POSITIVE_INFINITY) - rect.y - rect.height)),
-    left: Math.min(previewFrameVisualBleedPx, Math.max(0, rect.x)),
-    right: Math.min(previewFrameVisualBleedPx, Math.max(0, viewportWidth - rect.x - rect.width)),
-    top: Math.min(previewFrameVisualBleedPx, Math.max(0, rect.y)),
-  }
+export function previewFrameVisualBleed(_displaySize: Partial<PreviewFrameSize>, _rect: GBoundaryRect | undefined): PreviewFrameBleed {
+  return { bottom: 0, left: 0, right: 0, top: 0 }
 }

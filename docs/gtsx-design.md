@@ -54,6 +54,10 @@ gtsx is shaped as a sidecar to your app, not a layer wrapped around it:
 
 The sidecar reads `.g.tsx` files via the TypeScript Program. It does not modify your routes, your providers, your data layer, or your bundler config — beyond registering the two preview routes. Your app and the sidecar share the same Host because that is the cheapest way to render your real components in your real environment; they do not share ownership of anything else.
 
+Sharing the Host has one practical consequence: the preview route must recreate appearance, not app behavior. If a component depends on app-wide CSS, design-system stylesheets, font/style setup, or static root selectors such as theme, base color, density, or style preset classes, the `/gtsx` route needs those visual pieces too. If the normal app route provides them through static DOM or imports, the preview route should mirror that static shell around the adapter preview client.
+
+That boundary is intentional. The preview route should not pull in production layouts or providers just to get the right look if those wrappers run ordinary React hooks, auth/session clients, routers, fetchers, or effects. Visual state belongs in `.g.tsx` cases through props, scope, and gtsx providers; route-level setup stays limited to framework parsing, CSS/setup imports, static wrapper DOM, SSR bootstrap scripts, and adapter loading.
+
 ## The Production Path
 
 A `.g.tsx` component in production runs identically to any other React component:

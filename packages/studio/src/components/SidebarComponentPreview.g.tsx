@@ -1,9 +1,10 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GBoundaryRect, type GBoundaryTreeNode, type GCases, type GPreviewProtocolMessage } from "@gtsx/core"
+import { createGScopeHook, type GBoundaryRect, type GCases, type GPreviewProtocolMessage } from "@gtsx/core"
 
 import type { StudioPreviewFrameState } from "../client"
+import { studioBoundaryRectForCoordinate } from "../boundary-tree"
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 
 type SidebarComponentPreviewProps = {
@@ -54,7 +55,7 @@ function useRealSidebarComponentPreviewScope(component: StudioManifestComponent)
       const message = event.data as GPreviewProtocolMessage
       if (!isGPreviewProtocolMessage(message) || message.sessionId !== sessionId || message.type !== "gtsx:tree") return
 
-      setBoundaryRect(findBoundaryNode(message.tree, component.coordinate)?.rect)
+      setBoundaryRect(studioBoundaryRectForCoordinate(message.tree, component.coordinate))
     }
 
     window.addEventListener("message", handleMessage)
@@ -177,18 +178,8 @@ function sidebarPreviewSessionId(component: StudioManifestComponent): string {
   return `sidebar:${component.coordinate}:${component.cases[0]?.name ?? "No cases"}`
 }
 
-function selectedBoundaryRectForComponent(tree: GBoundaryTreeNode[] | undefined, coordinate: string): GBoundaryRect | undefined {
-  return tree ? findBoundaryNode(tree, coordinate)?.rect : undefined
-}
-
-function findBoundaryNode(tree: GBoundaryTreeNode[], coordinate: string): GBoundaryTreeNode | undefined {
-  for (const node of tree) {
-    if (node.coordinate === coordinate) return node
-    const childMatch = findBoundaryNode(node.children, coordinate)
-    if (childMatch) return childMatch
-  }
-
-  return undefined
+function selectedBoundaryRectForComponent(tree: StudioPreviewFrameState["tree"], coordinate: string): GBoundaryRect | undefined {
+  return studioBoundaryRectForCoordinate(tree, coordinate)
 }
 
 function isGPreviewProtocolMessage(value: unknown): value is GPreviewProtocolMessage {

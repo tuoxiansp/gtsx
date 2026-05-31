@@ -34,18 +34,33 @@ import {
   type StudioPreviewGeometryCacheMessage,
   type StudioPreviewGeometryCacheStore,
 } from "../preview-geometry-cache-store"
-import { studioPreviewRenderQueueOptionsFromParams, type StudioPreviewRenderQueueOptions } from "../preview-render-queue"
+import {
+  defaultStudioPreviewRenderQueueMaximumConcurrentRenderTasksDuringCanvasMovement,
+  defaultStudioPreviewRenderQueueMaximumMountedPreviewSessions,
+  studioPreviewRenderQueueOptionsFromParams,
+  type StudioPreviewRenderQueueOptions,
+} from "../preview-render-queue"
 import { StudioPreviewIframePoolProvider } from "../preview-iframe-pool"
 import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
 import { createStudioPreviewMessageFlush } from "../studio-preview-message-flush"
 import StudioWorkspaceView from "./StudioWorkspaceView.g"
 
-export type StudioShellProps = {
+export type StudioShellLoadedProps = {
   manifest: StudioManifest
   previewRenderQueue?: StudioPreviewRenderQueueOptions
   selection?: string
   urlSearch?: string
 }
+
+export type StudioShellDeferredProps = {
+  manifest?: undefined
+  manifestUrl?: string
+  previewRenderQueue?: StudioPreviewRenderQueueOptions
+  selection?: string
+  urlSearch?: string
+}
+
+export type StudioShellProps = StudioShellLoadedProps | StudioShellDeferredProps
 
 type StudioShellScope = {
   canvas: StudioCanvasTransform
@@ -82,7 +97,7 @@ type PendingStudioPreviewMessage = StudioPreviewGeometryCacheMessage & {
 const studioCanvasUrlCommitDelayMilliseconds = 120
 const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
 
-function useStudioShellScope(props: StudioShellProps): StudioShellScope {
+function useStudioShellScope(props: StudioShellLoadedProps): StudioShellScope {
   const initialUrlParams = React.useMemo(
     () => initialStudioUrlSearchParams(props.selection, props.urlSearch),
     [props.selection, props.urlSearch],
@@ -344,6 +359,209 @@ function useStudioCanvasUrlState(initialCanvas: StudioCanvasTransform): StudioCa
 }
 
 export default function StudioShell(props: StudioShellProps) {
+  if (!props.manifest) return <StudioShellManifestLoader {...props} />
+
+  return <StudioShellLoaded {...props} />
+}
+
+function StudioShellManifestLoader(props: StudioShellDeferredProps) {
+  const manifestUrl = props.manifestUrl ?? "/gtsx/studio/manifest"
+  const initialUrlParams = React.useMemo(
+    () => initialStudioUrlSearchParams(props.selection, props.urlSearch),
+    [props.selection, props.urlSearch],
+  )
+  const shouldPrewarmPreviewPool = React.useMemo(() => !isStudioPreviewPoolDisabled(initialUrlParams), [initialUrlParams])
+  const [manifest, setManifest] = React.useState<StudioManifest | null>(null)
+  const [error, setError] = React.useState<string | null>(null)
+  const [previewPoolReady, setPreviewPoolReady] = React.useState(false)
+
+  React.useEffect(() => {
+    const controller = new AbortController()
+    setError(null)
+    setManifest(null)
+    setPreviewPoolReady(false)
+
+    fetch(manifestUrl, {
+      credentials: "same-origin",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Studio manifest request failed with ${response.status}.`)
+        return (await response.json()) as StudioManifest
+      })
+      .then((nextManifest) => {
+        if (controller.signal.aborted) return
+        setManifest(nextManifest)
+        setPreviewPoolReady(!shouldPrewarmPreviewPool)
+      })
+      .catch((nextError: unknown) => {
+        if (controller.signal.aborted) return
+        setError(nextError instanceof Error ? nextError.message : "Studio manifest request failed.")
+      })
+
+    return () => controller.abort()
+  }, [manifestUrl, shouldPrewarmPreviewPool])
+
+  if (manifest && previewPoolReady) {
+    return (
+      <StudioShellLoaded
+        manifest={manifest}
+        previewRenderQueue={props.previewRenderQueue}
+        selection={props.selection}
+        urlSearch={props.urlSearch}
+      />
+    )
+  }
+
+  return (
+    <StudioShellLoadingFrame
+      error={error}
+      manifestUrl={manifestUrl}
+      status={manifest && shouldPrewarmPreviewPool ? "Preparing preview host" : undefined}
+    >
+      {manifest && shouldPrewarmPreviewPool ? (
+        <StudioShellPreviewPoolPrewarmer manifest={manifest} onReady={() => setPreviewPoolReady(true)} />
+      ) : null}
+    </StudioShellLoadingFrame>
+  )
+}
+
+function StudioShellLoadingFrame(props: {
+  children?: React.ReactNode
+  error: string | null
+  manifestUrl: string
+  status?: string
+}) {
+  return (
+    <main
+      data-gtsx-studio-shell-loading="true"
+      style={{
+        alignItems: "center",
+        background: "#f5f6f8",
+        color: "#1f2328",
+        display: "grid",
+        fontFamily: "ui-sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+        height: "100vh",
+        justifyItems: "center",
+        overflow: "hidden",
+      }}
+    >
+      <style>
+        {`@keyframes gtsx-studio-loading-bar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(260%); }
+}`}
+      </style>
+      <section
+        aria-busy={props.error ? undefined : true}
+        aria-live="polite"
+        role="status"
+        style={{
+          display: "grid",
+          gap: 10,
+          width: "min(360px, calc(100vw - 48px))",
+        }}
+      >
+        <strong
+          style={{
+            color: "#1f2328",
+            fontSize: 14,
+            fontWeight: 600,
+            letterSpacing: 0,
+            lineHeight: 1.2,
+          }}
+        >
+          {props.error ? "Studio manifest failed" : "Loading Studio"}
+        </strong>
+        <div
+          aria-label="Studio manifest loading progress"
+          role="progressbar"
+          style={{
+            background: "#d8dee4",
+            borderRadius: 999,
+            height: 6,
+            overflow: "hidden",
+            width: "100%",
+          }}
+        >
+          <span
+            data-gtsx-studio-shell-progress-bar="true"
+            style={{
+              animation: props.error ? undefined : "gtsx-studio-loading-bar 1.15s ease-in-out infinite",
+              background: props.error ? "#cf222e" : "#0d99ff",
+              borderRadius: 999,
+              display: "block",
+              height: "100%",
+              transform: props.error ? "translateX(0)" : "translateX(-100%)",
+              width: props.error ? "100%" : "32%",
+            }}
+          />
+        </div>
+        <span
+          style={{
+            color: props.error ? "#cf222e" : "#57606a",
+            fontSize: 12,
+            lineHeight: 1.4,
+          }}
+        >
+          {props.error ?? props.status ?? `Reading ${props.manifestUrl}`}
+        </span>
+        {props.children}
+      </section>
+    </main>
+  )
+}
+
+function StudioShellPreviewPoolPrewarmer(props: {
+  manifest: StudioManifest
+  onReady: () => void
+}) {
+  const poolUrl = React.useMemo(() => createStudioPreviewPoolUrl(props.manifest), [props.manifest])
+  const frameRef = React.useRef<HTMLIFrameElement | null>(null)
+  const onReadyRef = React.useRef(props.onReady)
+  onReadyRef.current = props.onReady
+
+  React.useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.source !== frameRef.current?.contentWindow) return
+      if (!isStudioShellPreviewPoolReadyMessage(event.data)) return
+      onReadyRef.current()
+    }
+
+    window.addEventListener("message", handleMessage)
+    return () => window.removeEventListener("message", handleMessage)
+  }, [])
+
+  return (
+    <iframe
+      aria-hidden="true"
+      data-gtsx-studio-preview-pool-prewarmer="true"
+      ref={frameRef}
+      src={poolUrl}
+      style={{
+        border: 0,
+        height: 0,
+        pointerEvents: "none",
+        position: "absolute",
+        visibility: "hidden",
+        width: 0,
+      }}
+      tabIndex={-1}
+      title="Preview host preloader"
+    />
+  )
+}
+
+function isStudioShellPreviewPoolReadyMessage(value: unknown): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { type?: unknown }).type === "gtsx:pool-ready" &&
+    (value as { protocolVersion?: unknown }).protocolVersion === 1
+  )
+}
+
+function StudioShellLoaded(props: StudioShellLoadedProps) {
   const scope = useStudioShellScope(props)
 
   const studio = (
@@ -371,11 +589,49 @@ export default function StudioShell(props: StudioShellProps) {
 
   if (scope.disablePreviewPool) return studio
 
+  const maximumIdlePreviewFrames = studioPreviewIframePoolMaximumIdleFrames(scope.previewRenderQueue)
+  const maximumRetainedPreviewFrames = studioPreviewIframePoolMaximumRetainedFrames(
+    scope.previewRenderQueue,
+    maximumIdlePreviewFrames,
+  )
+
   return (
-    <StudioPreviewIframePoolProvider debug={scope.debugPreviewPool} poolUrl={createStudioPreviewPoolUrl(props.manifest)}>
+    <StudioPreviewIframePoolProvider
+      debug={scope.debugPreviewPool}
+      maximumIdleFrames={maximumIdlePreviewFrames}
+      maximumRetainedFrames={maximumRetainedPreviewFrames}
+      poolUrl={createStudioPreviewPoolUrl(props.manifest)}
+    >
       {studio}
     </StudioPreviewIframePoolProvider>
   )
+}
+
+function studioPreviewIframePoolMaximumIdleFrames(options: StudioPreviewRenderQueueOptions): number {
+  const maximumMountedPreviewSessions = positiveStudioShellIntegerOption(
+    options.maximumMountedPreviewSessions,
+    defaultStudioPreviewRenderQueueMaximumMountedPreviewSessions,
+  )
+  const movementRenderTasks = positiveStudioShellIntegerOption(
+    options.maximumConcurrentRenderTasksDuringCanvasMovement,
+    defaultStudioPreviewRenderQueueMaximumConcurrentRenderTasksDuringCanvasMovement,
+  )
+  return Math.min(maximumMountedPreviewSessions, movementRenderTasks * 2)
+}
+
+function studioPreviewIframePoolMaximumRetainedFrames(
+  options: StudioPreviewRenderQueueOptions,
+  maximumIdleFrames: number,
+): number {
+  const maximumMountedPreviewSessions = positiveStudioShellIntegerOption(
+    options.maximumMountedPreviewSessions,
+    defaultStudioPreviewRenderQueueMaximumMountedPreviewSessions,
+  )
+  return maximumMountedPreviewSessions + maximumIdleFrames
+}
+
+function positiveStudioShellIntegerOption(value: number | undefined, fallback: number): number {
+  return Number.isFinite(value) && value !== undefined && value > 0 ? Math.floor(value) : fallback
 }
 
 function shouldHydrateStudioPreviewCacheBeforeLayout(manifest: StudioManifest): boolean {

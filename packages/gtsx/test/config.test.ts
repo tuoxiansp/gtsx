@@ -66,6 +66,6 @@ export default defineGTSXConfig({
     expect(resolved.routes.preview).toBe("/gtsx")
     expect(resolved.routes.studio).toBe("/gtsx/studio")
     expect(resolved.routes.manifest).toBe("/gtsx/studio/manifest")
-    expect(resolved.studio.manifestCacheTtlMs).toBe(1000)
+    expect(resolved.studio.manifestCacheTtlMs).toBe(60_000)
   })
 })

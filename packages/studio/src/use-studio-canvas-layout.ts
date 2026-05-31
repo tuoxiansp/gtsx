@@ -4,6 +4,7 @@ import React from "react"
 
 import {
   computeStudioColumnLayout,
+  previewSessionId,
   type StudioCanvasScreenRect,
   type StudioCanvasTransform,
   type StudioColumnLayout,
@@ -17,9 +18,11 @@ import type { StudioPreviewGeometryCacheStore } from "./preview-geometry-cache-s
 import {
   columnCardElementKey,
   domRectToLocalStudioCanvasScreenRect,
+  measuredStudioColumnLayoutPackedByComponentOrder,
   sameColumnLayoutRecord,
   sameColumnMeasurementRecord,
   studioCanvasCasePreviewScale,
+  studioWorkspaceColumnMeasurementsFromGeometry,
   studioWorkspaceLayoutMeasurementKey,
 } from "./studio-canvas-geometry"
 
@@ -27,10 +30,16 @@ type MutableRef<T> = {
   current: T
 }
 
+type MountedStudioColumnCardElement = {
+  coordinate: string
+  element: HTMLDivElement
+}
+
 export type StudioCanvasLayout = {
   casePreviewScale: number
   columnLayoutByIndex: Record<number, StudioColumnLayout>
   columnLayoutByIndexRef: MutableRef<Record<number, StudioColumnLayout>>
+  columnMeasurementsByIndex: Record<number, StudioColumnLayoutMeasurement>
   columnMeasurementsByIndexRef: MutableRef<Record<number, StudioColumnLayoutMeasurement>>
   getCardElement: (columnIndex: number, coordinate: string) => HTMLDivElement | undefined
   layoutMeasurementKey: string | undefined
@@ -52,8 +61,6 @@ export function useStudioCanvasLayout(input: {
   previewGeometryStore?: StudioPreviewGeometryCacheStore
   workspace: StudioWorkspaceState
 }): StudioCanvasLayout {
-  const [columnLayoutByIndex, setColumnLayoutByIndex] = React.useState<Record<number, StudioColumnLayout>>({})
-  const [columnMeasurementsByIndex, setColumnMeasurementsByIndex] = React.useState<Record<number, StudioColumnLayoutMeasurement>>({})
   const [casePreviewScale, setCasePreviewScale] = React.useState(() =>
     studioCanvasCasePreviewScale(
       input.workspace,
@@ -63,6 +70,33 @@ export function useStudioCanvasLayout(input: {
       input.previewGeometryStore,
     ),
   )
+  const fallbackColumnMeasurementsByIndex = React.useMemo(
+    () =>
+      studioWorkspaceColumnMeasurementsFromGeometry({
+        casePreviewScale,
+        frameStates: input.frameStates,
+        previewCache: input.previewCache,
+        previewGeometryStore: input.previewGeometryStore,
+        viewportPreset: input.canvasViewportPreset,
+        workspace: input.workspace,
+      }),
+    [
+      casePreviewScale,
+      input.canvasViewportPreset,
+      input.frameStates,
+      input.previewCache,
+      input.previewGeometryStore,
+      input.workspace,
+    ],
+  )
+  const fallbackColumnLayoutByIndex = React.useMemo(
+    () => computeColumnLayout(input.workspace, fallbackColumnMeasurementsByIndex),
+    [fallbackColumnMeasurementsByIndex, input.workspace],
+  )
+  const [columnLayoutByIndex, setColumnLayoutByIndex] =
+    React.useState<Record<number, StudioColumnLayout>>(fallbackColumnLayoutByIndex)
+  const [columnMeasurementsByIndex, setColumnMeasurementsByIndex] =
+    React.useState<Record<number, StudioColumnLayoutMeasurement>>(fallbackColumnMeasurementsByIndex)
   const cardElements = React.useRef(new Map<string, HTMLDivElement>())
   const columnCardElements = React.useRef(new Map<string, HTMLDivElement>())
   const columnElements = React.useRef(new Map<number, HTMLElement>())
@@ -123,50 +157,51 @@ export function useStudioCanvasLayout(input: {
   }, [input.canvasViewportPreset, input.frameStates, input.previewCache, input.previewGeometryStore, input.workspace])
 
   const measure = React.useCallback(() => {
-    if (!input.canvasSurfaceElement) return
-
-    const nextMeasurementsByIndex: Record<number, StudioColumnLayoutMeasurement> = {}
+    const nextMeasurementsByIndex = cloneColumnMeasurements(fallbackColumnMeasurementsByIndex)
+    const mountedCardElementsByColumnIndex = mountedStudioColumnCardElementsByColumnIndex(columnCardElements.current)
 
     input.workspace.columns.forEach((column, columnIndex) => {
       const columnElement = columnElements.current.get(columnIndex)
       if (!columnElement) return
+      const mountedCardElements = mountedCardElementsByColumnIndex.get(columnIndex)
+      if (!mountedCardElements?.length) return
 
-      const columnRect = columnElement.getBoundingClientRect()
-      const cardRectsByCoordinate: Record<string, StudioCanvasScreenRect> = {}
-      const previewFrameRectsBySessionId: Record<string, StudioCanvasScreenRect> = {}
-      for (const component of column.components) {
-        const cardElement = columnCardElements.current.get(columnCardElementKey(columnIndex, component.coordinate))
-        if (!cardElement) continue
-        cardRectsByCoordinate[component.coordinate] = domRectToLocalStudioCanvasScreenRect(
-          cardElement.getBoundingClientRect(),
-          columnRect,
-          input.canvasRef.current.scale,
-        )
+      const measuredCardsByCoordinate: Record<string, { height: number; width: number; previewFrameRectsBySessionId: Record<string, StudioCanvasScreenRect> }> = {}
+      const scale = input.canvasRef.current.scale
+      for (const { coordinate, element: cardElement } of mountedCardElements) {
+        const cardRect = cardElement.getBoundingClientRect()
+        const previewFrameRectsBySessionId: Record<string, StudioCanvasScreenRect> = {}
         for (const previewFrame of cardElement.querySelectorAll<HTMLElement>("[data-gtsx-preview-session-id]")) {
           const sessionId = previewFrame.dataset.gtsxPreviewSessionId
           if (!sessionId) continue
           previewFrameRectsBySessionId[sessionId] = domRectToLocalStudioCanvasScreenRect(
             previewFrame.getBoundingClientRect(),
-            columnRect,
-            input.canvasRef.current.scale,
+            cardRect,
+            scale,
           )
         }
+        measuredCardsByCoordinate[coordinate] = {
+          height: cardRect.height / scale,
+          previewFrameRectsBySessionId,
+          width: cardRect.width / scale,
+        }
       }
-      nextMeasurementsByIndex[columnIndex] = {
-        cardRectsByCoordinate,
-        height: columnRect.height / input.canvasRef.current.scale,
-        previewFrameRectsBySessionId,
-      }
+      const fallbackMeasurement = nextMeasurementsByIndex[columnIndex]
+      if (!fallbackMeasurement) return
+      nextMeasurementsByIndex[columnIndex] = measuredStudioColumnLayoutPackedByComponentOrder({
+        componentCoordinates: column.components.map((component) => component.coordinate),
+        fallbackMeasurement,
+        measuredCardsByCoordinate,
+        previewFrameSessionIdsByCoordinate: Object.fromEntries(
+          column.components.map((component) => [
+            component.coordinate,
+            component.cases.map((testCase) => previewSessionId(component, testCase.name, input.canvasViewportPreset)),
+          ]),
+        ),
+      })
     })
 
-    const nextLayoutByIndex = computeStudioColumnLayout({
-      columns: input.workspace.columns.map((column) => ({
-        componentCoordinates: column.components.map((component) => component.coordinate),
-        parentCoordinate: column.parentCoordinate,
-      })),
-      margin: studioColumnGap,
-      measurementsByIndex: nextMeasurementsByIndex,
-    })
+    const nextLayoutByIndex = computeColumnLayout(input.workspace, nextMeasurementsByIndex)
 
     const measurementsChanged = !sameColumnMeasurementRecord(columnMeasurementsByIndexRef.current, nextMeasurementsByIndex)
     const layoutChanged = !sameColumnLayoutRecord(columnLayoutByIndexRef.current, nextLayoutByIndex)
@@ -178,7 +213,7 @@ export function useStudioCanvasLayout(input: {
     )
     setColumnLayoutByIndex((current) => (sameColumnLayoutRecord(current, nextLayoutByIndex) ? current : nextLayoutByIndex))
     if (measurementsChanged || layoutChanged) onLayoutMeasuredRef.current()
-  }, [input.canvasRef, input.canvasSurfaceElement, input.workspace.columns])
+  }, [fallbackColumnMeasurementsByIndex, input.canvasRef, input.workspace])
 
   const scheduleMeasurement = React.useCallback(() => {
     recomputeCasePreviewScale()
@@ -208,11 +243,70 @@ export function useStudioCanvasLayout(input: {
     casePreviewScale,
     columnLayoutByIndex,
     columnLayoutByIndexRef,
+    columnMeasurementsByIndex,
     columnMeasurementsByIndexRef,
     getCardElement,
     layoutMeasurementKey,
     scheduleMeasurement,
     setCardElement,
     setColumnElement,
+  }
+}
+
+function computeColumnLayout(
+  workspace: StudioWorkspaceState,
+  measurementsByIndex: Record<number, StudioColumnLayoutMeasurement>,
+): Record<number, StudioColumnLayout> {
+  return computeStudioColumnLayout({
+    columns: workspace.columns.map((column) => ({
+      componentCoordinates: column.components.map((component) => component.coordinate),
+      parentCoordinate: column.parentCoordinate,
+    })),
+    margin: studioColumnGap,
+    measurementsByIndex,
+  })
+}
+
+function cloneColumnMeasurements(
+  measurementsByIndex: Record<number, StudioColumnLayoutMeasurement>,
+): Record<number, StudioColumnLayoutMeasurement> {
+  return Object.fromEntries(
+    Object.entries(measurementsByIndex).map(([index, measurement]) => [
+      index,
+      {
+        cardRectsByCoordinate: { ...measurement.cardRectsByCoordinate },
+        height: measurement.height,
+        previewFrameRectsBySessionId: { ...(measurement.previewFrameRectsBySessionId ?? {}) },
+      },
+    ]),
+  )
+}
+
+function mountedStudioColumnCardElementsByColumnIndex(
+  columnCardElements: ReadonlyMap<string, HTMLDivElement>,
+): Map<number, MountedStudioColumnCardElement[]> {
+  const elementsByColumnIndex = new Map<number, MountedStudioColumnCardElement[]>()
+
+  for (const [key, element] of columnCardElements) {
+    const parsed = parseColumnCardElementKey(key)
+    if (!parsed) continue
+    const elements = elementsByColumnIndex.get(parsed.columnIndex) ?? []
+    elements.push({ coordinate: parsed.coordinate, element })
+    elementsByColumnIndex.set(parsed.columnIndex, elements)
+  }
+
+  return elementsByColumnIndex
+}
+
+function parseColumnCardElementKey(key: string): { columnIndex: number; coordinate: string } | undefined {
+  const separatorIndex = key.indexOf("\n")
+  if (separatorIndex < 0) return undefined
+
+  const columnIndex = Number(key.slice(0, separatorIndex))
+  if (!Number.isInteger(columnIndex) || columnIndex < 0) return undefined
+
+  return {
+    columnIndex,
+    coordinate: key.slice(separatorIndex + 1),
   }
 }

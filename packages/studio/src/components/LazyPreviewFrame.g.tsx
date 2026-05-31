@@ -41,23 +41,34 @@ type LazyPreviewFrameProps = {
 }
 
 type LazyPreviewFrameScope = {
+  borrowOrigin: StudioPreviewIframeBorrowOrigin | null
   isVisibleRenderSession: boolean
-  shouldLoadFromRenderQueue: boolean
+  setBorrowOrigin: React.Dispatch<React.SetStateAction<StudioPreviewIframeBorrowOrigin | null>>
+  shouldLoad: boolean
 }
 
 function useRealLazyPreviewFrameScope(props: LazyPreviewFrameProps): LazyPreviewFrameScope {
+  const [borrowOrigin, setBorrowOrigin] = React.useState<StudioPreviewIframeBorrowOrigin | null>(null)
+  const shouldLoadFromRenderQueue = useStudioPreviewShouldRenderSession(props.sessionId)
+  const shouldLoad = props.shouldLoad ?? shouldLoadFromRenderQueue
+
+  React.useEffect(() => {
+    if (!shouldLoad) setBorrowOrigin(null)
+  }, [shouldLoad])
+
   return {
+    borrowOrigin,
     isVisibleRenderSession: useStudioPreviewIsVisibleSession(props.sessionId, props.debugPreviewQueue === true),
-    shouldLoadFromRenderQueue: useStudioPreviewShouldRenderSession(props.sessionId),
+    setBorrowOrigin,
+    shouldLoad,
   }
 }
 
 const useLazyPreviewFrameScope = createGScopeHook(useRealLazyPreviewFrameScope)
 
 export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
-  const [borrowOrigin, setBorrowOrigin] = React.useState<StudioPreviewIframeBorrowOrigin | null>(null)
   const scope = useLazyPreviewFrameScope(props)
-  const shouldLoad = props.shouldLoad ?? scope.shouldLoadFromRenderQueue
+  const shouldLoad = scope.shouldLoad
   const layoutHeight = previewFrameLayoutHeight(props.size, props.boundaryRect)
   const layoutWidth = previewFrameLayoutWidth(props.size, props.boundaryRect)
   const visualBleed = previewFrameVisualBleed(props.size, props.boundaryRect)
@@ -66,17 +77,13 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
   const selectedOverlayRect = normalizeBoundaryRect(props.selectedBoundaryRect, visualBleed)
   const debugIndicatorScale = 1 / Math.max(props.debugIndicatorScale ?? 1, 0.01)
   const renderLifecycleState = studioPreviewRenderLifecycleDebugState(props.frameState, shouldLoad)
-  const iframeOrigin = borrowOrigin ?? "pending"
+  const iframeOrigin = scope.borrowOrigin ?? "pending"
   const renderFlowDebugState = studioPreviewRenderFlowDebugState({
     iframeOrigin,
     isVisibleRenderSession: scope.isVisibleRenderSession,
     renderLifecycleState,
     shouldLoad,
   })
-
-  React.useEffect(() => {
-    if (!shouldLoad) setBorrowOrigin(null)
-  }, [shouldLoad])
 
   return (
     <div
@@ -115,7 +122,7 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
             }}
           >
             <StudioPreviewIframe
-              onBorrowOriginChange={props.debugPreviewPool || props.debugPreviewQueue ? setBorrowOrigin : undefined}
+              onBorrowOriginChange={props.debugPreviewPool || props.debugPreviewQueue ? scope.setBorrowOrigin : undefined}
               onPreviewFrameMount={props.onPreviewFrameMount}
               size={props.size}
               slot={{
@@ -159,7 +166,10 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
         >
           <StudioPreviewRenderLifecycleDot active={shouldLoad} color="#57606a" />
           <StudioPreviewRenderLifecycleDot active={scope.isVisibleRenderSession} color="#0d99ff" />
-          <StudioPreviewRenderLifecycleDot active={borrowOrigin !== null} color={borrowOrigin === "new" ? "#fb8f2d" : "#2da44e"} />
+          <StudioPreviewRenderLifecycleDot
+            active={scope.borrowOrigin !== null}
+            color={scope.borrowOrigin === "new" ? "#fb8f2d" : "#2da44e"}
+          />
           <StudioPreviewRenderLifecycleDot active color={studioPreviewRenderLifecycleStateColor(renderLifecycleState)} />
         </span>
       ) : null}
@@ -185,12 +195,12 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
           title="visible queue task"
         />
       ) : null}
-      {props.debugPreviewPool && shouldLoad && borrowOrigin ? (
+      {props.debugPreviewPool && shouldLoad && scope.borrowOrigin ? (
         <span
-          aria-label={borrowOrigin === "pool" ? "Preview iframe reused from pool" : "Preview iframe created"}
-          data-gtsx-preview-pool-origin={borrowOrigin}
+          aria-label={scope.borrowOrigin === "pool" ? "Preview iframe reused from pool" : "Preview iframe created"}
+          data-gtsx-preview-pool-origin={scope.borrowOrigin}
           style={{
-            background: borrowOrigin === "pool" ? "#2da44e" : "#fb8f2d",
+            background: scope.borrowOrigin === "pool" ? "#2da44e" : "#fb8f2d",
             border: "1px solid rgba(255,255,255,0.92)",
             borderRadius: 999,
             boxShadow: "0 1px 5px rgba(31,35,40,0.25)",
@@ -204,7 +214,7 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
             width: 9,
             zIndex: 4,
           }}
-          title={borrowOrigin === "pool" ? "from pool" : "new iframe"}
+          title={scope.borrowOrigin === "pool" ? "from pool" : "new iframe"}
         />
       ) : null}
       {overlayRect ? <ComponentBoundsHitTarget coordinate={props.coordinate} onSelect={props.onSelect} rect={overlayRect} /> : null}

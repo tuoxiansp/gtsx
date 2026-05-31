@@ -19,7 +19,10 @@ import {
   type StudioViewportPreset,
   type StudioWorkspaceState,
 } from "../client"
-import type { StudioPreviewRenderQueueOptions } from "../preview-render-queue"
+import {
+  studioPreviewRenderQueueRenderBufferMargin,
+  type StudioPreviewRenderQueueOptions,
+} from "../preview-render-queue"
 import {
   createStudioPreviewRenderSessionStore,
   StudioPreviewRenderSessionStoreProvider,
@@ -28,10 +31,15 @@ import {
 import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
 import {
   domRectToStudioCanvasScreenRect,
+  studioCanvasCardIndex,
   studioCanvasTransformStyle,
   studioComponentPathForColumn,
+  type StudioCanvasCardIndex,
+  type StudioCanvasCardIndexEntry,
   studioPathKey,
+  visibleStudioCanvasCardEntriesByColumnIndex,
 } from "../studio-canvas-geometry"
+import { studioCanvasTransformChangedEventType } from "../studio-canvas-transform-event"
 import {
   createStudioPreviewRenderObservation,
   type StudioPreviewRenderObservationSnapshot,
@@ -99,13 +107,16 @@ type StudioWorkspaceViewScope = {
   selectedCardPathKey?: string
   setCanvasViewportElement: (element: HTMLDivElement | null) => void
   columnLayoutByIndex: Record<number, StudioColumnLayout>
+  columnMeasurementsByIndex: ReturnType<typeof useStudioCanvasLayout>["columnMeasurementsByIndex"]
   renderObservationSnapshot?: StudioPreviewRenderObservationSnapshot
   renderExpansionCenterPulse?: { id: number; x: number; y: number }
+  visibleCardsByColumnIndex: Record<number, StudioCanvasCardIndexEntry[]>
 }
 
 const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
 const canvasWheelExemptSelector = "[data-gtsx-canvas-wheel-exempt]"
 const studioCanvasRevealMargin = 24
+const defaultStudioCanvasVirtualViewportSize = { height: 720, width: 1280 }
 
 function shouldHandleCanvasWheelTarget(target: EventTarget | null): boolean {
   return !(typeof Element !== "undefined" && target instanceof Element && target.closest(canvasWheelExemptSelector))
@@ -173,11 +184,33 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     previewGeometryStore: props.previewGeometryStore,
     workspace: props.workspace,
   })
+  const canvasCardIndex = React.useMemo(
+    () =>
+      studioCanvasCardIndex({
+        columnMeasurementsByIndex: layout.columnMeasurementsByIndex,
+        workspace: props.workspace,
+      }),
+    [layout.columnMeasurementsByIndex, props.workspace],
+  )
+  const canvasCardIndexRef = React.useRef(canvasCardIndex)
+  canvasCardIndexRef.current = canvasCardIndex
+  const casePreviewScaleRef = React.useRef(layout.casePreviewScale)
+  casePreviewScaleRef.current = layout.casePreviewScale
+  const visibleCardsByColumnIndex = useVisibleStudioCanvasCardsByColumnIndex({
+    canvas: canvasController.canvas,
+    canvasViewportElement: canvasController.canvasViewportElement,
+    cardIndex: canvasCardIndex,
+    columnLayoutByIndex: layout.columnLayoutByIndex,
+    renderBufferMargin: studioPreviewRenderQueueRenderBufferMargin(props.previewRenderQueue),
+    selectedCardPathKey,
+  })
 
   const { flushPreviewRender, requestCanvasPreviewRender, requestPreviewRender } = useStudioPreviewRenderScheduler({
     canvasRef: canvasController.canvasRef,
     canvasViewportElement: canvasController.canvasViewportElement,
     canvasViewportPresetRef,
+    cardIndexRef: canvasCardIndexRef,
+    casePreviewScaleRef,
     columnLayoutByIndexRef: layout.columnLayoutByIndexRef,
     columnMeasurementsByIndexRef: layout.columnMeasurementsByIndexRef,
     frameStatesRef,
@@ -317,6 +350,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     canvas: canvasController.canvas,
     canvasViewportPreset,
     columnLayoutByIndex: layout.columnLayoutByIndex,
+    columnMeasurementsByIndex: layout.columnMeasurementsByIndex,
     onCanvasPointerCancel: canvasController.onCanvasPointerCancel,
     onCanvasPointerDown(event) {
       if (shouldClearStudioCanvasSelectionForPointerTarget(event.target)) setSelectedCardPathKey(undefined)
@@ -342,6 +376,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     casePreviewScale: layout.casePreviewScale,
     renderObservationSnapshot,
     renderExpansionCenterPulse,
+    visibleCardsByColumnIndex,
     previewRenderSessionStore,
     selected,
     selectedCardPathKey,
@@ -352,12 +387,91 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   }
 }
 
+function useVisibleStudioCanvasCardsByColumnIndex(input: {
+  canvas: StudioCanvasTransform
+  canvasViewportElement: HTMLDivElement | null
+  cardIndex: StudioCanvasCardIndex
+  columnLayoutByIndex: Record<number, StudioColumnLayout>
+  renderBufferMargin: number
+  selectedCardPathKey?: string
+}): Record<number, StudioCanvasCardIndexEntry[]> {
+  const [canvas, setCanvas] = React.useState(input.canvas)
+  const [viewportSize, setViewportSize] = React.useState(defaultStudioCanvasVirtualViewportSize)
+
+  useStudioLayoutEffect(() => {
+    setCanvas(input.canvas)
+  }, [input.canvas])
+
+  useStudioLayoutEffect(() => {
+    const element = input.canvasViewportElement
+    if (!element || typeof ResizeObserver === "undefined") {
+      if (element) setViewportSize(studioCanvasViewportElementSize(element))
+      return
+    }
+
+    const updateViewportSize = () => setViewportSize(studioCanvasViewportElementSize(element))
+    updateViewportSize()
+    const observer = new ResizeObserver(updateViewportSize)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [input.canvasViewportElement])
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return
+
+    let frame = 0
+    const handleCanvasTransformChange = (event: Event) => {
+      const nextCanvas = (event as CustomEvent<StudioCanvasTransform>).detail
+      if (!nextCanvas) return
+      if (frame) window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        setCanvas(nextCanvas)
+      })
+    }
+
+    window.addEventListener(studioCanvasTransformChangedEventType, handleCanvasTransformChange)
+    return () => {
+      window.removeEventListener(studioCanvasTransformChangedEventType, handleCanvasTransformChange)
+      if (frame) window.cancelAnimationFrame(frame)
+    }
+  }, [])
+
+  return React.useMemo(
+    () =>
+      visibleStudioCanvasCardEntriesByColumnIndex({
+        canvas,
+        cardIndex: input.cardIndex,
+        columnLayoutByIndex: input.columnLayoutByIndex,
+        renderBufferMargin: input.renderBufferMargin,
+        selectedCardPathKey: input.selectedCardPathKey,
+        viewportSize,
+      }),
+    [
+      canvas,
+      input.cardIndex,
+      input.columnLayoutByIndex,
+      input.renderBufferMargin,
+      input.selectedCardPathKey,
+      viewportSize,
+    ],
+  )
+}
+
+function studioCanvasViewportElementSize(element: HTMLElement): { height: number; width: number } {
+  const rect = element.getBoundingClientRect()
+  return {
+    height: Math.max(1, rect.height),
+    width: Math.max(1, rect.width),
+  }
+}
+
 const useStudioWorkspaceViewScope = createGScopeHook(useRealStudioWorkspaceViewScope)
 
 export default function Studio(props: StudioWorkspaceViewProps) {
   const scope = useStudioWorkspaceViewScope(props)
   const previewCacheReady = props.previewCacheReady ?? true
-  const initialCanvasSurfaceTransform = typeof window === "undefined" ? studioCanvasTransformStyle(scope.canvas) : undefined
+  const canvasSurfaceTransform = studioCanvasTransformStyle(scope.canvas)
 
   return (
     <StudioPreviewRenderSessionStoreProvider store={scope.previewRenderSessionStore}>
@@ -449,12 +563,15 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                 ref={scope.setCanvasSurfaceElement}
                 style={{
                   display: "block",
-                  left: 0,
-                  padding: "0 80px 80px 0",
+                  left: "0px",
+                  paddingBottom: "80px",
+                  paddingLeft: "0px",
+                  paddingRight: "80px",
+                  paddingTop: "0px",
                   position: "absolute",
-                  top: 0,
-                  ...(initialCanvasSurfaceTransform ? { transform: initialCanvasSurfaceTransform } : {}),
-                  transformOrigin: "0 0",
+                  top: "0px",
+                  transform: canvasSurfaceTransform,
+                  transformOrigin: "0px 0px",
                 }}
               >
                 {props.workspace.columns.map((column, columnIndex) => (
@@ -466,23 +583,29 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                     key={columnIndex}
                     ref={(element) => scope.setColumnElement(columnIndex, element)}
                     style={{
-                      display: "grid",
-                      gap: 10,
+                      display: "block",
+                      height: scope.columnMeasurementsByIndex[columnIndex]?.height ?? 0,
                       left: scope.columnLayoutByIndex[columnIndex]?.x ?? 0,
                       position: "absolute",
                       top: scope.columnLayoutByIndex[columnIndex]?.y ?? 0,
                       width: "max-content",
                     }}
                   >
-                    {column.components.map((component) => {
-                      const componentPathKey = studioPathKey(
-                        studioComponentPathForColumn(props.workspace, columnIndex, component.coordinate),
-                      )
+                    {(scope.visibleCardsByColumnIndex[columnIndex] ?? []).map((card) => {
+                      const component = card.component
+                      const cardRect =
+                        card.rect ?? scope.columnMeasurementsByIndex[columnIndex]?.cardRectsByCoordinate[component.coordinate]
                       return (
                         <div
                           key={component.coordinate}
                           ref={(element) => scope.setCardElement(columnIndex, component.coordinate, element)}
-                          style={{ display: "grid", justifySelf: "start", width: "max-content" }}
+                          style={{
+                            display: "grid",
+                            left: cardRect?.left ?? 0,
+                            position: "absolute",
+                            top: cardRect?.top ?? 0,
+                            width: "max-content",
+                          }}
                         >
                           <StudioComponentCardSlot
                             casePreviewScale={scope.casePreviewScale}
@@ -497,7 +620,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                             onPreviewGeometryChange={scope.onPreviewGeometryChange}
                             onSelect={scope.onSelectCard}
                             previewGeometryStore={props.previewGeometryStore}
-                            selected={scope.selectedCardPathKey === componentPathKey}
+                            selected={scope.selectedCardPathKey === card.pathKey}
                             selectedCaseName={selectedStudioCaseName(props.workspace, component)}
                             viewportPreset={scope.canvasViewportPreset}
                           />
@@ -636,6 +759,7 @@ Studio.cases = {
       canvasViewportPreset: "tablet",
       casePreviewScale: 1,
       columnLayoutByIndex: {},
+      columnMeasurementsByIndex: {},
       onCanvasPointerCancel() {},
       onCanvasPointerDown() {},
       onCanvasPointerMove() {},
@@ -649,6 +773,7 @@ Studio.cases = {
       setCanvasViewportElement() {},
       setCardElement() {},
       setColumnElement() {},
+      visibleCardsByColumnIndex: {},
     },
   },
 } satisfies GCases<StudioWorkspaceViewProps, StudioWorkspaceViewScope>

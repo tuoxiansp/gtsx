@@ -96,8 +96,8 @@ type StudioPreviewIframePoolProviderProps = {
 }
 
 const StudioPreviewIframePoolContext = React.createContext<StudioPreviewIframePoolContextValue | null>(null)
-const defaultStudioPreviewIframePoolMaximumIdleFrames = 48
-const defaultStudioPreviewIframePoolMaximumRetainedFrames = 48
+const defaultStudioPreviewIframePoolMaximumIdleFrames = 8
+const defaultStudioPreviewIframePoolMaximumRetainedFrames = 40
 const defaultStudioPreviewIframePoolMinimumIdleReserveFrames = 0
 const defaultStudioPreviewIframePoolPendingRenderRedeliveryDelayMilliseconds = 250
 const defaultStudioPreviewIframePoolPendingRenderMaximumDeliveryAttempts = 12
@@ -566,7 +566,13 @@ export function selectStudioPreviewIframePoolEntryForBorrow<Entry extends Studio
   const readyStaleEntry = idleEntries.find((entry) => entry.ready)
   if (readyStaleEntry) return readyStaleEntry
 
-  return undefined
+  const pendingExactSessionEntry = idleEntries.find((entry) => entry.lastRenderedSessionId === input.sessionId)
+  if (pendingExactSessionEntry) return pendingExactSessionEntry
+
+  const pendingStatelessEntry = idleEntries.find((entry) => !entry.lastRenderedSessionId)
+  if (pendingStatelessEntry) return pendingStatelessEntry
+
+  return idleEntries[0]
 }
 
 function cssSize(value: number | string): string {

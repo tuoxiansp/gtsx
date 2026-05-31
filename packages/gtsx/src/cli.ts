@@ -48,6 +48,9 @@ Usage:
   gtsx diagnose
 `
 
+const DEFAULT_PREVIEW_READY_TIMEOUT_MS = 180_000
+const DEFAULT_PREVIEW_READY_REQUEST_TIMEOUT_MS = 10_000
+
 export async function runCLI(args: string[], context: CLIContext): Promise<CLIResult> {
   if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
     return { exitCode: 0, stdout: HELP, stderr: context.stderr }
@@ -677,12 +680,12 @@ async function startPreviewServer(
 }
 
 async function waitForPreviewUrl(readyUrl: string, exitPromise: Promise<number>): Promise<"ready" | "exit" | "timeout"> {
-  const deadline = Date.now() + 10_000
+  const deadline = Date.now() + DEFAULT_PREVIEW_READY_TIMEOUT_MS
 
   while (Date.now() < deadline) {
     const result = await Promise.race([
       exitPromise.then(() => "exit" as const),
-      fetch(readyUrl, { redirect: "manual", signal: AbortSignal.timeout(500) })
+      fetch(readyUrl, { redirect: "manual", signal: AbortSignal.timeout(DEFAULT_PREVIEW_READY_REQUEST_TIMEOUT_MS) })
         .then((response) => (response.status >= 200 && response.status < 400 ? ("ready" as const) : ("retry" as const)))
         .catch(() => "retry" as const),
     ])

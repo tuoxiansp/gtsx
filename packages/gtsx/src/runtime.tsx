@@ -159,6 +159,12 @@ export function createGProvider<Props extends object, State, Update extends GPro
   const TrackedProvider = container.Provider
 
   const Provider = ((props: Props & { children?: React.ReactNode }) => {
+    const preview = React.useContext(PreviewRuntimeContext)
+    const activeCase = React.useContext(ActiveComponentCaseContext)
+    if (preview && (preview.providerValues.has(Provider) || readCaseProviderValue(activeCase, Provider).found)) {
+      return <>{props.children}</>
+    }
+
     return (
       <PresenceContext.Provider value={true}>
         <TrackedProvider {...props}>{props.children}</TrackedProvider>
@@ -192,7 +198,7 @@ export function useGContextUpdate<Provider extends GProvider<any, any, any>>(
 
   const preview = React.useContext(PreviewRuntimeContext)
   const activeCase = React.useContext(ActiveComponentCaseContext)
-  if (preview && readCaseProviderValue(activeCase, provider).found) {
+  if (preview && (preview.providerValues.has(provider) || readCaseProviderValue(activeCase, provider).found)) {
     return noopUpdate as GProviderUpdate<Provider>
   }
 

@@ -255,6 +255,32 @@ describe("GTSX runtime", () => {
     expect(html).toBe("<span>dark</span>")
   })
 
+  it("does not execute a provider hook when preview provider values are supplied", () => {
+    let realHookCalls = 0
+    const ThemeProvider = createGProvider((_props: object) => {
+      realHookCalls += 1
+      return React.useState<ThemeScope>({ mode: "light" })
+    })
+
+    function ThemeLabel() {
+      const theme = useGContext(ThemeProvider)
+      const setTheme = useGContextUpdate(ThemeProvider)
+      setTheme({ mode: "light" })
+      return <span>{theme.mode}</span>
+    }
+
+    const html = renderToStaticMarkup(
+      <GPreviewProvider providerValues={new Map([[ThemeProvider, { mode: "dark" }]])}>
+        <ThemeProvider>
+          <ThemeLabel />
+        </ThemeProvider>
+      </GPreviewProvider>,
+    )
+
+    expect(html).toBe("<span>dark</span>")
+    expect(realHookCalls).toBe(0)
+  })
+
   it("falls back to the active component case provider entries in preview", () => {
     type ThemeState = {
       mode: "light" | "dark"
@@ -488,6 +514,24 @@ describe("GTSX runtime", () => {
         y: 0,
         width: 390,
         height: 108,
+      })
+    } finally {
+      restoreGetComputedStyle()
+    }
+  })
+
+  it("falls through zero-area boundary wrappers before reporting a fallback rect", () => {
+    const restoreGetComputedStyle = installFakeComputedStyle()
+    const navItem = fakeElement({ x: 12, y: 20, width: 200, height: 44 })
+    const layoutShell = fakeElement({ x: 0, y: 0, width: 768, height: 0 }, {}, [navItem])
+    const boundary = fakeElement({ x: 0, y: 0, width: 768, height: 0 }, {}, [layoutShell])
+
+    try {
+      expect(readGBoundaryElementRect(boundary)).toEqual({
+        x: 12,
+        y: 20,
+        width: 200,
+        height: 44,
       })
     } finally {
       restoreGetComputedStyle()

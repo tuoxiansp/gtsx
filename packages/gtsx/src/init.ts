@@ -84,7 +84,7 @@ export default defineGTSXConfig({
     allUrl: "http://localhost:{port}/gtsx?entry={entry}{gcase}",
   },
   studio: {
-    manifestCacheTtlMs: 1000,
+    manifestCacheTtlMs: 60_000,
   },
 })
 `

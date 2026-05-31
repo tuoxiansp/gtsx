@@ -73,6 +73,57 @@ NamedCard.cases = {
     expect(output).toContain("NamedCard.cases = {")
   })
 
+  it("wraps local components exported from a list", () => {
+    const output = transformGTSXComponentBoundaries({
+      root,
+      filePath: "/repo/src/Card.g.tsx",
+      code: `
+function NamedCard(props: { label: string }) {
+  return <span>{props.label}</span>
+}
+
+NamedCard.cases = {
+  ready: { props: { label: "Ready" } },
+}
+
+function Helper() {
+  return <span>helper</span>
+}
+
+export { NamedCard, Helper }
+`,
+    })
+
+    expect(output).toContain("function NamedCardGTSXImpl(props: { label: string })")
+    expect(output).toContain('const NamedCard = __gtsxDefineGComponent("src/Card.g.tsx#NamedCard", NamedCardGTSXImpl)')
+    expect(output).toContain("export { NamedCard, Helper }")
+    expect(output).toContain("NamedCard.cases = {")
+    expect(output).not.toContain("HelperGTSXImpl")
+  })
+
+  it("wraps arrow function components exported from a list", () => {
+    const output = transformGTSXComponentBoundaries({
+      root,
+      filePath: "/repo/src/Toaster.g.tsx",
+      code: `
+const Toaster = (props: { richColors?: boolean }) => {
+  return <span>{props.richColors ? "rich" : "default"}</span>
+}
+
+Toaster.cases = {
+  default: { props: {} },
+}
+
+export { Toaster }
+`,
+    })
+
+    expect(output).toContain("const ToasterGTSXImpl = (props: { richColors?: boolean }) =>")
+    expect(output).toContain('const Toaster = __gtsxDefineGComponent("src/Toaster.g.tsx#Toaster", ToasterGTSXImpl)')
+    expect(output).toContain("export { Toaster }")
+    expect(output).toContain("Toaster.cases = {")
+  })
+
   it("wraps default export assignments separately from named component exports", () => {
     const output = transformGTSXComponentBoundaries({
       root,

@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import type { GBoundaryRect, GBoundaryTreeNode, GCases } from "@gtsx/core"
+import type { GBoundaryRect, GCases } from "@gtsx/core"
 
 import {
   clipPreviewBoundaryRectToViewport,
@@ -20,6 +20,7 @@ import {
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
 import { previewFrameLayoutHeight, previewFrameLayoutWidth } from "../preview-frame-layout"
+import { studioBoundaryRectForCoordinate } from "../boundary-tree"
 import LazyPreviewFrame from "./LazyPreviewFrame.g"
 import PreviewError from "./PreviewError.g"
 
@@ -371,8 +372,8 @@ function componentCardPreviewFrameStateName(frameState: ComponentCardFrameState 
   return "loading"
 }
 
-function boundaryRectForComponent(tree: GBoundaryTreeNode[] | undefined, coordinate: string): GBoundaryRect | undefined {
-  return tree ? findBoundaryNode(tree, coordinate)?.rect : undefined
+function boundaryRectForComponent(tree: ComponentCardFrameState["tree"], coordinate: string): GBoundaryRect | undefined {
+  return studioBoundaryRectForCoordinate(tree, coordinate)
 }
 
 function getPreviewError(component: StudioManifestComponent): string | undefined {
@@ -382,16 +383,6 @@ function getPreviewError(component: StudioManifestComponent): string | undefined
 
   if (!component.cases[0]) {
     return "missing-case"
-  }
-
-  return undefined
-}
-
-function findBoundaryNode(tree: GBoundaryTreeNode[], coordinate: string): GBoundaryTreeNode | undefined {
-  for (const node of tree) {
-    if (node.coordinate === coordinate) return node
-    const childMatch = findBoundaryNode(node.children, coordinate)
-    if (childMatch) return childMatch
   }
 
   return undefined

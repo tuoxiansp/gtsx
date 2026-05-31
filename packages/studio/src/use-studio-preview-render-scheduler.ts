@@ -33,6 +33,7 @@ import {
   type StudioPreviewRenderRequestPolicy,
   type StudioPreviewRenderSchedulerRunOptions,
 } from "./studio-preview-render-request-policy"
+import type { StudioCanvasCardIndex } from "./studio-canvas-geometry"
 
 type MutableRef<T> = {
   current: T
@@ -48,6 +49,8 @@ export function useStudioPreviewRenderScheduler(input: {
   canvasRef: MutableRef<StudioCanvasTransform>
   canvasViewportElement: HTMLDivElement | null
   canvasViewportPresetRef: MutableRef<StudioViewportPreset>
+  cardIndexRef: MutableRef<StudioCanvasCardIndex>
+  casePreviewScaleRef: MutableRef<number>
   columnLayoutByIndexRef: MutableRef<Record<number, StudioColumnLayout>>
   columnMeasurementsByIndexRef: MutableRef<Record<number, StudioColumnLayoutMeasurement>>
   frameStatesRef: MutableRef<Record<string, StudioPreviewFrameState> | undefined>
@@ -84,6 +87,8 @@ export function useStudioPreviewRenderScheduler(input: {
         canvasMovement: lastCanvasRenderMovement.current,
         canvasViewportElement: input.canvasViewportElement,
         canvasViewportPreset: input.canvasViewportPresetRef.current,
+        cardIndex: input.cardIndexRef.current,
+        casePreviewScale: input.casePreviewScaleRef.current,
         columnLayoutByIndex: input.columnLayoutByIndexRef.current,
         columnMeasurementsByIndex: input.columnMeasurementsByIndexRef.current,
         completionSource,
@@ -134,6 +139,8 @@ export function useStudioPreviewRenderScheduler(input: {
       input.canvasRef,
       input.canvasViewportElement,
       input.canvasViewportPresetRef,
+      input.cardIndexRef,
+      input.casePreviewScaleRef,
       input.columnLayoutByIndexRef,
       input.columnMeasurementsByIndexRef,
       input.frameStatesRef,
@@ -213,6 +220,8 @@ function createStudioPreviewRenderPlanForScheduler(input: {
   canvasMovement?: StudioCanvasMovement
   canvasViewportElement: HTMLDivElement | null
   canvasViewportPreset: StudioViewportPreset
+  cardIndex: StudioCanvasCardIndex
+  casePreviewScale?: number
   columnLayoutByIndex: Record<number, StudioColumnLayout>
   columnMeasurementsByIndex: Record<number, StudioColumnLayoutMeasurement>
   completionSource: StudioPreviewRenderCompletionSource
@@ -231,6 +240,8 @@ function createStudioPreviewRenderPlanForScheduler(input: {
     canvas: input.canvas,
     canvasMovement: input.canvasMovement,
     canvasViewportPreset: input.canvasViewportPreset,
+    cardIndex: input.cardIndex,
+    casePreviewScale: input.casePreviewScale,
     columnLayoutByIndex: input.columnLayoutByIndex,
     columnMeasurementsByIndex: input.columnMeasurementsByIndex,
     completedSessionIds: baseCompletedSessionIds,

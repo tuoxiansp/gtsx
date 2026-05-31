@@ -1,6 +1,6 @@
 "use client"
 
-import type { GBoundaryRect, GBoundaryTreeNode } from "@gtsx/core"
+import type { GBoundaryRect } from "@gtsx/core"
 
 import {
   clipPreviewBoundaryRectToViewport,
@@ -12,6 +12,7 @@ import {
   visibleWorkspaceComponents,
   type StudioCanvasScreenRect,
   type StudioCanvasTransform,
+  type StudioCaseGridLayout,
   type StudioCaseGridItemLayout,
   type StudioColumnLayout,
   type StudioColumnLayoutMeasurement,
@@ -27,10 +28,45 @@ import {
   studioComponentCaseGridMinScale,
 } from "./case-grid-layout"
 import { previewFrameLayoutHeight, previewFrameLayoutWidth } from "./preview-frame-layout"
-import { type StudioCanvasPreviewVisibilityItem, type StudioViewportRect } from "./preview-lazy-loading"
+import {
+  studioPreviewRenderBufferMargin,
+  type StudioCanvasPreviewVisibilityItem,
+  type StudioViewportRect,
+} from "./preview-lazy-loading"
 import type { StudioManifestComponent } from "./manifest"
 import type { StudioPreviewGeometryCacheStore } from "./preview-geometry-cache-store"
 import { studioComponentCaseLayoutFrameStates } from "./studio-component-preview-frame-states"
+import { studioBoundaryRectForCoordinate } from "./boundary-tree"
+
+export type StudioComponentCardLayout = {
+  caseGridLayout: StudioCaseGridLayout
+  caseGridItems: StudioCaseGridItemLayout[]
+  height: number
+  width: number
+}
+
+export type StudioCanvasCardIndexEntry = {
+  columnIndex: number
+  component: StudioManifestComponent
+  pathKey: string
+  rect?: StudioCanvasScreenRect
+}
+
+export type StudioCanvasCardIndex = {
+  byColumnIndex: Record<number, StudioCanvasCardIndexEntry[]>
+  byPathKey: Record<string, StudioCanvasCardIndexEntry>
+  complete: boolean
+}
+
+export type MeasuredStudioColumnCardLayout = {
+  height: number
+  previewFrameRectsBySessionId?: Record<string, StudioCanvasScreenRect>
+  width: number
+}
+
+const studioComponentCardColumnGap = 10
+const studioComponentCardTitleGap = 8
+const studioComponentCardTitleHeight = 13 * 1.2
 
 export function domRectToStudioCanvasScreenRect(rect: DOMRect): StudioCanvasScreenRect {
   return {
@@ -129,28 +165,311 @@ export function studioCanvasCasePreviewScale(
   return scales.length > 0 ? Math.min(1, ...scales) : 1
 }
 
+export function studioComponentCardLayout(input: {
+  caseFrameStates: Record<string, StudioPreviewFrameState | undefined>
+  casePreviewScale?: number
+  component: StudioManifestComponent
+  viewportPreset: StudioViewportPreset
+}): StudioComponentCardLayout {
+  const caseGridItems = studioComponentCaseGridItems(input.component, input.caseFrameStates, input.viewportPreset)
+  const caseGridLayout = computeStudioCaseGridLayout({
+    caseChromeHeight: studioComponentCaseChromeHeight,
+    gap: studioComponentCaseGridGap,
+    items: caseGridItems,
+    maxSide: studioCaseGridMaxSide(input.viewportPreset, input.component.cases.length),
+    minScale: studioComponentCaseGridMinScale,
+    previewScale: input.casePreviewScale,
+  })
+
+  return {
+    caseGridLayout,
+    caseGridItems,
+    height: studioComponentCardTitleHeight + studioComponentCardTitleGap + caseGridLayout.height,
+    width: Math.max(280, caseGridLayout.width),
+  }
+}
+
+export function studioWorkspaceColumnMeasurementsFromGeometry(input: {
+  casePreviewScale?: number
+  frameStates?: Record<string, StudioPreviewFrameState>
+  previewCache?: Record<string, StudioPreviewCacheEntry>
+  previewGeometryStore?: StudioPreviewGeometryCacheStore
+  viewportPreset: StudioViewportPreset
+  workspace: StudioWorkspaceState
+}): Record<number, StudioColumnLayoutMeasurement> {
+  const casePreviewScale =
+    input.casePreviewScale ??
+    studioCanvasCasePreviewScale(
+      input.workspace,
+      input.viewportPreset,
+      input.frameStates,
+      input.previewCache,
+      input.previewGeometryStore,
+    )
+  const measurements: Record<number, StudioColumnLayoutMeasurement> = {}
+
+  input.workspace.columns.forEach((column, columnIndex) => {
+    const cardRectsByCoordinate: Record<string, StudioCanvasScreenRect> = {}
+    const previewFrameRectsBySessionId: Record<string, StudioCanvasScreenRect> = {}
+    let cardTop = 0
+
+    for (const component of column.components) {
+      const caseFrameStates = studioComponentCaseLayoutFrameStates(
+        component,
+        input.viewportPreset,
+        input.frameStates,
+        input.previewCache,
+        input.previewGeometryStore,
+      )
+      const cardLayout = studioComponentCardLayout({
+        caseFrameStates,
+        casePreviewScale,
+        component,
+        viewportPreset: input.viewportPreset,
+      })
+      cardRectsByCoordinate[component.coordinate] = {
+        bottom: cardTop + cardLayout.height,
+        left: 0,
+        right: cardLayout.width,
+        top: cardTop,
+      }
+
+      component.cases.forEach((testCase, caseIndex) => {
+        const caseGridItem = cardLayout.caseGridItems[caseIndex]
+        if (!caseGridItem) return
+
+        const columnIndex = caseIndex % cardLayout.caseGridLayout.columns
+        const rowIndex = Math.floor(caseIndex / cardLayout.caseGridLayout.columns)
+        const cellLeft = columnIndex * (cardLayout.caseGridLayout.cellWidth + cardLayout.caseGridLayout.gap)
+        const cellTop = rowIndex * (cardLayout.caseGridLayout.cellHeight + cardLayout.caseGridLayout.gap)
+        const frameWidth = Math.ceil(caseGridItem.width * cardLayout.caseGridLayout.previewScale)
+        const frameHeight = Math.ceil(caseGridItem.height * cardLayout.caseGridLayout.previewScale)
+        const frameLeft = cellLeft + (cardLayout.caseGridLayout.cellWidth - frameWidth) / 2
+        const frameTop =
+          studioComponentCardTitleHeight +
+          studioComponentCardTitleGap +
+          cellTop +
+          studioComponentCaseChromeHeight
+
+        previewFrameRectsBySessionId[previewSessionId(component, testCase.name, input.viewportPreset)] = {
+          bottom: cardTop + frameTop + frameHeight,
+          left: frameLeft,
+          right: frameLeft + frameWidth,
+          top: cardTop + frameTop,
+        }
+      })
+
+      cardTop += cardLayout.height + studioComponentCardColumnGap
+    }
+
+    measurements[columnIndex] = {
+      cardRectsByCoordinate,
+      height: column.components.length > 0 ? cardTop - studioComponentCardColumnGap : 0,
+      previewFrameRectsBySessionId,
+    }
+  })
+
+  return measurements
+}
+
+export function studioCanvasCardIndex(input: {
+  columnMeasurementsByIndex: Record<number, StudioColumnLayoutMeasurement>
+  workspace: StudioWorkspaceState
+}): StudioCanvasCardIndex {
+  const byColumnIndex: Record<number, StudioCanvasCardIndexEntry[]> = {}
+  const byPathKey: Record<string, StudioCanvasCardIndexEntry> = {}
+  let complete = true
+
+  input.workspace.columns.forEach((column, columnIndex) => {
+    const cardRectsByCoordinate = input.columnMeasurementsByIndex[columnIndex]?.cardRectsByCoordinate ?? {}
+    const entries = column.components
+      .map((component) => {
+        const pathKey = studioPathKey(studioComponentPathForColumn(input.workspace, columnIndex, component.coordinate))
+        const entry: StudioCanvasCardIndexEntry = {
+          columnIndex,
+          component,
+          pathKey,
+          rect: cardRectsByCoordinate[component.coordinate],
+        }
+        if (!entry.rect) complete = false
+        byPathKey[pathKey] = entry
+        return entry
+      })
+      .sort((left, right) => (left.rect?.top ?? Number.POSITIVE_INFINITY) - (right.rect?.top ?? Number.POSITIVE_INFINITY))
+
+    byColumnIndex[columnIndex] = entries
+  })
+
+  return { byColumnIndex, byPathKey, complete }
+}
+
+export function measuredStudioColumnLayoutPackedByComponentOrder(input: {
+  componentCoordinates: string[]
+  fallbackMeasurement: StudioColumnLayoutMeasurement
+  measuredCardsByCoordinate: Record<string, MeasuredStudioColumnCardLayout | undefined>
+  previewFrameSessionIdsByCoordinate: Record<string, string[]>
+}): StudioColumnLayoutMeasurement {
+  const cardRectsByCoordinate: Record<string, StudioCanvasScreenRect> = {}
+  const previewFrameRectsBySessionId: Record<string, StudioCanvasScreenRect> = {}
+  let cardTop = 0
+
+  for (const coordinate of input.componentCoordinates) {
+    const fallbackCardRect = input.fallbackMeasurement.cardRectsByCoordinate[coordinate]
+    const measuredCard = input.measuredCardsByCoordinate[coordinate]
+    const width = measuredCard?.width ?? rectWidth(fallbackCardRect)
+    const height = measuredCard?.height ?? rectHeight(fallbackCardRect)
+    if (width === undefined || height === undefined) continue
+
+    const packedCardRect = {
+      bottom: cardTop + height,
+      left: 0,
+      right: width,
+      top: cardTop,
+    }
+    cardRectsByCoordinate[coordinate] = packedCardRect
+
+    for (const sessionId of input.previewFrameSessionIdsByCoordinate[coordinate] ?? []) {
+      const measuredPreviewFrameRect = measuredCard?.previewFrameRectsBySessionId?.[sessionId]
+      if (measuredPreviewFrameRect) {
+        previewFrameRectsBySessionId[sessionId] = translateRect(measuredPreviewFrameRect, packedCardRect.left, packedCardRect.top)
+        continue
+      }
+
+      const fallbackPreviewFrameRect = input.fallbackMeasurement.previewFrameRectsBySessionId?.[sessionId]
+      if (!fallbackPreviewFrameRect || !fallbackCardRect) continue
+      previewFrameRectsBySessionId[sessionId] = translateRect(
+        fallbackPreviewFrameRect,
+        packedCardRect.left - fallbackCardRect.left,
+        packedCardRect.top - fallbackCardRect.top,
+      )
+    }
+
+    cardTop = packedCardRect.bottom + studioComponentCardColumnGap
+  }
+
+  return {
+    cardRectsByCoordinate,
+    height: input.componentCoordinates.length > 0 ? cardTop - studioComponentCardColumnGap : 0,
+    previewFrameRectsBySessionId,
+  }
+}
+
+export function visibleStudioCanvasCardEntriesByColumnIndex(input: {
+  canvas: StudioCanvasTransform
+  cardIndex: StudioCanvasCardIndex
+  columnLayoutByIndex: Record<number, StudioColumnLayout>
+  renderBufferMargin: number
+  selectedCardPathKey?: string
+  viewportSize: { height: number; width: number }
+}): Record<number, StudioCanvasCardIndexEntry[]> {
+  const visibleByColumnIndex: Record<number, StudioCanvasCardIndexEntry[]> = {}
+  const scale = Math.max(0.01, input.canvas.scale)
+  const buffer = input.renderBufferMargin / scale
+  const viewportRect = studioCanvasViewportRect(input.canvas, input.viewportSize, buffer)
+
+  for (const [rawColumnIndex, entries] of Object.entries(input.cardIndex.byColumnIndex)) {
+    const columnIndex = Number(rawColumnIndex)
+    const columnLayout = input.columnLayoutByIndex[columnIndex] ?? { x: 0, y: 0 }
+    const localViewportRect = translateStudioCanvasRect(viewportRect, -columnLayout.x, -columnLayout.y)
+    const selectedEntries: StudioCanvasCardIndexEntry[] = []
+
+    if (input.cardIndex.complete) {
+      const startIndex = firstStudioCanvasCardIndexWithBottomAtLeast(entries, localViewportRect.top)
+      for (let index = startIndex; index < entries.length; index += 1) {
+        const entry = entries[index]
+        if (!entry?.rect) continue
+        if (entry.rect.top > localViewportRect.bottom) break
+        if (rectsIntersect(entry.rect, localViewportRect)) selectedEntries.push(entry)
+      }
+    } else {
+      for (const entry of entries) {
+        if (!entry.rect || rectsIntersect(entry.rect, localViewportRect)) selectedEntries.push(entry)
+      }
+    }
+
+    if (selectedEntries.length > 0) visibleByColumnIndex[columnIndex] = selectedEntries
+  }
+
+  if (input.selectedCardPathKey) {
+    const selectedEntry = input.cardIndex.byPathKey[input.selectedCardPathKey]
+    if (selectedEntry) {
+      const selectedEntries = visibleByColumnIndex[selectedEntry.columnIndex] ?? []
+      if (!selectedEntries.some((entry) => entry.pathKey === selectedEntry.pathKey)) {
+        visibleByColumnIndex[selectedEntry.columnIndex] = [...selectedEntries, selectedEntry]
+      }
+    }
+  }
+
+  return visibleByColumnIndex
+}
+
 export function studioPreviewVisibilityItems(
   workspace: StudioWorkspaceState,
   viewportPreset: StudioViewportPreset,
   columnLayoutByIndex: Record<number, StudioColumnLayout>,
   columnMeasurementsByIndex: Record<number, StudioColumnLayoutMeasurement>,
   options: {
+    canvas?: StudioCanvasTransform
+    casePreviewScale?: number
+    cardIndex?: StudioCanvasCardIndex
     frameStates?: Record<string, StudioPreviewFrameState>
     previewCache?: Record<string, StudioPreviewCacheEntry>
     previewGeometryStore?: StudioPreviewGeometryCacheStore
+    renderBufferMargin?: number
+    viewport?: StudioViewportRect
   } = {},
 ): StudioCanvasPreviewVisibilityItem[] {
   const items: StudioCanvasPreviewVisibilityItem[] = []
   let fallbackCasePreviewScale: number | undefined
+  const renderBufferMargin = options.renderBufferMargin ?? studioPreviewRenderBufferMargin
+  const viewportFilter =
+    options.canvas && options.viewport
+      ? studioCanvasViewportRect(
+          options.canvas,
+          {
+            height: options.viewport.bottom - options.viewport.top,
+            width: options.viewport.right - options.viewport.left,
+          },
+          renderBufferMargin / Math.max(0.01, options.canvas.scale),
+        )
+      : undefined
+  const visibleCardEntriesByColumnIndex =
+    options.cardIndex && options.canvas && options.viewport
+      ? visibleStudioCanvasCardEntriesByColumnIndex({
+          canvas: options.canvas,
+          cardIndex: options.cardIndex,
+          columnLayoutByIndex,
+          renderBufferMargin,
+          viewportSize: {
+            height: options.viewport.bottom - options.viewport.top,
+            width: options.viewport.right - options.viewport.left,
+          },
+        })
+      : undefined
+  const columnEntries = visibleCardEntriesByColumnIndex
+    ? Object.entries(visibleCardEntriesByColumnIndex)
+    : workspace.columns.map((column, columnIndex) => [
+        String(columnIndex),
+        column.components.map((component) => ({
+          columnIndex,
+          component,
+          pathKey: studioPathKey(studioComponentPathForColumn(workspace, columnIndex, component.coordinate)),
+          rect: columnMeasurementsByIndex[columnIndex]?.cardRectsByCoordinate[component.coordinate],
+        } satisfies StudioCanvasCardIndexEntry)),
+      ] as const)
 
-  workspace.columns.forEach((column, columnIndex) => {
+  columnEntries.forEach(([rawColumnIndex, entries]) => {
+    const columnIndex = Number(rawColumnIndex)
     const columnLayout = columnLayoutByIndex[columnIndex] ?? { x: 0, y: 0 }
     const cardRectsByCoordinate = columnMeasurementsByIndex[columnIndex]?.cardRectsByCoordinate ?? {}
     const previewFrameRectsBySessionId = columnMeasurementsByIndex[columnIndex]?.previewFrameRectsBySessionId ?? {}
 
-    for (const component of column.components) {
-      const cardRect = cardRectsByCoordinate[component.coordinate]
+    for (const entry of entries) {
+      const component = entry.component
+      const cardRect = entry.rect ?? cardRectsByCoordinate[component.coordinate]
       if (!cardRect) continue
+      const absoluteCardRect = translateStudioCanvasRect(cardRect, columnLayout.x, columnLayout.y)
+      if (!visibleCardEntriesByColumnIndex && viewportFilter && !rectsIntersect(absoluteCardRect, viewportFilter)) continue
 
       const measuredSessionIds = new Set<string>()
       for (const testCase of component.cases) {
@@ -171,13 +490,15 @@ export function studioPreviewVisibilityItems(
       }
 
       if (measuredSessionIds.size === component.cases.length) continue
-      fallbackCasePreviewScale ??= studioCanvasCasePreviewScale(
-        workspace,
-        viewportPreset,
-        options.frameStates,
-        options.previewCache,
-        options.previewGeometryStore,
-      )
+      fallbackCasePreviewScale ??=
+        options.casePreviewScale ??
+        studioCanvasCasePreviewScale(
+          workspace,
+          viewportPreset,
+          options.frameStates,
+          options.previewCache,
+          options.previewGeometryStore,
+        )
       items.push(
         ...studioComponentFallbackCasePreviewVisibilityItems({
           cardRect,
@@ -195,6 +516,46 @@ export function studioPreviewVisibilityItems(
   })
 
   return items
+}
+
+function studioCanvasViewportRect(
+  canvas: StudioCanvasTransform,
+  viewportSize: { height: number; width: number },
+  buffer: number,
+): StudioViewportRect {
+  const scale = Math.max(0.01, canvas.scale)
+  return {
+    bottom: (viewportSize.height - canvas.y) / scale + buffer,
+    left: -canvas.x / scale - buffer,
+    right: (viewportSize.width - canvas.x) / scale + buffer,
+    top: -canvas.y / scale - buffer,
+  }
+}
+
+function translateStudioCanvasRect(rect: StudioCanvasScreenRect, x: number, y: number): StudioViewportRect {
+  return {
+    bottom: rect.bottom + y,
+    left: rect.left + x,
+    right: rect.right + x,
+    top: rect.top + y,
+  }
+}
+
+function firstStudioCanvasCardIndexWithBottomAtLeast(entries: readonly StudioCanvasCardIndexEntry[], value: number): number {
+  let low = 0
+  let high = entries.length
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    const bottom = entries[middle]?.rect?.bottom ?? Number.POSITIVE_INFINITY
+    if (bottom < value) {
+      low = middle + 1
+    } else {
+      high = middle
+    }
+  }
+
+  return low
 }
 
 export function sameColumnLayoutRecord(left: Record<number, StudioColumnLayout>, right: Record<number, StudioColumnLayout>): boolean {
@@ -308,18 +669,8 @@ function studioComponentFallbackCasePreviewVisibilityItems(input: {
   return items
 }
 
-function studioBoundaryRectForComponent(tree: GBoundaryTreeNode[] | undefined, coordinate: string): GBoundaryRect | undefined {
-  return tree ? findStudioBoundaryNode(tree, coordinate)?.rect : undefined
-}
-
-function findStudioBoundaryNode(tree: GBoundaryTreeNode[], coordinate: string): GBoundaryTreeNode | undefined {
-  for (const node of tree) {
-    if (node.coordinate === coordinate) return node
-    const childMatch = findStudioBoundaryNode(node.children, coordinate)
-    if (childMatch) return childMatch
-  }
-
-  return undefined
+function studioBoundaryRectForComponent(tree: StudioPreviewFrameState["tree"], coordinate: string): GBoundaryRect | undefined {
+  return studioBoundaryRectForCoordinate(tree, coordinate)
 }
 
 function studioPreviewLayoutSignature(frameState: StudioPreviewFrameState | undefined): string {
@@ -353,4 +704,28 @@ function sameCardRectRecord(
 
 function sameRect(left: StudioViewportRect | undefined, right: StudioViewportRect | undefined): boolean {
   return left?.bottom === right?.bottom && left?.left === right?.left && left?.right === right?.right && left?.top === right?.top
+}
+
+function rectsIntersect(
+  left: { bottom: number; left: number; right: number; top: number },
+  right: { bottom: number; left: number; right: number; top: number },
+): boolean {
+  return left.left < right.right && left.right > right.left && left.top < right.bottom && left.bottom > right.top
+}
+
+function rectHeight(rect: StudioCanvasScreenRect | undefined): number | undefined {
+  return rect ? rect.bottom - rect.top : undefined
+}
+
+function rectWidth(rect: StudioCanvasScreenRect | undefined): number | undefined {
+  return rect ? rect.right - rect.left : undefined
+}
+
+function translateRect(rect: StudioCanvasScreenRect, x: number, y: number): StudioCanvasScreenRect {
+  return {
+    bottom: rect.bottom + y,
+    left: rect.left + x,
+    right: rect.right + x,
+    top: rect.top + y,
+  }
 }

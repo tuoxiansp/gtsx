@@ -316,18 +316,22 @@ describe("GTSX Studio manifest", () => {
       ".": {
         types: "./dist/index.d.ts",
         import: "./dist/index.js",
+        default: "./dist/index.js",
       },
       "./client": {
         types: "./dist/client-entry.d.ts",
         import: "./dist/client.js",
+        default: "./dist/client.js",
       },
       "./manifest": {
         types: "./dist/manifest.d.ts",
         import: "./dist/manifest.js",
+        default: "./dist/manifest.js",
       },
       "./manifest-server": {
         types: "./dist/manifest-server.d.ts",
         import: "./dist/manifest-server.js",
+        default: "./dist/manifest-server.js",
       },
     })
     expect(packageJson.private).toBeUndefined()

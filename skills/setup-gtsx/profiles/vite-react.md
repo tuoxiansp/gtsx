@@ -64,6 +64,15 @@ If the project uses npm, `serve` needs `npm run dev -- --host ...`. For pnpm, pr
 
 ## Browser Entry
 
+Before branching to `/gtsx`, identify the visual environment used by the components being previewed:
+
+- App-wide CSS imports.
+- Design-system or registry CSS imports.
+- Static root classes or `data-*` attributes that select a theme, base color, density, or style preset.
+- Font/style setup imports that affect component measurements.
+
+The preview branch must load those visual pieces too. Keep the preview shell static: imports, classes, attributes, and CSS variables are fine; production providers that run ordinary React hooks, auth/session clients, routers, fetchers, or effects do not belong in the preview entry.
+
 `src/main.tsx`:
 
 ```tsx
@@ -74,6 +83,7 @@ import projectIndex from "virtual:gtsx/project-index"
 
 import App from "./App"
 import { GTSXPreviewApp } from "./preview"
+import "./index.css"
 
 const studioManifest = createStudioManifestFromGTSXConfig(projectIndex, gtsxConfig)
 const app =

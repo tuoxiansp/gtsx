@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs"
 import { dirname, join, relative, resolve, sep } from "node:path"
 import ts from "typescript"
 
-import { analyzeEntry, type GTSXAnalysisResult, type GTSXDiagnostic } from "./analyzer.js"
+import { analyzeEntry, createGTSXAnalysisCache, type GTSXAnalysisResult, type GTSXDiagnostic } from "./analyzer.js"
 import { discoverGTSXProgramFiles, findNearestTSConfig } from "./project-scope.js"
 
 export type GTSXProjectIndexComponent = {
@@ -68,6 +68,16 @@ type ProjectModuleResolution = {
 
 const IGNORED_DISCOVERY_DIRS = new Set(["node_modules", "dist", ".vite", ".next", ".git"])
 const DEFAULT_PROJECT_INDEX_CACHE_TTL_MS = 1000
+const globalProjectIndexCacheSymbol = Symbol.for("gtsx.project-index.cache")
+
+type ProjectIndexCacheEntry = {
+  cachedAt: number
+  index: GTSXProjectIndex
+}
+
+type GlobalProjectIndexCache = typeof globalThis & {
+  [globalProjectIndexCacheSymbol]?: Map<string, ProjectIndexCacheEntry>
+}
 
 export function buildGTSXProjectIndex(options: BuildGTSXProjectIndexOptions): GTSXProjectIndex {
   const projectRoot = options.projectRoot ?? "."
@@ -77,11 +87,14 @@ export function buildGTSXProjectIndex(options: BuildGTSXProjectIndexOptions): GT
     buildProjectIndexFileContext(options.cwd, filePath),
   )
   const fileContextsByFilePath = new Map(fileContexts.map((context) => [context.filePath, context] as const))
+  const analysisCache = createGTSXAnalysisCache(
+    new Map(fileContexts.map((context) => [resolve(options.cwd, context.filePath), context.sourceFile] as const)),
+  )
   const exportedComponentsByFilePath = new Map(
     fileContexts.map((context) => [context.filePath, context.exportedComponents] as const),
   )
   const files = fileContexts.map((context) =>
-    buildProjectIndexFile(options.cwd, context, exportedComponentsByFilePath, fileContextsByFilePath, moduleResolution),
+    buildProjectIndexFile(options.cwd, context, exportedComponentsByFilePath, fileContextsByFilePath, moduleResolution, analysisCache),
   )
 
   return {
@@ -93,22 +106,26 @@ export function buildGTSXProjectIndex(options: BuildGTSXProjectIndexOptions): GT
 
 export function createCachedGTSXProjectIndexBuilder(cacheOptions: GTSXProjectIndexCacheOptions = {}) {
   const ttlMs = cacheOptions.ttlMs ?? DEFAULT_PROJECT_INDEX_CACHE_TTL_MS
-  let cachedKey: string | undefined
-  let cachedAt = 0
-  let cachedIndex: GTSXProjectIndex | undefined
+  const cache = globalProjectIndexCache()
 
   return (options: BuildGTSXProjectIndexOptions): GTSXProjectIndex => {
     const key = projectIndexCacheKey(options)
     const now = Date.now()
-    if (cachedIndex && cachedKey === key && now - cachedAt <= ttlMs) {
-      return cachedIndex
+    const cached = cache.get(key)
+    if (cached && now - cached.cachedAt <= ttlMs) {
+      return cached.index
     }
 
-    cachedKey = key
-    cachedAt = now
-    cachedIndex = buildGTSXProjectIndex(options)
-    return cachedIndex
+    const index = buildGTSXProjectIndex(options)
+    cache.set(key, { cachedAt: now, index })
+    return index
   }
+}
+
+function globalProjectIndexCache(): Map<string, ProjectIndexCacheEntry> {
+  const globalCache = globalThis as GlobalProjectIndexCache
+  globalCache[globalProjectIndexCacheSymbol] ??= new Map()
+  return globalCache[globalProjectIndexCacheSymbol]
 }
 
 function buildProjectIndexFileContext(cwd: string, filePath: string): ProjectIndexFileContext {
@@ -136,6 +153,7 @@ function buildProjectIndexFile(
   exportedComponentsByFilePath: Map<string, ExportedComponent[]>,
   fileContextsByFilePath: Map<string, ProjectIndexFileContext>,
   moduleResolution: ProjectModuleResolution,
+  analysisCache: ReturnType<typeof createGTSXAnalysisCache>,
 ): GTSXProjectIndexFile {
   const components = context.exportedComponents.map((component) =>
     buildProjectIndexComponent(
@@ -144,6 +162,7 @@ function buildProjectIndexFile(
       context.sourceHash,
       component,
       dependencyCoordinatesForComponent(context, component, exportedComponentsByFilePath, fileContextsByFilePath, moduleResolution),
+      analysisCache,
     ),
   )
   const fileDiagnostics: GTSXDiagnostic[] =
@@ -172,9 +191,10 @@ function buildProjectIndexComponent(
   sourceHash: string,
   component: ExportedComponent,
   dependencies: string[],
+  analysisCache: ReturnType<typeof createGTSXAnalysisCache>,
 ): GTSXProjectIndexComponent {
   const coordinate = `${filePath}#${component.exportName}`
-  const analysis = analyzeEntry({ cwd, entry: coordinate })
+  const analysis = analyzeEntry({ cache: analysisCache, cwd, entry: coordinate })
 
   return {
     coordinate,
@@ -235,6 +255,7 @@ function createProjectModuleResolution(cwd: string, tsconfigPath: string | undef
 
 function readExportedComponents(sourceFile: ts.SourceFile): ExportedComponent[] {
   const components: ExportedComponent[] = []
+  const caseTargets = readCaseTargetNames(sourceFile)
 
   for (const statement of sourceFile.statements) {
     if (
@@ -255,12 +276,61 @@ function readExportedComponents(sourceFile: ts.SourceFile): ExportedComponent[] 
       continue
     }
 
+    if (ts.isVariableStatement(statement) && hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name)) continue
+        if (!caseTargets.has(declaration.name.text)) continue
+        if (!isFunctionLikeInitializer(declaration.initializer)) continue
+
+        components.push({
+          exportName: declaration.name.text,
+          componentName: declaration.name.text,
+          localName: declaration.name.text,
+        })
+      }
+      continue
+    }
+
     if (ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression)) {
       components.push({ exportName: "default", componentName: statement.expression.text, localName: statement.expression.text })
+      continue
+    }
+
+    if (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+      for (const element of statement.exportClause.elements) {
+        const localName = element.propertyName?.text ?? element.name.text
+        if (!caseTargets.has(localName)) continue
+        if (components.some((component) => component.localName === localName)) continue
+        const declaration = findComponentDeclaration(sourceFile, localName)
+        if (!declaration) continue
+
+        components.push({
+          exportName: element.name.text,
+          componentName: localName,
+          localName,
+        })
+      }
     }
   }
 
   return components
+}
+
+function readCaseTargetNames(sourceFile: ts.SourceFile): Set<string> {
+  const names = new Set<string>()
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isExpressionStatement(statement)) continue
+    const expression = statement.expression
+    if (!ts.isBinaryExpression(expression)) continue
+    if (expression.operatorToken.kind !== ts.SyntaxKind.EqualsToken) continue
+    if (!ts.isPropertyAccessExpression(expression.left) || expression.left.name.text !== "cases") continue
+    if (ts.isIdentifier(expression.left.expression)) {
+      names.add(expression.left.expression.text)
+    }
+  }
+
+  return names
 }
 
 function dependencyCoordinatesForComponent(
@@ -281,6 +351,7 @@ function dependencyCoordinatesForComponent(
     fileContextsByFilePath,
     moduleResolution,
   )
+  const localAliases = localComponentAliasBindingsForDeclaration(declaration)
   const ownCoordinate = `${context.filePath}#${component.exportName}`
   const dependencies: string[] = []
   const seen = new Set<string>()
@@ -293,7 +364,7 @@ function dependencyCoordinatesForComponent(
 
   const visit = (node: ts.Node) => {
     if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
-      addDependency(componentCoordinateForJsxTag(node.tagName, importBindings, localBindings))
+      addDependency(componentCoordinateForJsxTag(node.tagName, importBindings, localBindings, localAliases))
     }
 
     ts.forEachChild(node, visit)
@@ -320,8 +391,55 @@ function findComponentDeclaration(sourceFile: ts.SourceFile, localName: string):
   return undefined
 }
 
+function isFunctionLikeInitializer(initializer: ts.Expression | undefined): boolean {
+  if (!initializer) return false
+  const expression = unwrapExpression(initializer)
+  return ts.isArrowFunction(expression) || ts.isFunctionExpression(expression)
+}
+
+function unwrapExpression(expression: ts.Expression): ts.Expression {
+  if (ts.isSatisfiesExpression(expression) || ts.isAsExpression(expression) || ts.isParenthesizedExpression(expression)) {
+    return unwrapExpression(expression.expression)
+  }
+
+  return expression
+}
+
 function localComponentBindings(filePath: string, exportedComponents: ExportedComponent[]): Map<string, string> {
   return new Map(exportedComponents.map((component) => [component.localName, `${filePath}#${component.exportName}`] as const))
+}
+
+function localComponentAliasBindingsForDeclaration(declaration: ts.Node): Map<string, string> {
+  const aliases = new Map<string, string>()
+  const body = functionLikeBlockBody(declaration)
+  if (!body) return aliases
+
+  for (const statement of body.statements) {
+    if (!ts.isVariableStatement(statement)) continue
+
+    for (const variableDeclaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(variableDeclaration.name) || !variableDeclaration.initializer) continue
+
+      const initializer = unwrapExpression(variableDeclaration.initializer)
+      if (ts.isIdentifier(initializer)) {
+        aliases.set(variableDeclaration.name.text, initializer.text)
+      }
+    }
+  }
+
+  return aliases
+}
+
+function functionLikeBlockBody(node: ts.Node): ts.Block | undefined {
+  if (
+    (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node)) &&
+    node.body &&
+    ts.isBlock(node.body)
+  ) {
+    return node.body
+  }
+
+  return undefined
 }
 
 function componentImportBindingsForFile(
@@ -452,13 +570,38 @@ function componentCoordinateForJsxTag(
   tagName: ts.JsxTagNameExpression,
   importBindings: ComponentImportBindings,
   localBindings: Map<string, string>,
+  localAliases: Map<string, string>,
 ): string | undefined {
   if (ts.isIdentifier(tagName)) {
-    return importBindings.names.get(tagName.text) ?? localBindings.get(tagName.text)
+    return componentCoordinateForIdentifier(tagName.text, importBindings, localBindings, localAliases)
   }
 
   if (ts.isPropertyAccessExpression(tagName) && ts.isIdentifier(tagName.expression)) {
     return importBindings.namespaces.get(tagName.expression.text)?.get(tagName.name.text)
+  }
+
+  return undefined
+}
+
+function componentCoordinateForIdentifier(
+  name: string,
+  importBindings: ComponentImportBindings,
+  localBindings: Map<string, string>,
+  localAliases: Map<string, string>,
+): string | undefined {
+  let currentName = name
+  const visited = new Set<string>()
+
+  while (!visited.has(currentName)) {
+    visited.add(currentName)
+
+    const aliasTarget = localAliases.get(currentName)
+    if (aliasTarget) {
+      currentName = aliasTarget
+      continue
+    }
+
+    return importBindings.names.get(currentName) ?? localBindings.get(currentName)
   }
 
   return undefined

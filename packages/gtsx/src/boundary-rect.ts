@@ -4,7 +4,7 @@ const clippingOverflowValues = new Set(["auto", "clip", "hidden", "scroll"])
 
 export function readGBoundaryElementRect(element: HTMLElement): GBoundaryRect | undefined {
   const ownRect = element.getBoundingClientRect()
-  if (ownRect.width > 0 || ownRect.height > 0) return toBoundaryRect(ownRect)
+  if (hasRenderedArea(ownRect)) return toBoundaryRect(ownRect)
 
   const childRects = renderedChildRects(element, element)
   if (childRects.length === 0) return undefined
@@ -27,7 +27,7 @@ function renderedChildRects(element: HTMLElement, boundaryElement: HTMLElement):
     if (!isHTMLElement(child)) return []
 
     const rect = clipRectToBoundaryAncestors(toBoundaryRect(child.getBoundingClientRect()), child, boundaryElement)
-    if (rect && (rect.width > 0 || rect.height > 0)) return [rect]
+    if (rect && hasRenderedArea(rect)) return [rect]
 
     return renderedChildRects(child, boundaryElement)
   })
@@ -73,6 +73,10 @@ function intersectRects(left: GBoundaryRect, right: GBoundaryRect): GBoundaryRec
     width: maxX - x,
     height: maxY - y,
   }
+}
+
+function hasRenderedArea(rect: Pick<DOMRect, "height" | "width">): boolean {
+  return rect.width > 0 && rect.height > 0
 }
 
 function toBoundaryRect(rect: DOMRect): GBoundaryRect {

@@ -94,6 +94,25 @@ describe("GTSX project index", () => {
     expect(dashboard?.dependencies).toEqual(["src/cases/stateful/NotificationBell.g.tsx#default"])
   })
 
+  it("records static GTSX component dependencies through local JSX aliases", () => {
+    const index = buildGTSXProjectIndex({ cwd: fixtureRoot, projectRoot: "src" })
+    const aliasImportedDependency = index.files
+      .flatMap((file) => file.components)
+      .find((component) => component.coordinate === "src/AliasImportedDependency.g.tsx#default")
+
+    expect(aliasImportedDependency?.dependencies).toEqual(["src/HookDependencyChild.g.tsx#HookDependencyChild"])
+  })
+
+  it("indexes local functions exported from a list when they declare cases", () => {
+    const index = buildGTSXProjectIndex({ cwd: fixtureRoot, projectRoot: "src" })
+    const exportList = index.files.find((file) => file.path === "src/ExportList.g.tsx")
+
+    expect(exportList?.components.map((component) => component.coordinate)).toEqual([
+      "src/ExportList.g.tsx#ExportListBadge",
+    ])
+    expect(exportList?.diagnostics).toEqual([])
+  })
+
   it("can reuse a project index briefly for high-frequency Studio route reads", () => {
     const buildProjectIndex = createCachedGTSXProjectIndexBuilder({ ttlMs: 60_000 })
     const first = buildProjectIndex({ cwd: fixtureRoot, projectRoot: "src/corpus" })
@@ -102,5 +121,14 @@ describe("GTSX project index", () => {
 
     expect(second).toBe(first)
     expect(differentScope).not.toBe(first)
+  })
+
+  it("shares the cached project index across provider instances", () => {
+    const firstProvider = createCachedGTSXProjectIndexBuilder({ ttlMs: 60_000 })
+    const secondProvider = createCachedGTSXProjectIndexBuilder({ ttlMs: 60_000 })
+    const first = firstProvider({ cwd: fixtureRoot, projectRoot: "src/corpus" })
+    const second = secondProvider({ cwd: fixtureRoot, projectRoot: "src/corpus" })
+
+    expect(second).toBe(first)
   })
 })

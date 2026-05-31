@@ -80,6 +80,7 @@ export {
   defaultStudioPreviewRenderQueueRenderThrottleMilliseconds,
   queuedStudioPreviewSessionIds,
   studioPreviewRenderQueueOptionsFromParams,
+  studioPreviewRenderQueueRenderBufferMargin,
   visibleQueuedStudioPreviewSessionIds,
 } from "./preview-render-queue"
 export type {
@@ -139,4 +140,10 @@ export {
   studioPreviewGeometrySubscriptionKeys,
 } from "./preview-geometry-cache-store"
 export type { StudioPreviewGeometryCacheMessage, StudioPreviewGeometryCacheStore } from "./preview-geometry-cache-store"
-export { studioPreviewVisibilityItems } from "./studio-canvas-geometry"
+export {
+  measuredStudioColumnLayoutPackedByComponentOrder,
+  studioCanvasCardIndex,
+  studioPreviewVisibilityItems,
+  visibleStudioCanvasCardEntriesByColumnIndex,
+} from "./studio-canvas-geometry"
+export type { MeasuredStudioColumnCardLayout, StudioCanvasCardIndex, StudioCanvasCardIndexEntry } from "./studio-canvas-geometry"

@@ -15,18 +15,21 @@ import {
 import {
   defaultStudioPreviewRenderQueueActiveRenderTimeoutMilliseconds,
   queuedStudioPreviewSessionIds,
+  studioPreviewRenderQueueRenderBufferMargin,
   type StudioCanvasMovement,
   type StudioPreviewRenderQueueRunOptions,
   visibleQueuedStudioPreviewSessionIds,
 } from "./preview-render-queue"
 import type { StudioPreviewGeometryCacheStore } from "./preview-geometry-cache-store"
-import { studioPreviewVisibilityItems } from "./studio-canvas-geometry"
+import { studioPreviewVisibilityItems, type StudioCanvasCardIndex } from "./studio-canvas-geometry"
 
 export type StudioPreviewRenderPlanInput = {
   activeRenderTimeoutMilliseconds?: number
   canvas: StudioCanvasTransform
   canvasMovement?: StudioCanvasMovement
   canvasViewportPreset: StudioViewportPreset
+  casePreviewScale?: number
+  cardIndex?: StudioCanvasCardIndex
   columnLayoutByIndex: Record<number, StudioColumnLayout>
   columnMeasurementsByIndex: Record<number, StudioColumnLayoutMeasurement>
   completedSessionIds: ReadonlySet<string>
@@ -62,6 +65,11 @@ export function createStudioPreviewRenderPlan(input: StudioPreviewRenderPlanInpu
       frameStates: input.frameStates,
       previewCache: input.previewCache,
       previewGeometryStore: input.previewGeometryStore,
+      canvas: input.canvas,
+      cardIndex: input.cardIndex,
+      casePreviewScale: input.casePreviewScale,
+      renderBufferMargin: studioPreviewRenderQueueRenderBufferMargin(input.queueOptions),
+      viewport: input.viewport,
     },
   )
   const activeSessionIds = activeStudioPreviewRenderPlanSessionIds(

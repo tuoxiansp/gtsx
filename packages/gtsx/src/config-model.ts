@@ -6,7 +6,7 @@ export const DEFAULT_GTSX_ROUTES: GTSXRouteConfig = {
   studio: "/gtsx/studio",
   manifest: "/gtsx/studio/manifest",
 }
-export const DEFAULT_STUDIO_MANIFEST_CACHE_TTL_MS = 1000
+export const DEFAULT_STUDIO_MANIFEST_CACHE_TTL_MS = 60_000
 
 export function resolveGTSXConfig(config: GTSXConfig): ResolvedGTSXConfig {
   return {

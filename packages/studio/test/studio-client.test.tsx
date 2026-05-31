@@ -36,6 +36,7 @@ import {
   isStudioPreviewPoolDebugEnabled,
   isStudioPreviewQueueDebugEnabled,
   mergeStudioPreviewFrameState,
+  measuredStudioColumnLayoutPackedByComponentOrder,
   previewSessionId,
   queuedStudioPreviewSessionIds,
   replaceStudioCanvasUrlState,
@@ -46,10 +47,12 @@ import {
   selectStudioComponent,
   studioPreviewCacheKey,
   studioPreviewGeometryCacheKeys,
+  studioCanvasCardIndex,
   studioPreviewRenderPlanHasIncompleteVisibleRenderTasks,
   studioPreviewVisibilityItems,
   studioPreviewRenderQueueOptionsFromParams,
   studioPreviewRenderTargetFromUrl,
+  visibleStudioCanvasCardEntriesByColumnIndex,
   visibleQueuedStudioPreviewSessionIds,
 } from "../src/index.js"
 import ComponentCard from "../src/components/ComponentCard.g.js"
@@ -224,6 +227,88 @@ describe("GTSX Studio shell", () => {
 
     expect(rootStudioManifestComponents(manifest).map((component) => component.coordinate)).toEqual(expectedRootCoordinates)
     expect(cardCoordinates(renderToStaticMarkup(<StudioShell manifest={manifest} />))).toEqual(expectedRootCoordinates)
+  })
+
+  it("virtualizes canvas card shells instead of rendering every root component", () => {
+    const manifest = buildLargeStudioManifest(80)
+    const html = renderToStaticMarkup(<StudioWorkspaceView manifest={manifest} workspace={createStudioWorkspaceState(manifest)} />)
+    const coordinates = cardCoordinates(html)
+
+    expect(coordinates.length).toBeGreaterThan(0)
+    expect(coordinates.length).toBeLessThan(10)
+    expect(coordinates).toContain("src/Card000.g.tsx#default")
+    expect(coordinates).not.toContain("src/Card079.g.tsx#default")
+  })
+
+  it("uses the preview queue render buffer for canvas card shell virtualization", () => {
+    const manifest = buildLargeStudioManifest(80)
+    const defaultCoordinates = cardCoordinates(renderToStaticMarkup(<StudioShell manifest={manifest} />))
+    const visibleOnlyCoordinates = cardCoordinates(
+      renderToStaticMarkup(<StudioShell manifest={manifest} urlSearch="previewQueueBuffer=0" />),
+    )
+    const bufferedCoordinate = defaultCoordinates.at(-1)
+    if (!bufferedCoordinate) throw new Error("Expected at least one default buffered card")
+
+    expect(visibleOnlyCoordinates.length).toBeGreaterThan(0)
+    expect(visibleOnlyCoordinates.length).toBeLessThan(defaultCoordinates.length)
+    expect(visibleOnlyCoordinates).toContain("src/Card000.g.tsx#default")
+    expect(visibleOnlyCoordinates).not.toContain(bufferedCoordinate)
+  })
+
+  it("derives visible canvas card shells from a column index instead of the whole component list", () => {
+    const manifest = buildLargeStudioManifest(80)
+    const workspace = createStudioWorkspaceState(manifest)
+    const columnMeasurementsByIndex = largeColumnMeasurements(workspace, { cardHeight: 80, cardGap: 20, cardWidth: 280 })
+    const visibleCardsByColumnIndex = visibleStudioCanvasCardEntriesByColumnIndex({
+      canvas: { x: 0, y: 0, scale: 1 },
+      cardIndex: studioCanvasCardIndex({ columnMeasurementsByIndex, workspace }),
+      columnLayoutByIndex: { 0: { x: 0, y: 0 } },
+      renderBufferMargin: 0,
+      viewportSize: { height: 720, width: 1280 },
+    })
+
+    expect(visibleCardsByColumnIndex[0]?.map((entry) => entry.component.coordinate)).toEqual(
+      Array.from({ length: 8 }, (_, index) => `src/Card${index.toString().padStart(3, "0")}.g.tsx#default`),
+    )
+  })
+
+  it("builds preview visibility items only for the canvas render buffer", () => {
+    const manifest = buildLargeStudioManifest(80)
+    const workspace = createStudioWorkspaceState(manifest)
+    const columnMeasurementsByIndex = largeColumnMeasurements(workspace, { cardHeight: 80, cardGap: 20, cardWidth: 280 })
+    const layoutFrameStateSessionIds: string[] = []
+    const items = studioPreviewVisibilityItems(
+      workspace,
+      "tablet",
+      { 0: { x: 0, y: 0 } },
+      columnMeasurementsByIndex,
+      {
+        canvas: { x: 0, y: 0, scale: 1 },
+        cardIndex: studioCanvasCardIndex({ columnMeasurementsByIndex, workspace }),
+        casePreviewScale: 1,
+        previewGeometryStore: recordingPreviewGeometryStore(layoutFrameStateSessionIds),
+        renderBufferMargin: 0,
+        viewport: { bottom: 720, left: 0, right: 1280, top: 0 },
+      },
+    )
+
+    expect(items).toHaveLength(8)
+    expect(items.map((item) => item.sessionIds[0])).toEqual(
+      Array.from({ length: 8 }, (_, index) => `src/Card${index.toString().padStart(3, "0")}.g.tsx#default:default`),
+    )
+    expect(layoutFrameStateSessionIds).toEqual(
+      Array.from({ length: 8 }, (_, index) => `src/Card${index.toString().padStart(3, "0")}.g.tsx#default:default`),
+    )
+  })
+
+  it("can server-render Studio as a lightweight manifest loading shell", () => {
+    const html = renderToStaticMarkup(<StudioShell manifestUrl="/gtsx/studio/manifest" />)
+
+    expect(html).toContain('data-gtsx-studio-shell-loading="true"')
+    expect(html).toContain('role="progressbar"')
+    expect(html).toContain("Loading Studio")
+    expect(html).toContain("Reading /gtsx/studio/manifest")
+    expect(html).not.toContain("data-gtsx-card-coordinate")
   })
 
   it("keeps cache-namespaced Studio card layout in server HTML before browser cache hydration", () => {
@@ -575,6 +660,58 @@ describe("GTSX Studio shell", () => {
     expect(Number(scales[0])).toBeLessThan(1)
   })
 
+  it("packs measured canvas cards by component order instead of preserving stale absolute positions", () => {
+    const measurement = measuredStudioColumnLayoutPackedByComponentOrder({
+      componentCoordinates: ["src/Large.g.tsx#Large", "src/Short.g.tsx#Short", "src/Next.g.tsx#Next"],
+      fallbackMeasurement: {
+        cardRectsByCoordinate: {
+          "src/Large.g.tsx#Large": { bottom: 380, left: 0, right: 280, top: 0 },
+          "src/Short.g.tsx#Short": { bottom: 770, left: 0, right: 280, top: 390 },
+          "src/Next.g.tsx#Next": { bottom: 1160, left: 0, right: 280, top: 780 },
+        },
+        height: 1160,
+        previewFrameRectsBySessionId: {
+          "src/Large.g.tsx#Large:default@desktop": { bottom: 360, left: 0, right: 240, top: 30 },
+          "src/Short.g.tsx#Short:default@desktop": { bottom: 740, left: 0, right: 240, top: 420 },
+          "src/Next.g.tsx#Next:default@desktop": { bottom: 850, left: 0, right: 240, top: 810 },
+        },
+      },
+      measuredCardsByCoordinate: {
+        "src/Large.g.tsx#Large": {
+          height: 380,
+          previewFrameRectsBySessionId: {
+            "src/Large.g.tsx#Large:default@desktop": { bottom: 360, left: 0, right: 240, top: 30 },
+          },
+          width: 280,
+        },
+        "src/Short.g.tsx#Short": {
+          height: 120,
+          previewFrameRectsBySessionId: {
+            "src/Short.g.tsx#Short:default@desktop": { bottom: 100, left: 0, right: 240, top: 30 },
+          },
+          width: 280,
+        },
+      },
+      previewFrameSessionIdsByCoordinate: {
+        "src/Large.g.tsx#Large": ["src/Large.g.tsx#Large:default@desktop"],
+        "src/Short.g.tsx#Short": ["src/Short.g.tsx#Short:default@desktop"],
+        "src/Next.g.tsx#Next": ["src/Next.g.tsx#Next:default@desktop"],
+      },
+    })
+
+    expect(measurement.cardRectsByCoordinate["src/Short.g.tsx#Short"]).toMatchObject({ bottom: 510, top: 390 })
+    expect(measurement.cardRectsByCoordinate["src/Next.g.tsx#Next"]).toMatchObject({ bottom: 900, top: 520 })
+    expect(measurement.height).toBe(900)
+    expect(measurement.previewFrameRectsBySessionId?.["src/Short.g.tsx#Short:default@desktop"]).toMatchObject({
+      bottom: 490,
+      top: 420,
+    })
+    expect(measurement.previewFrameRectsBySessionId?.["src/Next.g.tsx#Next:default@desktop"]).toMatchObject({
+      bottom: 590,
+      top: 550,
+    })
+  })
+
   it("uses normalized rendered component bounds as the component selection target", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
     const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
@@ -601,8 +738,8 @@ describe("GTSX Studio shell", () => {
 
     expect(cardSelectTargets(html)).toEqual(["src/UserCard.g.tsx#default"])
     expect(cardHtml(html, "src/UserCard.g.tsx#default")).not.toContain('data-gtsx-card-select-target="card"')
-    expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("left:10px")
-    expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("top:16px")
+    expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("left:0")
+    expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("top:0")
     expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("width:100px")
     expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("height:32px")
     expect(cardHtml(html, "src/UserCard.g.tsx#default")).not.toContain("<button")
@@ -702,6 +839,62 @@ describe("GTSX Studio shell", () => {
     expect(previewClipHtml(html)).toContain("contain:layout paint style")
     expect(previewClipHtml(html)).toContain("overflow:hidden")
     expect(selectionOutlineHtml(html)).toContain('data-gtsx-selection-outline="true"')
+  })
+
+  it("keeps the preview frame layout and component bounds target aligned", () => {
+    const html = renderToStaticMarkup(
+      <LazyPreviewFrame
+        data-gtsx-preview-session-id="src/DataTable.g.tsx#default:ready@desktop"
+        boundaryRect={{ x: 0, y: 0, width: 1280, height: 218 }}
+        coordinate="src/DataTable.g.tsx#default"
+        previewUrl="/gtsx?entry=src%2FDataTable.g.tsx%23default&case=ready&chrome=0"
+        selectedBoundaryRect={{ x: 0, y: 0, width: 1280, height: 218 }}
+        shouldLoad
+        size={{ width: 1280, height: 900 }}
+        sessionId="src/DataTable.g.tsx#default:ready@desktop"
+        title="DataTable preview"
+        viewportPreset="desktop"
+      />,
+    )
+
+    expect(previewFrameTagHtml(html, "src/DataTable.g.tsx#default:ready@desktop")).toContain("height:218px")
+    expect(previewClipHtml(html)).toContain("height:218px")
+    expect(boundsHitTargetHtml(html)).toContain("height:218px")
+    expect(boundsHitTargetHtml(html)).toContain("top:0")
+    expect(selectionOutlineHtml(html)).toContain("height:218px")
+    expect(selectionOutlineHtml(html)).toContain("top:0")
+  })
+
+  it("uses an empty measured boundary instead of a full viewport fallback for ready empty components", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
+    if (!component) throw new Error("Missing UserCard fixture")
+
+    const html = renderToStaticMarkup(
+      <ComponentCard
+        caseFrameStates={{
+          loading: {
+            expectedSessionId: "src/UserCard.g.tsx#default:loading@desktop",
+            ready: true,
+            tree: [{ id: "empty-loading", coordinate: "src/UserCard.g.tsx#default", children: [] }],
+          },
+          ready: {
+            expectedSessionId: "src/UserCard.g.tsx#default:ready@desktop",
+            ready: true,
+            tree: [{ id: "empty-ready", coordinate: "src/UserCard.g.tsx#default", children: [] }],
+          },
+        }}
+        component={component}
+        manifest={manifest}
+        selected={false}
+        selectedCaseName="loading"
+        viewportPreset="desktop"
+      />,
+    )
+
+    expect(previewFrameTagHtml(html, "src/UserCard.g.tsx#default:loading@desktop")).toContain("height:1px")
+    expect(previewFrameTagHtml(html, "src/UserCard.g.tsx#default:ready@desktop")).toContain("height:1px")
+    expect(cardHtml(html, "src/UserCard.g.tsx#default")).not.toContain("height:900px")
   })
 
   it("shows the per-case render lifecycle in preview queue debug mode", () => {
@@ -2134,7 +2327,7 @@ describe("GTSX Studio shell", () => {
       />,
     )
 
-    expect(previewFrameHtml(html, "src/UserCard.g.tsx#default:ready")).toContain("height:104px")
+    expect(previewFrameHtml(html, "src/UserCard.g.tsx#default:ready")).toContain("height:88px")
     expect(casePreviewFrameHtml(html, "ready")).not.toContain("height:1024px")
     expect(html).toContain('data-gtsx-case-grid-columns="2"')
     expect(html).not.toContain("data-gtsx-case-sidebar")
@@ -2623,7 +2816,7 @@ describe("GTSX Studio shell", () => {
         ],
         "src/UserCard.g.tsx#default",
       ),
-    ).toBe(536)
+    ).toBe(520)
 
     expect(
       componentCardLayoutWidth(
@@ -2638,7 +2831,7 @@ describe("GTSX Studio shell", () => {
         ],
         "src/UserCard.g.tsx#default",
       ),
-    ).toBe(392)
+    ).toBe(360)
 
     expect(componentCardLayoutWidth({ width: 1280 }, undefined, "src/UserCard.g.tsx#default")).toBe(1308)
   })
@@ -2989,7 +3182,7 @@ describe("GTSX Studio shell", () => {
     ).toBe(true)
   })
 
-  it("borrows a ready idle iframe before creating another pooled iframe", () => {
+  it("borrows an idle iframe before creating another pooled iframe", () => {
     const poolUrl = "/gtsx?chrome=0&pool=1"
     const exact = {
       lastRenderedSessionId: "src/UserCard.g.tsx#default:ready",
@@ -3012,6 +3205,7 @@ describe("GTSX Studio shell", () => {
       poolUrl,
       ready: false,
     }
+    const unreadyStateless = { poolUrl, ready: false }
 
     expect(
       selectStudioPreviewIframePoolEntryForBorrow([readyStale], {
@@ -3026,14 +3220,14 @@ describe("GTSX Studio shell", () => {
         poolUrl,
         sessionId: "src/UserCard.g.tsx#default:ready",
       }),
-    ).toBe(undefined)
+    ).toBe(unreadyStale)
     expect(
       selectStudioPreviewIframePoolEntryForBorrow(new Array(48).fill(null).map(() => unreadyStale), {
         maximumRetainedFrames: 48,
         poolUrl,
         sessionId: "src/UserCard.g.tsx#default:ready",
       }),
-    ).toBe(undefined)
+    ).toBe(unreadyStale)
     expect(
       selectStudioPreviewIframePoolEntryForBorrow([unreadyExact, readyStateless], {
         maximumRetainedFrames: 48,
@@ -3055,6 +3249,20 @@ describe("GTSX Studio shell", () => {
         sessionId: "src/UserCard.g.tsx#default:ready",
       }),
     ).toBe(readyStateless)
+    expect(
+      selectStudioPreviewIframePoolEntryForBorrow([unreadyStale, unreadyExact, unreadyStateless], {
+        maximumRetainedFrames: 48,
+        poolUrl,
+        sessionId: "src/UserCard.g.tsx#default:ready",
+      }),
+    ).toBe(unreadyExact)
+    expect(
+      selectStudioPreviewIframePoolEntryForBorrow([unreadyStale, unreadyStateless], {
+        maximumRetainedFrames: 48,
+        poolUrl,
+        sessionId: "src/UserCard.g.tsx#default:ready",
+      }),
+    ).toBe(unreadyStateless)
   })
 
   it("positions pooled iframes from a stable host without changing their layout viewport", () => {
@@ -3701,6 +3909,91 @@ describe("GTSX Studio shell", () => {
 
 function cardCoordinates(html: string): string[] {
   return [...html.matchAll(/data-gtsx-card-coordinate="([^"]+)"/g)].map((match) => match[1] ?? "")
+}
+
+function buildLargeStudioManifest(count: number) {
+  return {
+    version: 1,
+    routes: {
+      preview: "/gtsx",
+      studio: "/gtsx/studio",
+      manifest: "/gtsx/studio/manifest",
+    },
+    preview: {
+      urlTemplate: "/gtsx?entry={entry}&case={case}{gcase}",
+    },
+    files: Array.from({ length: count }, (_, index) => {
+      const paddedIndex = index.toString().padStart(3, "0")
+      const path = `src/Card${paddedIndex}.g.tsx`
+      const coordinate = `${path}#default`
+      return {
+        path,
+        groupId: `file:${path}`,
+        components: [
+          {
+            coordinate,
+            filePath: path,
+            exportName: "default",
+            componentName: `Card${paddedIndex}`,
+            mode: "scope",
+            cases: [{ kind: "scope", name: "default" }],
+            providers: {},
+            diagnostics: [],
+          },
+        ],
+        diagnostics: [],
+      }
+    }),
+    diagnostics: [],
+  } satisfies ReturnType<typeof createStudioManifest>
+}
+
+function largeColumnMeasurements(
+  workspace: ReturnType<typeof createStudioWorkspaceState>,
+  options: { cardGap: number; cardHeight: number; cardWidth: number },
+) {
+  const cardRectsByCoordinate: Record<string, { bottom: number; left: number; right: number; top: number }> = {}
+
+  workspace.columns[0]?.components.forEach((component, index) => {
+    const top = index * (options.cardHeight + options.cardGap)
+    cardRectsByCoordinate[component.coordinate] = {
+      bottom: top + options.cardHeight,
+      left: 0,
+      right: options.cardWidth,
+      top,
+    }
+  })
+
+  return {
+    0: {
+      cardRectsByCoordinate,
+      height: workspace.columns[0]?.components.length
+        ? workspace.columns[0].components.length * (options.cardHeight + options.cardGap) - options.cardGap
+        : 0,
+      previewFrameRectsBySessionId: {},
+    },
+  }
+}
+
+function recordingPreviewGeometryStore(layoutFrameStateSessionIds: string[]) {
+  return {
+    cacheKeys: [],
+    getFrameState: () => undefined,
+    getLayoutFrameState(sessionId: string) {
+      layoutFrameStateSessionIds.push(sessionId)
+      return undefined
+    },
+    getMergedFrameState: () => undefined,
+    getSnapshot: () => ({}),
+    getVersionForKeys: () => "",
+    hydrate: async () => ({}),
+    markSessionRenderStarted: () => false,
+    namespace: "test",
+    putMessages: () => ({ changed: false, entriesToWrite: {}, snapshot: {} }),
+    reset: () => {},
+    subscribe: () => () => {},
+    writeEntries: async () => {},
+  }
 }
 
 function screenPointForCanvasPoint(transform: { x: number; y: number; scale: number }, point: { x: number; y: number }) {

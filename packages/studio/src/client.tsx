@@ -9,6 +9,7 @@ import {
   type GPreviewRequestValuesMessage,
 } from "@gtsx/core"
 import type { StudioManifest, StudioManifestComponent } from "./manifest"
+import { findStudioBoundaryNode, studioBoundaryRectForCoordinate } from "./boundary-tree"
 import { previewFrameLayoutWidth } from "./preview-frame-layout"
 
 export type StudioPreviewFrameState = {
@@ -593,7 +594,7 @@ function directChildComponentsForCoordinate(
   const components: StudioManifestComponent[] = []
 
   for (const tree of trees) {
-    const node = findBoundaryNode(tree, coordinate)
+    const node = findStudioBoundaryNode(tree, coordinate)
     if (!node) continue
 
     for (const child of node.children) {
@@ -622,16 +623,6 @@ function omitStudioSelectedCases(
   const omitted = new Set(coordinates)
   const next = Object.fromEntries(Object.entries(selectedCaseByCoordinate).filter(([coordinate]) => !omitted.has(coordinate)))
   return next
-}
-
-function findBoundaryNode(tree: GBoundaryTreeNode[], coordinate: string): GBoundaryTreeNode | undefined {
-  for (const node of tree) {
-    if (node.coordinate === coordinate) return node
-    const childMatch = findBoundaryNode(node.children, coordinate)
-    if (childMatch) return childMatch
-  }
-
-  return undefined
 }
 
 export function initialStudioUrlSearchParams(selection: string | undefined, urlSearch: string | undefined): URLSearchParams {
@@ -1092,7 +1083,7 @@ export function componentCardLayoutWidth(
   tree: GBoundaryTreeNode[] | undefined,
   coordinate: string,
 ): number {
-  const rect = tree ? findBoundaryNode(tree, coordinate)?.rect : undefined
+  const rect = studioBoundaryRectForCoordinate(tree, coordinate)
   if (rect) return Math.max(280, Math.ceil(Number(previewFrameLayoutWidth(displaySize, rect))))
   return typeof displaySize.width === "number" ? displaySize.width + 28 : 520
 }

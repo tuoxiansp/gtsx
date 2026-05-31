@@ -155,6 +155,12 @@ export function visibleQueuedStudioPreviewSessionIds(
   return visibleSessionIds
 }
 
+export function studioPreviewRenderQueueRenderBufferMargin(
+  input: Pick<StudioPreviewRenderQueueOptions, "renderBufferMargin"> | undefined,
+): number {
+  return nonNegativeQueueLimit(input?.renderBufferMargin, studioPreviewRenderBufferMargin)
+}
+
 export function studioPreviewRenderQueueOptionsFromParams(params: URLSearchParams): StudioPreviewRenderQueueOptions {
   return {
     activeRenderTimeoutMilliseconds: positiveIntegerParam(params, [
@@ -244,7 +250,7 @@ function studioPreviewRenderQueueCandidates(input: StudioPreviewRenderQueueInput
   const currentSessionIds = input.currentSessionIds ?? new Set<string>()
   const completedSessionIds = input.completedSessionIds ?? new Set<string>()
   const activeSessionIds = input.activeSessionIds ?? new Set<string>()
-  const renderBufferMargin = nonNegativeQueueLimit(input.renderBufferMargin, studioPreviewRenderBufferMargin)
+  const renderBufferMargin = studioPreviewRenderQueueRenderBufferMargin(input)
   const includeBufferedRenderTasks = input.includeBufferedRenderTasks !== false
   const renderDirection = canvasMovementToRenderDirection(input.canvasMovement)
   const visibleCards: StudioPreviewRenderQueueCandidate[][] = []

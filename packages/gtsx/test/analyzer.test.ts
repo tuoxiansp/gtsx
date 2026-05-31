@@ -43,6 +43,51 @@ describe("GTSX analyzer", () => {
     expect(result.cases.map((testCase) => testCase.name)).toEqual(["ready"])
   })
 
+  it("discovers cases on local functions exported from a list", () => {
+    const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/ExportList.g.tsx#ExportListBadge" })
+
+    expect(result.diagnostics).toEqual([])
+    expect(result.mode).toBe("pure")
+    expect(result.cases.map((testCase) => testCase.name)).toEqual(["ready"])
+  })
+
+  it("recognizes createGScopeHook through type casts", () => {
+    const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/CastScopeHook.g.tsx#CastScopeHook" })
+
+    expect(result.diagnostics).toEqual([])
+    expect(result.mode).toBe("scope")
+    expect(result.cases.map((testCase) => testCase.name)).toEqual(["ready"])
+  })
+
+  it("allows cases to select imported GTSX providers", () => {
+    const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/ImportedProvider.g.tsx#ImportedProviderPanel" })
+
+    expect(result.diagnostics).toEqual([])
+    expect(result.mode).toBe("pure")
+    expect(result.cases).toEqual([
+      {
+        kind: "pure",
+        name: "light",
+        providers: ["ThemeProvider"],
+      },
+    ])
+    expect(result.providers.ThemeProvider.cases).toEqual([])
+  })
+
+  it("allows components to call imported GTSX scope hooks", () => {
+    const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/ImportedScopeHook.g.tsx#ImportedScopeConsumer" })
+
+    expect(result.diagnostics).toEqual([])
+    expect(result.mode).toBe("pure")
+    expect(result.cases).toEqual([
+      {
+        kind: "pure",
+        name: "ready",
+        providers: ["ImportedScopeProvider"],
+      },
+    ])
+  })
+
   it("accepts named-only component files without requiring a default export", () => {
     const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/MissingDefault.g.tsx" })
 
@@ -57,7 +102,15 @@ describe("GTSX analyzer", () => {
     const dynamicCases = analyzeEntry({ cwd: fixtureRoot, entry: "src/DynamicCases.g.tsx" })
     const legacyScopeCases = analyzeEntry({ cwd: fixtureRoot, entry: "src/LegacyScopeCases.g.tsx" })
     const nonGTSXHook = analyzeEntry({ cwd: fixtureRoot, entry: "src/NonGTSXHook.g.tsx" })
+    const reactMemberHook = analyzeEntry({ cwd: fixtureRoot, entry: "src/ReactMemberHook.g.tsx" })
     const helperHook = analyzeEntry({ cwd: fixtureRoot, entry: "src/HelperHook.g.tsx" })
+    const localHookDependency = analyzeEntry({ cwd: fixtureRoot, entry: "src/LocalHookDependency.g.tsx" })
+    const importedHookDependency = analyzeEntry({ cwd: fixtureRoot, entry: "src/ImportedHookDependency.g.tsx" })
+    const aliasHookDependency = analyzeEntry({ cwd: fixtureRoot, entry: "src/AliasHookDependency.g.tsx" })
+    const aliasChainHookDependency = analyzeEntry({ cwd: fixtureRoot, entry: "src/AliasChainHookDependency.g.tsx" })
+    const aliasImportedDependency = analyzeEntry({ cwd: fixtureRoot, entry: "src/AliasImportedDependency.g.tsx" })
+    const aliasPureDependency = analyzeEntry({ cwd: fixtureRoot, entry: "src/AliasPureDependency.g.tsx" })
+    const thinWrapper = analyzeEntry({ cwd: fixtureRoot, entry: "src/ThinWrapper.g.tsx" })
 
     expect(missingDefault.diagnostics).toContainEqual(
       expect.objectContaining({ code: "missing-default-export", stage: "contract-extraction" }),
@@ -74,9 +127,29 @@ describe("GTSX analyzer", () => {
     expect(nonGTSXHook.diagnostics).toContainEqual(
       expect.objectContaining({ code: "non-gtsx-hook", stage: "contract-extraction" }),
     )
+    expect(reactMemberHook.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "non-gtsx-hook", stage: "contract-extraction" }),
+    )
     expect(helperHook.diagnostics).toContainEqual(
       expect.objectContaining({ code: "non-gtsx-hook", stage: "contract-extraction" }),
     )
+    expect(localHookDependency.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "non-gtsx-hook", stage: "contract-extraction" }),
+    )
+    expect(importedHookDependency.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "non-gtsx-hook", stage: "contract-extraction" }),
+    )
+    expect(aliasHookDependency.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "non-gtsx-hook", stage: "contract-extraction" }),
+    )
+    expect(aliasChainHookDependency.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "non-gtsx-hook", stage: "contract-extraction" }),
+    )
+    expect(aliasImportedDependency.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "non-gtsx-hook", stage: "contract-extraction" }),
+    )
+    expect(aliasPureDependency.diagnostics).toEqual([])
+    expect(thinWrapper.diagnostics).toEqual([])
   })
 
   it("prints stable JSON from gtsx check without invoking an adapter", async () => {

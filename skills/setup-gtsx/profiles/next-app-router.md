@@ -63,6 +63,15 @@ export default defineGTSXConfig({
 
 ## Route Files
 
+Before writing the route files, identify the visual environment used by the components being previewed:
+
+- CSS imported by the relevant app layout or route group.
+- Design-system or registry CSS that is not part of the root layout.
+- Static root classes or `data-*` attributes that select a theme, base color, density, or style preset.
+- Font/style setup imports that affect component measurements.
+
+The `/gtsx` preview route must load those visual pieces too. This route is a preview adapter entry, not the production app shell: use imports and static wrappers, not hookful production providers or layouts.
+
 `app/gtsx/preview-client.tsx`:
 
 ```tsx
@@ -80,6 +89,8 @@ import {
 } from "@gtsx/adapter-next-react/preview-route"
 import Script from "next/script"
 
+// Import visual CSS/setup that is not already provided by the layout wrapping /gtsx.
+// Examples: import "../style-registry.css"; import "../theme.css"
 import { GTSXPreviewClient } from "./preview-client"
 
 type GTSXPreviewPageProps = {
@@ -95,11 +106,15 @@ export default async function GTSXPreviewPage(props: GTSXPreviewPageProps) {
       {createGTSXNextPreviewSsrScripts(previewProps).map((scriptProps) => (
         <Script key={scriptProps.id} {...scriptProps} />
       ))}
-      <GTSXPreviewClient {...previewProps} />
+      <div className="contents">
+        <GTSXPreviewClient {...previewProps} />
+      </div>
     </>
   )
 }
 ```
+
+Replace the `contents` wrapper with the project's static visual shell when needed, for example a style/base-color class wrapper. Do not use a production provider component just to get those classes if that provider runs hooks.
 
 `app/gtsx/studio/studio-manifest.ts`:
 

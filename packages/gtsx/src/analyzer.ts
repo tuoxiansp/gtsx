@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs"
-import { resolve } from "node:path"
+import { existsSync, readFileSync, statSync } from "node:fs"
+import { dirname, join, relative, resolve, sep } from "node:path"
 import ts from "typescript"
 
 export type GTSXDiagnosticStage =
@@ -39,7 +39,28 @@ export type GTSXAnalysisResult = {
   diagnostics: GTSXDiagnostic[]
 }
 
+export type GTSXAnalysisCache = {
+  componentDependencyBindingsByPath: Map<string, ComponentDependencyBindings>
+  exportedComponentTargetsByPath: Map<string, Map<string, ComponentDependencyTarget>>
+  importedGTSXPathByKey: Map<string, string | null>
+  importedScopeHookNamesByPath: Map<string, Set<string>>
+  sourceFilesByPath: Map<string, ts.SourceFile>
+  topLevelFunctionLikeBodiesByPath: Map<string, Map<string, ts.ConciseBody>>
+}
+
+export function createGTSXAnalysisCache(sourceFilesByPath = new Map<string, ts.SourceFile>()): GTSXAnalysisCache {
+  return {
+    componentDependencyBindingsByPath: new Map(),
+    exportedComponentTargetsByPath: new Map(),
+    importedGTSXPathByKey: new Map(),
+    importedScopeHookNamesByPath: new Map(),
+    sourceFilesByPath,
+    topLevelFunctionLikeBodiesByPath: new Map(),
+  }
+}
+
 export type AnalyzeEntryOptions = {
+  cache?: GTSXAnalysisCache
   cwd: string
   entry: string
 }
@@ -53,6 +74,32 @@ type EntryCoordinate = {
   file: string
   exportName?: string
   explicitExportName: boolean
+}
+
+type HookViolation = {
+  hookName: string
+  componentName: string
+  file: string
+}
+
+type ComponentDependencyTarget = {
+  filePath: string
+  componentName: string
+}
+
+type ComponentDependencyBindings = {
+  names: Map<string, ComponentDependencyTarget>
+  namespaces: Map<string, Map<string, ComponentDependencyTarget>>
+}
+
+type LocalComponentAliasBindings = Map<string, string>
+
+type NonGTSXHookAnalysisContext = {
+  cache?: GTSXAnalysisCache
+  cwd: string
+  entryPath: string
+  sourceFilesByPath: Map<string, ts.SourceFile>
+  visitedComponents: Set<string>
 }
 
 export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
@@ -78,10 +125,29 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
     }
   }
 
-  const sourceText = readFileSync(entryPath, "utf8")
-  const sourceFile = ts.createSourceFile(entryPath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const sourceFile = sourceFileForAbsolutePath(entryPath, options.cache)
+  if (!sourceFile) {
+    return {
+      entry: options.entry,
+      mode: "unknown",
+      defaultExport: false,
+      cases: [],
+      providers: {},
+      diagnostics: [
+        {
+          stage: "contract-extraction",
+          code: "entry-not-found",
+          message: `GTSX entry does not exist: ${options.entry}`,
+          file: options.entry,
+        },
+      ],
+    }
+  }
   const componentExportName = getComponentExportName(sourceFile, entryCoordinate.exportName)
-  const scopeHookNames = getScopeHookNames(sourceFile)
+  const scopeHookNames = new Set([
+    ...getScopeHookNames(sourceFile),
+    ...getImportedScopeHookNames(sourceFile, entryPath, options.cwd, options.cache),
+  ])
   const providerCases: Record<string, GTSXProviderSummary> = Object.fromEntries(
     [...getGProviderNames(sourceFile)].map((name) => [name, { name, cases: [] }]),
   )
@@ -125,14 +191,24 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
       })
     }
 
-    for (const hookName of getNonGTSXHookCalls(sourceFile, componentExportName, scopeHookNames)) {
+    for (const violation of getNonGTSXHookCalls(sourceFile, componentExportName, scopeHookNames, {
+      cwd: options.cwd,
+      entryPath,
+      cache: options.cache,
+      sourceFilesByPath: options.cache?.sourceFilesByPath ?? new Map([[entryPath, sourceFile]]),
+      visitedComponents: new Set(),
+    })) {
       diagnostics.push({
         stage: "contract-extraction",
         code: "non-gtsx-hook",
-        message: `GTSX components may only call GTSX hooks; found "${hookName}". Wrap production hooks with createGScopeHook(...).`,
-        file: options.entry,
+        message:
+          violation.file === normalizeProjectPath(relative(options.cwd, entryPath))
+            ? `GTSX components may only call GTSX hooks; found "${violation.hookName}" in "${violation.componentName}". Wrap production hooks with createGScopeHook(...).`
+            : `GTSX components may only call GTSX hooks; found "${violation.hookName}" in dependency "${violation.file}#${violation.componentName}". Wrap production hooks with createGScopeHook(...).`,
+        file: violation.file,
       })
     }
+
   }
 
   if (scopeAssignments.length > 1) {
@@ -164,6 +240,15 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
     mode === "scope"
       ? componentCases.map((testCase) => ({ ...testCase, kind: "scope" as const }))
       : componentCases.map((testCase) => ({ ...testCase, kind: "pure" as const }))
+
+  const importedNames = getImportedNames(sourceFile)
+  for (const testCase of selectedCases) {
+    for (const providerName of testCase.providers ?? []) {
+      if (!providerCases[providerName] && importedNames.has(providerName)) {
+        providerCases[providerName] = { name: providerName, cases: [] }
+      }
+    }
+  }
 
   if (selectedCases.length === 0) {
     diagnostics.push({
@@ -219,6 +304,14 @@ function getDefaultExportName(sourceFile: ts.SourceFile): string | undefined {
     if (ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression)) {
       return statement.expression.text
     }
+
+    if (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+      for (const element of statement.exportClause.elements) {
+        if (element.name.text === "default") {
+          return element.propertyName?.text ?? element.name.text
+        }
+      }
+    }
   }
 
   return undefined
@@ -232,6 +325,22 @@ function getNamedExportName(sourceFile: ts.SourceFile, exportName: string): stri
       hasModifier(statement, ts.SyntaxKind.ExportKeyword)
     ) {
       return exportName
+    }
+
+    if (ts.isVariableStatement(statement) && hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name) && declaration.name.text === exportName && getFunctionLikeBody(sourceFile, exportName)) {
+          return exportName
+        }
+      }
+    }
+
+    if (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+      for (const element of statement.exportClause.elements) {
+        if (element.name.text === exportName) {
+          return element.propertyName?.text ?? element.name.text
+        }
+      }
     }
   }
 
@@ -247,6 +356,19 @@ function getFirstNamedExportName(sourceFile: ts.SourceFile): string | undefined 
     ) {
       return statement.name.text
     }
+
+    if (ts.isVariableStatement(statement) && hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name) && getFunctionLikeBody(sourceFile, declaration.name.text)) {
+          return declaration.name.text
+        }
+      }
+    }
+
+    if (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+      const element = statement.exportClause.elements[0]
+      if (element) return element.propertyName?.text ?? element.name.text
+    }
   }
 
   return undefined
@@ -260,7 +382,7 @@ function getScopeHookNames(sourceFile: ts.SourceFile): Set<string> {
 
     for (const declaration of statement.declarationList.declarations) {
       if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue
-      if (isCreateGScopeCall(declaration.initializer)) {
+      if (isCreateGScopeCall(unwrapExpression(declaration.initializer))) {
         names.add(declaration.name.text)
       }
     }
@@ -280,6 +402,192 @@ function getGProviderNames(sourceFile: ts.SourceFile): Set<string> {
       if (isCreateGProviderCall(unwrapExpression(declaration.initializer))) {
         names.add(declaration.name.text)
       }
+    }
+  }
+
+  return names
+}
+
+function getImportedScopeHookNames(
+  sourceFile: ts.SourceFile,
+  entryPath: string,
+  cwd: string,
+  cache?: GTSXAnalysisCache,
+): Set<string> {
+  const cached = cache?.importedScopeHookNamesByPath.get(entryPath)
+  if (cached) return cached
+
+  const names = new Set<string>()
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement)) continue
+    const clause = statement.importClause
+    if (!clause || !ts.isStringLiteral(statement.moduleSpecifier)) continue
+
+    const targetPath = resolveImportedGTSXPath(entryPath, cwd, statement.moduleSpecifier.text, cache)
+    if (!targetPath) continue
+
+    const targetSource = sourceFileForAbsolutePath(targetPath, cache)
+    if (!targetSource) continue
+    const exportedScopeHookNames = getExportedScopeHookNames(targetSource)
+
+    if (clause.name && exportedScopeHookNames.has("default") && isHookName(clause.name.text)) {
+      names.add(clause.name.text)
+    }
+
+    const namedBindings = clause.namedBindings
+    if (!namedBindings || !ts.isNamedImports(namedBindings)) continue
+
+    for (const element of namedBindings.elements) {
+      const importedName = element.propertyName?.text ?? element.name.text
+      if (exportedScopeHookNames.has(importedName) && isHookName(element.name.text)) {
+        names.add(element.name.text)
+      }
+    }
+  }
+
+  cache?.importedScopeHookNamesByPath.set(entryPath, names)
+  return names
+}
+
+function getExportedScopeHookNames(sourceFile: ts.SourceFile): Set<string> {
+  const localScopeHookNames = getScopeHookNames(sourceFile)
+  const exportedScopeHookNames = new Set<string>()
+
+  for (const statement of sourceFile.statements) {
+    if (ts.isVariableStatement(statement) && hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name) && localScopeHookNames.has(declaration.name.text)) {
+          exportedScopeHookNames.add(declaration.name.text)
+        }
+      }
+      continue
+    }
+
+    if (ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression) && localScopeHookNames.has(statement.expression.text)) {
+      exportedScopeHookNames.add("default")
+      continue
+    }
+
+    if (!ts.isExportDeclaration(statement) || statement.moduleSpecifier || !statement.exportClause || !ts.isNamedExports(statement.exportClause)) {
+      continue
+    }
+
+    for (const element of statement.exportClause.elements) {
+      const localName = element.propertyName?.text ?? element.name.text
+      if (localScopeHookNames.has(localName)) {
+        exportedScopeHookNames.add(element.name.text)
+      }
+    }
+  }
+
+  return exportedScopeHookNames
+}
+
+function resolveImportedGTSXPath(
+  entryPath: string,
+  cwd: string,
+  specifier: string,
+  cache?: GTSXAnalysisCache,
+): string | undefined {
+  const cacheKey = `${entryPath}\0${specifier}`
+  const cached = cache?.importedGTSXPathByKey.get(cacheKey)
+  if (cached !== undefined) return cached ?? undefined
+
+  const basePath = resolveImportBasePath(entryPath, cwd, specifier)
+  if (!basePath) {
+    cache?.importedGTSXPathByKey.set(cacheKey, null)
+    return undefined
+  }
+
+  const visited = new Set<string>()
+  const resolved = resolveImportedGTSXPathFromBase(basePath, cwd, visited, cache)
+  cache?.importedGTSXPathByKey.set(cacheKey, resolved ?? null)
+  return resolved
+}
+
+function resolveImportedGTSXPathFromBase(
+  basePath: string,
+  cwd: string,
+  visited: Set<string>,
+  cache?: GTSXAnalysisCache,
+): string | undefined {
+  for (const candidate of importedGTSXPathCandidates(basePath)) {
+    if (isFile(candidate)) return candidate
+  }
+
+  for (const barrelCandidate of importedTSXBarrelCandidates(basePath)) {
+    if (!isFile(barrelCandidate) || visited.has(barrelCandidate)) continue
+    visited.add(barrelCandidate)
+
+    const barrelSource = sourceFileForAbsolutePath(barrelCandidate, cache)
+    if (!barrelSource) continue
+
+    for (const statement of barrelSource.statements) {
+      if (!ts.isExportDeclaration(statement) || !statement.moduleSpecifier || !ts.isStringLiteral(statement.moduleSpecifier)) continue
+      const nextBasePath = resolveImportBasePath(barrelCandidate, cwd, statement.moduleSpecifier.text)
+      const resolvedPath = nextBasePath ? resolveImportedGTSXPathFromBase(nextBasePath, cwd, visited, cache) : undefined
+      if (resolvedPath) return resolvedPath
+    }
+  }
+
+  return undefined
+}
+
+function resolveImportBasePath(entryPath: string, cwd: string, specifier: string): string | undefined {
+  if (specifier.startsWith("@/")) return resolve(cwd, specifier.slice(2))
+  if (specifier.startsWith(".")) return resolve(dirname(entryPath), specifier)
+  return undefined
+}
+
+function importedGTSXPathCandidates(basePath: string): string[] {
+  const extensionCandidate = /\.(?:tsx|ts|jsx|js)$/.test(basePath) ? basePath.replace(/\.(?:tsx|ts|jsx|js)$/, ".g.tsx") : undefined
+  const candidates = [
+    basePath.endsWith(".g.tsx") ? basePath : undefined,
+    basePath.endsWith(".g") ? `${basePath}.tsx` : undefined,
+    `${basePath}.g.tsx`,
+    extensionCandidate,
+    join(basePath, "index.g.tsx"),
+  ]
+
+  return [...new Set(candidates.filter((candidate): candidate is string => Boolean(candidate)))]
+}
+
+function isFile(path: string): boolean {
+  try {
+    return statSync(path).isFile()
+  } catch {
+    return false
+  }
+}
+
+function importedTSXBarrelCandidates(basePath: string): string[] {
+  const candidates = [
+    basePath.endsWith(".tsx") ? basePath : undefined,
+    `${basePath}.tsx`,
+    join(basePath, "index.tsx"),
+  ]
+
+  return [...new Set(candidates.filter((candidate): candidate is string => Boolean(candidate)))]
+}
+
+function getImportedNames(sourceFile: ts.SourceFile): Set<string> {
+  const names = new Set<string>()
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement)) continue
+    const clause = statement.importClause
+    if (!clause) continue
+
+    if (clause.name) {
+      names.add(clause.name.text)
+    }
+
+    const namedBindings = clause.namedBindings
+    if (!namedBindings || !ts.isNamedImports(namedBindings)) continue
+
+    for (const element of namedBindings.elements) {
+      names.add(element.name.text)
     }
   }
 
@@ -311,37 +619,359 @@ function getNonGTSXHookCalls(
   sourceFile: ts.SourceFile,
   componentName: string,
   scopeHookNames: Set<string>,
-): string[] {
-  const component = getFunctionDeclaration(sourceFile, componentName)
-  if (!component?.body) return []
+  context: NonGTSXHookAnalysisContext,
+): HookViolation[] {
+  const violations = new Map<string, HookViolation>()
 
-  const helperFunctions = getTopLevelFunctionDeclarations(sourceFile)
-  const visitedHelpers = new Set<string>([componentName])
-  const hookNames = new Set<string>()
-  visit(component.body)
-  return [...hookNames]
+  visitComponent(sourceFile, context.entryPath, componentName)
+  return [...violations.values()]
 
-  function visit(node: ts.Node) {
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
-      const hookName = node.expression.text
-      if (isHookName(hookName) && hookName !== "useGContext" && !scopeHookNames.has(hookName)) {
-        hookNames.add(hookName)
-      } else if (!isHookName(hookName)) {
-        visitHelper(hookName)
+  function visitComponent(currentSourceFile: ts.SourceFile, currentPath: string, currentComponentName: string) {
+    const componentKey = `${currentPath}#${currentComponentName}`
+    if (context.visitedComponents.has(componentKey)) return
+    context.visitedComponents.add(componentKey)
+
+    const componentBody = getFunctionLikeBody(currentSourceFile, currentComponentName)
+    if (!componentBody) return
+
+    const currentScopeHookNames =
+      currentPath === context.entryPath
+        ? scopeHookNames
+        : new Set([
+            ...getScopeHookNames(currentSourceFile),
+            ...getImportedScopeHookNames(currentSourceFile, currentPath, context.cwd, context.cache),
+          ])
+    const helperFunctions = getTopLevelFunctionLikeBodiesForPath(currentSourceFile, currentPath, context.cache)
+    const visitedHelpers = new Set<string>([currentComponentName])
+    const localComponentNames = helperFunctions
+    const importBindings = componentDependencyBindingsForFile(currentSourceFile, currentPath, context)
+    const file = normalizeProjectPath(relative(context.cwd, currentPath))
+
+    visit(componentBody, localComponentAliasBindingsForBody(componentBody))
+
+    function visit(node: ts.Node, localAliases: LocalComponentAliasBindings) {
+      if (ts.isCallExpression(node)) {
+        const hookName = getHookCallName(node, currentSourceFile)
+        if (hookName) {
+          if (!isAllowedGTSXHookCall(node, hookName, currentScopeHookNames)) {
+            const key = `${file}#${currentComponentName}:${hookName}`
+            violations.set(key, { hookName, componentName: currentComponentName, file })
+          }
+        } else if (ts.isIdentifier(node.expression)) {
+          visitHelper(node.expression.text)
+        }
+      }
+
+      if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+        visitJSXDependency(node.tagName, localAliases)
+      }
+
+      ts.forEachChild(node, (child) => visit(child, localAliases))
+    }
+
+    function visitHelper(functionName: string) {
+      if (visitedHelpers.has(functionName)) return
+      const helperBody = helperFunctions.get(functionName)
+      if (!helperBody) return
+
+      visitedHelpers.add(functionName)
+      visit(helperBody, localComponentAliasBindingsForBody(helperBody))
+    }
+
+    function visitJSXDependency(tagName: ts.JsxTagNameExpression, localAliases: LocalComponentAliasBindings) {
+      const target = componentDependencyTargetForJsxTag(tagName, {
+        filePath: currentPath,
+        importBindings,
+        localAliases,
+        localComponentNames,
+      })
+      if (!target) return
+
+      const targetSourceFile = sourceFileForPath(target.filePath, context)
+      if (!targetSourceFile) return
+
+      visitComponent(targetSourceFile, target.filePath, target.componentName)
+    }
+  }
+}
+
+function localComponentAliasBindingsForBody(body: ts.ConciseBody): LocalComponentAliasBindings {
+  const aliases = new Map<string, string>()
+  if (!ts.isBlock(body)) return aliases
+
+  for (const statement of body.statements) {
+    if (!ts.isVariableStatement(statement)) continue
+
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue
+
+      const initializer = unwrapExpression(declaration.initializer)
+      if (ts.isIdentifier(initializer)) {
+        aliases.set(declaration.name.text, initializer.text)
+      }
+    }
+  }
+
+  return aliases
+}
+
+function getFunctionLikeBody(sourceFile: ts.SourceFile, functionName: string): ts.ConciseBody | undefined {
+  for (const statement of sourceFile.statements) {
+    if (ts.isFunctionDeclaration(statement) && statement.name?.text === functionName) {
+      return statement.body
+    }
+
+    if (!ts.isVariableStatement(statement)) continue
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || declaration.name.text !== functionName || !declaration.initializer) continue
+
+      const initializer = unwrapExpression(declaration.initializer)
+      if (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) {
+        return initializer.body
+      }
+    }
+  }
+
+  return undefined
+}
+
+function getTopLevelFunctionLikeBodies(sourceFile: ts.SourceFile): Map<string, ts.ConciseBody> {
+  const functions = new Map<string, ts.ConciseBody>()
+
+  for (const statement of sourceFile.statements) {
+    if (ts.isFunctionDeclaration(statement) && statement.name && statement.body) {
+      functions.set(statement.name.text, statement.body)
+      continue
+    }
+
+    if (!ts.isVariableStatement(statement)) continue
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue
+
+      const initializer = unwrapExpression(declaration.initializer)
+      if (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) {
+        functions.set(declaration.name.text, initializer.body)
+      }
+    }
+  }
+
+  return functions
+}
+
+function getTopLevelFunctionLikeBodiesForPath(
+  sourceFile: ts.SourceFile,
+  filePath: string,
+  cache?: GTSXAnalysisCache,
+): Map<string, ts.ConciseBody> {
+  const cached = cache?.topLevelFunctionLikeBodiesByPath.get(filePath)
+  if (cached) return cached
+
+  const functions = getTopLevelFunctionLikeBodies(sourceFile)
+  cache?.topLevelFunctionLikeBodiesByPath.set(filePath, functions)
+  return functions
+}
+
+function componentDependencyBindingsForFile(
+  sourceFile: ts.SourceFile,
+  filePath: string,
+  context: NonGTSXHookAnalysisContext,
+): ComponentDependencyBindings {
+  const cached = context.cache?.componentDependencyBindingsByPath.get(filePath)
+  if (cached) return cached
+
+  const bindings: ComponentDependencyBindings = {
+    names: new Map(),
+    namespaces: new Map(),
+  }
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || !statement.importClause) continue
+    if (!ts.isStringLiteral(statement.moduleSpecifier)) continue
+
+    const targetPath = resolveImportedGTSXPath(filePath, context.cwd, statement.moduleSpecifier.text, context.cache)
+    if (!targetPath) continue
+
+    const targetSourceFile = sourceFileForPath(targetPath, context)
+    if (!targetSourceFile) continue
+
+    const importClause = statement.importClause
+    if (importClause.name) {
+      const componentName = getComponentExportName(targetSourceFile, "default")
+      if (componentName) {
+        bindings.names.set(importClause.name.text, { filePath: targetPath, componentName })
       }
     }
 
-    ts.forEachChild(node, visit)
+    if (!importClause.namedBindings) continue
+    if (ts.isNamedImports(importClause.namedBindings)) {
+      for (const element of importClause.namedBindings.elements) {
+        const importedName = element.propertyName?.text ?? element.name.text
+        const componentName = getComponentExportName(targetSourceFile, importedName)
+        if (componentName) {
+          bindings.names.set(element.name.text, { filePath: targetPath, componentName })
+        }
+      }
+    } else if (ts.isNamespaceImport(importClause.namedBindings)) {
+      const namespaceExports = exportedComponentTargetsForFile(targetSourceFile, targetPath, context.cache)
+      if (namespaceExports.size > 0) {
+        bindings.namespaces.set(importClause.namedBindings.name.text, namespaceExports)
+      }
+    }
   }
 
-  function visitHelper(functionName: string) {
-    if (visitedHelpers.has(functionName)) return
-    const helper = helperFunctions.get(functionName)
-    if (!helper?.body) return
+  context.cache?.componentDependencyBindingsByPath.set(filePath, bindings)
+  return bindings
+}
 
-    visitedHelpers.add(functionName)
-    visit(helper.body)
+function sourceFileForPath(filePath: string, context: NonGTSXHookAnalysisContext): ts.SourceFile | undefined {
+  const cached = context.sourceFilesByPath.get(filePath)
+  if (cached) return cached
+  const sourceFile = sourceFileForAbsolutePath(filePath, context.cache)
+  if (!sourceFile) return undefined
+
+  context.sourceFilesByPath.set(filePath, sourceFile)
+  return sourceFile
+}
+
+function sourceFileForAbsolutePath(filePath: string, cache?: GTSXAnalysisCache): ts.SourceFile | undefined {
+  const cached = cache?.sourceFilesByPath.get(filePath)
+  if (cached) return cached
+  if (!isFile(filePath)) return undefined
+
+  const sourceFile = ts.createSourceFile(filePath, readFileSync(filePath, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  cache?.sourceFilesByPath.set(filePath, sourceFile)
+  return sourceFile
+}
+
+function exportedComponentTargetsForFile(
+  sourceFile: ts.SourceFile,
+  filePath: string,
+  cache?: GTSXAnalysisCache,
+): Map<string, ComponentDependencyTarget> {
+  const cached = cache?.exportedComponentTargetsByPath.get(filePath)
+  if (cached) return cached
+
+  const targets = new Map<string, ComponentDependencyTarget>()
+  const defaultName = getComponentExportName(sourceFile, "default")
+  if (defaultName) {
+    targets.set("default", { filePath, componentName: defaultName })
   }
+
+  for (const statement of sourceFile.statements) {
+    if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name) {
+      if (hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
+        targets.set(statement.name.text, { filePath, componentName: statement.name.text })
+      }
+      continue
+    }
+
+    if (ts.isVariableStatement(statement) && hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name) && getFunctionLikeBody(sourceFile, declaration.name.text)) {
+          targets.set(declaration.name.text, { filePath, componentName: declaration.name.text })
+        }
+      }
+      continue
+    }
+
+    if (!ts.isExportDeclaration(statement) || statement.moduleSpecifier || !statement.exportClause || !ts.isNamedExports(statement.exportClause)) {
+      continue
+    }
+
+    for (const element of statement.exportClause.elements) {
+      const localName = element.propertyName?.text ?? element.name.text
+      if (getFunctionLikeBody(sourceFile, localName)) {
+        targets.set(element.name.text, { filePath, componentName: localName })
+      }
+    }
+  }
+
+  cache?.exportedComponentTargetsByPath.set(filePath, targets)
+  return targets
+}
+
+function componentDependencyTargetForJsxTag(
+  tagName: ts.JsxTagNameExpression,
+  input: {
+    filePath: string
+    importBindings: ComponentDependencyBindings
+    localAliases?: LocalComponentAliasBindings
+    localComponentNames?: ReadonlyMap<string, unknown>
+  },
+): ComponentDependencyTarget | undefined {
+  if (ts.isIdentifier(tagName)) {
+    return componentDependencyTargetForIdentifier(tagName.text, input)
+  }
+
+  if (ts.isPropertyAccessExpression(tagName) && ts.isIdentifier(tagName.expression)) {
+    return input.importBindings.namespaces.get(tagName.expression.text)?.get(tagName.name.text)
+  }
+
+  return undefined
+}
+
+function componentDependencyTargetForIdentifier(
+  name: string,
+  input: {
+    filePath: string
+    importBindings: ComponentDependencyBindings
+    localAliases?: LocalComponentAliasBindings
+    localComponentNames?: ReadonlyMap<string, unknown>
+  },
+): ComponentDependencyTarget | undefined {
+  if (!isComponentName(name)) return undefined
+
+  let currentName = name
+  const visited = new Set<string>()
+
+  while (!visited.has(currentName)) {
+    visited.add(currentName)
+
+    const aliasTarget = input.localAliases?.get(currentName)
+    if (aliasTarget) {
+      currentName = aliasTarget
+      continue
+    }
+
+    if (input.localComponentNames?.has(currentName)) {
+      return { filePath: input.filePath, componentName: currentName }
+    }
+
+    const importTarget = input.importBindings.names.get(currentName)
+    if (importTarget) return importTarget
+
+    return undefined
+  }
+
+  return undefined
+}
+
+function getHookCallName(node: ts.CallExpression, sourceFile: ts.SourceFile): string | undefined {
+  if (ts.isIdentifier(node.expression) && isHookName(node.expression.text)) {
+    return node.expression.text
+  }
+
+  if (ts.isPropertyAccessExpression(node.expression) && isHookName(node.expression.name.text)) {
+    return node.expression.getText(sourceFile)
+  }
+
+  return undefined
+}
+
+function isAllowedGTSXHookCall(
+  node: ts.CallExpression,
+  hookName: string,
+  scopeHookNames: Set<string>,
+): boolean {
+  if (ts.isIdentifier(node.expression)) {
+    return hookName === "useGContext" || hookName === "useGContextUpdate" || scopeHookNames.has(hookName)
+  }
+
+  if (ts.isPropertyAccessExpression(node.expression)) {
+    return node.expression.name.text === "useUpdate"
+  }
+
+  return false
 }
 
 function getGScopeHookCalls(
@@ -398,7 +1028,16 @@ function getTopLevelFunctionDeclarations(sourceFile: ts.SourceFile): Map<string,
 }
 
 function isHookName(name: string): boolean {
-  return /^use[A-Z0-9_]/.test(name)
+  return name === "use" || /^use[A-Z0-9_]/.test(name)
+}
+
+function isComponentName(name: string): boolean {
+  return /^[A-Z]/.test(name)
+}
+
+function jsxTagIdentifier(tagName: ts.JsxTagNameExpression): string | undefined {
+  if (ts.isIdentifier(tagName)) return tagName.text
+  return undefined
 }
 
 function getCasesAssignment(
@@ -536,4 +1175,8 @@ function hasStaticProperty(objectLiteral: ts.ObjectLiteralExpression, propertyNa
 
 function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
   return Boolean(ts.canHaveModifiers(node) && ts.getModifiers(node)?.some((modifier) => modifier.kind === kind))
+}
+
+function normalizeProjectPath(filePath: string): string {
+  return filePath.split(sep).join("/")
 }

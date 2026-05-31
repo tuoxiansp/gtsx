@@ -16,10 +16,12 @@ import {
   type GPreviewProtocolMessage,
   type GPreviewRenderMessage,
   type GPreviewRenderTarget,
+  type AnyGProvider,
 } from "@gtsx/core"
 
 export type GTSXPreviewCase<Props extends object = Record<string, unknown>> = {
   props: Props
+  providers?: readonly (readonly [AnyGProvider, unknown])[]
   scope?: unknown
 }
 
@@ -302,7 +304,7 @@ export function GTSXPreviewCaseSheet<Props extends object = Record<string, unkno
           <GPreviewProvider
             boundaryCollector={boundaryCollector}
             caseOverrides={caseOverridesForFrame(entry, name, caseOverrides)}
-            {...previewScopeProps(testCase)}
+            {...previewRuntimeProps(testCase)}
           >
             <Component {...testCase.props} />
           </GPreviewProvider>
@@ -534,8 +536,13 @@ export function isGTSXPreviewComponent(value: unknown): value is GTSXPreviewComp
   return typeof value === "function"
 }
 
-function previewScopeProps<Props extends object>(testCase: GTSXPreviewCase<Props>): { scope: unknown } | Record<string, never> {
-  return Object.prototype.hasOwnProperty.call(testCase, "scope") ? { scope: testCase.scope } : {}
+function previewRuntimeProps<Props extends object>(
+  testCase: GTSXPreviewCase<Props>,
+): Pick<React.ComponentProps<typeof GPreviewProvider>, "providerValues" | "scope"> {
+  return {
+    ...(Object.prototype.hasOwnProperty.call(testCase, "scope") ? { scope: testCase.scope } : {}),
+    ...(testCase.providers ? { providerValues: new Map(testCase.providers) } : {}),
+  }
 }
 
 function toComponentCoordinate(entry: string): string {
