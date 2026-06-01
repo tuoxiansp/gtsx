@@ -61,4 +61,4 @@ You get:
 
 pnpm workspace. `pnpm install && pnpm build && pnpm test && pnpm typecheck`.
 
-Packages: `@gtsx/core` (protocol, CLI), `@gtsx/studio` (shell, manifests), `@gtsx/adapter-vite-react` (Vite adapter). Cross-framework validation fixtures live in [`playground/`](playground/).
+Packages: `@gtsx/core` (protocol, CLI), `@gtsx/studio` (shell, manifests), `@gtsx/adapter-vite-react` (Vite adapter), and `@gtsx/adapter-next-react` (Next.js adapter). Cross-framework validation fixtures live in [`playground/`](playground/).

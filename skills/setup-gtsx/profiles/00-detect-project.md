@@ -10,7 +10,7 @@ Read this before choosing an integration profile.
 - Host topology = either client-only React or client+server React.
 - Adapter = package that makes the Host understand gtsx transforms and preview URLs.
 - Scope follows TypeScript. Host does not expand scope.
-- Validated profile = a tested framework-specific integration path. 0.0.1 validated profiles are Vite React and Next.js App Router.
+- Validated profile = a tested framework-specific integration path. Validated profiles are Vite React and Next.js App Router.
 - Integration contract = framework-neutral wiring to adapt when no validated profile exists.
 
 ## Required Contract
@@ -26,13 +26,13 @@ Every successful integration needs:
 
 ## Supported Project Scope
 
-setup-gtsx 0.0.1 supports TypeScript React projects. A supported project has:
+setup-gtsx supports TypeScript React projects. A supported project has:
 
 - A TypeScript Program that includes React source and can include `.g.tsx` files.
 - A React host with a browser entry or framework routes.
 - A bundler/framework hook where `.g.tsx` files can run through the gtsx React transform.
 
-JavaScript-only React projects, non-React projects, and projects without a selectable TypeScript Program are outside the setup-gtsx 0.0.1 setup scope.
+JavaScript-only React projects, non-React projects, and projects without a selectable TypeScript Program are outside the setup-gtsx setup scope.
 
 ## Detection Steps
 

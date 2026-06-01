@@ -60,4 +60,4 @@ gtsx 把这张地图还给你。每个组件都在自己的 TSX 旁边把视觉�
 
 pnpm workspace。常用命令：`pnpm install && pnpm build && pnpm test && pnpm typecheck`。
 
-子包：`@gtsx/core`（协议与 CLI）、`@gtsx/studio`（shell 与 manifest）、`@gtsx/adapter-vite-react`（Vite 适配器）。跨框架的验证 fixtures 都放在 [`playground/`](playground/) 下。
+子包：`@gtsx/core`（协议与 CLI）、`@gtsx/studio`（shell 与 manifest）、`@gtsx/adapter-vite-react`（Vite 适配器）和 `@gtsx/adapter-next-react`（Next.js 适配器）。跨框架的验证 fixtures 都放在 [`playground/`](playground/) 下。

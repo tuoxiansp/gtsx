@@ -1,6 +1,6 @@
 # Next.js App Router
 
-Use this profile for Next.js App Router projects. setup-gtsx 0.0.1 does not provide a validated Pages Router integration profile.
+Use this profile for Next.js App Router projects. setup-gtsx does not currently provide a validated Pages Router integration profile.
 
 ## Packages
 
