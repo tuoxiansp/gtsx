@@ -1,5 +1,7 @@
 import type { GBoundaryRect, GCases } from "@gtsx/core"
 
+import { studioColors } from "../studio-theme"
+
 type SelectedBoundaryOutlineProps = {
   rect: GBoundaryRect
 }
@@ -12,7 +14,7 @@ export default function SelectedBoundaryOutline(props: SelectedBoundaryOutlinePr
       style={{
         height: props.rect.height,
         left: props.rect.x,
-        outline: "1px solid #0d99ff",
+        outline: `1px solid ${studioColors.selectionOutline}`,
         pointerEvents: "none",
         position: "absolute",
         top: props.rect.y,

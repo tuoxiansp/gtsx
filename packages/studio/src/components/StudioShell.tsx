@@ -45,6 +45,7 @@ import {
 import { StudioPreviewIframePoolProvider } from "../preview-iframe-pool"
 import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
 import { createStudioPreviewMessageFlush } from "../studio-preview-message-flush"
+import { studioColors, studioFontFamily, studioRadii, studioShellStyle } from "../studio-theme"
 import StudioWorkspaceView from "./StudioWorkspaceView.g"
 
 export type StudioShellLoadedProps = {
@@ -447,11 +448,9 @@ function StudioShellLoadingFrame(props: {
     <main
       data-gtsx-studio-shell-loading="true"
       style={{
+        ...studioShellStyle(),
         alignItems: "center",
-        background: "#f5f6f8",
-        color: "#1f2328",
         display: "grid",
-        fontFamily: "ui-sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
         height: "100vh",
         justifyItems: "center",
         overflow: "hidden",
@@ -475,10 +474,11 @@ function StudioShellLoadingFrame(props: {
       >
         <strong
           style={{
-            color: "#1f2328",
-            fontSize: 14,
+            color: studioColors.text,
+            fontFamily: studioFontFamily,
+            fontSize: 12,
             fontWeight: 600,
-            letterSpacing: 0,
+            letterSpacing: "0.02em",
             lineHeight: 1.2,
           }}
         >
@@ -488,8 +488,8 @@ function StudioShellLoadingFrame(props: {
           aria-label="Studio manifest loading progress"
           role="progressbar"
           style={{
-            background: "#d8dee4",
-            borderRadius: 999,
+            background: studioColors.panelBorderSubtle,
+            borderRadius: studioRadii.pill,
             height: 6,
             overflow: "hidden",
             width: "100%",
@@ -499,8 +499,8 @@ function StudioShellLoadingFrame(props: {
             data-gtsx-studio-shell-progress-bar="true"
             style={{
               animation: props.error ? undefined : "gtsx-studio-loading-bar 1.15s ease-in-out infinite",
-              background: props.error ? "#cf222e" : "#0d99ff",
-              borderRadius: 999,
+              background: props.error ? studioColors.error : studioColors.accent,
+              borderRadius: studioRadii.pill,
               display: "block",
               height: "100%",
               transform: props.error ? "translateX(0)" : "translateX(-100%)",
@@ -510,8 +510,9 @@ function StudioShellLoadingFrame(props: {
         </div>
         <span
           style={{
-            color: props.error ? "#cf222e" : "#57606a",
-            fontSize: 12,
+            color: props.error ? studioColors.errorText : studioColors.textMuted,
+            fontFamily: studioFontFamily,
+            fontSize: 11,
             lineHeight: 1.4,
           }}
         >

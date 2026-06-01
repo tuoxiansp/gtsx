@@ -6,6 +6,7 @@ import { createGScopeHook, type GBoundaryRect, type GCases, type GPreviewProtoco
 import type { StudioPreviewFrameState } from "../client"
 import { studioBoundaryRectForCoordinate } from "../boundary-tree"
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
+import { studioColors } from "../studio-theme"
 
 type SidebarComponentPreviewProps = {
   component: StudioManifestComponent
@@ -81,7 +82,7 @@ export default function SidebarComponentPreview(props: SidebarComponentPreviewPr
       data-gtsx-viewport-preset="tablet"
       ref={scope.setContainerElement}
       style={{
-        background: "#f5f6f8",
+        background: studioColors.panelBgElevated,
         height,
         overflow: "hidden",
         position: "relative",

@@ -23,6 +23,8 @@ import {
 } from "./client"
 import {
   studioCaseGridMaxSide,
+  studioComponentCardTitleGap,
+  studioComponentCardTitleHeight,
   studioComponentCaseChromeHeight,
   studioComponentCaseGridGap,
   studioComponentCaseGridMinScale,
@@ -65,8 +67,6 @@ export type MeasuredStudioColumnCardLayout = {
 }
 
 const studioComponentCardColumnGap = 10
-const studioComponentCardTitleGap = 8
-const studioComponentCardTitleHeight = 13 * 1.2
 const studioCanvasCardShellViewportStabilityMargin = 24
 
 export function domRectToStudioCanvasScreenRect(rect: DOMRect): StudioCanvasScreenRect {
@@ -247,10 +247,7 @@ export function studioWorkspaceColumnMeasurementsFromGeometry(input: {
         const frameHeight = Math.ceil(caseGridItem.height * cardLayout.caseGridLayout.previewScale)
         const frameLeft = cellLeft + (cardLayout.caseGridLayout.cellWidth - frameWidth) / 2
         const frameTop =
-          studioComponentCardTitleHeight +
-          studioComponentCardTitleGap +
-          cellTop +
-          studioComponentCaseChromeHeight
+          studioComponentCardTitleHeight + studioComponentCardTitleGap + cellTop
 
         previewFrameRectsBySessionId[previewSessionId(component, testCase.name, input.viewportPreset)] = {
           bottom: cardTop + frameTop + frameHeight,
@@ -658,7 +655,7 @@ function studioComponentFallbackCasePreviewVisibilityItems(input: {
     const frameWidth = Math.ceil(gridItem.width * caseGridLayout.previewScale)
     const frameHeight = Math.ceil(gridItem.height * caseGridLayout.previewScale)
     const frameLeft = cellLeft + (caseGridLayout.cellWidth - frameWidth) / 2
-    const frameTop = cellTop + studioComponentCaseChromeHeight
+    const frameTop = cellTop
 
     items.push({
       rect: {

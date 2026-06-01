@@ -1,5 +1,7 @@
 import type { GCases } from "@gtsx/core"
 
+import { studioColors, studioFontFamily, studioRadii } from "../studio-theme"
+
 type PreviewErrorProps = {
   caseName: string
   coordinate: string
@@ -14,12 +16,20 @@ export default function PreviewError(props: PreviewErrorProps) {
   return (
     <div
       role="status"
-      style={{ background: "#fff8c5", border: "1px solid #d4a72c", borderRadius: 8, color: "#5a1e02", padding: 12 }}
+      style={{
+        background: studioColors.errorBg,
+        border: `1px solid ${studioColors.errorBorder}`,
+        borderRadius: studioRadii.md,
+        color: studioColors.errorText,
+        fontFamily: studioFontFamily,
+        fontSize: 11,
+        padding: 12,
+      }}
     >
       <strong>Preview unavailable</strong>
       <p style={{ margin: "6px 0 0" }}>{props.error.message}</p>
-      {props.error.stack ? <pre style={{ whiteSpace: "pre-wrap" }}>{props.error.stack}</pre> : null}
-      <dl style={{ display: "grid", gap: 4, margin: "8px 0 0" }}>
+      {props.error.stack ? <pre style={{ fontSize: 10, whiteSpace: "pre-wrap" }}>{props.error.stack}</pre> : null}
+      <dl style={{ display: "grid", fontSize: 10, gap: 4, margin: "8px 0 0" }}>
         <div>
           <dt>Entry</dt>
           <dd style={{ margin: 0 }}>{props.coordinate}</dd>

@@ -15,6 +15,7 @@ import {
 } from "../preview-frame-layout"
 import type { StudioPreviewFrameState } from "../client"
 import type { StudioPreviewIframeBorrowOrigin, StudioPreviewIframeMountState } from "../preview-iframe-pool"
+import { studioColors, studioRadii } from "../studio-theme"
 import { useStudioPreviewIsVisibleSession, useStudioPreviewShouldRenderSession } from "../preview-render-session-store"
 
 type LazyPreviewFrameProps = {
@@ -146,9 +147,9 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
           data-gtsx-preview-render-visible={scope.isVisibleRenderSession ? "true" : "false"}
           style={{
             alignItems: "center",
-            background: "rgba(255,255,255,0.92)",
-            border: "1px solid rgba(216,222,232,0.96)",
-            borderRadius: 999,
+            background: studioColors.panelBg,
+            border: `1px solid ${studioColors.panelBorder}`,
+            borderRadius: studioRadii.pill,
             bottom: 5,
             boxShadow: "0 1px 5px rgba(31,35,40,0.16)",
             display: "grid",
@@ -167,7 +168,7 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
           title={renderFlowDebugState}
         >
           <StudioPreviewRenderLifecycleDot active={shouldLoad} color="#57606a" />
-          <StudioPreviewRenderLifecycleDot active={scope.isVisibleRenderSession} color="#0d99ff" />
+          <StudioPreviewRenderLifecycleDot active={scope.isVisibleRenderSession} color={studioColors.accent} />
           <StudioPreviewRenderLifecycleDot
             active={scope.borrowOrigin !== null}
             color={scope.borrowOrigin === "new" ? "#fb8f2d" : "#2da44e"}
@@ -180,9 +181,9 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
           aria-label="Preview task dispatched from visible viewport"
           data-gtsx-preview-queue-origin="visible"
           style={{
-            background: "#0d99ff",
-            border: "1px solid rgba(255,255,255,0.92)",
-            borderRadius: 999,
+            background: studioColors.accent,
+            border: `1px solid ${studioColors.panelBorder}`,
+            borderRadius: studioRadii.pill,
             boxShadow: "0 1px 5px rgba(31,35,40,0.25)",
             height: 9,
             pointerEvents: "none",
@@ -219,8 +220,10 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
           title={scope.borrowOrigin === "pool" ? "from pool" : "new iframe"}
         />
       ) : null}
-      {overlayRect ? <ComponentBoundsHitTarget coordinate={props.coordinate} onSelect={props.onSelect} rect={overlayRect} /> : null}
-      {selectedOverlayRect ? <SelectedBoundaryOutline rect={selectedOverlayRect} /> : null}
+      {props.boundaryRect ? (
+        <ComponentBoundsHitTarget coordinate={props.coordinate} onSelect={props.onSelect} rect={overlayRect ?? props.boundaryRect} />
+      ) : null}
+      {props.selectedBoundaryRect ? <SelectedBoundaryOutline rect={selectedOverlayRect ?? props.selectedBoundaryRect} /> : null}
     </div>
   )
 }
@@ -231,6 +234,25 @@ LazyPreviewFrame.cases = {
       "data-gtsx-preview-session-id": "src/UserCard.g.tsx#default:ready",
       boundaryRect: { x: 10, y: 20, width: 320, height: 88 },
       coordinate: "src/UserCard.g.tsx#default",
+      previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0",
+      selectedBoundaryRect: { x: 10, y: 20, width: 320, height: 88 },
+      shouldLoad: true,
+      size: { width: 390, height: 844 },
+      sessionId: "src/UserCard.g.tsx#default:ready",
+      title: "UserCard preview",
+      viewportPreset: "phone",
+    },
+  },
+  debugQueue: {
+    props: {
+      "data-gtsx-preview-session-id": "src/UserCard.g.tsx#default:ready",
+      boundaryRect: { x: 10, y: 20, width: 320, height: 88 },
+      coordinate: "src/UserCard.g.tsx#default",
+      debugPreviewQueue: true,
+      frameState: {
+        expectedSessionId: "src/UserCard.g.tsx#default:ready",
+        ready: true,
+      },
       previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0",
       selectedBoundaryRect: { x: 10, y: 20, width: 320, height: 88 },
       shouldLoad: true,
@@ -271,7 +293,7 @@ function studioPreviewRenderLifecycleStateColor(state: "error" | "idle" | "queue
   if (state === "error") return "#cf222e"
   if (state === "ready") return "#2da44e"
   if (state === "rendering") return "#bf8700"
-  if (state === "queued") return "#0d99ff"
+  if (state === "queued") return studioColors.accent
   return "#8c959f"
 }
 

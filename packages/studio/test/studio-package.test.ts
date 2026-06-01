@@ -38,6 +38,8 @@ describe("Studio package", () => {
     expect(check.stdout).toContain("- active")
     expect(check.stdout).toContain("- chromeHidden")
     expect(check.stdout).toContain("- chromeVisible")
+    expect(check.stdout).toContain("- debugQueue")
+    expect(check.stdout).toContain("- debugQueueObserved")
     expect(check.stdout).toContain("- empty")
     expect(check.stdout).toContain("- loadedPhone")
     expect(check.stdout).toContain("- loading")

@@ -20,7 +20,10 @@ import {
   studioCaseGridMaxSide,
   studioComponentCaseChromeHeight,
   studioComponentCaseGridGap,
+  studioComponentCaseLabelGap,
+  studioComponentCaseLabelMinHeight,
   studioComponentCaseGridMinScale,
+  studioComponentCaseMismatchBorderOutset,
 } from "../case-grid-layout"
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
@@ -28,6 +31,16 @@ import { previewFrameLayoutHeight, previewFrameLayoutWidth } from "../preview-fr
 import { studioBoundaryRectForCoordinate } from "../boundary-tree"
 import LazyPreviewFrame from "./LazyPreviewFrame.g"
 import PreviewError from "./PreviewError.g"
+import {
+  studioCaseLabelStyle,
+  studioCardTitleIndicatorStyle,
+  studioCardTitleStyle,
+  studioProviderVariantButtonStyle,
+  studioColors,
+  studioFontFamily,
+  studioRadii,
+  studioTypography,
+} from "../studio-theme"
 
 type StudioViewportPreset = "phone" | "tablet" | "desktop"
 type StudioCardSelectionSource = "keyboard" | "pointer"
@@ -144,19 +157,21 @@ function ComponentCardView(props: ComponentCardProps) {
         width: cardWidth,
       }}
     >
-      <strong
-        style={{
-          color: "inherit",
-          fontSize: 13,
-          letterSpacing: 0,
-          lineHeight: 1.2,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
+      <span
+        data-gtsx-card-title-selected={props.selected ? "true" : undefined}
+        style={studioCardTitleStyle(props.selected)}
       >
-        {props.component.componentName}
-      </strong>
+        <span aria-hidden="true" style={studioCardTitleIndicatorStyle(props.selected)} />
+        <span
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {props.component.componentName}
+        </span>
+      </span>
       {variantAxes.length > 0 ? (
         <div
           data-gtsx-env-controls={props.component.coordinate}
@@ -181,13 +196,16 @@ function ComponentCardView(props: ComponentCardProps) {
               <span
                 title={axis.providerName}
                 style={{
-                  color: "#57606a",
-                  fontSize: 10,
-                  fontWeight: 600,
-                  lineHeight: 1.1,
+                  color: studioColors.textDim,
+                  fontFamily: studioFontFamily,
+                  fontSize: studioTypography.controlLabel.fontSize,
+                  fontWeight: studioTypography.controlLabel.fontWeight,
+                  letterSpacing: studioTypography.controlLabel.letterSpacing,
+                  lineHeight: studioTypography.controlLabel.lineHeight,
                   minWidth: 0,
                   overflow: "hidden",
                   textOverflow: "ellipsis",
+                  textTransform: "uppercase",
                   whiteSpace: "nowrap",
                 }}
               >
@@ -220,22 +238,7 @@ function ComponentCardView(props: ComponentCardProps) {
                     onPointerDown={(event) => event.stopPropagation()}
                     title={variant.selected ? `${axis.providerName}: inherit` : `${axis.providerName}: ${variant.name}`}
                     type="button"
-                    style={{
-                      appearance: "none",
-                      background: variant.selected ? "#0969da" : "#ffffff",
-                      border: `1px solid ${variant.selected ? "#0969da" : "#d0d7de"}`,
-                      borderRadius: 5,
-                      color: variant.selected ? "#ffffff" : "#24292f",
-                      cursor: "pointer",
-                      fontSize: 10,
-                      fontWeight: 650,
-                      lineHeight: 1.1,
-                      maxWidth: 108,
-                      overflow: "hidden",
-                      padding: "4px 6px",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
+                    style={studioProviderVariantButtonStyle(variant.selected)}
                   >
                     {variant.name}
                   </button>
@@ -262,7 +265,6 @@ function ComponentCardView(props: ComponentCardProps) {
             display: "grid",
             gap: caseGridLayout.gap,
             gridTemplateColumns: `repeat(${caseGridLayout.columns}, ${caseGridLayout.cellWidth}px)`,
-            outline: props.selected ? "1px solid #0d99ff" : undefined,
             position: "relative",
             width: caseGridLayout.width,
           }}
@@ -281,34 +283,21 @@ function ComponentCardView(props: ComponentCardProps) {
               onPointerDown={(event) => event.stopPropagation()}
               role="button"
               style={{
-                alignContent: "start",
                 cursor: props.onSelect ? "pointer" : "default",
                 display: "grid",
-                gap: 5,
+                gap: studioComponentCaseLabelGap,
+                justifyItems: "center",
                 minWidth: 0,
                 width: caseGridLayout.cellWidth,
               }}
               tabIndex={0}
               title={tile.providerVariantStatus.title}
             >
-              <strong
-                style={{
-                  color: tile.providerVariantStatus.state === "mismatch" ? "#8c959f" : "#57606a",
-                  fontSize: 11,
-                  lineHeight: `${studioComponentCaseChromeHeight - 5}px`,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {tile.name}
-              </strong>
               <div
                 data-gtsx-case-preview-frame={tile.name}
                 data-gtsx-case-preview-frame-state={componentCardPreviewFrameStateName(tile.frameState)}
                 style={{
                   height: Math.ceil(tile.layoutHeight * caseGridLayout.previewScale),
-                  justifySelf: "center",
                   overflow: "visible",
                   position: "relative",
                   width: Math.ceil(tile.layoutWidth * caseGridLayout.previewScale),
@@ -365,12 +354,12 @@ function ComponentCardView(props: ComponentCardProps) {
                 </div>
                 {tile.providerVariantStatus.state === "mismatch" ? (
                   <div
-                    data-gtsx-case-provider-variant-overlay={tile.name}
+                    aria-hidden="true"
+                    data-gtsx-case-provider-variant-border={tile.name}
                     style={{
-                      background:
-                        "repeating-linear-gradient(135deg, rgba(87,96,106,0.42) 0, rgba(87,96,106,0.42) 7px, rgba(255,255,255,0.12) 7px, rgba(255,255,255,0.12) 14px), rgba(87,96,106,0.18)",
-                      boxShadow: "inset 0 0 0 2px rgba(87,96,106,0.46)",
-                      inset: 0,
+                      border: `1px dashed ${studioColors.mismatchBorder}`,
+                      borderRadius: studioRadii.md,
+                      inset: `-${studioComponentCaseMismatchBorderOutset}px`,
                       pointerEvents: "none",
                       position: "absolute",
                       zIndex: 6,
@@ -378,6 +367,14 @@ function ComponentCardView(props: ComponentCardProps) {
                   />
                 ) : null}
               </div>
+              <span
+                style={{
+                  ...studioCaseLabelStyle(tile.providerVariantStatus.state === "mismatch"),
+                  minHeight: studioComponentCaseLabelMinHeight,
+                }}
+              >
+                {tile.name}
+              </span>
             </div>
           ))}
         </div>

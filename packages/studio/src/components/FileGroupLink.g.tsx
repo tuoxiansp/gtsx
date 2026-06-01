@@ -2,6 +2,7 @@ import type { GCases } from "@gtsx/core"
 
 import { studioPreviewCacheKey, type StudioPreviewCacheEntry } from "../client"
 import type { StudioManifest, StudioManifestFile } from "../manifest"
+import { studioColors, studioFontFamily, studioRadii } from "../studio-theme"
 import SidebarComponentPreview from "./SidebarComponentPreview.g"
 
 type FileGroupLinkProps = {
@@ -27,11 +28,12 @@ export default function FileGroupLink(props: FileGroupLinkProps) {
           props.onChangeSelection(fileSelection)
         }}
         style={{
-          color: props.selectedId === fileSelection ? "#0969da" : "#57606a",
+          color: props.selectedId === fileSelection ? studioColors.accent : studioColors.textMuted,
           display: "grid",
+          fontFamily: studioFontFamily,
           gap: 2,
-          fontSize: 12,
-          fontWeight: 750,
+          fontSize: 11,
+          fontWeight: 600,
           lineHeight: 1.35,
           overflowWrap: "anywhere",
           textDecoration: "none",
@@ -39,7 +41,7 @@ export default function FileGroupLink(props: FileGroupLinkProps) {
       >
         <span>{fileName}</span>
         {directoryName ? (
-          <span style={{ color: "#8b949e", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 10, fontWeight: 500 }}>
+          <span style={{ color: studioColors.textDim, fontFamily: studioFontFamily, fontSize: 10, fontWeight: 500 }}>
             {directoryName}
           </span>
         ) : null}
@@ -58,13 +60,14 @@ export default function FileGroupLink(props: FileGroupLinkProps) {
                 props.onChangeSelection(componentSelection)
               }}
               style={{
-                background: isSelected ? "#eaf4ff" : "#ffffff",
+                background: isSelected ? studioColors.panelBgElevated : studioColors.panelBg,
                 border: "1px solid",
-                borderColor: isSelected ? "#8ec5ff" : "#d8dee8",
-                borderRadius: 12,
-                boxShadow: isSelected ? "0 6px 18px rgba(9,105,218,0.12)" : "0 1px 2px rgba(31,35,40,0.04)",
-                color: "#1f2328",
+                borderColor: isSelected ? studioColors.accentBorder : studioColors.panelBorder,
+                borderRadius: studioRadii.md,
+                boxShadow: isSelected ? `0 0 0 1px ${studioColors.accentMuted}` : undefined,
+                color: studioColors.text,
                 display: "block",
+                fontFamily: studioFontFamily,
                 overflow: "hidden",
                 padding: 8,
                 textDecoration: "none",

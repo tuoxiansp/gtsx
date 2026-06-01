@@ -56,6 +56,17 @@ import { useStudioPreviewRenderScheduler } from "../use-studio-preview-render-sc
 import StudioComponentCardSlot from "./StudioComponentCardSlot"
 import ViewportPresetTabs from "./ViewportPresetTabs.g"
 import type { StudioPreviewGeometryCacheStore } from "../preview-geometry-cache-store"
+import {
+  studioCanvasBackgroundStyle,
+  studioColors,
+  studioDrilldownColumnEnterKeyframes,
+  studioDrilldownColumnEnterStyle,
+  studioFontFamily,
+  studioProviderVariantButtonStyle,
+  studioRadii,
+  studioShellStyle,
+  studioTypography,
+} from "../studio-theme"
 
 export type StudioWorkspaceViewProps = {
   canvas?: StudioCanvasTransform
@@ -513,14 +524,13 @@ export default function Studio(props: StudioWorkspaceViewProps) {
     <StudioPreviewRenderSessionStoreProvider store={scope.previewRenderSessionStore}>
       <main
         style={{
+          ...studioShellStyle(),
           display: "grid",
           height: "100vh",
           overflow: "hidden",
-          background: "#f5f6f8",
-          color: "#1f2328",
-          fontFamily: "ui-sans-serif, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
         }}
       >
+        <style>{studioDrilldownColumnEnterKeyframes}</style>
         <section style={{ display: "grid", minHeight: 0, minWidth: 0 }}>
           <div
             aria-label="GTSX Studio canvas viewport"
@@ -532,9 +542,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
             ref={scope.setCanvasViewportElement}
             aria-busy={previewCacheReady ? undefined : true}
             style={{
-              backgroundColor: "#f5f6f8",
-              backgroundImage: "radial-gradient(circle at 1px 1px, rgba(31,35,40,0.10) 1px, transparent 0)",
-              backgroundSize: "24px 24px",
+              ...studioCanvasBackgroundStyle(),
               cursor: "grab",
               height: "100%",
               minHeight: 0,
@@ -547,22 +555,20 @@ export default function Studio(props: StudioWorkspaceViewProps) {
             tabIndex={0}
           >
             <ViewportPresetTabs floating onChange={scope.onViewportPresetChange} selectedPreset={scope.canvasViewportPreset} />
-            {rootProviderVariantAxes.length > 0 ? (
-              <StudioRootProviderVariantControls
-                axes={rootProviderVariantAxes}
-                onChange={scope.onChangeRootProviderVariant}
-              />
-            ) : null}
+            <StudioRootProviderVariantControls
+              axes={rootProviderVariantAxes}
+              onChange={scope.onChangeRootProviderVariant}
+            />
             {scope.renderExpansionCenterPulse ? (
               <span
                 aria-label="Preview render expansion center"
                 data-gtsx-preview-render-expansion-center-pulse="true"
                 key={scope.renderExpansionCenterPulse.id}
                 style={{
-                  background: "rgba(13,153,255,0.24)",
-                  border: "2px solid #0d99ff",
+                  background: studioColors.accentMuted,
+                  border: `2px solid ${studioColors.accent}`,
                   borderRadius: 999,
-                  boxShadow: "0 0 0 6px rgba(13,153,255,0.14)",
+                  boxShadow: `0 0 0 6px ${studioColors.accentMuted}`,
                   height: 18,
                   left: scope.renderExpansionCenterPulse.x,
                   pointerEvents: "none",
@@ -578,11 +584,12 @@ export default function Studio(props: StudioWorkspaceViewProps) {
               <p
                 role="status"
                 style={{
-                  background: "#fff8c5",
-                  border: "1px solid #d4a72c",
-                  borderRadius: 8,
-                  color: "#5a1e02",
-                  fontSize: 12,
+                  background: studioColors.warningBg,
+                  border: `1px solid ${studioColors.warningBorder}`,
+                  borderRadius: studioRadii.md,
+                  color: studioColors.warningText,
+                  fontFamily: studioFontFamily,
+                  fontSize: 11,
                   left: 16,
                   lineHeight: 1.45,
                   margin: 0,
@@ -631,6 +638,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                       position: "absolute",
                       top: scope.columnLayoutByIndex[columnIndex]?.y ?? 0,
                       width: "max-content",
+                      ...(columnIndex > 0 ? studioDrilldownColumnEnterStyle() : {}),
                     }}
                   >
                     {(scope.visibleCardsByColumnIndex[columnIndex] ?? []).map((card) => {
@@ -698,6 +706,8 @@ function StudioRootProviderVariantControls(props: {
   axes: StudioProviderVariantAxis[]
   onChange: (providerName: string, variant: string | undefined) => void
 }) {
+  if (props.axes.length === 0) return null
+
   return (
     <div
       aria-label="Provider variants"
@@ -705,45 +715,66 @@ function StudioRootProviderVariantControls(props: {
       data-gtsx-root-env-controls="true"
       onPointerDown={(event) => event.stopPropagation()}
       style={{
-        alignItems: "start",
-        background: "rgba(255,255,255,0.9)",
-        border: "1px solid rgba(216,222,228,0.95)",
-        borderRadius: 6,
+        background: studioColors.panelBg,
+        border: `1px solid ${studioColors.panelBorder}`,
+        borderRadius: studioRadii.md,
         bottom: 16,
-        boxShadow: "0 8px 24px rgba(31,35,40,0.12)",
         display: "grid",
-        gap: 6,
+        fontFamily: studioFontFamily,
+        gap: 0,
         maxHeight: "min(320px, calc(100vh - 32px))",
         maxWidth: "min(420px, calc(100vw - 32px))",
         overflow: "auto",
-        padding: "8px 9px",
+        padding: "10px 12px 12px",
         position: "absolute",
         right: 16,
         zIndex: 4,
       }}
     >
-      {props.axes.map((axis) => (
+      <header
+        style={{
+          borderBottom: `1px solid ${studioColors.panelBorderSubtle}`,
+          color: studioColors.textDim,
+          fontSize: studioTypography.controlLabel.fontSize,
+          fontWeight: studioTypography.controlLabel.fontWeight,
+          letterSpacing: studioTypography.controlLabel.letterSpacing,
+          lineHeight: studioTypography.controlLabel.lineHeight,
+          marginBottom: 10,
+          paddingBottom: 8,
+          textTransform: "uppercase",
+        }}
+      >
+        Environment
+      </header>
+      {props.axes.map((axis, axisIndex) => (
         <div
           data-gtsx-root-env-axis={axis.providerName}
           key={axis.providerName}
           style={{
-            alignItems: "center",
             display: "grid",
-            gap: 7,
-            gridTemplateColumns: "minmax(82px, max-content) 1fr",
+            gap: 6,
             minWidth: 0,
+            ...(axisIndex > 0
+              ? {
+                  borderTop: `1px solid ${studioColors.panelBorderSubtle}`,
+                  marginTop: 10,
+                  paddingTop: 10,
+                }
+              : {}),
           }}
         >
           <span
             title={axis.providerName}
             style={{
-              color: "#57606a",
-              fontSize: 11,
-              fontWeight: 650,
-              lineHeight: 1.1,
+              color: studioColors.textDim,
+              fontSize: studioTypography.controlLabel.fontSize,
+              fontWeight: studioTypography.controlLabel.fontWeight,
+              letterSpacing: studioTypography.controlLabel.letterSpacing,
+              lineHeight: studioTypography.controlLabel.lineHeight,
               minWidth: 0,
               overflow: "hidden",
               textOverflow: "ellipsis",
+              textTransform: "uppercase",
               whiteSpace: "nowrap",
             }}
           >
@@ -794,22 +825,7 @@ function StudioProviderVariantButton(props: {
         props.onClick()
       }}
       onPointerDown={(event) => event.stopPropagation()}
-      style={{
-        appearance: "none",
-        background: props.pressed ? "#0969da" : "#ffffff",
-        border: `1px solid ${props.pressed ? "#0969da" : "#d0d7de"}`,
-        borderRadius: 5,
-        color: props.pressed ? "#ffffff" : "#24292f",
-        cursor: "pointer",
-        fontSize: 10,
-        fontWeight: 650,
-        lineHeight: 1.1,
-        maxWidth: 112,
-        overflow: "hidden",
-        padding: "5px 7px",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap",
-      }}
+      style={studioProviderVariantButtonStyle(props.pressed)}
       title={props.variantName}
       type="button"
     >
@@ -829,14 +845,13 @@ function StudioPreviewRenderObservationPanel(props: {
       aria-label="Preview render observation"
       data-gtsx-preview-render-observation-panel="true"
       style={{
-        background: "rgba(255,255,255,0.92)",
-        border: "1px solid rgba(216,222,228,0.95)",
-        borderRadius: 6,
+        background: studioColors.panelBg,
+        border: `1px solid ${studioColors.panelBorder}`,
+        borderRadius: studioRadii.md,
         bottom: 12,
-        boxShadow: "0 3px 12px rgba(31,35,40,0.14)",
-        color: "#1f2328",
+        color: studioColors.textMuted,
         display: "grid",
-        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+        fontFamily: studioFontFamily,
         fontSize: 11,
         gap: 3,
         left: 12,
@@ -957,6 +972,128 @@ Studio.cases = {
       onViewportPresetChange() {},
       previewRenderSessionStore: createStudioPreviewRenderSessionStore(),
       selected: { id: "file:src/MultiExport.g.tsx", components: [] },
+      setCanvasSurfaceElement() {},
+      setCanvasViewportElement() {},
+      setCardElement() {},
+      setColumnElement() {},
+      visibleCardsByColumnIndex: {},
+    },
+  },
+  debugQueueObserved: {
+    props: {
+      debugPreviewQueue: true,
+      manifest: {
+        version: 1,
+        routes: {
+          preview: "/gtsx",
+          studio: "/gtsx/studio",
+          manifest: "/gtsx/studio/manifest",
+        },
+        preview: {
+          urlTemplate: "/gtsx?entry={entry}&case={case}{gcase}",
+          allUrlTemplate: "/gtsx?entry={entry}{gcase}",
+        },
+        files: [
+          {
+            path: "src/UserCard.g.tsx",
+            groupId: "file:src/UserCard.g.tsx",
+            components: [
+              {
+                coordinate: "src/UserCard.g.tsx#default",
+                filePath: "src/UserCard.g.tsx",
+                exportName: "default",
+                componentName: "UserCard",
+                mode: "pure",
+                cases: [
+                  { kind: "pure", name: "loading", providerVariants: { ThemeProvider: "light" } },
+                  { kind: "pure", name: "ready", providerVariants: { ThemeProvider: "dark" } },
+                ],
+                providers: {
+                  ThemeProvider: {
+                    name: "ThemeProvider",
+                    cases: [],
+                    variants: ["light", "dark"],
+                  },
+                },
+                diagnostics: [],
+              },
+            ],
+            diagnostics: [],
+          },
+        ],
+        diagnostics: [],
+      },
+      workspace: {
+        canvasViewportPreset: "tablet",
+        columns: [
+          {
+            components: [
+              {
+                coordinate: "src/UserCard.g.tsx#default",
+                filePath: "src/UserCard.g.tsx",
+                exportName: "default",
+                componentName: "UserCard",
+                mode: "pure",
+                cases: [
+                  { kind: "pure", name: "loading", providerVariants: { ThemeProvider: "light" } },
+                  { kind: "pure", name: "ready", providerVariants: { ThemeProvider: "dark" } },
+                ],
+                providers: {
+                  ThemeProvider: {
+                    name: "ThemeProvider",
+                    cases: [],
+                    variants: ["light", "dark"],
+                  },
+                },
+                diagnostics: [],
+              },
+            ],
+          },
+        ],
+        rootProviderVariants: { ThemeProvider: "dark" },
+        selectedCaseByCoordinate: {},
+        selectedCoordinatePath: [],
+        selectedProviderVariantsByPath: {},
+        selectedRuntimeInstanceByCoordinate: {},
+        selectedViewportPresetByCoordinate: {},
+      },
+    },
+    scope: {
+      canvas: { x: 40, y: 40, scale: 1 },
+      canvasViewportPreset: "tablet",
+      casePreviewScale: 1,
+      columnLayoutByIndex: {},
+      columnMeasurementsByIndex: {},
+      onCanvasPointerCancel() {},
+      onCanvasPointerDown() {},
+      onCanvasPointerMove() {},
+      onCanvasPointerUp() {},
+      onPreviewGeometryChange() {},
+      onChangeCardProviderVariant() {},
+      onChangeRootProviderVariant() {},
+      onSelectCard() {},
+      onViewportPresetChange() {},
+      previewRenderSessionStore: createStudioPreviewRenderSessionStore(),
+      renderObservationSnapshot: {
+        sequence: 1,
+        fullRender: {
+          completedSessionCount: 1,
+          latestCompletionMilliseconds: 42,
+          pendingSessionCount: 1,
+          renderCompletionsPerSecond: 8,
+          sessionCount: 2,
+          startedAtMilliseconds: 0,
+        },
+        scrollResponse: {
+          completedVisibleSessionCount: 1,
+          firstVisibleCompletionMilliseconds: 24,
+          latestVisibleCompletionMilliseconds: 24,
+          pendingVisibleSessionCount: 0,
+          startedAtMilliseconds: 0,
+          visibleSessionCount: 1,
+        },
+      },
+      selected: { id: "file:src/UserCard.g.tsx", components: [] },
       setCanvasSurfaceElement() {},
       setCanvasViewportElement() {},
       setCardElement() {},

@@ -1,5 +1,7 @@
 import type { GCases } from "@gtsx/core"
 
+import { studioColors, studioFontFamily, studioRadii } from "../studio-theme"
+
 type StudioEmptyStateProps = {
   title: string
   detail: string
@@ -10,30 +12,41 @@ export default function StudioEmptyState(props: StudioEmptyStateProps) {
   return (
     <section
       style={{
-        border: "1px solid #d7dce5",
-        borderRadius: 16,
-        color: "#172033",
-        fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+        background: studioColors.panelBg,
+        border: `1px solid ${studioColors.panelBorder}`,
+        borderRadius: studioRadii.md,
+        color: studioColors.text,
+        fontFamily: studioFontFamily,
         maxWidth: 420,
         padding: 24,
       }}
     >
-      <p style={{ color: "#64748b", fontSize: 12, fontWeight: 700, letterSpacing: 1, margin: "0 0 12px", textTransform: "uppercase" }}>
+      <p
+        style={{
+          color: studioColors.textDim,
+          fontSize: 10,
+          fontWeight: 600,
+          letterSpacing: "0.06em",
+          margin: "0 0 12px",
+          textTransform: "uppercase",
+        }}
+      >
         GTSX Studio
       </p>
-      <h1 style={{ fontSize: 24, lineHeight: 1.2, margin: "0 0 8px" }}>{props.title}</h1>
-      <p style={{ color: "#475569", lineHeight: 1.5, margin: 0 }}>{props.detail}</p>
+      <h1 style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.2, margin: "0 0 8px" }}>{props.title}</h1>
+      <p style={{ color: studioColors.textMuted, fontSize: 12, lineHeight: 1.5, margin: 0 }}>{props.detail}</p>
       {props.actionLabel ? (
         <button
           style={{
-            background: "#172033",
+            background: studioColors.buttonPrimaryBg,
             border: 0,
-            borderRadius: 999,
-            color: "white",
+            borderRadius: studioRadii.sm,
+            color: studioColors.buttonPrimaryText,
+            cursor: "pointer",
             font: "inherit",
-            fontWeight: 700,
+            fontWeight: 600,
             marginTop: 20,
-            padding: "10px 16px",
+            padding: "8px 14px",
           }}
           type="button"
         >
