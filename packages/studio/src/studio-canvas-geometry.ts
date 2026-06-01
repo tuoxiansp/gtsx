@@ -9,7 +9,6 @@ import {
   previewSessionId,
   studioPreviewCacheKey,
   studioPreviewFrameSize,
-  visibleWorkspaceComponents,
   type StudioCanvasScreenRect,
   type StudioCanvasTransform,
   type StudioCaseGridLayout,
@@ -68,6 +67,7 @@ export type MeasuredStudioColumnCardLayout = {
 
 const studioComponentCardColumnGap = 5
 const studioCanvasCardShellViewportStabilityMargin = 24
+export const studioCanvasFixedCasePreviewScale = 0.45
 
 export function domRectToStudioCanvasScreenRect(rect: DOMRect): StudioCanvasScreenRect {
   return {
@@ -140,30 +140,13 @@ export function studioWorkspaceLayoutMeasurementKey(
 }
 
 export function studioCanvasCasePreviewScale(
-  workspace: StudioWorkspaceState,
-  viewportPreset: StudioViewportPreset,
-  frameStates: Record<string, StudioPreviewFrameState> | undefined,
-  previewCache: Record<string, StudioPreviewCacheEntry> | undefined,
-  previewGeometryStore?: StudioPreviewGeometryCacheStore,
+  _workspace: StudioWorkspaceState,
+  _viewportPreset: StudioViewportPreset,
+  _frameStates: Record<string, StudioPreviewFrameState> | undefined,
+  _previewCache: Record<string, StudioPreviewCacheEntry> | undefined,
+  _previewGeometryStore?: StudioPreviewGeometryCacheStore,
 ): number {
-  const scales = visibleWorkspaceComponents(workspace).map((component) => {
-    const caseFrameStates = studioComponentCaseLayoutFrameStates(
-      component,
-      viewportPreset,
-      frameStates,
-      previewCache,
-      previewGeometryStore,
-    )
-    return computeStudioCaseGridLayout({
-      caseChromeHeight: studioComponentCaseChromeHeight,
-      gap: studioComponentCaseGridGap,
-      items: studioComponentCaseGridItems(component, caseFrameStates, viewportPreset),
-      maxSide: studioCaseGridMaxSide(viewportPreset, component.cases.length),
-      minScale: studioComponentCaseGridMinScale,
-    }).previewScale
-  })
-
-  return scales.length > 0 ? Math.min(1, ...scales) : 1
+  return studioCanvasFixedCasePreviewScale
 }
 
 export function studioComponentCardLayout(input: {

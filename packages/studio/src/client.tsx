@@ -1201,7 +1201,7 @@ function formatProviderVariantSelection(selection: string | string[]): string {
   return Array.isArray(selection) ? selection.join(", ") : selection
 }
 
-const studioCanvasMinScale = 0.2
+export const studioCanvasMinScale = 0.325
 const studioCanvasMaxScale = 2.5
 
 function setStudioCanvasTransformUrlParams(params: URLSearchParams, canvas: StudioCanvasTransform | undefined) {

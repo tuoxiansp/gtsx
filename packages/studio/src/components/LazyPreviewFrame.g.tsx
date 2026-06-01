@@ -103,6 +103,7 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
         <div
           data-gtsx-preview-clip="true"
           style={{
+            borderRadius: props.dimmed ? studioRadii.md : undefined,
             contain: "layout paint style",
             height: layoutHeight,
             left: 0,

@@ -7,6 +7,7 @@ type StudioCanvasScale = {
 const studioCanvasScreenStableChromeScaleProperty = "--gtsx-studio-screen-stable-chrome-scale"
 const studioCanvasScreenStableChromeContentSizeProperty = "--gtsx-studio-screen-stable-chrome-content-size"
 const studioCanvasScreenStableChromeBorderWidthProperty = "--gtsx-studio-screen-stable-chrome-border-width"
+const studioCanvasScreenStableChromeBorderWidthPixels = 1.2
 
 export const studioCanvasScreenStableChromeMinimumStableCanvasScale = 0.75
 
@@ -86,7 +87,7 @@ export function studioCanvasScreenStableChromeContentAfterCanvasGapStyle(input: 
 }
 
 export function studioCanvasScreenStableChromeBorderWidth(): string {
-  return `var(${studioCanvasScreenStableChromeBorderWidthProperty}, 1px)`
+  return `var(${studioCanvasScreenStableChromeBorderWidthProperty}, ${studioCanvasScreenStableChromeBorderWidthPixels}px)`
 }
 
 function studioCanvasScreenStableChromeScale(canvas: StudioCanvasScale): number {
@@ -94,7 +95,9 @@ function studioCanvasScreenStableChromeScale(canvas: StudioCanvasScale): number 
 }
 
 function studioCanvasScreenStableChromeBorderWidthValue(canvas: StudioCanvasScale): string {
-  return `${formatStudioCanvasScreenStableChromeNumber(studioCanvasScreenStableChromeScale(canvas))}px`
+  return `${formatStudioCanvasScreenStableChromeNumber(
+    studioCanvasScreenStableChromeScale(canvas) * studioCanvasScreenStableChromeBorderWidthPixels,
+  )}px`
 }
 
 function studioCanvasScreenStableChromeContentSize(canvas: StudioCanvasScale): string {

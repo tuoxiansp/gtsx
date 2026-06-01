@@ -50,8 +50,10 @@ import {
   selectStudioComponent,
   studioFilteredCasesForProviderVariantContext,
   studioManifestProviderVariantAxes,
+  studioCanvasMinScale,
   studioPreviewCaseOverridesForProviderVariantContext,
   studioPreviewCacheKey,
+  studioCanvasFixedCasePreviewScale,
   studioPreviewGeometryCacheKeys,
   studioProviderVariantAxes,
   studioProviderVariantCaseStatus,
@@ -75,7 +77,9 @@ import {
   layoutNeutralDrilldownColumnEnterIdentity,
   preserveStudioCanvasViewportAnchor,
 } from "../src/components/StudioWorkspaceView.g.js"
+import BufferedPreviewIframe from "../src/components/BufferedPreviewIframe.g.js"
 import {
+  studioPreviewIframePoolDimOverlayPlacementForAnchor,
   selectStudioPreviewIframePoolEntryForBorrow,
   studioPreviewIframeBorrowInputNeedsRender,
   studioPreviewIframeBorrowKey,
@@ -414,7 +418,7 @@ describe("GTSX Studio shell", () => {
   it("computes a clamped screen-stable chrome scale for the transformed canvas surface", () => {
     expect(studioCanvasScreenStableChromeHostStyle({ scale: 0.5 })).toMatchObject({
       "--gtsx-studio-screen-stable-chrome-scale": "1.333",
-      "--gtsx-studio-screen-stable-chrome-border-width": "1.333px",
+      "--gtsx-studio-screen-stable-chrome-border-width": "1.6px",
       "--gtsx-studio-screen-stable-chrome-content-size": "75%",
     })
   })
@@ -515,6 +519,25 @@ describe("GTSX Studio shell", () => {
       x: expect.closeTo(320),
       y: expect.closeTo(240),
     })
+  })
+
+  it("clamps canvas zoom out to the studio minimum scale", () => {
+    const next = applyStudioCanvasWheel(
+      { x: 40, y: 40, scale: 0.4 },
+      {
+        clientX: 200,
+        clientY: 160,
+        ctrlKey: true,
+        deltaMode: 0,
+        deltaX: 0,
+        deltaY: 1000,
+        metaKey: false,
+        viewportLeft: 0,
+        viewportTop: 0,
+      },
+    )
+
+    expect(next.scale).toBe(studioCanvasMinScale)
   })
 
   it("chooses the current wheel point before stale remembered pointer points for canvas zoom", () => {
@@ -732,7 +755,7 @@ describe("GTSX Studio shell", () => {
     expect(singleTabletCase.previewScale).toBeLessThan(1)
   })
 
-  it("uses one preview scale for every component card in the canvas", () => {
+  it("uses the fixed preview scale for every component card in the canvas", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
     const state = createStudioWorkspaceState(manifest, "file:src/MultiExport.g.tsx")
     const html = renderToStaticMarkup(
@@ -773,7 +796,7 @@ describe("GTSX Studio shell", () => {
 
     expect(scales).toHaveLength(2)
     expect(new Set(scales).size).toBe(1)
-    expect(Number(scales[0])).toBeLessThan(1)
+    expect(Number(scales[0])).toBe(studioCanvasFixedCasePreviewScale)
   })
 
   it("packs measured canvas cards by component order instead of preserving stale absolute positions", () => {
@@ -977,9 +1000,50 @@ describe("GTSX Studio shell", () => {
     expect(caseTileHtml(html, "loading")).toContain('data-gtsx-case-tile="loading"')
     expect(caseTileHtml(html, "loading")).toContain('data-gtsx-case-provider-variant-state="mismatch"')
     expect(html).toContain('data-gtsx-case-provider-variant-border="loading"')
-    expect(html).toContain("border:var(--gtsx-studio-screen-stable-chrome-border-width, 1px) dashed rgba(136,136,136,0.72)")
+    expect(html).toContain("filter:grayscale(0.9)")
+    expect(html).toContain("opacity:0.42")
+    expect(html).toContain("border:var(--gtsx-studio-screen-stable-chrome-border-width, 1.2px) dashed rgba(136,136,136,0.72)")
     expect(html).toContain("inset:-2px")
     expect(html).not.toContain("data-gtsx-env-variant")
+  })
+
+  it("renders dimmed preview stripes with the same radius as the mismatch border", () => {
+    const html = renderToStaticMarkup(
+      <BufferedPreviewIframe
+        dimmed
+        size={{ height: 1024, width: 768 }}
+        slot={{
+          previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=loading&chrome=0",
+          sessionId: "src/UserCard.g.tsx#default:loading",
+          title: "UserCard loading preview",
+        }}
+      />,
+    )
+
+    expect(html).toContain("data-gtsx-buffered-preview-dim-overlay")
+    expect(html).toContain("repeating-linear-gradient")
+    expect(html).toContain("border-radius:6px")
+  })
+
+  it("rounds the dimmed preview clip so cropped stripes keep bottom corners", () => {
+    const html = renderToStaticMarkup(
+      <LazyPreviewFrame
+        data-gtsx-preview-session-id="src/Icon.g.tsx#default:ready@phone"
+        boundaryRect={{ x: 0, y: 0, width: 96, height: 96 }}
+        coordinate="src/Icon.g.tsx#default"
+        dimmed
+        previewUrl="/gtsx?entry=src%2FIcon.g.tsx%23default&case=ready&chrome=0"
+        selectedBoundaryRect={{ x: 0, y: 0, width: 96, height: 96 }}
+        shouldLoad
+        size={{ width: 390, height: 844 }}
+        sessionId="src/Icon.g.tsx#default:ready"
+        title="Icon preview"
+        viewportPreset="phone"
+      />,
+    )
+
+    expect(previewClipHtml(html)).toContain("border-radius:6px")
+    expect(html).toContain("repeating-linear-gradient")
   })
 
   it("keeps preview rendering containment below selection overlays", () => {
@@ -3568,6 +3632,22 @@ describe("GTSX Studio shell", () => {
     })
   })
 
+  it("rounds pooled dim overlays at the clipping edge", () => {
+    expect(
+      studioPreviewIframePoolDimOverlayPlacementForAnchor({
+        anchorRect: { bottom: 522, height: 422, left: 80, right: 275, top: 100, width: 195 },
+        clipRect: { bottom: 400, height: 240, left: 95, right: 260, top: 160, width: 165 },
+        layoutSize: { height: 844, width: 390 },
+      }),
+    ).toEqual({
+      clipPath: "inset(120px 30px 244px 30px round 6px)",
+      height: "844px",
+      transform: "translate3d(80px, 100px, 0) scale(0.5, 0.5)",
+      visibility: "visible",
+      width: "390px",
+    })
+  })
+
   it("stores runtime values responses by boundary id", () => {
     const state = applyStudioPreviewMessage(
       {
@@ -4424,6 +4504,7 @@ describe("GTSX Studio shell", () => {
       y: 20,
       scale: 2.5,
     })
+    expect(createStudioCanvasTransformFromUrl(new URLSearchParams("canvasScale=0.01")).scale).toBe(studioCanvasMinScale)
     expect(createStudioWorkspaceStateFromUrl(manifest, params).canvas).toEqual({
       x: 123.457,
       y: -8.765,

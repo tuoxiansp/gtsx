@@ -4,6 +4,7 @@ import type { GCases } from "@gtsx/core"
 
 import type { StudioPreviewFrameSlot } from "../preview-frame-slot"
 import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
+import { studioRadii } from "../studio-theme"
 
 type BufferedPreviewIframeProps = {
   dimmed?: boolean
@@ -46,7 +47,8 @@ export default function BufferedPreviewIframe(props: BufferedPreviewIframeProps)
           data-gtsx-buffered-preview-dim-overlay={props.slot.sessionId}
           style={{
             background:
-              "repeating-linear-gradient(135deg, rgba(87,96,106,0.42) 0, rgba(87,96,106,0.42) 7px, rgba(255,255,255,0.12) 7px, rgba(255,255,255,0.12) 14px), rgba(87,96,106,0.18)",
+              "repeating-linear-gradient(135deg, rgba(87,96,106,0.34) 0, rgba(87,96,106,0.34) 6px, transparent 6px, transparent 12px)",
+            borderRadius: studioRadii.md,
             inset: 0,
             pointerEvents: "none",
             position: "absolute",

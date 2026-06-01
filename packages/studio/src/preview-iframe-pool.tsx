@@ -6,6 +6,7 @@ import { createGPreviewRenderMessage, type GPreviewRenderTarget } from "@gtsx/co
 import { studioPreviewRenderTargetFromUrl } from "./client"
 import type { StudioPreviewFrameSlot } from "./preview-frame-slot"
 import { studioCanvasTransformChangedEventType } from "./studio-canvas-transform-event"
+import { studioRadii } from "./studio-theme"
 
 export type StudioPreviewIframeBorrowOrigin = "pool" | "new"
 
@@ -239,8 +240,8 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
     overlay.dataset.gtsxPooledPreviewDimOverlay = "true"
     Object.assign(overlay.style, {
       background:
-        "repeating-linear-gradient(135deg, rgba(87,96,106,0.42) 0, rgba(87,96,106,0.42) 7px, rgba(255,255,255,0.12) 7px, rgba(255,255,255,0.12) 14px), rgba(87,96,106,0.18)",
-      boxShadow: "inset 0 0 0 2px rgba(87,96,106,0.46)",
+        "repeating-linear-gradient(135deg, rgba(87,96,106,0.34) 0, rgba(87,96,106,0.34) 6px, transparent 6px, transparent 12px)",
+      borderRadius: `${studioRadii.md}px`,
       height: "0",
       left: "0",
       pointerEvents: "none",
@@ -657,6 +658,23 @@ export function studioPreviewIframePoolPlacementForAnchor(input: {
   }
 }
 
+export function studioPreviewIframePoolDimOverlayPlacementForAnchor(input: {
+  anchorRect: StudioPreviewIframePoolRect
+  clipRect: StudioPreviewIframePoolRect
+  layoutSize: { width: number | string; height: number | string }
+}): StudioPreviewIframePoolPlacement {
+  const placement = studioPreviewIframePoolPlacementForAnchor(input)
+  return {
+    ...placement,
+    clipPath: studioPreviewIframePoolRoundedInsetClipPath(placement.clipPath, studioRadii.md),
+  }
+}
+
+function studioPreviewIframePoolRoundedInsetClipPath(clipPath: string, radius: number): string {
+  if (!clipPath.startsWith("inset(") || !clipPath.endsWith(")")) return clipPath
+  return `${clipPath.slice(0, -1)} round ${roundStudioPreviewIframePoolPlacementPixel(radius)}px)`
+}
+
 function applyStudioPreviewIframePoolEntryPlacement(entry: StudioPreviewIframePoolEntry) {
   const input = entry.pendingInput
   const container = entry.container
@@ -697,7 +715,7 @@ function applyStudioPreviewIframePoolEntryVisualState(entry: StudioPreviewIframe
   const clipElement = entry.container?.closest("[data-gtsx-preview-clip]")
   const clipRect = clipElement instanceof HTMLElement ? clipElement.getBoundingClientRect() : anchorRect
   Object.assign(entry.overlay.style, {
-    ...studioPreviewIframePoolPlacementForAnchor({
+    ...studioPreviewIframePoolDimOverlayPlacementForAnchor({
       anchorRect,
       clipRect,
       layoutSize: input.size,

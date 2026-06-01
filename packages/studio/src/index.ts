@@ -48,6 +48,7 @@ export {
   studioComponentWithProviderVariantContext,
   studioFilteredCasesForProviderVariantContext,
   studioManifestProviderVariantAxes,
+  studioCanvasMinScale,
   studioPreviewCaseOverridesForProviderVariantContext,
   studioPreviewCacheKey,
   studioPreviewRenderTargetFromUrl,
@@ -161,6 +162,7 @@ export type { StudioPreviewGeometryCacheMessage, StudioPreviewGeometryCacheStore
 export {
   measuredStudioColumnLayoutPackedByComponentOrder,
   studioCanvasCardIndex,
+  studioCanvasFixedCasePreviewScale,
   studioPreviewVisibilityItems,
   visibleStudioCanvasCardEntriesByColumnIndex,
 } from "./studio-canvas-geometry"
