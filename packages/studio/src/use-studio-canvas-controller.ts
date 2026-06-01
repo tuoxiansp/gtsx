@@ -8,6 +8,7 @@ import {
   type StudioCanvasTransform,
 } from "./client"
 import { studioCanvasTransformStyle } from "./studio-canvas-geometry"
+import { writeStudioCanvasScreenStableChromeHostStyle } from "./studio-canvas-screen-stable-chrome"
 import { dispatchStudioCanvasTransformChangedEvent } from "./studio-canvas-transform-event"
 
 type MutableRef<T> = {
@@ -74,7 +75,10 @@ export function useStudioCanvasController(input: {
 
   const writeCanvasTransform = React.useCallback((nextCanvas: StudioCanvasTransform) => {
     const canvasSurface = canvasSurfaceElementRef.current
-    if (canvasSurface) canvasSurface.style.transform = studioCanvasTransformStyle(nextCanvas)
+    if (canvasSurface) {
+      canvasSurface.style.transform = studioCanvasTransformStyle(nextCanvas)
+      writeStudioCanvasScreenStableChromeHostStyle(canvasSurface, nextCanvas)
+    }
     dispatchStudioCanvasTransformChangedEvent(nextCanvas)
   }, [])
 
@@ -124,7 +128,10 @@ export function useStudioCanvasController(input: {
   const setCanvasSurfaceElement = React.useCallback(
     (element: HTMLDivElement | null) => {
       canvasSurfaceElementRef.current = element
-      if (element) element.style.transform = studioCanvasTransformStyle(canvasRef.current)
+      if (element) {
+        element.style.transform = studioCanvasTransformStyle(canvasRef.current)
+        writeStudioCanvasScreenStableChromeHostStyle(element, canvasRef.current)
+      }
       setCanvasSurfaceElementState(element)
     },
     [],

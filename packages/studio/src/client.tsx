@@ -421,6 +421,18 @@ export function studioProviderVariantSelectionContextForPath(
   return { ...(workspace.selectedProviderVariantsByPath[studioProviderVariantPathKey(path)] ?? {}) }
 }
 
+export function sameStudioProviderVariantContext(
+  left: StudioProviderVariantContext | undefined,
+  right: StudioProviderVariantContext | undefined,
+): boolean {
+  if (left === right) return true
+
+  const leftEntries = Object.entries(left ?? {})
+  const rightContext = right ?? {}
+  if (leftEntries.length !== Object.keys(rightContext).length) return false
+  return leftEntries.every(([providerName, variant]) => rightContext[providerName] === variant)
+}
+
 export function studioFilteredCasesForProviderVariantContext(
   component: StudioManifestComponent,
   context: StudioProviderVariantContext,

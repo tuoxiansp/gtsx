@@ -9,7 +9,7 @@ export const studioColors = {
   panelBgElevated: "#282828",
   panelBorder: "#3a3a3a",
   panelBorderSubtle: "#2e2e2e",
-  dotGrid: "rgba(255,255,255,0.07)",
+  dotGrid: "rgba(255,255,255,0.12)",
   text: "#d4d4d4",
   textMuted: "#a0a0a0",
   textDim: "#8f8f8f",
@@ -76,24 +76,46 @@ export const studioViewportHighlightMotionMs = 210
 // Moderate overshoot: visible spring without overshooting too far.
 export const studioViewportHighlightEasing = "cubic-bezier(0.34, 1.26, 0.64, 1)"
 
-export const studioDrilldownColumnEnterMotionMs = 240
+export const studioLayoutNeutralDrilldownColumnEnterMotionMs = 180
 
-export const studioDrilldownColumnEnterEasing = "cubic-bezier(0.22, 1, 0.36, 1)"
+export const studioLayoutNeutralDrilldownColumnEnterEasing = "cubic-bezier(0.22, 1, 0.36, 1)"
 
-export const studioDrilldownColumnEnterKeyframes = `@keyframes gtsx-studio-drilldown-column-enter {
+export const studioLayoutNeutralDrilldownColumnEnterCss = `@keyframes gtsx-studio-layout-neutral-drilldown-column-enter {
   from {
     opacity: 0;
-    transform: translateX(-10px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+  }
+}
+
+@keyframes gtsx-studio-layout-neutral-drilldown-chrome-enter {
+  from {
+    opacity: 0;
+    translate: -8px 0;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+[data-gtsx-drilldown-column-enter="true"] [data-gtsx-canvas-screen-stable-chrome] > * {
+  animation: gtsx-studio-layout-neutral-drilldown-chrome-enter ${studioLayoutNeutralDrilldownColumnEnterMotionMs}ms ${studioLayoutNeutralDrilldownColumnEnterEasing} both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-gtsx-drilldown-column-enter="true"],
+  [data-gtsx-drilldown-column-enter="true"] [data-gtsx-canvas-screen-stable-chrome] > * {
+    animation: none !important;
+    opacity: 1 !important;
+    translate: 0 0 !important;
   }
 }`
 
-export function studioDrilldownColumnEnterStyle(): CSSProperties {
+export function studioLayoutNeutralDrilldownColumnEnterStyle(): CSSProperties {
   return {
-    animation: `gtsx-studio-drilldown-column-enter ${studioDrilldownColumnEnterMotionMs}ms ${studioDrilldownColumnEnterEasing} both`,
+    animation: `gtsx-studio-layout-neutral-drilldown-column-enter ${studioLayoutNeutralDrilldownColumnEnterMotionMs}ms ${studioLayoutNeutralDrilldownColumnEnterEasing} both`,
   }
 }
 

@@ -57,6 +57,7 @@ import {
   studioProviderVariantCaseStatus,
   studioProviderVariantContextForPath,
   studioProviderVariantSelectionContextForPath,
+  sameStudioProviderVariantContext,
   studioWorkspaceWithProviderVariantFilters,
   studioCanvasCardIndex,
   studioPreviewRenderPlanHasIncompleteVisibleRenderTasks,
@@ -70,6 +71,10 @@ import ComponentCard from "../src/components/ComponentCard.g.js"
 import LazyPreviewFrame from "../src/components/LazyPreviewFrame.g.js"
 import PreviewCaseSheet from "../src/components/PreviewCaseSheet.g.js"
 import PreviewMessage from "../src/components/PreviewMessage.g.js"
+import {
+  layoutNeutralDrilldownColumnEnterIdentity,
+  preserveStudioCanvasViewportAnchor,
+} from "../src/components/StudioWorkspaceView.g.js"
 import {
   selectStudioPreviewIframePoolEntryForBorrow,
   studioPreviewIframeBorrowInputNeedsRender,
@@ -102,6 +107,7 @@ import {
   studioPreviewRenderBufferMargin,
   visibleStudioPreviewSessionIds,
 } from "../src/preview-lazy-loading.js"
+import { studioCanvasScreenStableChromeHostStyle } from "../src/studio-canvas-screen-stable-chrome.js"
 
 const fixtureRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
 const examplesRoot = join(import.meta.dirname, "../../../examples")
@@ -405,11 +411,61 @@ describe("GTSX Studio shell", () => {
     expect(html).toContain(">DefaultBadge<")
   })
 
+  it("computes a clamped screen-stable chrome scale for the transformed canvas surface", () => {
+    expect(studioCanvasScreenStableChromeHostStyle({ scale: 0.5 })).toMatchObject({
+      "--gtsx-studio-screen-stable-chrome-scale": "1.333",
+      "--gtsx-studio-screen-stable-chrome-border-width": "1.333px",
+      "--gtsx-studio-screen-stable-chrome-content-size": "75%",
+    })
+  })
+
+  it("keeps screen-stable chrome variables out of the React canvas surface render", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const workspace = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
+    const html = renderToStaticMarkup(
+      <StudioWorkspaceView
+        canvas={{ x: 40, y: 40, scale: 0.5 }}
+        manifest={manifest}
+        workspace={workspace}
+      />,
+    )
+
+    const surface = canvasSurfaceHtml(html)
+    expect(surface).not.toContain("--gtsx-studio-screen-stable-chrome-scale")
+    expect(surface).not.toContain("--gtsx-studio-screen-stable-chrome-border-width")
+    expect(surface).not.toContain("--gtsx-studio-screen-stable-chrome-content-size")
+  })
+
+  it("renders card title and case labels as screen-stable canvas chrome", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
+    if (!component) throw new Error("Missing UserCard fixture")
+
+    const html = renderToStaticMarkup(
+      <ComponentCard
+        component={component}
+        manifest={manifest}
+        selected
+        selectedCaseName="loading"
+        viewportPreset="tablet"
+      />,
+    )
+
+    expect(html).toContain('data-gtsx-canvas-screen-stable-chrome="card-title"')
+    expect(html).toContain('data-gtsx-canvas-screen-stable-chrome="case-label"')
+    expect(html).toContain("height:23px")
+    expect(html).toContain("height:18px")
+    expect(html).toContain("transform:scale(var(--gtsx-studio-screen-stable-chrome-scale, 1)) translateY(-17px)")
+    expect(html).toContain("transform:scale(var(--gtsx-studio-screen-stable-chrome-scale, 1)) translateY(5px)")
+    expect(html).toContain("width:var(--gtsx-studio-screen-stable-chrome-content-size, 100%)")
+  })
+
   it("contains trackpad browser gestures inside the canvas viewport", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="component:src/UserCard.g.tsx#default" />)
 
     expect(html).toContain('data-gtsx-canvas-viewport="true"')
+    expect(html).toContain("rgba(255,255,255,0.12)")
     expect(html).toContain("touch-action:none")
     expect(html).toContain("overscroll-behavior:none")
   })
@@ -544,6 +600,18 @@ describe("GTSX Studio shell", () => {
         },
       ),
     ).toEqual({ x: 324, y: -184, scale: 1 })
+  })
+
+  it("preserves a viewport anchor by moving the canvas by the screen-space delta", () => {
+    expect(
+      preserveStudioCanvasViewportAnchor(
+        { x: 40, y: -20, scale: 0.75 },
+        {
+          currentViewportPoint: { x: 460, y: 260 },
+          targetViewportPoint: { x: 520, y: 210 },
+        },
+      ),
+    ).toEqual({ x: 100, y: -70, scale: 0.75 })
   })
 
   it("leaves an oversized canvas card alone while it intersects the viewport", () => {
@@ -747,16 +815,16 @@ describe("GTSX Studio shell", () => {
       },
     })
 
-    expect(measurement.cardRectsByCoordinate["src/Short.g.tsx#Short"]).toMatchObject({ bottom: 510, top: 390 })
-    expect(measurement.cardRectsByCoordinate["src/Next.g.tsx#Next"]).toMatchObject({ bottom: 900, top: 520 })
-    expect(measurement.height).toBe(900)
+    expect(measurement.cardRectsByCoordinate["src/Short.g.tsx#Short"]).toMatchObject({ bottom: 505, top: 385 })
+    expect(measurement.cardRectsByCoordinate["src/Next.g.tsx#Next"]).toMatchObject({ bottom: 890, top: 510 })
+    expect(measurement.height).toBe(890)
     expect(measurement.previewFrameRectsBySessionId?.["src/Short.g.tsx#Short:default@desktop"]).toMatchObject({
-      bottom: 490,
-      top: 420,
+      bottom: 485,
+      top: 415,
     })
     expect(measurement.previewFrameRectsBySessionId?.["src/Next.g.tsx#Next:default@desktop"]).toMatchObject({
-      bottom: 590,
-      top: 550,
+      bottom: 580,
+      top: 540,
     })
   })
 
@@ -865,7 +933,7 @@ describe("GTSX Studio shell", () => {
     expect(html).not.toContain("data-gtsx-case-tile-selected")
   })
 
-  it("renders provider variant controls as local toggles for component cases that model environments", () => {
+  it("does not render component-local provider variant controls on cards", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
@@ -874,20 +942,16 @@ describe("GTSX Studio shell", () => {
       <ComponentCard
         component={component}
         manifest={manifest}
-        onChangeProviderVariant={() => {}}
         providerVariantContext={{ ThemeProvider: "light" }}
-        providerVariantSelectionContext={{}}
         selected
         selectedCaseName="loading"
         viewportPreset="tablet"
       />,
     )
 
-    expect(html).toContain('data-gtsx-env-controls="src/UserCard.g.tsx#default"')
-    expect(html).toContain('data-gtsx-env-axis="ThemeProvider"')
-    expect(html).not.toContain('data-gtsx-env-variant="all"')
-    expect(envVariantButtonHtml(html, "light")).toContain('aria-pressed="false"')
-    expect(envVariantButtonHtml(html, "dark")).toContain('aria-pressed="false"')
+    expect(html).not.toContain("data-gtsx-env-controls")
+    expect(html).not.toContain("data-gtsx-env-axis")
+    expect(html).not.toContain("data-gtsx-env-variant")
     expect(html).not.toContain("data-gtsx-case-tile-selected")
   })
 
@@ -900,10 +964,8 @@ describe("GTSX Studio shell", () => {
       <ComponentCard
         component={component}
         manifest={manifest}
-        onChangeProviderVariant={() => {}}
         providerVariantComponent={component}
         providerVariantContext={{ ThemeProvider: "dark" }}
-        providerVariantSelectionContext={{ ThemeProvider: "dark" }}
         selected
         selectedCaseName="ready"
         viewportPreset="tablet"
@@ -915,11 +977,9 @@ describe("GTSX Studio shell", () => {
     expect(caseTileHtml(html, "loading")).toContain('data-gtsx-case-tile="loading"')
     expect(caseTileHtml(html, "loading")).toContain('data-gtsx-case-provider-variant-state="mismatch"')
     expect(html).toContain('data-gtsx-case-provider-variant-border="loading"')
-    expect(html).toContain("border:1px dashed rgba(136,136,136,0.72)")
+    expect(html).toContain("border:var(--gtsx-studio-screen-stable-chrome-border-width, 1px) dashed rgba(136,136,136,0.72)")
     expect(html).toContain("inset:-2px")
-    expect(html).not.toContain('data-gtsx-env-variant="all"')
-    expect(envVariantButtonHtml(html, "light")).toContain('aria-pressed="false"')
-    expect(envVariantButtonHtml(html, "dark")).toContain('aria-pressed="true"')
+    expect(html).not.toContain("data-gtsx-env-variant")
   })
 
   it("keeps preview rendering containment below selection overlays", () => {
@@ -3707,6 +3767,44 @@ describe("GTSX Studio shell", () => {
     expect(columnCount(html)).toBe(2)
     expect(cardCoordinates(html)).toEqual(["src/UserCard.g.tsx#default", "src/MultiExport.g.tsx#NamedBadge"])
     expect(html).toContain('data-gtsx-column-parent-coordinate="src/UserCard.g.tsx#default"')
+    expect(html).toContain("gtsx-studio-layout-neutral-drilldown-column-enter")
+    expect(html).toContain("gtsx-studio-layout-neutral-drilldown-chrome-enter")
+    expect(columnHtml(html, 1)).toContain('data-gtsx-drilldown-column-enter="true"')
+    expect(columnHtml(html, 1)).toContain("animation:gtsx-studio-layout-neutral-drilldown-column-enter")
+    expect(columnHtml(html, 1)).not.toContain("transform:")
+    expect(html).not.toContain("gtsx-studio-drilldown-column-enter")
+    expect(html).not.toContain("translateX(-10px)")
+  })
+
+  it("changes drilldown enter identity with the selected column path", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
+    if (!component) throw new Error("Missing UserCard fixture")
+    const baseWorkspace = createStudioWorkspaceState(manifest)
+    const firstColumn = { components: [component], parentCoordinate: "src/ParentA.g.tsx#default" }
+    const secondColumn = { components: [component], parentCoordinate: "src/ParentB.g.tsx#default" }
+
+    expect(
+      layoutNeutralDrilldownColumnEnterIdentity(
+        {
+          ...baseWorkspace,
+          columns: [{ components: [component] }, firstColumn],
+          selectedCoordinatePath: ["src/ParentA.g.tsx#default"],
+        },
+        1,
+        firstColumn,
+      ),
+    ).not.toBe(
+      layoutNeutralDrilldownColumnEnterIdentity(
+        {
+          ...baseWorkspace,
+          columns: [{ components: [component] }, secondColumn],
+          selectedCoordinatePath: ["src/ParentB.g.tsx#default"],
+        },
+        1,
+        secondColumn,
+      ),
+    )
   })
 
   it("uses the first statically enumerable case by default", () => {
@@ -3761,6 +3859,15 @@ describe("GTSX Studio shell", () => {
         { name: "dark", selected: true },
       ],
     })
+  })
+
+  it("compares provider variant contexts by value for card memoization", () => {
+    expect(sameStudioProviderVariantContext({ ThemeProvider: "dark" }, { ThemeProvider: "dark" })).toBe(true)
+    expect(sameStudioProviderVariantContext(undefined, {})).toBe(true)
+    expect(sameStudioProviderVariantContext({ ThemeProvider: "dark" }, { ThemeProvider: "light" })).toBe(false)
+    expect(sameStudioProviderVariantContext({ ThemeProvider: "dark" }, { ThemeProvider: "dark", UserProvider: "login" })).toBe(
+      false,
+    )
   })
 
   it("classifies component cases against every active provider variant", () => {
@@ -4539,6 +4646,10 @@ function selectionOutlineCount(html: string): number {
   return [...html.matchAll(/data-gtsx-selection-outline="true"/g)].length
 }
 
+function canvasSurfaceHtml(html: string): string {
+  return html.match(/<div[^>]+data-gtsx-canvas-surface="true"[^>]*>/)?.[0] ?? ""
+}
+
 function caseGridHtml(html: string, coordinate: string): string {
   return html.match(new RegExp(`<div[^>]+data-gtsx-case-grid="${escapeRegExp(coordinate)}"[^>]*>`))?.[0] ?? ""
 }
@@ -4590,10 +4701,6 @@ function caseTileHtml(html: string, caseName: string): string {
   return html.match(new RegExp(`<div[^>]+data-gtsx-case-tile="${escapeRegExp(caseName)}"[^>]*>`))?.[0] ?? ""
 }
 
-function envVariantButtonHtml(html: string, variant: string): string {
-  return html.match(new RegExp(`<button[^>]+data-gtsx-env-variant="${escapeRegExp(variant)}"[^>]*>`))?.[0] ?? ""
-}
-
 function canvasViewportPresets(html: string): string[] {
   return [...html.matchAll(/<div[^>]+data-gtsx-preview-session-id="[^"]+"[^>]+data-gtsx-preview-src="[^"]+"[^>]+data-gtsx-viewport-preset="([^"]+)"/g)].map(
     (match) => match[1] ?? "",
@@ -4602,6 +4709,10 @@ function canvasViewportPresets(html: string): string[] {
 
 function columnCount(html: string): number {
   return [...html.matchAll(/data-gtsx-column-index="/g)].length
+}
+
+function columnHtml(html: string, index: number): string {
+  return html.match(new RegExp(`<section[^>]+data-gtsx-column-index="${index}"[^>]*>`))?.[0] ?? ""
 }
 
 function caseControlNames(html: string): string[] {

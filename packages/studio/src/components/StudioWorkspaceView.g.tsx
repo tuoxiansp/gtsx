@@ -12,7 +12,6 @@ import {
   selectedStudioCaseName,
   studioManifestProviderVariantAxes,
   studioProviderVariantContextForPath,
-  studioProviderVariantSelectionContextForPath,
   type StudioPreviewCacheEntry,
   type StudioColumnLayout,
   visibleWorkspaceComponents,
@@ -59,9 +58,9 @@ import type { StudioPreviewGeometryCacheStore } from "../preview-geometry-cache-
 import {
   studioCanvasBackgroundStyle,
   studioColors,
-  studioDrilldownColumnEnterKeyframes,
-  studioDrilldownColumnEnterStyle,
   studioFontFamily,
+  studioLayoutNeutralDrilldownColumnEnterCss,
+  studioLayoutNeutralDrilldownColumnEnterStyle,
   studioProviderVariantButtonStyle,
   studioRadii,
   studioShellStyle,
@@ -81,7 +80,6 @@ export type StudioWorkspaceViewProps = {
   previewRenderQueue?: StudioPreviewRenderQueueOptions
   frameStates?: Record<string, StudioPreviewFrameState>
   onChangeSelection?: (selection: string) => void
-  onChangeProviderVariant?: (path: string[], providerName: string, variant: string | undefined) => void
   onChangeRootProviderVariant?: (providerName: string, variant: string | undefined) => void
   onChangeCanvasViewportPreset?: (preset: StudioViewportPreset) => void
   onChangeCanvas?: (canvas: StudioCanvasTransform) => void
@@ -116,12 +114,6 @@ type StudioWorkspaceViewScope = {
     columnIndex: number,
     source: "keyboard" | "pointer",
   ) => void
-  onChangeCardProviderVariant: (
-    component: StudioManifestComponent,
-    providerName: string,
-    variant: string | undefined,
-    columnIndex: number,
-  ) => void
   onChangeRootProviderVariant: (providerName: string, variant: string | undefined) => void
   onViewportPresetChange: (preset: StudioViewportPreset) => void
   onPreviewGeometryChange: () => void
@@ -137,10 +129,25 @@ type StudioWorkspaceViewScope = {
   visibleCardsByColumnIndex: Record<number, StudioCanvasCardIndexEntry[]>
 }
 
+type PendingStudioCanvasViewportPresetAnchor = {
+  columnIndex: number
+  coordinate: string
+  pathKey: string
+  remainingAttempts: number
+  targetPreset: StudioViewportPreset
+  targetViewportPoint: StudioCanvasViewportAnchorPoint
+}
+
+type StudioCanvasViewportAnchorPoint = {
+  x: number
+  y: number
+}
+
 const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
 const canvasWheelExemptSelector = "[data-gtsx-canvas-wheel-exempt]"
 const studioCanvasRevealMargin = 24
 const defaultStudioCanvasVirtualViewportSize = { height: 720, width: 1280 }
+const studioCanvasViewportPresetAnchorPreservationAttempts = 4
 
 function shouldHandleCanvasWheelTarget(target: EventTarget | null): boolean {
   return !(typeof Element !== "undefined" && target instanceof Element && target.closest(canvasWheelExemptSelector))
@@ -153,6 +160,7 @@ function shouldClearStudioCanvasSelectionForPointerTarget(target: EventTarget | 
 function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): StudioWorkspaceViewScope {
   const selected = resolveStudioSelection(props.manifest, props.selection)
   const [selectedCardPathKey, setSelectedCardPathKey] = React.useState<string | undefined>()
+  const [viewportPresetAnchorPathKey, setViewportPresetAnchorPathKey] = React.useState<string | undefined>()
   const canvasViewportPreset = canvasViewportPresetForWorkspace(props.workspace)
   const previewRenderSessionStore = React.useMemo(() => createStudioPreviewRenderSessionStore(), [])
   const canvasViewportPresetRef = React.useRef(canvasViewportPreset)
@@ -168,6 +176,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     StudioPreviewRenderObservationSnapshot | undefined
   >()
   const onSelectComponentRef = React.useRef(props.onSelectComponent)
+  const pendingViewportPresetAnchorRef = React.useRef<PendingStudioCanvasViewportPresetAnchor | undefined>(undefined)
   const previewRenderObservationRef = React.useRef(
     createStudioPreviewRenderObservation({
       now: () => (typeof performance !== "undefined" ? performance.now() : Date.now()),
@@ -226,7 +235,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     cardIndex: canvasCardIndex,
     columnLayoutByIndex: layout.columnLayoutByIndex,
     renderBufferMargin: studioPreviewRenderQueueRenderBufferMargin(props.previewRenderQueue),
-    selectedCardPathKey,
+    selectedCardPathKey: selectedCardPathKey ?? viewportPresetAnchorPathKey,
   })
 
   const { flushPreviewRender, requestCanvasPreviewRender, requestPreviewRender } = useStudioPreviewRenderScheduler({
@@ -319,6 +328,89 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     setSelectedCardPathKey(undefined)
   }, [props.selection])
 
+  const captureViewportPresetAnchor = React.useCallback(
+    (targetPreset: StudioViewportPreset): PendingStudioCanvasViewportPresetAnchor | undefined => {
+      if (!canvasController.canvasViewportElement) return undefined
+
+      const captured = captureStudioCanvasViewportPresetAnchor({
+        canvasCardIndex,
+        canvasViewportElement: canvasController.canvasViewportElement,
+        getCardElement: layout.getCardElement,
+        selectedCardPathKey,
+        visibleCardsByColumnIndex,
+      })
+      if (!captured) return undefined
+
+      return {
+        ...captured,
+        remainingAttempts: studioCanvasViewportPresetAnchorPreservationAttempts,
+        targetPreset,
+      }
+    },
+    [
+      canvasCardIndex,
+      canvasController.canvasViewportElement,
+      layout.getCardElement,
+      selectedCardPathKey,
+      visibleCardsByColumnIndex,
+    ],
+  )
+
+  const preservePendingViewportPresetAnchor = React.useCallback(() => {
+    const pending = pendingViewportPresetAnchorRef.current
+    if (!pending || pending.targetPreset !== canvasViewportPresetRef.current) return
+    if (!canvasController.canvasViewportElement) return
+
+    const cardElement = layout.getCardElement(pending.columnIndex, pending.coordinate)
+    if (!cardElement) return
+
+    const currentCanvas = canvasController.canvasRef.current
+    const nextCanvas = preserveStudioCanvasViewportAnchor(currentCanvas, {
+      currentViewportPoint: studioCanvasViewportCenterPointForElement(
+        cardElement,
+        canvasController.canvasViewportElement.getBoundingClientRect(),
+      ),
+      targetViewportPoint: pending.targetViewportPoint,
+    })
+
+    pending.remainingAttempts -= 1
+    if (nextCanvas !== currentCanvas) canvasController.moveCanvas(() => nextCanvas)
+    if (pending.remainingAttempts <= 0) {
+      pendingViewportPresetAnchorRef.current = undefined
+      setViewportPresetAnchorPathKey(undefined)
+    }
+  }, [canvasController, layout.getCardElement])
+
+  useStudioLayoutEffect(() => {
+    const pending = pendingViewportPresetAnchorRef.current
+    if (!pending || pending.targetPreset !== canvasViewportPreset) return
+
+    preservePendingViewportPresetAnchor()
+    if (typeof window === "undefined") return
+
+    const frames = new Set<number>()
+    const scheduleFrame = (callback: () => void) => {
+      const frame = window.requestAnimationFrame(() => {
+        frames.delete(frame)
+        callback()
+      })
+      frames.add(frame)
+    }
+    scheduleFrame(() => {
+      preservePendingViewportPresetAnchor()
+      scheduleFrame(preservePendingViewportPresetAnchor)
+    })
+    return () => {
+      for (const frame of frames) window.cancelAnimationFrame(frame)
+      frames.clear()
+    }
+  }, [
+    canvasViewportPreset,
+    layout.columnLayoutByIndex,
+    layout.columnMeasurementsByIndex,
+    preservePendingViewportPresetAnchor,
+  ])
+
   const revealCardOnCanvas = React.useCallback(
     (columnIndex: number, coordinate: string, options: { preserveVerticalCanvasPosition?: boolean } = {}) => {
       if (!canvasController.canvasViewportElement) return
@@ -375,19 +467,27 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     },
     [props.onChangeRootProviderVariant],
   )
+  const handleViewportPresetChange = React.useCallback(
+    (preset: StudioViewportPreset) => {
+      if (preset !== canvasViewportPreset) {
+        const anchor = captureViewportPresetAnchor(preset)
+        pendingViewportPresetAnchorRef.current = anchor
+        setViewportPresetAnchorPathKey(anchor?.pathKey)
+      }
 
-  const handleChangeCardProviderVariant = React.useCallback(
-    (
-      component: StudioManifestComponent,
-      providerName: string,
-      variant: string | undefined,
-      columnIndex: number,
-    ) => {
-      const path = studioComponentPathForColumn(workspaceRef.current, columnIndex, component.coordinate)
-      setSelectedCardPathKey(studioPathKey(path))
-      props.onChangeProviderVariant?.(path, providerName, variant)
+      if (props.onChangeCanvasViewportPreset) {
+        props.onChangeCanvasViewportPreset(preset)
+      } else {
+        for (const component of visibleWorkspaceComponents(props.workspace)) props.onChangeViewportPreset?.(component, preset)
+      }
     },
-    [props.onChangeProviderVariant],
+    [
+      canvasViewportPreset,
+      captureViewportPresetAnchor,
+      props.onChangeCanvasViewportPreset,
+      props.onChangeViewportPreset,
+      props.workspace,
+    ],
   )
 
   return {
@@ -409,16 +509,9 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
         }
       : undefined,
     onSelectCard: handleSelectCard,
-    onChangeCardProviderVariant: handleChangeCardProviderVariant,
     onChangeRootProviderVariant: handleChangeRootProviderVariant,
     onPreviewGeometryChange: layout.scheduleMeasurement,
-    onViewportPresetChange(preset) {
-      if (props.onChangeCanvasViewportPreset) {
-        props.onChangeCanvasViewportPreset(preset)
-      } else {
-        for (const component of visibleWorkspaceComponents(props.workspace)) props.onChangeViewportPreset?.(component, preset)
-      }
-    },
+    onViewportPresetChange: handleViewportPresetChange,
     casePreviewScale: layout.casePreviewScale,
     renderObservationSnapshot,
     renderExpansionCenterPulse,
@@ -512,6 +605,104 @@ function studioCanvasViewportElementSize(element: HTMLElement): { height: number
   }
 }
 
+function captureStudioCanvasViewportPresetAnchor(input: {
+  canvasCardIndex: StudioCanvasCardIndex
+  canvasViewportElement: HTMLElement
+  getCardElement: (columnIndex: number, coordinate: string) => HTMLDivElement | undefined
+  selectedCardPathKey?: string
+  visibleCardsByColumnIndex: Record<number, StudioCanvasCardIndexEntry[]>
+}): Omit<PendingStudioCanvasViewportPresetAnchor, "remainingAttempts" | "targetPreset"> | undefined {
+  const viewportRect = input.canvasViewportElement.getBoundingClientRect()
+  const selectedEntry = input.selectedCardPathKey ? input.canvasCardIndex.byPathKey[input.selectedCardPathKey] : undefined
+  const selectedAnchor = selectedEntry
+    ? studioCanvasViewportPresetAnchorForEntry(selectedEntry, viewportRect, input.getCardElement)
+    : undefined
+  if (selectedAnchor) return selectedAnchor
+
+  const viewportCenterX = viewportRect.left + viewportRect.width / 2
+  const viewportCenterY = viewportRect.top + viewportRect.height / 2
+  let nearest:
+    | {
+        anchor: Omit<PendingStudioCanvasViewportPresetAnchor, "remainingAttempts" | "targetPreset">
+        distance: number
+      }
+    | undefined
+
+  for (const entries of Object.values(input.visibleCardsByColumnIndex)) {
+    for (const entry of entries) {
+      const anchor = studioCanvasViewportPresetAnchorForEntry(entry, viewportRect, input.getCardElement)
+      if (!anchor) continue
+
+      const absoluteCenterX = viewportRect.left + anchor.targetViewportPoint.x
+      const absoluteCenterY = viewportRect.top + anchor.targetViewportPoint.y
+      const distance = (absoluteCenterX - viewportCenterX) ** 2 + (absoluteCenterY - viewportCenterY) ** 2
+      if (!nearest || distance < nearest.distance) nearest = { anchor, distance }
+    }
+  }
+
+  return nearest?.anchor
+}
+
+function studioCanvasViewportPresetAnchorForEntry(
+  entry: StudioCanvasCardIndexEntry,
+  viewportRect: DOMRect,
+  getCardElement: (columnIndex: number, coordinate: string) => HTMLDivElement | undefined,
+): Omit<PendingStudioCanvasViewportPresetAnchor, "remainingAttempts" | "targetPreset"> | undefined {
+  const cardElement = getCardElement(entry.columnIndex, entry.component.coordinate)
+  if (!cardElement) return undefined
+
+  return {
+    columnIndex: entry.columnIndex,
+    coordinate: entry.component.coordinate,
+    pathKey: entry.pathKey,
+    targetViewportPoint: studioCanvasViewportCenterPointForElement(cardElement, viewportRect),
+  }
+}
+
+function studioCanvasViewportCenterPointForElement(
+  element: HTMLElement,
+  viewportRect: DOMRect,
+): StudioCanvasViewportAnchorPoint {
+  const rect = element.getBoundingClientRect()
+  return {
+    x: rect.left + rect.width / 2 - viewportRect.left,
+    y: rect.top + rect.height / 2 - viewportRect.top,
+  }
+}
+
+export function preserveStudioCanvasViewportAnchor(
+  current: StudioCanvasTransform,
+  input: {
+    currentViewportPoint: StudioCanvasViewportAnchorPoint
+    targetViewportPoint: StudioCanvasViewportAnchorPoint
+  },
+): StudioCanvasTransform {
+  const deltaX = input.targetViewportPoint.x - input.currentViewportPoint.x
+  const deltaY = input.targetViewportPoint.y - input.currentViewportPoint.y
+  if (deltaX === 0 && deltaY === 0) return current
+
+  return {
+    ...current,
+    x: current.x + deltaX,
+    y: current.y + deltaY,
+  }
+}
+
+export function layoutNeutralDrilldownColumnEnterIdentity(
+  workspace: StudioWorkspaceState,
+  columnIndex: number,
+  column: StudioWorkspaceState["columns"][number],
+): string {
+  if (columnIndex === 0) return "root"
+
+  return [
+    `column:${columnIndex}`,
+    `path:${workspace.selectedCoordinatePath.slice(0, columnIndex).join(" > ")}`,
+    `parent:${column.parentCoordinate ?? ""}`,
+    `components:${column.components.map((component) => component.coordinate).join(",")}`,
+  ].join("|")
+}
+
 const useStudioWorkspaceViewScope = createGScopeHook(useRealStudioWorkspaceViewScope)
 
 export default function Studio(props: StudioWorkspaceViewProps) {
@@ -530,7 +721,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
           overflow: "hidden",
         }}
       >
-        <style>{studioDrilldownColumnEnterKeyframes}</style>
+        <style>{studioLayoutNeutralDrilldownColumnEnterCss}</style>
         <section style={{ display: "grid", minHeight: 0, minWidth: 0 }}>
           <div
             aria-label="GTSX Studio canvas viewport"
@@ -623,76 +814,78 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                   transformOrigin: "0px 0px",
                 }}
               >
-                {props.workspace.columns.map((column, columnIndex) => (
-                  <section
-                    data-gtsx-column-index={columnIndex}
-                    data-gtsx-column-layout-x={scope.columnLayoutByIndex[columnIndex]?.x ?? 0}
-                    data-gtsx-column-layout-y={scope.columnLayoutByIndex[columnIndex]?.y ?? 0}
-                    data-gtsx-column-parent-coordinate={column.parentCoordinate}
-                    key={columnIndex}
-                    ref={(element) => scope.setColumnElement(columnIndex, element)}
-                    style={{
-                      display: "block",
-                      height: scope.columnMeasurementsByIndex[columnIndex]?.height ?? 0,
-                      left: scope.columnLayoutByIndex[columnIndex]?.x ?? 0,
-                      position: "absolute",
-                      top: scope.columnLayoutByIndex[columnIndex]?.y ?? 0,
-                      width: "max-content",
-                      ...(columnIndex > 0 ? studioDrilldownColumnEnterStyle() : {}),
-                    }}
-                  >
-                    {(scope.visibleCardsByColumnIndex[columnIndex] ?? []).map((card) => {
-                      const component = card.component
-                      const cardRect =
-                        card.rect ?? scope.columnMeasurementsByIndex[columnIndex]?.cardRectsByCoordinate[component.coordinate]
-                      const providerVariantPath = studioComponentPathForColumn(
-                        props.workspace,
-                        columnIndex,
-                        component.coordinate,
-                      )
-                      return (
-                        <div
-                          key={component.coordinate}
-                          ref={(element) => scope.setCardElement(columnIndex, component.coordinate, element)}
-                          style={{
-                            display: "grid",
-                            left: cardRect?.left ?? 0,
-                            position: "absolute",
-                            top: cardRect?.top ?? 0,
-                            width: "max-content",
-                          }}
-                        >
-                          <StudioComponentCardSlot
-                            casePreviewScale={scope.casePreviewScale}
-                            columnIndex={columnIndex}
-                            component={component}
-                            debugPreviewPool={props.debugPreviewPool}
-                            debugPreviewQueue={props.debugPreviewQueue}
-                            fallbackFrameStates={props.frameStates}
-                            fallbackPreviewCache={props.previewCache}
-                            manifest={props.manifest}
-                            onChangeProviderVariant={
-                              props.onChangeProviderVariant ? scope.onChangeCardProviderVariant : undefined
-                            }
-                            onPreviewFrameMount={props.onPreviewFrameMount}
-                            onPreviewGeometryChange={scope.onPreviewGeometryChange}
-                            onSelect={scope.onSelectCard}
-                            previewGeometryStore={props.previewGeometryStore}
-                            providerVariantComponent={findManifestComponent(props.manifest, component.coordinate) ?? component}
-                            providerVariantContext={studioProviderVariantContextForPath(props.workspace, providerVariantPath)}
-                            providerVariantSelectionContext={studioProviderVariantSelectionContextForPath(
-                              props.workspace,
-                              providerVariantPath,
-                            )}
-                            selected={scope.selectedCardPathKey === card.pathKey}
-                            selectedCaseName={selectedStudioCaseName(props.workspace, component)}
-                            viewportPreset={scope.canvasViewportPreset}
-                          />
-                        </div>
-                      )
-                    })}
-                  </section>
-                ))}
+                {props.workspace.columns.map((column, columnIndex) => {
+                  const drilldownColumnEnterIdentity = layoutNeutralDrilldownColumnEnterIdentity(
+                    props.workspace,
+                    columnIndex,
+                    column,
+                  )
+                  return (
+                    <section
+                      data-gtsx-column-index={columnIndex}
+                      data-gtsx-column-layout-x={scope.columnLayoutByIndex[columnIndex]?.x ?? 0}
+                      data-gtsx-column-layout-y={scope.columnLayoutByIndex[columnIndex]?.y ?? 0}
+                      data-gtsx-column-parent-coordinate={column.parentCoordinate}
+                      data-gtsx-drilldown-column-enter={columnIndex > 0 ? "true" : undefined}
+                      data-gtsx-drilldown-column-enter-identity={columnIndex > 0 ? drilldownColumnEnterIdentity : undefined}
+                      key={drilldownColumnEnterIdentity}
+                      ref={(element) => scope.setColumnElement(columnIndex, element)}
+                      style={{
+                        display: "block",
+                        height: scope.columnMeasurementsByIndex[columnIndex]?.height ?? 0,
+                        left: scope.columnLayoutByIndex[columnIndex]?.x ?? 0,
+                        position: "absolute",
+                        top: scope.columnLayoutByIndex[columnIndex]?.y ?? 0,
+                        width: "max-content",
+                        ...(columnIndex > 0 ? studioLayoutNeutralDrilldownColumnEnterStyle() : {}),
+                      }}
+                    >
+                      {(scope.visibleCardsByColumnIndex[columnIndex] ?? []).map((card) => {
+                        const component = card.component
+                        const cardRect =
+                          card.rect ?? scope.columnMeasurementsByIndex[columnIndex]?.cardRectsByCoordinate[component.coordinate]
+                        const providerVariantPath = studioComponentPathForColumn(
+                          props.workspace,
+                          columnIndex,
+                          component.coordinate,
+                        )
+                        return (
+                          <div
+                            key={component.coordinate}
+                            ref={(element) => scope.setCardElement(columnIndex, component.coordinate, element)}
+                            style={{
+                              display: "grid",
+                              left: cardRect?.left ?? 0,
+                              position: "absolute",
+                              top: cardRect?.top ?? 0,
+                              width: "max-content",
+                            }}
+                          >
+                            <StudioComponentCardSlot
+                              casePreviewScale={scope.casePreviewScale}
+                              columnIndex={columnIndex}
+                              component={component}
+                              debugPreviewPool={props.debugPreviewPool}
+                              debugPreviewQueue={props.debugPreviewQueue}
+                              fallbackFrameStates={props.frameStates}
+                              fallbackPreviewCache={props.previewCache}
+                              manifest={props.manifest}
+                              onPreviewFrameMount={props.onPreviewFrameMount}
+                              onPreviewGeometryChange={scope.onPreviewGeometryChange}
+                              onSelect={scope.onSelectCard}
+                              previewGeometryStore={props.previewGeometryStore}
+                              providerVariantComponent={findManifestComponent(props.manifest, component.coordinate) ?? component}
+                              providerVariantContext={studioProviderVariantContextForPath(props.workspace, providerVariantPath)}
+                              selected={scope.selectedCardPathKey === card.pathKey}
+                              selectedCaseName={selectedStudioCaseName(props.workspace, component)}
+                              viewportPreset={scope.canvasViewportPreset}
+                            />
+                          </div>
+                        )
+                      })}
+                    </section>
+                  )
+                })}
               </div>
             ) : null}
           </div>
@@ -966,7 +1159,6 @@ Studio.cases = {
       onCanvasPointerMove() {},
       onCanvasPointerUp() {},
       onPreviewGeometryChange() {},
-      onChangeCardProviderVariant() {},
       onChangeRootProviderVariant() {},
       onSelectCard() {},
       onViewportPresetChange() {},
@@ -1069,7 +1261,6 @@ Studio.cases = {
       onCanvasPointerMove() {},
       onCanvasPointerUp() {},
       onPreviewGeometryChange() {},
-      onChangeCardProviderVariant() {},
       onChangeRootProviderVariant() {},
       onSelectCard() {},
       onViewportPresetChange() {},

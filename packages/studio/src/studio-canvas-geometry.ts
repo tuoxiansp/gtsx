@@ -66,7 +66,7 @@ export type MeasuredStudioColumnCardLayout = {
   width: number
 }
 
-const studioComponentCardColumnGap = 10
+const studioComponentCardColumnGap = 5
 const studioCanvasCardShellViewportStabilityMargin = 24
 
 export function domRectToStudioCanvasScreenRect(rect: DOMRect): StudioCanvasScreenRect {

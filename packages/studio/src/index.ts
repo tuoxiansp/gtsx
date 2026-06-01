@@ -56,6 +56,7 @@ export {
   studioProviderVariantCaseStatus,
   studioProviderVariantContextForPath,
   studioProviderVariantSelectionContextForPath,
+  sameStudioProviderVariantContext,
   studioWorkspaceWithProviderVariantFilters,
 } from "./client"
 export type {

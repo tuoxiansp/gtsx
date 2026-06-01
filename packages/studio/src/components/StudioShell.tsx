@@ -7,7 +7,6 @@ import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import {
   canvasViewportPresetForWorkspace,
   changeStudioCanvasViewportPreset,
-  changeStudioComponentProviderVariant,
   changeStudioRootProviderVariant,
   changeStudioViewportPreset,
   createStudioPreviewPoolUrl,
@@ -72,7 +71,6 @@ type StudioShellScope = {
   disablePreviewPool: boolean
   onChangeCanvas: (canvas: StudioCanvasTransform) => void
   onChangeCanvasViewportPreset: (preset: StudioViewportPreset) => void
-  onChangeProviderVariant: (path: string[], providerName: string, variant: string | undefined) => void
   onChangeRootProviderVariant: (providerName: string, variant: string | undefined) => void
   onChangeSelection: (selection: string) => void
   onChangeViewportPreset: (component: StudioManifestComponent, preset: StudioViewportPreset) => void
@@ -258,9 +256,6 @@ function useStudioShellScope(props: StudioShellLoadedProps): StudioShellScope {
     onChangeCanvas: canvasUrlState.commitLiveCanvasChange,
     onChangeCanvasViewportPreset(preset) {
       commitWorkspace((current) => changeStudioCanvasViewportPreset(current, preset))
-    },
-    onChangeProviderVariant(path, providerName, variant) {
-      commitWorkspace((current) => changeStudioComponentProviderVariant(current, path, providerName, variant))
     },
     onChangeRootProviderVariant(providerName, variant) {
       commitWorkspace((current) => changeStudioRootProviderVariant(current, providerName, variant))
@@ -584,7 +579,6 @@ function StudioShellLoaded(props: StudioShellLoadedProps) {
         debugPreviewQueue={scope.debugPreviewQueue}
         manifest={props.manifest}
         onChangeCanvas={scope.onChangeCanvas}
-        onChangeProviderVariant={scope.onChangeProviderVariant}
         onChangeRootProviderVariant={scope.onChangeRootProviderVariant}
         onSelectComponent={scope.onSelectComponent}
         onChangeCanvasViewportPreset={scope.onChangeCanvasViewportPreset}
