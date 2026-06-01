@@ -69,6 +69,7 @@ type StudioPreviewRenderQueueCandidate = {
   needsRenderTask: boolean
   sessionId: string
   sessionIndex: number
+  stalledMounted: boolean
 }
 
 export function queuedStudioPreviewSessionIds(input: StudioPreviewRenderQueueInput): Set<string> {
@@ -89,9 +90,10 @@ export function queuedStudioPreviewSessionIds(input: StudioPreviewRenderQueueInp
 
   for (const candidate of studioPreviewRenderQueueCandidates(input)) {
     if (selected.has(candidate.sessionId)) continue
+    if (candidate.stalledMounted && !candidate.visible) continue
 
     if (candidate.currentlyMounted && !candidate.active) {
-      if (selected.size >= maximumMountedPreviewSessions) continue
+      if (!candidate.visible && selected.size >= maximumMountedPreviewSessions) continue
       selected.add(candidate.sessionId)
       continue
     }
@@ -250,6 +252,7 @@ function studioPreviewRenderQueueCandidates(input: StudioPreviewRenderQueueInput
   const currentSessionIds = input.currentSessionIds ?? new Set<string>()
   const completedSessionIds = input.completedSessionIds ?? new Set<string>()
   const activeSessionIds = input.activeSessionIds ?? new Set<string>()
+  const tracksActiveSessions = input.activeSessionIds !== undefined
   const renderBufferMargin = studioPreviewRenderQueueRenderBufferMargin(input)
   const includeBufferedRenderTasks = input.includeBufferedRenderTasks !== false
   const renderDirection = canvasMovementToRenderDirection(input.canvasMovement)
@@ -270,8 +273,9 @@ function studioPreviewRenderQueueCandidates(input: StudioPreviewRenderQueueInput
     const cardCandidates = item.sessionIds.map((sessionId, sessionIndex) => {
       const currentlyMounted = currentSessionIds.has(sessionId)
       const completed = completedSessionIds.has(sessionId)
+      const active = activeSessionIds.has(sessionId)
       return {
-        active: activeSessionIds.has(sessionId),
+        active,
         cardIndex,
         completed,
         currentlyMounted,
@@ -281,6 +285,7 @@ function studioPreviewRenderQueueCandidates(input: StudioPreviewRenderQueueInput
         needsRenderTask: !currentlyMounted,
         sessionId,
         sessionIndex,
+        stalledMounted: tracksActiveSessions && currentlyMounted && !completed && !active,
         visible: intersectionArea > 0,
       }
     })

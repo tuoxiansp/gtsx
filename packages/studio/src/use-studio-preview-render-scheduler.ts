@@ -104,10 +104,13 @@ export function useStudioPreviewRenderScheduler(input: {
       const newSessionIds = studioPreviewRenderSessionIdsNotIn(plan.nextSessionIds, previousSessionIds)
       const newVisibleSessionIds = studioPreviewRenderSessionIdsNotIn(plan.visibleSessionIds, previousSessionIds)
       dispatchStudioPreviewQueueDebug({
+        activeCount: plan.activeSessionIds.size,
+        activeSessionIds: [...plan.activeSessionIds],
         canvas: nextCanvas,
         canvasMovement: lastCanvasRenderMovement.current,
         completedCount: plan.completedSessionIds.size,
         currentCount: sessionIdsRef.current.size,
+        hasIncompleteVisibleRenderTasks: plan.hasIncompleteVisibleRenderTasks,
         includeBuffer: requestPolicy.renderScope === "buffer",
         itemCount: plan.visibilityItems.length,
         maximumConcurrentRenderTasks:
@@ -131,9 +134,10 @@ export function useStudioPreviewRenderScheduler(input: {
 
       syncRenderPreviewSessionMountedAt(mountedAtBySessionId.current, previousSessionIds, plan.nextSessionIds)
       sessionIdsRef.current = plan.nextSessionIds
-      return commitStudioPreviewRenderSessions(input.previewRenderSessionStore, plan.nextSessionIds, plan.visibleSessionIds, {
+      const committed = commitStudioPreviewRenderSessions(input.previewRenderSessionStore, plan.nextSessionIds, plan.visibleSessionIds, {
         urgent: requestPolicy.renderBudget === "canvas-movement",
       })
+      return studioPreviewRenderSchedulerShouldScheduleActiveTimeout(committed, plan)
     },
     [
       input.canvasRef,
@@ -317,18 +321,25 @@ function isMeaningfulStudioCanvasMovement(movement: StudioCanvasMovement): boole
   return Math.hypot(movement.x, movement.y) >= 0.001
 }
 
-function syncRenderPreviewSessionMountedAt(
+export function syncRenderPreviewSessionMountedAt(
   mountedAt: Map<string, number>,
-  currentSessionIds: ReadonlySet<string>,
+  _currentSessionIds: ReadonlySet<string>,
   nextSessionIds: ReadonlySet<string>,
+  now: number = studioPerformanceNow(),
 ) {
-  const now = studioPerformanceNow()
   for (const sessionId of nextSessionIds) {
-    if (!currentSessionIds.has(sessionId) && !mountedAt.has(sessionId)) mountedAt.set(sessionId, now)
+    if (!mountedAt.has(sessionId)) mountedAt.set(sessionId, now)
   }
   for (const sessionId of mountedAt.keys()) {
     if (!nextSessionIds.has(sessionId)) mountedAt.delete(sessionId)
   }
+}
+
+export function studioPreviewRenderSchedulerShouldScheduleActiveTimeout(
+  committed: boolean,
+  plan: Pick<StudioPreviewRenderPlan, "hasIncompleteVisibleRenderTasks">,
+): boolean {
+  return committed || plan.hasIncompleteVisibleRenderTasks
 }
 
 function commitStudioPreviewRenderSessions(
@@ -353,10 +364,13 @@ function studioPerformanceNow(): number {
 }
 
 function dispatchStudioPreviewQueueDebug(detail: {
+  activeCount: number
+  activeSessionIds: string[]
   canvas: StudioCanvasTransform
   canvasMovement?: StudioCanvasMovement
   completedCount: number
   currentCount: number
+  hasIncompleteVisibleRenderTasks: boolean
   includeBuffer: boolean
   itemCount: number
   maximumConcurrentRenderTasks: number

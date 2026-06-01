@@ -15,6 +15,7 @@ export type GTSXDiagnostic = {
   stage: GTSXDiagnosticStage
   code: string
   message: string
+  severity?: "error" | "warning"
   file?: string
   caseName?: string
 }
@@ -22,9 +23,11 @@ export type GTSXDiagnostic = {
 export type GTSXCaseSummary = {
   kind: "pure" | "scope"
   name: string
-  providerVariants?: Record<string, string>
+  providerVariants?: Record<string, GTSXProviderVariantSelection>
   providers?: string[]
 }
+
+export type GTSXProviderVariantSelection = string | string[]
 
 export type GTSXProviderSummary = {
   name: string
@@ -79,7 +82,7 @@ type CasesAssignment = {
 
 type GTSXCaseStaticFacts = {
   name: string
-  providerVariants?: Record<string, string>
+  providerVariants?: Record<string, GTSXProviderVariantSelection>
   values: Map<string, StaticBranchValue>
 }
 
@@ -334,6 +337,21 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
       sourceFilesByPath: options.cache?.sourceFilesByPath ?? new Map([[entryPath, sourceFile]]),
       visitedComponents: new Set(),
     })
+    validateProviderProjectionWarnings(
+      sourceFile,
+      componentExportName,
+      scopeHookNames,
+      providerCases,
+      diagnostics,
+      options.entry,
+      {
+        cwd: options.cwd,
+        entryPath,
+        cache: options.cache,
+        sourceFilesByPath: options.cache?.sourceFilesByPath ?? new Map([[entryPath, sourceFile]]),
+        visitedComponents: new Set(),
+      },
+    )
   }
 
   return {
@@ -844,13 +862,14 @@ function validateProviderVariantSelections(
 ) {
   if (!testCase.providerVariants) return
 
-  for (const [providerName, variant] of Object.entries(testCase.providerVariants)) {
+  for (const [providerName, selection] of Object.entries(testCase.providerVariants)) {
+    const variants = providerVariantSelectionValues(selection)
     const provider = providerCases[providerName]
     if (!provider) {
       diagnostics.push({
         stage: "contract-extraction",
         code: "missing-provider",
-        message: `Case "${testCase.name}" marks unknown provider "${providerName}" variant "${variant}".`,
+        message: `Case "${testCase.name}" marks unknown provider "${providerName}" variants "${variants.join(", ")}".`,
         file,
         caseName: testCase.name,
       })
@@ -861,18 +880,19 @@ function validateProviderVariantSelections(
       diagnostics.push({
         stage: "contract-extraction",
         code: "missing-provider-variants",
-        message: `Case "${testCase.name}" marks provider "${providerName}" variant "${variant}", but "${providerName}" does not declare variants.`,
+        message: `Case "${testCase.name}" marks provider "${providerName}" variants "${variants.join(", ")}", but "${providerName}" does not declare variants.`,
         file,
         caseName: testCase.name,
       })
       continue
     }
 
-    if (!provider.variants.includes(variant)) {
+    const unknownVariants = variants.filter((variant) => !provider.variants?.includes(variant))
+    if (unknownVariants.length > 0) {
       diagnostics.push({
         stage: "contract-extraction",
         code: "unknown-provider-variant",
-        message: `Case "${testCase.name}" marks unknown "${providerName}" variant "${variant}". Expected one of: ${provider.variants.join(", ")}.`,
+        message: `Case "${testCase.name}" marks unknown "${providerName}" variants "${unknownVariants.join(", ")}". Expected one of: ${provider.variants.join(", ")}.`,
         file,
         caseName: testCase.name,
       })
@@ -893,8 +913,8 @@ function validateProviderVariantCoverage(
 
     const coveredVariants = new Set(
       selectedCases.flatMap((testCase) => {
-        const variant = testCase.providerVariants?.[providerName]
-        return variant ? [variant] : []
+        const selection = testCase.providerVariants?.[providerName]
+        return selection ? providerVariantSelectionValues(selection) : []
       }),
     )
     const missingVariants = provider.variants.filter((variant) => !coveredVariants.has(variant))
@@ -907,6 +927,10 @@ function validateProviderVariantCoverage(
       file,
     })
   }
+}
+
+function providerVariantSelectionValues(selection: GTSXProviderVariantSelection): string[] {
+  return Array.isArray(selection) ? selection : [selection]
 }
 
 function validateJSXTreeCaseReachability(
@@ -979,6 +1003,184 @@ function validateJSXTreeCaseReachability(
       file,
     })
   }
+}
+
+function validateProviderProjectionWarnings(
+  sourceFile: ts.SourceFile,
+  componentName: string,
+  scopeHookNames: Set<string>,
+  providerCases: Record<string, GTSXProviderSummary>,
+  diagnostics: GTSXDiagnostic[],
+  file: string,
+  context: NonGTSXHookAnalysisContext,
+) {
+  const warnings = providerProjectionWarningsForComponent(sourceFile, componentName, scopeHookNames, providerCases, context)
+  const reported = new Set<string>()
+
+  for (const warning of warnings) {
+    const key = `${warning.target.filePath}#${warning.target.componentName}:${warning.providerName}`
+    if (reported.has(key)) continue
+    reported.add(key)
+
+    diagnostics.push({
+      stage: "contract-extraction",
+      severity: "warning",
+      code: "unmarked-provider-variant-projection",
+      message: `JSX dependency <${warning.tagName}> receives props derived from provider "${warning.providerName}", but its cases do not mark "${warning.providerName}" variants. If those props are environment projections, add GProviderCase markers; if the child is environment-neutral, this warning can be ignored.`,
+      file,
+    })
+  }
+}
+
+function providerProjectionWarningsForComponent(
+  sourceFile: ts.SourceFile,
+  componentName: string,
+  scopeHookNames: Set<string>,
+  providerCases: Record<string, GTSXProviderSummary>,
+  context: NonGTSXHookAnalysisContext,
+): { providerName: string; tagName: string; target: ComponentDependencyTarget }[] {
+  const component = getFunctionLikeDeclaration(sourceFile, componentName)
+  if (!component?.body) return []
+
+  const warnings: { providerName: string; tagName: string; target: ComponentDependencyTarget }[] = []
+  const branchContext = createJSXBranchAnalysisContext(sourceFile, component, scopeHookNames)
+  const helperFunctions = getTopLevelFunctionLikeBodiesForPath(sourceFile, context.entryPath, context.cache)
+  const importBindings = componentDependencyBindingsForFile(sourceFile, context.entryPath, context)
+  const visitedHelpers = new Set<string>([componentName])
+
+  visitFunctionLikeBody(component, branchContext, visitedHelpers)
+  return warnings
+
+  function visitFunctionLikeBody(
+    functionLike: ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ) {
+    if (!functionLike.body) return
+    const localAliases = localComponentAliasBindingsForBody(functionLike.body)
+    visit(functionLike.body, currentBranchContext, currentVisitedHelpers, localAliases)
+  }
+
+  function visit(
+    node: ts.Node,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+    localAliases: LocalComponentAliasBindings,
+  ) {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && !isHookName(node.expression.text)) {
+      const helper = getFunctionLikeDeclaration(sourceFile, node.expression.text)
+      if (helper?.body && expressionContainsJSX(helper.body) && !currentVisitedHelpers.has(node.expression.text)) {
+        const helperVisited = new Set(currentVisitedHelpers)
+        helperVisited.add(node.expression.text)
+        const helperContext = bindFunctionCallArguments(helper, node.arguments, currentBranchContext)
+        visitFunctionLikeBody(helper, helperContext, helperVisited)
+        return
+      }
+    }
+
+    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      visitJSXOpeningLike(node, currentBranchContext, localAliases)
+    }
+
+    ts.forEachChild(node, (child) => visit(child, currentBranchContext, currentVisitedHelpers, localAliases))
+  }
+
+  function visitJSXOpeningLike(
+    node: ts.JsxOpeningElement | ts.JsxSelfClosingElement,
+    currentBranchContext: JSXBranchAnalysisContext,
+    localAliases: LocalComponentAliasBindings,
+  ) {
+    const target = componentDependencyTargetForJsxTag(node.tagName, {
+      filePath: context.entryPath,
+      importBindings,
+      localAliases,
+      localComponentNames: helperFunctions,
+    })
+    if (!target) return
+
+    const projectedProviderNames = providerVariantNamesReferencedByJsxAttributes(node.attributes, providerCases, currentBranchContext)
+    if (projectedProviderNames.size === 0) return
+
+    const targetSourceFile = sourceFileForPath(target.filePath, context)
+    if (!targetSourceFile) return
+
+    for (const providerName of projectedProviderNames) {
+      const markerStatus = componentCasesProviderVariantMarkerStatus(targetSourceFile, target.componentName, providerName)
+      if (markerStatus !== false) continue
+
+      warnings.push({
+        providerName,
+        tagName: jsxTagNameText(node.tagName, sourceFile),
+        target,
+      })
+    }
+  }
+}
+
+function providerVariantNamesReferencedByJsxAttributes(
+  attributes: ts.JsxAttributes,
+  providerCases: Record<string, GTSXProviderSummary>,
+  context: JSXBranchAnalysisContext,
+): Set<string> {
+  const providerNames = new Set<string>()
+
+  for (const property of attributes.properties) {
+    const expression =
+      ts.isJsxAttribute(property) && property.initializer
+        ? ts.isJsxExpression(property.initializer)
+          ? property.initializer.expression
+          : property.initializer
+        : ts.isJsxSpreadAttribute(property)
+          ? property.expression
+          : undefined
+    if (!expression) continue
+
+    for (const providerName of providerVariantNamesReferencedByExpression(expression, providerCases, context)) {
+      providerNames.add(providerName)
+    }
+  }
+
+  return providerNames
+}
+
+function providerVariantNamesReferencedByExpression(
+  expression: ts.Expression,
+  providerCases: Record<string, GTSXProviderSummary>,
+  context: JSXBranchAnalysisContext,
+): Set<string> {
+  const providerNames = new Set<string>()
+  visit(expression)
+  return providerNames
+
+  function visit(node: ts.Node) {
+    if (ts.isExpression(node)) {
+      const reference = factorReferenceForExpression(node, context)
+      if (reference?.root === "context" && (providerCases[reference.providerName]?.variants?.length ?? 0) > 0) {
+        providerNames.add(reference.providerName)
+      }
+    }
+
+    ts.forEachChild(node, visit)
+  }
+}
+
+function componentCasesProviderVariantMarkerStatus(
+  sourceFile: ts.SourceFile,
+  componentName: string,
+  providerName: string,
+): boolean | undefined {
+  let hasCases = false
+
+  for (const statement of sourceFile.statements) {
+    const assignment = getCasesAssignment(statement, sourceFile, [])
+    if (!assignment || assignment.targetName !== componentName) continue
+    if (assignment.cases.length === 0) continue
+
+    hasCases = true
+    if (assignment.cases.some((testCase) => testCase.providerVariants?.[providerName])) return true
+  }
+
+  return hasCases ? false : undefined
 }
 
 function createJSXBranchAnalysisContext(
@@ -2636,7 +2838,7 @@ function readCasesObject(
   return { cases, staticCases }
 }
 
-function readProviderVariantMarkers(expression: ts.Expression): Record<string, string> | undefined {
+function readProviderVariantMarkers(expression: ts.Expression): Record<string, GTSXProviderVariantSelection> | undefined {
   if (ts.isSatisfiesExpression(expression)) return readProviderVariantMarkersFromType(expression.type)
   if (ts.isAsExpression(expression) || ts.isParenthesizedExpression(expression)) return readProviderVariantMarkers(expression.expression)
   return undefined
@@ -2645,7 +2847,7 @@ function readProviderVariantMarkers(expression: ts.Expression): Record<string, s
 function readCaseStaticFacts(
   caseName: string,
   caseValue: ts.Expression,
-  providerVariants: Record<string, string> | undefined,
+  providerVariants: Record<string, GTSXProviderVariantSelection> | undefined,
 ): GTSXCaseStaticFacts {
   const values = new Map<string, StaticBranchValue>()
 
@@ -2660,8 +2862,14 @@ function readCaseStaticFacts(
     if (providers) flattenProviderStaticValues(providers, values)
   }
 
-  for (const [providerName, variant] of Object.entries(providerVariants ?? {})) {
-    values.set(`context.${providerName}.variant`, { kind: "string", value: variant })
+  for (const [providerName, selection] of Object.entries(providerVariants ?? {})) {
+    const variants = providerVariantSelectionValues(selection)
+    values.set(
+      `context.${providerName}.variant`,
+      variants.length === 1
+        ? { kind: "string", value: variants[0] as string }
+        : { kind: "oneOf", values: variants.map((variant) => ({ kind: "string", value: variant })) },
+    )
   }
 
   return {
@@ -2774,11 +2982,16 @@ function readStaticBranchValue(expression: ts.Expression): StaticBranchValue | u
   return undefined
 }
 
-function readProviderVariantMarkersFromType(typeNode: ts.TypeNode): Record<string, string> {
-  const variants: Record<string, string> = {}
+function readProviderVariantMarkersFromType(typeNode: ts.TypeNode): Record<string, GTSXProviderVariantSelection> {
+  const variants = new Map<string, Set<string>>()
 
   visit(typeNode)
-  return variants
+  return Object.fromEntries(
+    [...variants.entries()].map(([providerName, providerVariants]) => {
+      const values = [...providerVariants]
+      return [providerName, values.length === 1 ? values[0] : values] as const
+    }),
+  )
 
   function visit(node: ts.TypeNode) {
     if (ts.isIntersectionTypeNode(node) || ts.isUnionTypeNode(node)) {
@@ -2798,10 +3011,21 @@ function readProviderVariantMarkersFromType(typeNode: ts.TypeNode): Record<strin
     const variantType = node.typeArguments?.[1]
     if (!providerType || !variantType || !ts.isTypeQueryNode(providerType)) return
     if (!ts.isIdentifier(providerType.exprName)) return
-    if (!ts.isLiteralTypeNode(variantType) || !ts.isStringLiteral(variantType.literal)) return
+    const providerVariants = readProviderVariantTypeValues(variantType)
+    if (providerVariants.length === 0) return
 
-    variants[providerType.exprName.text] = variantType.literal.text
+    const providerName = providerType.exprName.text
+    const current = variants.get(providerName) ?? new Set<string>()
+    for (const variant of providerVariants) current.add(variant)
+    variants.set(providerName, current)
   }
+}
+
+function readProviderVariantTypeValues(typeNode: ts.TypeNode): string[] {
+  if (ts.isParenthesizedTypeNode(typeNode)) return readProviderVariantTypeValues(typeNode.type)
+  if (ts.isUnionTypeNode(typeNode)) return typeNode.types.flatMap(readProviderVariantTypeValues)
+  if (ts.isLiteralTypeNode(typeNode) && ts.isStringLiteral(typeNode.literal)) return [typeNode.literal.text]
+  return []
 }
 
 function readProviderSelections(caseValue: ts.ObjectLiteralExpression): string[] | undefined {

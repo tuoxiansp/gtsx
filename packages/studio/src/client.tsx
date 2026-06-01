@@ -355,7 +355,7 @@ export function studioProviderVariantAxes(
     const caseVariants = uniqueStrings(
       component.cases.flatMap((testCase) => {
         const variant = testCase.providerVariants?.[providerName]
-        return variant ? [variant] : []
+        return providerVariantSelectionValues(variant)
       }),
     )
     const declaredVariants = component.providers[providerName]?.variants ?? []
@@ -369,7 +369,7 @@ export function studioProviderVariantAxes(
         providerName,
         ...(hasSelectedVariant ? { selectedVariant } : {}),
         variants: variants.map((variant) => ({
-          caseName: component.cases.find((testCase) => testCase.providerVariants?.[providerName] === variant)?.name,
+          caseName: component.cases.find((testCase) => providerVariantSelectionValues(testCase.providerVariants?.[providerName]).includes(variant))?.name,
           name: variant,
           selected: hasSelectedVariant && selectedVariant === variant,
         })),
@@ -441,23 +441,21 @@ export function studioProviderVariantCaseStatus(
     const caseVariants = uniqueStrings(
       component.cases.flatMap((candidate) => {
         const variant = candidate.providerVariants?.[providerName]
-        return variant ? [variant] : []
+        return providerVariantSelectionValues(variant)
       }),
     )
     const declaredVariants = component.providers[providerName]?.variants ?? []
     if (caseVariants.length === 0 && !declaredVariants.includes(selectedVariant)) continue
 
     const caseVariant = testCase.providerVariants?.[providerName]
-    if (caseVariant === selectedVariant) {
+    if (caseVariant === undefined) continue
+
+    if (providerVariantSelectionValues(caseVariant).includes(selectedVariant)) {
       matched = true
       continue
     }
 
-    mismatches.push(
-      caseVariant
-        ? `${providerName}: ${caseVariant} does not match ${selectedVariant}`
-        : `${providerName}: no case variant for ${selectedVariant}`,
-    )
+    mismatches.push(`${providerName}: ${formatProviderVariantSelection(caseVariant)} does not match ${selectedVariant}`)
   }
 
   if (mismatches.length > 0) return { state: "mismatch", title: mismatches.join("; ") }
@@ -480,13 +478,13 @@ function studioProviderVariantCaseForContext(
       const caseVariants = uniqueStrings(
         component.cases.flatMap((candidate) => {
           const variant = candidate.providerVariants?.[providerName]
-          return variant ? [variant] : []
+          return providerVariantSelectionValues(variant)
         }),
       )
       const declaredVariants = component.providers[providerName]?.variants ?? []
       if (caseVariants.length === 0 && !declaredVariants.includes(selectedVariant)) continue
 
-      if (testCase.providerVariants?.[providerName] !== selectedVariant) return false
+      if (!providerVariantSelectionValues(testCase.providerVariants?.[providerName]).includes(selectedVariant)) return false
       matched = true
     }
 
@@ -1180,6 +1178,15 @@ function clamp(value: number, min: number, max: number): number {
 
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)]
+}
+
+function providerVariantSelectionValues(selection: string | string[] | undefined): string[] {
+  if (!selection) return []
+  return Array.isArray(selection) ? selection : [selection]
+}
+
+function formatProviderVariantSelection(selection: string | string[]): string {
+  return Array.isArray(selection) ? selection.join(", ") : selection
 }
 
 const studioCanvasMinScale = 0.2

@@ -47,8 +47,20 @@ export type GTSXPreviewRouteParams = {
   chrome: string | null
   entry: string | null
   poolMode: boolean
+  renderRequestSequence: number
   sessionId: string | null
   staticMode: boolean
+}
+
+export type GTSXPreviewRenderTargetMailboxState = {
+  currentTarget: GTSXPreviewRouteParams | null
+  currentTargetContentKey: string | null
+  renderRequestSequence: number
+}
+
+export type GTSXPreviewRenderTargetMailboxUpdate = {
+  shouldNotifySubscribers: boolean
+  state: GTSXPreviewRenderTargetMailboxState
 }
 
 export type GTSXReactPreviewClientProps = {
@@ -95,6 +107,7 @@ export function GTSXReactPreviewClient({
       chrome: typeof chrome === "boolean" ? (chrome ? "1" : "0") : chrome,
       entry: entry ?? defaultEntry ?? null,
       poolMode: typeof pool === "boolean" ? pool : pool === "1",
+      renderRequestSequence: 0,
       sessionId,
       staticMode,
     }),
@@ -357,6 +370,7 @@ export function readGTSXPreviewRouteParams(params: URLSearchParams): GTSXPreview
     chrome: params.get("chrome"),
     entry: params.get("entry"),
     poolMode: params.get("pool") === "1",
+    renderRequestSequence: 0,
     sessionId: params.get("sessionId"),
     staticMode: params.get("static") === "1",
   }
@@ -402,10 +416,7 @@ function ensureGTSXPreviewRenderTargetMailbox(): GTSXPreviewRenderTargetMailbox 
   if (gtsxPreviewRenderTargetMailbox) return gtsxPreviewRenderTargetMailbox
 
   const subscribers = new Set<GTSXPreviewRenderTargetSubscriber>()
-  let currentTarget = window.__gtsxPreviewPendingRenderTarget
-    ? previewRouteParamsFromRenderTarget(window.__gtsxPreviewPendingRenderTarget)
-    : null
-  let currentTargetKey = currentTarget ? previewRenderTargetKey(currentTarget) : null
+  let mailboxState = createGTSXPreviewRenderTargetMailboxState(window.__gtsxPreviewPendingRenderTarget ?? null)
   let poolReadyAnnounced = false
 
   const applyRenderTarget = (target: GPreviewRenderTarget, options: { acknowledge: boolean }) => {
@@ -413,13 +424,12 @@ function ensureGTSXPreviewRenderTargetMailbox(): GTSXPreviewRenderTargetMailbox 
     if (options.acknowledge && target.sessionId) {
       window.parent.postMessage(createGPreviewRenderAcceptedMessage(target.sessionId), "*")
     }
-    const nextTarget = previewRouteParamsFromRenderTarget(target)
-    const nextTargetKey = previewRenderTargetKey(nextTarget)
-    if (currentTargetKey === nextTargetKey) return
 
-    currentTarget = nextTarget
-    currentTargetKey = nextTargetKey
-    for (const subscriber of subscribers) subscriber(currentTarget)
+    const update = applyGTSXPreviewRenderTargetRequest(mailboxState, target, options)
+    mailboxState = update.state
+    if (!update.shouldNotifySubscribers || !mailboxState.currentTarget) return
+
+    for (const subscriber of subscribers) subscriber(mailboxState.currentTarget)
   }
 
   const render = (target: GPreviewRenderTarget) => applyRenderTarget(target, { acknowledge: true })
@@ -448,7 +458,7 @@ function ensureGTSXPreviewRenderTargetMailbox(): GTSXPreviewRenderTargetMailbox 
       }, 0)
     },
     getTarget() {
-      return currentTarget
+      return mailboxState.currentTarget
     },
     render,
     subscribe(subscriber) {
@@ -463,15 +473,54 @@ function ensureGTSXPreviewRenderTargetMailbox(): GTSXPreviewRenderTargetMailbox 
   return gtsxPreviewRenderTargetMailbox
 }
 
-function previewRouteParamsFromRenderTarget(target: GPreviewRenderTarget): GTSXPreviewRouteParams {
+function previewRouteParamsFromRenderTarget(
+  target: GPreviewRenderTarget,
+  renderRequestSequence: number,
+): GTSXPreviewRouteParams {
   return {
     caseName: target.caseName,
     caseOverrides: new Map(target.caseOverrides ?? []),
     chrome: target.chrome,
     entry: target.entry,
     poolMode: false,
+    renderRequestSequence,
     sessionId: target.sessionId,
     staticMode: target.staticMode,
+  }
+}
+
+export function createGTSXPreviewRenderTargetMailboxState(
+  target: GPreviewRenderTarget | null,
+): GTSXPreviewRenderTargetMailboxState {
+  const currentTarget = target ? previewRouteParamsFromRenderTarget(target, 0) : null
+  return {
+    currentTarget,
+    currentTargetContentKey: currentTarget ? previewRenderTargetContentKey(currentTarget) : null,
+    renderRequestSequence: 0,
+  }
+}
+
+export function applyGTSXPreviewRenderTargetRequest(
+  state: GTSXPreviewRenderTargetMailboxState,
+  target: GPreviewRenderTarget,
+  options: { acknowledge: boolean },
+): GTSXPreviewRenderTargetMailboxUpdate {
+  const renderRequestSequence = options.acknowledge ? state.renderRequestSequence + 1 : state.renderRequestSequence
+  const currentTarget = previewRouteParamsFromRenderTarget(target, renderRequestSequence)
+  const currentTargetContentKey = previewRenderTargetContentKey(currentTarget)
+  const sameContentTarget = state.currentTargetContentKey === currentTargetContentKey
+
+  if (sameContentTarget && !options.acknowledge) {
+    return { shouldNotifySubscribers: false, state }
+  }
+
+  return {
+    shouldNotifySubscribers: true,
+    state: {
+      currentTarget,
+      currentTargetContentKey,
+      renderRequestSequence,
+    },
   }
 }
 
@@ -501,6 +550,19 @@ function showChromeForPreviewTarget(chrome: string | null): boolean {
 }
 
 function previewRenderTargetKey(target: GTSXPreviewRouteParams): string {
+  return JSON.stringify({
+    caseName: target.caseName,
+    caseOverrides: [...target.caseOverrides],
+    chrome: target.chrome,
+    entry: target.entry,
+    poolMode: target.poolMode,
+    renderRequestSequence: target.renderRequestSequence,
+    sessionId: target.sessionId,
+    staticMode: target.staticMode,
+  })
+}
+
+function previewRenderTargetContentKey(target: GTSXPreviewRouteParams): string {
   return JSON.stringify({
     caseName: target.caseName,
     caseOverrides: [...target.caseOverrides],

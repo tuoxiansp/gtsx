@@ -58,7 +58,9 @@ The sidecar reads `.g.tsx` files via the TypeScript Program. It does not modify 
 
 Sharing the Host has one practical consequence: the preview route must recreate appearance, not app behavior. If a component depends on app-wide CSS, design-system stylesheets, font/style setup, or static root selectors such as theme, base color, density, or style preset classes, the `/gtsx` route needs those visual pieces too. If the normal app route provides them through static DOM or imports, the preview route should mirror that static shell around the adapter preview client.
 
-That boundary is intentional. The preview route should not pull in production layouts or providers just to get the right look if those wrappers run ordinary React hooks, auth/session clients, routers, fetchers, or effects. Visual state belongs in `.g.tsx` cases through props, scope, and gtsx providers; route-level setup stays limited to framework parsing, CSS/setup imports, static wrapper DOM, SSR bootstrap scripts, and adapter loading.
+That boundary is intentional. The preview route should not pull in production layouts or providers just to get the right look if those wrappers run ordinary React hooks, app clients, routing clients, network I/O, subscriptions, timers, or effects. Visual state belongs in `.g.tsx` cases through props, scope, and gtsx providers; route-level setup stays limited to framework parsing, CSS/setup imports, static wrapper DOM, SSR bootstrap scripts, and adapter loading.
+
+For Next.js App Router, this boundary includes inherited layouts. A `/gtsx` page under `app/gtsx/page.tsx` cannot opt out of `app/layout.tsx` or parent segment layouts. If those layouts mount production shell components, the preview/studio route will execute their hooks and effects before the adapter preview client renders. Isolate GTSX routes with a minimal root layout or route groups, and keep production providers, app clients, subscriptions, navigation, and data fetching in an app-only route group.
 
 ## The Production Path
 
@@ -104,7 +106,7 @@ For a `.g.tsx` component, gtsx treats three inputs as the source of visual state
 - the value returned from a `createGScopeHook(...)` hook
 - values read through `useGContext(Provider)`
 
-Provider variants are a semantic label on that third input. A provider can opt into a finite axis such as `login | anonymous`, `light | dark`, or `reviewer | regular`. Cases then mark which variant they represent with `GProviderCase<typeof Provider, "variant">`. The marker is static metadata: it tells Studio and `gtsx check` what environment state the case covers. Runtime context state is still supplied separately through `providers: [[Provider, value]]`.
+Provider variants are a semantic label on that third input. A provider can opt into a finite axis such as `login | anonymous`, `light | dark`, or `reviewer | regular`. Cases then mark which variant they represent with `GProviderCase<typeof Provider, "variant">`; a case that is genuinely orthogonal to the axis can stay unmarked, and a case that intentionally covers more than one environment can use a union such as `GProviderCase<typeof Provider, "login" | "anonymous">`. The marker is static metadata: it tells Studio and `gtsx check` what environment state the case covers. Runtime context state is still supplied separately through `providers: [[Provider, value]]`.
 
 When one of those values controls whether a child component or JSX subtree is rendered, `gtsx check` follows that control flow and asks a narrow question: does at least one case make this branch reachable? It does not try to prove every combination of every prop. It only prevents a visual branch from being present in the component while disappearing entirely from the case set.
 
@@ -112,11 +114,11 @@ This is why JSX-producing control flow must stay first-order over the gtsx input
 
 Case values follow the same rule. Literal props, scope values, provider values, and literal arrays can be inspected. Values imported from helpers or composed through spread may still typecheck, but they are not static enough for branch coverage; when they affect JSX reachability, `gtsx check` reports that uncertainty instead of silently accepting it.
 
-Provider variant coverage follows the same philosophy. If a component consumes a provider with declared variants, its cases must cover those variants. A child component that only receives plain props can still mark cases with `GProviderCase` when those props are projections of a parent environment; this lets Studio show the same environment axis without forcing the child to read context.
+Provider variant coverage follows the same philosophy. If a component consumes a provider with declared variants, its cases must cover those variants. Unmarked cases are neutral in Studio, but they are not proof that the provider variants were covered. A child component that only receives plain props can still mark cases with `GProviderCase` when those props are projections of a parent environment; this lets Studio show the same environment axis without forcing the child to read context. If gtsx sees provider-derived props flowing into an unmarked child, it reports a non-blocking warning so an agent can decide whether the child really needs projection markers. Child projection cases supplement Studio expression; they do not replace the parent component's coverage obligation when the parent consumes the provider.
 
 In Studio, declared provider variants become environment controls. A root selection acts like an upstream variant constraint for the canvas. A component-level selection acts like a local override. Cases remain visible; matching and mismatching cases are distinguished instead of being filtered away, so the canvas keeps showing the full state model while making the active environment obvious.
 
-All of these diagnostics are fatal. `gtsx check` exits non-zero for opaque control flow, unknown branch coverage, or uncovered JSX branches. The point is not to restrict how production React works. The point is to make sure Studio's map of a component's visual states cannot drift away from the component's real TSX.
+Coverage and control-flow diagnostics are fatal. `gtsx check` exits non-zero for opaque control flow, unknown branch coverage, uncovered JSX branches, or missing consumed provider variants. Projection hints are warnings: they are meant to point an agent at a possible coverage gap without claiming the child component is definitely wrong. The point is not to restrict how production React works. The point is to make sure Studio's map of a component's visual states cannot drift away from the component's real TSX.
 
 ## Easy Exit
 

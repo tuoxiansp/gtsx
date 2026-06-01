@@ -67,6 +67,7 @@ export type MeasuredStudioColumnCardLayout = {
 const studioComponentCardColumnGap = 10
 const studioComponentCardTitleGap = 8
 const studioComponentCardTitleHeight = 13 * 1.2
+const studioCanvasCardShellViewportStabilityMargin = 24
 
 export function domRectToStudioCanvasScreenRect(rect: DOMRect): StudioCanvasScreenRect {
   return {
@@ -363,8 +364,7 @@ export function visibleStudioCanvasCardEntriesByColumnIndex(input: {
   viewportSize: { height: number; width: number }
 }): Record<number, StudioCanvasCardIndexEntry[]> {
   const visibleByColumnIndex: Record<number, StudioCanvasCardIndexEntry[]> = {}
-  const scale = Math.max(0.01, input.canvas.scale)
-  const buffer = input.renderBufferMargin / scale
+  const buffer = studioCanvasCardShellViewportBuffer(input.renderBufferMargin, input.canvas.scale)
   const viewportRect = studioCanvasViewportRect(input.canvas, input.viewportSize, buffer)
 
   for (const [rawColumnIndex, entries] of Object.entries(input.cardIndex.byColumnIndex)) {
@@ -430,7 +430,7 @@ export function studioPreviewVisibilityItems(
             height: options.viewport.bottom - options.viewport.top,
             width: options.viewport.right - options.viewport.left,
           },
-          renderBufferMargin / Math.max(0.01, options.canvas.scale),
+          studioCanvasCardShellViewportBuffer(renderBufferMargin, options.canvas.scale),
         )
       : undefined
   const visibleCardEntriesByColumnIndex =
@@ -530,6 +530,11 @@ function studioCanvasViewportRect(
     right: (viewportSize.width - canvas.x) / scale + buffer,
     top: -canvas.y / scale - buffer,
   }
+}
+
+function studioCanvasCardShellViewportBuffer(renderBufferMargin: number, canvasScale: number): number {
+  const scale = Math.max(0.01, canvasScale)
+  return Math.max(renderBufferMargin, studioCanvasCardShellViewportStabilityMargin) / scale
 }
 
 function translateStudioCanvasRect(rect: StudioCanvasScreenRect, x: number, y: number): StudioViewportRect {

@@ -48,7 +48,7 @@ Verify: `gtsx check src/Badge.g.tsx`
 - Export at least one component. Default exports are optional.
 - Author visual surfaces, not orchestration. No visual surface → descend or skip.
 - Only gtsx hooks inside `.g.tsx` components: `useGContext`, hooks from `createGScopeHook`.
-- Use provider variants only for meaningful finite environment axes. `createGProvider(..., { variants })` declares the axis; `GProviderCase<typeof Provider, "variant">` marks case coverage; `providers: [[Provider, value]]` still supplies runtime context state.
+- Use provider variants only for meaningful finite environment axes. `createGProvider(..., { variants })` declares the axis; `GProviderCase<typeof Provider, "variant">` marks case coverage; `providers: [[Provider, value]]` still supplies runtime context state. Leave truly env-neutral cases unmarked; use a variant union such as `GProviderCase<typeof Provider, "login" | "anonymous">` only when one case intentionally covers multiple variants.
 - Cases are static object literals. No computed keys, no dynamic generation.
 - JSX-producing branches must be first-order over props, gtsx scope, or gtsx provider context. Use direct conditionals, `if` returns, `&&`, `||`, and traceable `map`/render callbacks. Avoid helper predicates, `switch`, JSX-returning loops, or local variables that store JSX.
 - Name cases by visual state: `default`, `disabled`, `empty`, `loading`, `errorRetryable`, `overflowing`.
@@ -68,6 +68,7 @@ Verify: `gtsx check src/Badge.g.tsx`
 | `missing-provider-variant-cases` | Mark cases with `GProviderCase` for every consumed provider variant |
 | `missing-provider-variants` | Declare provider `variants` or remove the variant marker |
 | `unknown-provider-variant` | Use one of the provider's declared variants |
+| `unmarked-provider-variant-projection` | Warning: inspect whether provider-derived child props need projected `GProviderCase` markers |
 | `opaque-jsx-control-flow` | Rewrite JSX-producing branches as direct props/scope/context expressions |
 | `unknown-jsx-branch-coverage` | Inline static case values that affect JSX reachability |
 | `uncovered-jsx-branch` | Add a case that makes the JSX branch reachable |

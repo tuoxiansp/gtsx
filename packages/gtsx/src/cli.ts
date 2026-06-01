@@ -146,7 +146,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       }
 
       const checks = resolvedEntries.entries.map((candidate) => analyzeEntry({ cwd, entry: candidate }))
-      if (resolvedEntries.diagnostics.length > 0 || checks.some((check) => check.diagnostics.length > 0)) {
+      if (hasErrorDiagnostics(resolvedEntries.diagnostics) || checks.some((check) => hasErrorDiagnostics(check.diagnostics))) {
         return {
           exitCode: 1,
           stdout: [checks.map(formatCheckResult).join("\n"), formatDiagnostics(resolvedEntries.diagnostics)].join(""),
@@ -241,7 +241,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
 
     const selectedEntry = resolvedEntry.entries[0] ?? entry
     const check = analyzeEntry({ cwd, entry: selectedEntry })
-    if (check.diagnostics.length > 0) {
+    if (hasErrorDiagnostics(check.diagnostics)) {
       return { exitCode: 1, stdout: formatCheckResult(check), stderr: context.stderr }
     }
 
@@ -523,6 +523,7 @@ function checkResolvedEntries(
 
   const results = resolution.entries.map((candidate) => analyzeEntry({ cwd, entry: candidate }))
   const diagnostics = [...resolution.diagnostics, ...results.flatMap((result) => result.diagnostics)]
+  const hasErrors = hasErrorDiagnostics(diagnostics)
   if (options.json) {
     const stdout =
       results.length === 1 && resolution.diagnostics.length === 0
@@ -530,14 +531,14 @@ function checkResolvedEntries(
         : `${JSON.stringify({ entries: results, diagnostics }, null, 2)}\n`
 
     return {
-      exitCode: diagnostics.length === 0 ? 0 : 1,
+      exitCode: hasErrors ? 1 : 0,
       stdout,
       stderr: options.stderr,
     }
   }
 
   return {
-    exitCode: diagnostics.length === 0 ? 0 : 1,
+    exitCode: hasErrors ? 1 : 0,
     stdout: [results.map(formatCheckResult).join("\n"), formatDiagnostics(resolution.diagnostics)].join(""),
     stderr: options.stderr,
   }
@@ -711,7 +712,8 @@ export function expandUrl(template: string, params: { entry: string; caseName: s
 
 function diagnosticsResult(diagnostics: GTSXDiagnostic[]): CLIResult {
   return {
-    exitCode: diagnostics.some((diagnostic) => diagnostic.code.startsWith("missing-strip-script")) ? 0 : 1,
+    exitCode:
+      !hasErrorDiagnostics(diagnostics) || diagnostics.some((diagnostic) => diagnostic.code.startsWith("missing-strip-script")) ? 0 : 1,
     stdout: formatDiagnostics(diagnostics),
     stderr: "",
   }
@@ -719,7 +721,16 @@ function diagnosticsResult(diagnostics: GTSXDiagnostic[]): CLIResult {
 
 function formatDiagnostics(diagnostics: GTSXDiagnostic[]): string {
   if (diagnostics.length === 0) return ""
-  return diagnostics.map((diagnostic) => `[${diagnostic.stage}] ${diagnostic.code}: ${diagnostic.message}`).join("\n") + "\n"
+  return diagnostics.map(formatDiagnostic).join("\n") + "\n"
+}
+
+function formatDiagnostic(diagnostic: GTSXDiagnostic): string {
+  const severity = diagnostic.severity === "warning" ? " warning" : ""
+  return `[${diagnostic.stage}${severity}] ${diagnostic.code}: ${diagnostic.message}`
+}
+
+function hasErrorDiagnostics(diagnostics: GTSXDiagnostic[]): boolean {
+  return diagnostics.some((diagnostic) => diagnostic.severity !== "warning")
 }
 
 function adapterResult(adapter: Awaited<ReturnType<typeof runScriptAdapter>>): CLIResult {
@@ -738,7 +749,7 @@ function formatCheckResult(result: GTSXAnalysisResult): string {
     lines.push(`- ${testCase.name}`)
   }
   for (const diagnostic of result.diagnostics) {
-    lines.push(`[${diagnostic.stage}] ${diagnostic.code}: ${diagnostic.message}`)
+    lines.push(formatDiagnostic(diagnostic))
   }
   return `${lines.join("\n")}\n`
 }

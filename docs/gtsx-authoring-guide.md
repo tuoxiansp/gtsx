@@ -176,7 +176,7 @@ Panel.cases = {
 
 Variants are optional. Use them only when the provider represents a meaningful environment axis such as theme, sign-in state, role, locale, or platform. Omit `variants` for providers that merely pass arbitrary data.
 
-`GProviderCase` is a static marker. It does not inject provider state by itself; `providers: [[Provider, value]]` still supplies the preview context value. Keep the marker and value aligned when the component reads that provider.
+`GProviderCase` is a static marker. It does not inject provider state by itself; `providers: [[Provider, value]]` still supplies the preview context value. Keep the marker and value aligned when the component reads that provider. A case that is orthogonal to the environment axis can remain unmarked, and Studio will treat it as neutral. A case that intentionally covers multiple provider variants can mark a union such as `GProviderCase<typeof UserSignProvider, "login" | "anonymous">`.
 
 You can also use `GProviderCase` on a child that does not read the provider directly when its props are a projection of that environment:
 
@@ -192,6 +192,8 @@ AccountName.cases = {
 ```
 
 If a component consumes a provider with declared variants through `useGContext(Provider)` or a `createGScopeHook(..., [Provider])`, its cases must cover every declared variant.
+
+Projection markers on a child do not replace the consuming parent's coverage. If the parent reads `UserSignProvider` and passes derived props into `AccountName`, the parent still needs cases covering the provider variants. If the child receives provider-derived props but has no matching `GProviderCase` markers, `gtsx check` reports a warning so an agent can decide whether the child is an environment projection or just a neutral props-only component.
 
 ## JSX Branches
 
@@ -285,6 +287,7 @@ gtsx check src                  # directory
 | `missing-provider-variant-cases` | Add cases marked with `GProviderCase` for every consumed provider variant |
 | `missing-provider-variants` | Add `variants: [...]` to the provider or remove the `GProviderCase` marker |
 | `unknown-provider-variant` | Use one of the provider's declared variants |
+| `unmarked-provider-variant-projection` | Warning: inspect whether provider-derived child props need projected `GProviderCase` markers |
 | `opaque-jsx-control-flow` | Rewrite JSX-producing branches as direct props/scope/context expressions |
 | `unknown-jsx-branch-coverage` | Inline the case values that affect JSX reachability; avoid helper variables or spread there |
 | `uncovered-jsx-branch` | Add a case whose props, scope, or provider values make that JSX branch reachable |

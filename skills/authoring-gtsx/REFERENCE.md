@@ -368,6 +368,16 @@ AccountName.cases = {
 
 Use this only when the props really are projections of that provider environment. If the child has no relationship to the provider axis, leave the cases unmarked.
 
+Unmarked cases are neutral in Studio, but they do not count as coverage for a component that consumes the provider. If one case intentionally covers multiple variants, mark the union explicitly:
+
+```tsx
+loading: {
+  props: { status: "loading" },
+} satisfies GProviderCase<typeof UserSignProvider, "login" | "anonymous", Props>
+```
+
+Projection markers on a child do not replace coverage on a parent that directly reads provider context.
+
 ## Case Design Guidelines
 
 ### Name by visual state, not data

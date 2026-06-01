@@ -186,6 +186,49 @@ describe("GTSX analyzer", () => {
     })
   })
 
+  it("warns when provider-derived props flow into unmarked child projection cases", () => {
+    const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/ProviderProjectionParent.g.tsx" })
+
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "unmarked-provider-variant-projection",
+        severity: "warning",
+        stage: "contract-extraction",
+      }),
+    ])
+  })
+
+  it("does not warn when child projection cases mark the provider variants", () => {
+    const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/ProviderProjectionCoveredParent.g.tsx" })
+
+    expect(result.diagnostics).toEqual([])
+  })
+
+  it("allows one case to explicitly cover multiple provider variants", () => {
+    const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/MultiVariantProviderCase.g.tsx" })
+
+    expect(result.diagnostics).toEqual([])
+    expect(result.cases).toEqual([
+      {
+        kind: "pure",
+        name: "loading",
+        providerVariants: { LoginProvider: ["login", "anonymous"] },
+        providers: ["LoginProvider"],
+      },
+    ])
+  })
+
+  it("does not let child projection cases replace parent provider coverage", () => {
+    const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/ProviderProjectionDelegatingMissingCoverage.g.tsx" })
+
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "missing-provider-variant-cases", stage: "contract-extraction" }),
+    )
+    expect(result.diagnostics).not.toContainEqual(
+      expect.objectContaining({ code: "unmarked-provider-variant-projection", severity: "warning" }),
+    )
+  })
+
   it("checks JSX tree reachability against props, scope, and GTSX context cases", () => {
     expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByProps" }).diagnostics).toEqual([])
     expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByScope" }).diagnostics).toEqual([])
@@ -231,6 +274,17 @@ describe("GTSX analyzer", () => {
       cases: [{ name: "neutral" }, { name: "warning" }],
       diagnostics: [],
     })
+  })
+
+  it("keeps projection warnings non-blocking in gtsx check", async () => {
+    const result = await runCLI(["check", "src/ProviderProjectionParent.g.tsx"], {
+      cwd: fixtureRoot,
+      stdout: "",
+      stderr: "",
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain("[contract-extraction warning] unmarked-provider-variant-projection")
   })
 
   it("checks every GTSX entry under a directory", async () => {

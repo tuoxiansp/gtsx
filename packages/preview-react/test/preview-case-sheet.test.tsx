@@ -2,7 +2,12 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import { createGProvider, createGScopeHook } from "@gtsx/core"
-import { GTSXPreviewCaseSheet, type GTSXPreviewComponent } from "../src/index.js"
+import {
+  GTSXPreviewCaseSheet,
+  applyGTSXPreviewRenderTargetRequest,
+  createGTSXPreviewRenderTargetMailboxState,
+  type GTSXPreviewComponent,
+} from "../src/index.js"
 
 describe("GTSXPreviewCaseSheet", () => {
   it("does not turn a missing case scope into an undefined preview override", () => {
@@ -58,5 +63,29 @@ describe("GTSXPreviewCaseSheet", () => {
     )
 
     expect(html).toContain("case provider value")
+  })
+
+  it("gives repeated acknowledged pool renders a fresh request identity", () => {
+    const target = {
+      caseName: "ready",
+      chrome: "0",
+      entry: "src/UserCard.g.tsx#default",
+      sessionId: "src/UserCard.g.tsx#default:ready",
+      staticMode: true,
+    }
+    const first = applyGTSXPreviewRenderTargetRequest(
+      createGTSXPreviewRenderTargetMailboxState(null),
+      target,
+      { acknowledge: true },
+    )
+    const second = applyGTSXPreviewRenderTargetRequest(first.state, target, { acknowledge: true })
+    const prehydrationDuplicate = applyGTSXPreviewRenderTargetRequest(second.state, target, { acknowledge: false })
+
+    expect(first.shouldNotifySubscribers).toBe(true)
+    expect(first.state.currentTarget?.renderRequestSequence).toBe(1)
+    expect(second.shouldNotifySubscribers).toBe(true)
+    expect(second.state.currentTarget?.renderRequestSequence).toBe(2)
+    expect(prehydrationDuplicate.shouldNotifySubscribers).toBe(false)
+    expect(prehydrationDuplicate.state.currentTarget?.renderRequestSequence).toBe(2)
   })
 })

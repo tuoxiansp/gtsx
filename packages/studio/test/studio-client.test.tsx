@@ -91,7 +91,11 @@ import {
   type StudioPreviewRenderRequestClockScheduler,
 } from "../src/studio-preview-render-request-clock.js"
 import { createStudioPreviewRenderObservation } from "../src/studio-preview-render-observation.js"
-import { studioPreviewRenderExpansionCenterViewportPoint } from "../src/use-studio-preview-render-scheduler.js"
+import {
+  studioPreviewRenderExpansionCenterViewportPoint,
+  studioPreviewRenderSchedulerShouldScheduleActiveTimeout,
+  syncRenderPreviewSessionMountedAt,
+} from "../src/use-studio-preview-render-scheduler.js"
 import {
   isRectNearViewport,
   shouldRenderStudioPreview,
@@ -281,6 +285,40 @@ describe("GTSX Studio shell", () => {
     expect(visibleCardsByColumnIndex[0]?.map((entry) => entry.component.coordinate)).toEqual(
       Array.from({ length: 8 }, (_, index) => `src/Card${index.toString().padStart(3, "0")}.g.tsx#default`),
     )
+  })
+
+  it("keeps card shells stable across tiny edge pans when the canvas is zoomed far out", () => {
+    const manifest = buildLargeStudioManifest(1)
+    const workspace = createStudioWorkspaceState(manifest)
+    const component = workspace.columns[0]?.components[0]
+    if (!component) throw new Error("Expected a component")
+    const columnMeasurementsByIndex = {
+      0: {
+        cardRectsByCoordinate: {
+          [component.coordinate]: {
+            bottom: 1100,
+            left: 0,
+            right: 280,
+            top: 1000,
+          },
+        },
+        height: 1100,
+        previewFrameRectsBySessionId: {},
+      },
+    }
+    const cardIndex = studioCanvasCardIndex({ columnMeasurementsByIndex, workspace })
+
+    const coordinatesForPan = (canvasY: number) =>
+      visibleStudioCanvasCardEntriesByColumnIndex({
+        canvas: { x: 0, y: canvasY, scale: 0.05 },
+        cardIndex,
+        columnLayoutByIndex: { 0: { x: 0, y: 0 } },
+        renderBufferMargin: 0,
+        viewportSize: { height: 100, width: 100 },
+      })[0]?.map((entry) => entry.component.coordinate) ?? []
+
+    expect(coordinatesForPan(-54.95)).toEqual([component.coordinate])
+    expect(coordinatesForPan(-55.05)).toEqual([component.coordinate])
   })
 
   it("builds preview visibility items only for the canvas render buffer", () => {
@@ -1378,6 +1416,100 @@ describe("GTSX Studio shell", () => {
     ).toEqual(["visible-active"])
   })
 
+  it("keeps stalled visible previews mounted without spending render budget", () => {
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        activeSessionIds: new Set(),
+        canvas: { x: 0, y: 0, scale: 1 },
+        completedSessionIds: new Set(),
+        currentSessionIds: new Set(["stalled-visible"]),
+        items: [
+          {
+            rect: { bottom: 100, left: 0, right: 100, top: 0 },
+            sessionIds: ["stalled-visible"],
+          },
+        ],
+        maximumConcurrentRenderTasks: 1,
+        maximumRenderTaskCount: 4,
+        viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      })],
+    ).toEqual(["stalled-visible"])
+
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        activeSessionIds: new Set(),
+        canvas: { x: 0, y: 0, scale: 1 },
+        completedSessionIds: new Set(),
+        currentSessionIds: new Set(["stalled-visible"]),
+        items: [
+          {
+            rect: { bottom: 100, left: 0, right: 100, top: 0 },
+            sessionIds: ["stalled-visible", "visible-new"],
+          },
+        ],
+        maximumConcurrentRenderTasks: 1,
+        maximumRenderTaskCount: 4,
+        viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      })],
+    ).toEqual(["stalled-visible", "visible-new"])
+
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        activeSessionIds: new Set(),
+        canvas: { x: 0, y: 0, scale: 1 },
+        completedSessionIds: new Set(),
+        currentSessionIds: new Set(["stalled-visible-a", "stalled-visible-b"]),
+        items: [
+          {
+            rect: { bottom: 100, left: 0, right: 100, top: 0 },
+            sessionIds: ["stalled-visible-a", "stalled-visible-b"],
+          },
+        ],
+        maximumConcurrentRenderTasks: 1,
+        maximumMountedPreviewSessions: 1,
+        maximumRenderTaskCount: 4,
+        viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      })],
+    ).toEqual(["stalled-visible-a", "stalled-visible-b"])
+
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        activeSessionIds: new Set(),
+        canvas: { x: 0, y: 0, scale: 1 },
+        completedSessionIds: new Set(),
+        currentSessionIds: new Set(["stalled-buffered"]),
+        items: [
+          {
+            rect: { bottom: 300, left: 0, right: 100, top: 200 },
+            sessionIds: ["stalled-buffered"],
+          },
+        ],
+        maximumConcurrentRenderTasks: 1,
+        maximumRenderTaskCount: 4,
+        renderBufferMargin: 500,
+        viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      })],
+    ).toEqual([])
+
+    expect(
+      [...queuedStudioPreviewSessionIds({
+        activeSessionIds: new Set(),
+        canvas: { x: 0, y: 0, scale: 1 },
+        completedSessionIds: new Set(["ready-visible"]),
+        currentSessionIds: new Set(["ready-visible"]),
+        items: [
+          {
+            rect: { bottom: 100, left: 0, right: 100, top: 0 },
+            sessionIds: ["ready-visible"],
+          },
+        ],
+        maximumConcurrentRenderTasks: 1,
+        maximumRenderTaskCount: 4,
+        viewport: { bottom: 100, left: 0, right: 100, top: 0 },
+      })],
+    ).toEqual(["ready-visible"])
+  })
+
   it("uses the visible render floor before buffered work during canvas movement", () => {
     expect(
       [...queuedStudioPreviewSessionIds({
@@ -1679,6 +1811,26 @@ describe("GTSX Studio shell", () => {
         visibleSessionIds: ["already-mounted"],
       }).scrollResponse,
     ).toBeUndefined()
+  })
+
+  it("keeps active render timeout scheduling alive for unchanged visible incomplete work", () => {
+    expect(
+      studioPreviewRenderSchedulerShouldScheduleActiveTimeout(false, { hasIncompleteVisibleRenderTasks: true }),
+    ).toBe(true)
+    expect(
+      studioPreviewRenderSchedulerShouldScheduleActiveTimeout(false, { hasIncompleteVisibleRenderTasks: false }),
+    ).toBe(false)
+    expect(
+      studioPreviewRenderSchedulerShouldScheduleActiveTimeout(true, { hasIncompleteVisibleRenderTasks: false }),
+    ).toBe(true)
+  })
+
+  it("records mount time for retained sessions when the scheduler resumes from a store snapshot", () => {
+    const mountedAt = new Map<string, number>()
+
+    syncRenderPreviewSessionMountedAt(mountedAt, new Set(["retained-visible"]), new Set(["retained-visible"]), 12_345)
+
+    expect(mountedAt.get("retained-visible")).toBe(12_345)
   })
 
   it("drives canvas movement and idle visible-first render requests from one request clock", () => {
@@ -3686,6 +3838,66 @@ describe("GTSX Studio shell", () => {
     expect(studioProviderVariantCaseStatus(component, firstCase, { ThemeProvider: "dark" })).toEqual({
       state: "neutral",
     })
+  })
+
+  it("treats unmarked provider variant cases as neutral Studio states", () => {
+    const component = {
+      coordinate: "src/UserPanel.g.tsx#default",
+      filePath: "src/UserPanel.g.tsx",
+      exportName: "default",
+      componentName: "UserPanel",
+      mode: "pure",
+      cases: [
+        {
+          kind: "pure",
+          name: "loading",
+        },
+        {
+          kind: "pure",
+          name: "login",
+          providerVariants: { UserSignProvider: "login" },
+        },
+        {
+          kind: "pure",
+          name: "anonymous",
+          providerVariants: { UserSignProvider: "anonymous" },
+        },
+        {
+          kind: "pure",
+          name: "universal",
+          providerVariants: { UserSignProvider: ["login", "anonymous"] },
+        },
+      ],
+      providers: {
+        UserSignProvider: {
+          name: "UserSignProvider",
+          cases: [],
+          variants: ["login", "anonymous"],
+        },
+      },
+      diagnostics: [],
+    } satisfies StudioManifestComponent
+
+    expect(
+      component.cases.map((testCase) => [
+        testCase.name,
+        studioProviderVariantCaseStatus(component, testCase, { UserSignProvider: "anonymous" }).state,
+      ]),
+    ).toEqual([
+      ["loading", "neutral"],
+      ["login", "mismatch"],
+      ["anonymous", "match"],
+      ["universal", "match"],
+    ])
+    expect(studioPreviewCaseOverridesForProviderVariantContext({
+      diagnostics: [],
+      files: [{ components: [component], diagnostics: [], groupId: "src/UserPanel.g.tsx", path: "src/UserPanel.g.tsx" }],
+      preview: { urlTemplate: "/gtsx" },
+      routes: { manifest: "/gtsx/studio/manifest", preview: "/gtsx", studio: "/gtsx/studio" },
+      version: 1,
+    }, {
+      UserSignProvider: "anonymous",
+    })).toEqual([{ caseName: "anonymous", coordinate: "src/UserPanel.g.tsx#default" }])
   })
 
   it("keeps all cases visible while root and component variants change match state", () => {

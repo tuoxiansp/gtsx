@@ -105,8 +105,11 @@ function styleRootFor(root: Document | ShadowRoot): HTMLElement | ShadowRoot | n
 function createCleanupMutationObserver(documentValue: Document, cleanup: () => void): MutationObserver | undefined {
   if (typeof MutationObserver === "undefined") return undefined
 
+  const target = documentValue.documentElement
+  if (!target || typeof target.nodeType !== "number") return undefined
+
   const observer = new MutationObserver(cleanup)
-  observer.observe(documentValue.documentElement, {
+  observer.observe(target, {
     childList: true,
     subtree: true,
   })
