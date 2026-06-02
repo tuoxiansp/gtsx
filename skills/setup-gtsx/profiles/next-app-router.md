@@ -16,9 +16,9 @@ Do not install `@gtsx/preview-react` directly.
 
 - Wrap config with `gtsxNextReact` from `@gtsx/adapter-next-react`.
 - Pass the project `gtsx.config.ts` to `gtsxNextReact({ config: gtsxConfig })`.
-- The adapter generates `.gtsx/preview-entries.ts` and wires webpack/Turbopack.
-- Design frames live by convention in `project.root/.gtsx/design`; do not add a separate config key for this.
-- During setup, create the empty `project.root/.gtsx/design` directory when the project root exists. Do not add placeholder frames; the first `design-gtsx` request writes the first `.g.tsx` frame.
+- The adapter generates `.gtsx/preview-entries.ts` and wires webpack/Turbopack. Do not add a custom `.g.tsx` Turbopack loader in app code; preview instrumentation is applied only to adapter-generated preview imports.
+- Design frames live by convention in `project.root/gtsx/design`; do not add a separate config key for this.
+- During setup, create the empty `project.root/gtsx/design` directory when the project root exists. Do not add placeholder frames; the first `design-gtsx` request writes the first `.g.tsx` frame.
 - In upgrade/ensure mode, do not rewrite `next.config.*`, `gtsx.config.ts`, or `app/gtsx/*` if they already exist and pass verification; only update packages and add missing design-directory support.
 - After package upgrades, rerun Next.js typecheck/dev verification. If adapter exports, route helper signatures, generated `.gtsx/preview-entries.ts`, or manifest generation changed, migrate only the affected glue while preserving existing route isolation and config-wrapper composition.
 - Preserve existing Next.js config wrappers. If the project exports `withMDX(nextConfig)`, `withContentlayer(nextConfig)`, `createNextIntlPlugin(...)(nextConfig)`, or another wrapper, apply `gtsxNextReact({ config: gtsxConfig })` around the existing composed config.

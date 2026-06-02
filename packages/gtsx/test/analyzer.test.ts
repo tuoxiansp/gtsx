@@ -5,7 +5,9 @@ import { analyzeEntry } from "../src/analyzer.js"
 import { runCLI } from "../src/cli.js"
 
 const fixtureRoot = join(import.meta.dirname, "fixtures/check-project")
+const casesBeforeExportRoot = join(import.meta.dirname, "fixtures/cases-before-export")
 const jsxControlFlowRoot = join(import.meta.dirname, "fixtures/jsx-control-flow")
+const tsProjectScopeRoot = join(import.meta.dirname, "fixtures/ts-project-scope")
 
 describe("GTSX analyzer", () => {
   it("discovers pure component cases through component-level metadata", () => {
@@ -119,6 +121,7 @@ describe("GTSX analyzer", () => {
     const aliasPureDependency = analyzeEntry({ cwd: fixtureRoot, entry: "src/AliasPureDependency.g.tsx" })
     const missingProviderVariant = analyzeEntry({ cwd: fixtureRoot, entry: "src/MissingProviderVariant.g.tsx" })
     const thinWrapper = analyzeEntry({ cwd: fixtureRoot, entry: "src/ThinWrapper.g.tsx" })
+    const casesBeforeExport = analyzeEntry({ cwd: casesBeforeExportRoot, entry: "src/CasesBeforeExport.g.tsx" })
 
     expect(missingDefault.diagnostics).toContainEqual(
       expect.objectContaining({ code: "missing-default-export", stage: "contract-extraction" }),
@@ -161,6 +164,9 @@ describe("GTSX analyzer", () => {
       expect.objectContaining({ code: "missing-provider-variant-cases", stage: "contract-extraction" }),
     )
     expect(thinWrapper.diagnostics).toEqual([])
+    expect(casesBeforeExport.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "cases-before-component-export", stage: "contract-extraction" }),
+    )
   })
 
   it("allows provider variant projection cases without injecting provider values", () => {
@@ -299,5 +305,17 @@ describe("GTSX analyzer", () => {
     expect(result.stdout).toContain("GTSX pure entry: src/corpus/StatusPanel.g.tsx")
     expect(result.stdout).toContain("- neutral")
     expect(result.stdout).toContain("- error")
+  })
+
+  it("checks GTSX design entries in the TypeScript project scope", async () => {
+    const result = await runCLI(["check", "src"], {
+      cwd: tsProjectScopeRoot,
+      stdout: "",
+      stderr: "",
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain("GTSX pure entry: src/gtsx/design/Sketch.g.tsx")
+    expect(result.stdout).toContain("- live")
   })
 })

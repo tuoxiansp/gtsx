@@ -78,6 +78,7 @@ type CasesAssignment = {
   targetName: string
   cases: GTSXCaseSummary[]
   staticCases: GTSXCaseStaticFacts[]
+  statementStart: number
 }
 
 type GTSXCaseStaticFacts = {
@@ -237,6 +238,8 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
       file: options.entry,
     })
   } else {
+    validateCasesAssignmentOrder(sourceFile, componentExportName, componentAssignments, diagnostics, options.entry)
+
     const usedScopeHooks = getGScopeHookCalls(sourceFile, componentExportName, scopeHookNames)
     if (usedScopeHooks.length > 1) {
       diagnostics.push({
@@ -480,6 +483,46 @@ function getScopeHookNames(sourceFile: ts.SourceFile): Set<string> {
   }
 
   return names
+}
+
+function validateCasesAssignmentOrder(
+  sourceFile: ts.SourceFile,
+  componentName: string,
+  assignments: CasesAssignment[],
+  diagnostics: GTSXDiagnostic[],
+  file: string,
+) {
+  const declarationStart = topLevelValueDeclarationStart(sourceFile, componentName)
+  if (declarationStart === undefined) return
+
+  for (const assignment of assignments) {
+    if (assignment.targetName !== componentName || assignment.statementStart >= declarationStart) continue
+
+    diagnostics.push({
+      stage: "contract-extraction",
+      code: "cases-before-component-export",
+      message: `Move ${componentName}.cases after the "${componentName}" component declaration. GTSX component boundaries are initialized at runtime, so cases cannot rely on function hoisting.`,
+      file,
+    })
+  }
+}
+
+function topLevelValueDeclarationStart(sourceFile: ts.SourceFile, name: string): number | undefined {
+  for (const statement of sourceFile.statements) {
+    if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name?.text === name) {
+      return statement.getStart(sourceFile)
+    }
+
+    if (!ts.isVariableStatement(statement)) continue
+
+    for (const declaration of statement.declarationList.declarations) {
+      if (ts.isIdentifier(declaration.name) && declaration.name.text === name) {
+        return statement.getStart(sourceFile)
+      }
+    }
+  }
+
+  return undefined
 }
 
 function getScopeHookProviderNamesForFile(
@@ -2781,11 +2824,12 @@ function getCasesAssignment(
       message: "GTSX cases must be a statically enumerable object literal.",
       file: sourceFile.fileName,
     })
-    return { targetName: expression.left.expression.text, cases: [], staticCases: [] }
+    return { targetName: expression.left.expression.text, cases: [], staticCases: [], statementStart: statement.getStart(sourceFile) }
   }
 
   return {
     targetName: expression.left.expression.text,
+    statementStart: statement.getStart(sourceFile),
     ...readCasesObject(casesExpression, sourceFile, diagnostics),
   }
 }

@@ -25,6 +25,7 @@ export const GTSX_REACT_COMPONENT_FILE_EXTENSION = ".g.tsx"
 export type GTSXReactTransformInput = {
   code: string
   filePath: string
+  previewImportQuery?: string
   root: string
 }
 
@@ -95,46 +96,56 @@ export function transformGTSXComponentBoundaries(input: GTSXReactTransformInput)
     insertions.push(...boundary.insertions)
   }
 
-  if (replacements.length === 0) return input.code
+  const previewReplacements = input.previewImportQuery ? previewServerMarkerReplacements(sourceFile) : []
+  const previewInsertions = input.previewImportQuery ? previewImportQueryInsertions(sourceFile, input.previewImportQuery) : []
+  const hasComponentBoundaries = replacements.length > 0
 
-  for (const boundary of boundaries.values()) {
-    if (boundary.exportKind === "default") {
-      continue
-    }
-
-    if (boundary.exportKind === "named" || boundary.exportKind === "local") {
-      const exportPrefix = boundary.exportKind === "named" ? "export " : ""
-      insertions.push({
-        index: boundary.statement.end,
-        text: `\n${exportPrefix}const ${boundary.componentName} = __gtsxDefineGComponent(${JSON.stringify(`${coordinateFile}#${boundary.exportName}`)}, ${boundary.implementationName})\n`,
-      })
-    }
+  if (!hasComponentBoundaries && previewReplacements.length === 0 && previewInsertions.length === 0) {
+    return input.code
   }
 
-  for (const statement of sourceFile.statements) {
-    if (!ts.isExportAssignment(statement) || !ts.isIdentifier(statement.expression)) continue
+  if (hasComponentBoundaries) {
+    for (const boundary of boundaries.values()) {
+      if (boundary.exportKind === "default") {
+        continue
+      }
 
-    const boundary = boundaries.get(statement.expression.text)
-    if (!boundary || boundary.exportKind === "default") continue
+      if (boundary.exportKind === "named" || boundary.exportKind === "local") {
+        const exportPrefix = boundary.exportKind === "named" ? "export " : ""
+        insertions.push({
+          index: boundary.statement.end,
+          text: `\n${exportPrefix}const ${boundary.componentName} = __gtsxDefineGComponent(${JSON.stringify(`${coordinateFile}#${boundary.exportName}`)}, ${boundary.implementationName})\n`,
+        })
+      }
+    }
 
-    const defaultComponentName = `${boundary.componentName}GTSXDefault`
-    replacements.push({
-      start: statement.getStart(sourceFile),
-      end: statement.end,
-      text: `const ${defaultComponentName} = __gtsxDefineGComponent(${JSON.stringify(`${coordinateFile}#default`)}, ${boundary.implementationName})\n${defaultComponentName}.cases = ${boundary.componentName}.cases\nexport default ${defaultComponentName}`,
+    for (const statement of sourceFile.statements) {
+      if (!ts.isExportAssignment(statement) || !ts.isIdentifier(statement.expression)) continue
+
+      const boundary = boundaries.get(statement.expression.text)
+      if (!boundary || boundary.exportKind === "default") continue
+
+      const defaultComponentName = `${boundary.componentName}GTSXDefault`
+      replacements.push({
+        start: statement.getStart(sourceFile),
+        end: statement.end,
+        text: `const ${defaultComponentName} = __gtsxDefineGComponent(${JSON.stringify(`${coordinateFile}#default`)}, ${boundary.implementationName})\n${defaultComponentName}.cases = ${boundary.componentName}.cases\nexport default ${defaultComponentName}`,
+      })
+    }
+
+    const importInsertionIndex = directivePrologueEnd(sourceFile)
+    insertions.push({
+      index: importInsertionIndex,
+      text: `${importInsertionIndex === 0 ? "" : "\n"}import { defineGComponent as __gtsxDefineGComponent } from "@gtsx/core"\n`,
     })
   }
 
-  const importInsertionIndex = directivePrologueEnd(sourceFile)
-  insertions.push({
-    index: importInsertionIndex,
-    text: `${importInsertionIndex === 0 ? "" : "\n"}import { defineGComponent as __gtsxDefineGComponent } from "@gtsx/core"\n`,
+  const output = applyEdits(input.code, {
+    replacements: [...replacements, ...previewReplacements],
+    insertions: [...insertions, ...previewInsertions],
   })
 
-  return applyEdits(input.code, {
-    replacements,
-    insertions,
-  })
+  return output
 }
 
 function functionDeclarationBoundary(input: {
@@ -257,6 +268,90 @@ function isFunctionLikeVariableInitializer(node: ts.Expression | undefined): boo
   return Boolean(node && (ts.isArrowFunction(node) || ts.isFunctionExpression(node)))
 }
 
+function previewImportQueryInsertions(sourceFile: ts.SourceFile, query: string): Insertion[] {
+  const insertions: Insertion[] = []
+
+  for (const statement of sourceFile.statements) {
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
+      const specifier = statement.moduleSpecifier.text
+      if (shouldAppendPreviewImportQuery(specifier, query)) {
+        insertions.push({
+          index: statement.moduleSpecifier.getEnd() - 1,
+          text: previewImportQuerySuffix(specifier, query),
+        })
+      }
+      continue
+    }
+
+    if (ts.isExportDeclaration(statement) && statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)) {
+      const specifier = statement.moduleSpecifier.text
+      if (shouldAppendPreviewImportQuery(specifier, query)) {
+        insertions.push({
+          index: statement.moduleSpecifier.getEnd() - 1,
+          text: previewImportQuerySuffix(specifier, query),
+        })
+      }
+    }
+  }
+
+  return insertions
+}
+
+function shouldAppendPreviewImportQuery(specifier: string, query: string): boolean {
+  if (specifier.includes(query)) return false
+
+  const path = specifier.split("?", 1)[0] ?? specifier
+  return path.endsWith(".g") || path.endsWith(".g.tsx") || path.endsWith(".g.ts")
+}
+
+function previewImportQuerySuffix(specifier: string, query: string): string {
+  return `${specifier.includes("?") ? "&" : "?"}${query}`
+}
+
+function previewServerMarkerReplacements(sourceFile: ts.SourceFile): Replacement[] {
+  const replacements: Replacement[] = []
+
+  for (const statement of sourceFile.statements) {
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && statement.moduleSpecifier.text === "server-only") {
+      replacements.push({
+        start: statement.getStart(sourceFile),
+        end: statement.end,
+        text: "",
+      })
+    }
+  }
+
+  visit(sourceFile)
+  return replacements
+
+  function visit(node: ts.Node) {
+    if (isStringLiteralExpressionStatement(node) && isPreviewServerDirective(node.expression.text)) {
+      replacements.push({
+        start: node.getStart(sourceFile),
+        end: node.end,
+        text: "",
+      })
+    }
+
+    ts.forEachChild(node, visit)
+  }
+}
+
+function isPreviewServerDirective(value: string): boolean {
+  return value === "use server" || value === "use cache" || value.startsWith("use cache:")
+}
+
+export function transpileGTSXReactModuleCode(input: { code: string; filePath: string }): string {
+  return ts.transpileModule(input.code, {
+    compilerOptions: {
+      jsx: ts.JsxEmit.ReactJSX,
+      module: ts.ModuleKind.ESNext,
+      target: ts.ScriptTarget.ES2020,
+    },
+    fileName: input.filePath,
+  }).outputText
+}
+
 
 function readDefaultExportAssignments(sourceFile: ts.SourceFile): Set<string> {
   const names = new Set<string>()
@@ -297,8 +392,8 @@ function directivePrologueEnd(sourceFile: ts.SourceFile): number {
   return insertionIndex
 }
 
-function isStringLiteralExpressionStatement(statement: ts.Statement): statement is ts.ExpressionStatement {
-  return ts.isExpressionStatement(statement) && ts.isStringLiteral(statement.expression)
+function isStringLiteralExpressionStatement(node: ts.Node): node is ts.ExpressionStatement & { expression: ts.StringLiteral } {
+  return ts.isExpressionStatement(node) && ts.isStringLiteral(node.expression)
 }
 
 function toCoordinateFile(root: string, filePath: string): string {

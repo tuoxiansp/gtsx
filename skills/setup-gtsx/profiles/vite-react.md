@@ -17,8 +17,8 @@ Do not install `@gtsx/preview-react` directly.
 - Configure `gtsxViteReact` from `@gtsx/adapter-vite-react`.
 - Pass the project `gtsx.config.ts` to `gtsxViteReact({ config: gtsxConfig })`.
 - If the root `tsconfig.json` is a references container, set `project.tsconfig` to the app config that includes React files, usually `tsconfig.app.json`.
-- Design frames live by convention in `project.root/.gtsx/design`; do not add a separate config key for this.
-- During setup, create the empty `project.root/.gtsx/design` directory when the project root exists. Do not add placeholder frames; the first `design-gtsx` request writes the first `.g.tsx` frame.
+- Design frames live by convention in `project.root/gtsx/design`; do not add a separate config key for this.
+- During setup, create the empty `project.root/gtsx/design` directory when the project root exists. Do not add placeholder frames; the first `design-gtsx` request writes the first `.g.tsx` frame.
 - In upgrade/ensure mode, do not rewrite `vite.config.*`, `gtsx.config.ts`, browser-entry branches, or `src/preview.tsx` if they already exist and pass verification; only update packages and add missing design-directory support.
 - After package upgrades, rerun Vite typecheck/dev verification. If adapter exports, virtual modules, preview loader signatures, or manifest generation changed, migrate only the affected glue while preserving the existing app render path.
 - Preserve the existing application render path. Only `/gtsx` renders the preview app and only `/gtsx/studio` renders Studio.
@@ -113,10 +113,7 @@ import {
 } from "@gtsx/adapter-vite-react/preview"
 import gtsxConfig from "virtual:gtsx/config"
 
-const modules = import.meta.glob<GTSXPreviewModule>([
-  "./**/*.g.tsx",
-  "./.gtsx/design/**/*.g.tsx",
-])
+const modules = import.meta.glob<GTSXPreviewModule>("./**/*.g.tsx")
 const loadPreviewComponent = createGTSXVitePreviewComponentLoader(modules, {
   projectRoot: gtsxConfig.project.root,
 })

@@ -35,7 +35,7 @@ export function createStudioManifestProvider(options: CreateStudioManifestProvid
 }
 
 export function discoverStudioDesignManifest(cwd: string, projectRoot = "src"): StudioDesignManifest {
-  const designRoot = join(cwd, projectRoot, ".gtsx", "design")
+  const designRoot = join(cwd, projectRoot, "gtsx", "design")
   const frames = existsSync(designRoot)
     ? listStudioDesignEntryFiles(designRoot).map((absoluteFilePath) => {
         const filePath = relative(cwd, absoluteFilePath).split(sep).join("/")

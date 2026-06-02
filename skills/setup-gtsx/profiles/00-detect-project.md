@@ -66,7 +66,7 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 - Preserve existing route files, config wrappers, browser-entry branches, URL conventions, preview commands, and local customizations.
 - Change glue only when typecheck, adapter exports/types, package examples/docs, generated-file errors, or runtime verification show that a version migration is required.
 - If the adapter package or wrapper must change, preserve the existing wrapper composition order and explain the change.
-- Ensure the conventional design directory exists at `project.root/.gtsx/design`.
+- Ensure the conventional design directory exists at `project.root/gtsx/design`.
 - Verify the integration and report which existing glue files were intentionally left unchanged.
 
 ## Common Configuration Rules
@@ -87,7 +87,7 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 3. Start the host dev server.
 4. Open `/gtsx/studio`.
 5. Open `/gtsx/studio#/design`.
-6. Confirm the manifest contains only TypeScript Program `.g.tsx` component entries plus design frames from `project.root/.gtsx/design`. A setup-only project may legitimately have zero entries; Studio should show its empty state.
+6. Confirm the manifest contains TypeScript Program `.g.tsx` entries, including design frames from `project.root/gtsx/design` when present. A setup-only project may legitimately have zero entries; Studio should show its empty state.
 7. If at least one `.g.tsx` entry exists, open one `/gtsx?...` preview URL.
 8. Confirm no `Missing entry`, `Unknown gtsx entry`, or `Unknown gtsx case` errors.
 9. Run `gtsx capture` when configured.

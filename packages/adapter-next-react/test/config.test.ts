@@ -30,6 +30,7 @@ describe("gtsx Next React adapter", () => {
     expect(webpackRule?.enforce).toBe("pre")
     expect(webpackRule?.use?.[0]?.loader).toContain("loader.cjs")
     expect(webpackRule?.use?.[0]?.options).toEqual({
+      previewQuery: "gtsx-preview",
       root: "/repo",
       transformPath: expect.stringContaining("react-transform.js"),
     })
@@ -40,10 +41,14 @@ describe("gtsx Next React adapter", () => {
       loaders: [
         {
           loader: expect.stringContaining("loader.cjs"),
-          options: { root: "/repo", transformPath: expect.stringContaining("react-transform.js") },
+          options: {
+            previewQuery: "gtsx-preview",
+            root: "/repo",
+            transformPath: expect.stringContaining("react-transform.js"),
+            transpilePreview: true,
+          },
         },
       ],
-      as: "*.tsx",
     })
     expect(config.turbopack?.resolveAlias?.["@gtsx/adapter-next-react/preview-entries"]).toBe("./.gtsx/preview-entries.ts")
   })
@@ -77,10 +82,14 @@ describe("gtsx Next React adapter", () => {
       loaders: [
         {
           loader: expect.stringContaining("loader.cjs"),
-          options: { root: "/repo", transformPath: expect.stringContaining("react-transform.js") },
+          options: {
+            previewQuery: "gtsx-preview",
+            root: "/repo",
+            transformPath: expect.stringContaining("react-transform.js"),
+            transpilePreview: true,
+          },
         },
       ],
-      as: "*.tsx",
     })
     expect((turboRule as unknown[])[1]).toEqual({ loaders: ["other-loader"], as: "*.tsx" })
   })
@@ -157,8 +166,8 @@ describe("gtsx Next React adapter", () => {
       gtsxNextReact({ root })({})
 
       const output = readFileSync(join(root, ".gtsx/preview-entries.ts"), "utf8")
-      expect(output).toContain('"src/components/ui/Menu.g.tsx": () => import("../src/components/ui/Menu.g")')
-      expect(output).toContain('"src/components/ui/Toast.g.tsx": () => import("../src/components/ui/Toast.g")')
+      expect(output).toContain('"src/components/ui/Menu.g.tsx": () => import("../src/components/ui/Menu.g?gtsx-preview")')
+      expect(output).toContain('"src/components/ui/Toast.g.tsx": () => import("../src/components/ui/Toast.g?gtsx-preview")')
       expect(output).not.toContain("Ignored")
       expect(output).toContain("export async function loadGTSXPreviewComponent")
     } finally {
@@ -169,16 +178,16 @@ describe("gtsx Next React adapter", () => {
   it("includes the convention design workspace entry under the project root when present", () => {
     const root = mkdtempSync(join(tmpdir(), "gtsx-next-design-registry-"))
     try {
-      mkdirSync(join(root, "src/.gtsx/design"), { recursive: true })
+      mkdirSync(join(root, "src/gtsx/design"), { recursive: true })
       mkdirSync(join(root, "src/components/ui"), { recursive: true })
-      writeFileSync(join(root, "src/.gtsx/design/DesignHost.g.tsx"), "export default function DesignHost() { return null }\n")
+      writeFileSync(join(root, "src/gtsx/design/DesignHost.g.tsx"), "export default function DesignHost() { return null }\n")
       writeFileSync(join(root, "src/components/ui/Toast.g.tsx"), "export default function Toast() { return null }\n")
 
       gtsxNextReact({ root })({})
 
       const output = readFileSync(join(root, ".gtsx/preview-entries.ts"), "utf8")
-      expect(output).toContain('"src/.gtsx/design/DesignHost.g.tsx": () => import("../src/.gtsx/design/DesignHost.g")')
-      expect(output).toContain('"src/components/ui/Toast.g.tsx": () => import("../src/components/ui/Toast.g")')
+      expect(output).toContain('"src/gtsx/design/DesignHost.g.tsx": () => import("../src/gtsx/design/DesignHost.g?gtsx-preview")')
+      expect(output).toContain('"src/components/ui/Toast.g.tsx": () => import("../src/components/ui/Toast.g?gtsx-preview")')
     } finally {
       rmSync(root, { force: true, recursive: true })
     }

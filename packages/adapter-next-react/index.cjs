@@ -6,7 +6,7 @@ const { dirname, relative, resolve, sep } = require("node:path")
 const defaultPreviewEntriesModuleId = "@gtsx/adapter-next-react/preview-entries"
 const defaultPreviewEntriesOutputFile = ".gtsx/preview-entries.ts"
 const ignoredPreviewEntryDirs = new Set(["node_modules", "dist", ".next", ".git", ".gtsx"])
-const defaultPreviewDesignDirectory = ".gtsx/design"
+const previewImportQuery = "gtsx-preview"
 
 function gtsxNextReact(options = {}) {
   const root = options.root ?? process.cwd()
@@ -35,7 +35,7 @@ function gtsxNextReact(options = {}) {
         resolvedConfig.module.rules.unshift({
           test: /\.g\.tsx$/,
           enforce: "pre",
-          use: [{ loader: loaderPath, options: { root, transformPath } }],
+          use: [{ loader: loaderPath, options: { previewQuery: previewImportQuery, root, transformPath } }],
         })
         return resolvedConfig
       },
@@ -52,8 +52,7 @@ function gtsxNextReact(options = {}) {
 
 function withGTSXTurbopackConfig(turbopack, loaderPath, root, transformPath, previewEntries) {
   const gtsxRule = {
-    loaders: [{ loader: loaderPath, options: { root, transformPath } }],
-    as: "*.tsx",
+    loaders: [{ loader: loaderPath, options: { previewQuery: previewImportQuery, root, transformPath, transpilePreview: true } }],
   }
   const rules = turbopack?.rules ?? {}
 
@@ -103,7 +102,6 @@ function discoverGTSXPreviewFiles(root, projectRoot) {
   const files = []
 
   collectGTSXPreviewFiles(resolve(root, projectRoot), files)
-  collectGTSXPreviewFiles(resolve(root, projectRoot, defaultPreviewDesignDirectory), files)
 
   return files.map((filePath) => relative(root, filePath).split(sep).join("/")).sort((left, right) => left.localeCompare(right))
 }
@@ -132,7 +130,7 @@ function collectGTSXPreviewFiles(directory, files) {
 function createGTSXNextPreviewEntriesModule(root, outputPath, files) {
   const entries = files.map((filePath) => {
     const absoluteFilePath = resolve(root, filePath)
-    return `  ${JSON.stringify(filePath)}: () => import(${JSON.stringify(toGeneratedImportSpecifier(outputPath, absoluteFilePath))}),`
+    return `  ${JSON.stringify(filePath)}: () => import(${JSON.stringify(toGeneratedImportSpecifier(outputPath, absoluteFilePath, previewImportQuery))}),`
   })
 
   return `import type { GTSXPreviewComponent } from "@gtsx/adapter-next-react/preview"
@@ -162,10 +160,11 @@ export function parseGTSXPreviewEntry(entry: string): { file: string; exportName
 `
 }
 
-function toGeneratedImportSpecifier(outputPath, absoluteFilePath) {
+function toGeneratedImportSpecifier(outputPath, absoluteFilePath, previewQuery) {
   const extensionless = absoluteFilePath.replace(/\.tsx$/, "")
   const relativePath = relative(dirname(outputPath), extensionless).split(sep).join("/")
-  return relativePath.startsWith(".") ? relativePath : `./${relativePath}`
+  const specifier = relativePath.startsWith(".") ? relativePath : `./${relativePath}`
+  return `${specifier}?${previewQuery}`
 }
 
 function toTurbopackResolveAliasPath(root, outputPath) {

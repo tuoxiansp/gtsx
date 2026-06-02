@@ -202,25 +202,25 @@ describe("GTSX Studio manifest", () => {
     const cwd = mkdtempSync(join(tmpdir(), "gtsx-studio-design-"))
 
     try {
-      mkdirSync(join(cwd, "components/.gtsx/design/nested"), { recursive: true })
-      writeFileSync(join(cwd, "components/.gtsx/design/DesignHost.g.tsx"), "export default function DesignHost() { return null }\n")
-      writeFileSync(join(cwd, "components/.gtsx/design/current-design.tsx"), "export function CurrentDesign() { return null }\n")
-      writeFileSync(join(cwd, "components/.gtsx/design/nested/SecondFrame.g.tsx"), "export default function SecondFrame() { return null }\n")
+      mkdirSync(join(cwd, "components/gtsx/design/nested"), { recursive: true })
+      writeFileSync(join(cwd, "components/gtsx/design/DesignHost.g.tsx"), "export default function DesignHost() { return null }\n")
+      writeFileSync(join(cwd, "components/gtsx/design/current-design.tsx"), "export function CurrentDesign() { return null }\n")
+      writeFileSync(join(cwd, "components/gtsx/design/nested/SecondFrame.g.tsx"), "export default function SecondFrame() { return null }\n")
 
       expect(discoverStudioDesignManifest(cwd, "components")).toEqual({
         frames: [
           {
-            id: "components/.gtsx/design/DesignHost.g.tsx#default",
-            entry: "components/.gtsx/design/DesignHost.g.tsx#default",
-            filePath: "components/.gtsx/design/DesignHost.g.tsx",
+            id: "components/gtsx/design/DesignHost.g.tsx#default",
+            entry: "components/gtsx/design/DesignHost.g.tsx#default",
+            filePath: "components/gtsx/design/DesignHost.g.tsx",
             title: "DesignHost",
             exportName: "default",
             caseName: "live",
           },
           {
-            id: "components/.gtsx/design/nested/SecondFrame.g.tsx#default",
-            entry: "components/.gtsx/design/nested/SecondFrame.g.tsx#default",
-            filePath: "components/.gtsx/design/nested/SecondFrame.g.tsx",
+            id: "components/gtsx/design/nested/SecondFrame.g.tsx#default",
+            entry: "components/gtsx/design/nested/SecondFrame.g.tsx#default",
+            filePath: "components/gtsx/design/nested/SecondFrame.g.tsx",
             title: "SecondFrame",
             exportName: "default",
             caseName: "live",
@@ -248,13 +248,21 @@ describe("GTSX Studio manifest", () => {
       tsconfigPath: join(tsProjectScopeRoot, "tsconfig.json"),
     })
 
-    expect(manifest.files.map((file) => file.path)).toEqual(["src/Child.g.tsx", "src/Included.g.tsx"])
+    expect(manifest.files.map((file) => file.path)).toEqual([
+      "src/Child.g.tsx",
+      "src/gtsx/design/Sketch.g.tsx",
+      "src/Included.g.tsx",
+    ])
   })
 
   it("builds files from the nearest TypeScript project scope by default", () => {
     const manifest = buildStudioManifest({ cwd: tsProjectScopeRoot })
 
-    expect(manifest.files.map((file) => file.path)).toEqual(["src/Child.g.tsx", "src/Included.g.tsx"])
+    expect(manifest.files.map((file) => file.path)).toEqual([
+      "src/Child.g.tsx",
+      "src/gtsx/design/Sketch.g.tsx",
+      "src/Included.g.tsx",
+    ])
   })
 
   it("lists multiple component exports from one file", () => {

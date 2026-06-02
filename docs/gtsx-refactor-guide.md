@@ -121,6 +121,58 @@ Order.cases = {
 
 Extract separate `.ts` modules only for shared business logic, reusable hooks, or service calls. Do not bulk-generate `*.impl.tsx` files as a migration escape hatch.
 
+## Split: Server Components
+
+Server Components often mix request-time work with visual JSX. Do not try to preview the server work. Split the visual surface into a `.g.tsx` export that can run in the client preview graph, and keep request APIs in the server entry.
+
+Before:
+
+```tsx
+// Profile.tsx
+import "server-only"
+import { cookies } from "next/headers"
+
+export default async function Profile() {
+  const cookieStore = await cookies()
+  const user = await loadUser(cookieStore)
+  return <main>{user.name}</main>
+}
+```
+
+After:
+
+```tsx
+// Profile.tsx
+import { cookies } from "next/headers"
+import { ProfileView } from "./ProfileView.g"
+
+export default async function Profile() {
+  const cookieStore = await cookies()
+  const user = await loadUser(cookieStore)
+  return <ProfileView userName={user.name} />
+}
+```
+
+```tsx
+// ProfileView.g.tsx
+import "server-only"
+import type { GCases } from "@gtsx/core"
+
+type ProfileViewProps = {
+  userName: string
+}
+
+export function ProfileView(props: ProfileViewProps) {
+  return <main>{props.userName}</main>
+}
+
+ProfileView.cases = {
+  ready: { props: { userName: "Ada" } },
+} satisfies GCases<ProfileViewProps>
+```
+
+The preview transform removes preview-only blockers such as a top-level `"use server"` directive, nested server action directives, `"use cache..."` cache directives, and `import "server-only"` marker imports. It does not remove real server APIs such as `next/headers`, database clients, filesystem access, or secrets. If those are still imported by the `.g.tsx` visual module, the client preview should fail; move that work back behind props, scope, or providers.
+
 ## Anti-Patterns
 
 Never produce these as migrations:

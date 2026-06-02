@@ -177,6 +177,98 @@ Second.cases = {
     expect(output).toContain('export const Second = __gtsxDefineGComponent("src/Multi.g.tsx#Second", SecondGTSXImpl)')
   })
 
+  it("can emit a preview graph without changing ordinary imports", () => {
+    const output = transformGTSXComponentBoundaries({
+      root,
+      filePath: "/repo/src/Card.g.tsx",
+      previewImportQuery: "gtsx-preview",
+      code: `
+import { Child } from "./Child.g"
+import { Other } from "./Other"
+import { AliasChild } from "@fixture/Child.g"
+import type { ChildProps } from "./Child.g"
+export { Badge } from "@/components/Badge.g"
+
+export function Card(props: ChildProps) {
+  return <><Child {...props} /><AliasChild {...props} /></>
+}
+
+Card.cases = {
+  ready: { props: { label: "Ready" } },
+}
+`,
+    })
+
+    expect(output.startsWith('"use client"\n')).toBe(false)
+    expect(output).toContain('from "./Child.g?gtsx-preview"')
+    expect(output).toContain('from "./Other"')
+    expect(output).toContain('from "@fixture/Child.g?gtsx-preview"')
+    expect(output).toContain('from "@/components/Badge.g?gtsx-preview"')
+    expect(output).toContain('export const Card = __gtsxDefineGComponent("src/Card.g.tsx#Card", CardGTSXImpl)')
+  })
+
+  it("propagates preview queries through wrapper files without cases", () => {
+    const code = `
+import { Child } from "./Child.g"
+export { Badge } from "@fixture/Badge.g"
+
+export function Wrapper() {
+  return <Child label="Ready" />
+}
+`
+
+    const output = transformGTSXComponentBoundaries({
+      root,
+      filePath: "/repo/src/Wrapper.g.tsx",
+      previewImportQuery: "gtsx-preview",
+      code,
+    })
+
+    expect(output).toContain('from "./Child.g?gtsx-preview"')
+    expect(output).toContain('from "@fixture/Badge.g?gtsx-preview"')
+    expect(output).not.toContain("@gtsx/core")
+    expect(output).not.toContain("__gtsxDefineGComponent")
+    expect(transformGTSXReactModule({ root, filePath: "/repo/src/Wrapper.g.tsx", previewImportQuery: "gtsx-preview", code })).toEqual({
+      code: output,
+      filePath: "/repo/src/Wrapper.g.tsx",
+    })
+  })
+
+  it("removes server-only preview markers from preview graphs", () => {
+    const output = transformGTSXComponentBoundaries({
+      root,
+      filePath: "/repo/src/Card.g.tsx",
+      previewImportQuery: "gtsx-preview",
+      code: `
+"use server"
+"use cache: private"
+
+import "server-only"
+import { Child } from "./Child.g"
+
+async function saveCard() {
+  "use server"
+}
+
+export function Card() {
+  void saveCard
+  return <Child label="Ready" />
+}
+
+Card.cases = {
+  ready: { props: {} },
+}
+`,
+    })
+
+    expect(output).not.toContain('"use server"')
+    expect(output).not.toContain('"use cache: private"')
+    expect(output).not.toContain('import "server-only"')
+    expect(output).not.toContain('"use client"')
+    expect(output).toContain('from "./Child.g?gtsx-preview"')
+    expect(output).toContain('export const Card = __gtsxDefineGComponent("src/Card.g.tsx#Card", CardGTSXImpl)')
+  })
+
   it("leaves component exports without cases untouched", () => {
     const code = `
 export function PlainComponent() {

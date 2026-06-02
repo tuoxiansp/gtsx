@@ -8,16 +8,30 @@ module.exports = function gtsxNextReactLoader(source, inputSourceMap) {
   const root = typeof options.root === "string" ? options.root : process.cwd()
   const transformModule = typeof options.transformPath === "string" ? pathToFileURL(options.transformPath).href : "@gtsx/core/react-transform"
   const filePath = this.resourcePath
+  const previewQuery = typeof options.previewQuery === "string" ? options.previewQuery : "gtsx-preview"
+  const isPreviewImport = hasResourceQuery(this.resourceQuery, previewQuery)
+  const shouldTranspilePreview = options.transpilePreview !== false
   const code = Buffer.isBuffer(source) ? source.toString("utf8") : String(source)
 
+  if (!isPreviewImport) {
+    callback(null, code, inputSourceMap)
+    return
+  }
+
   import(transformModule).then(
-    ({ transformGTSXReactModule }) => {
+    ({ transformGTSXReactModule, transpileGTSXReactModuleCode }) => {
       const transformed = transformGTSXReactModule({
         code,
         filePath,
+        previewImportQuery: previewQuery,
         root,
       })
-      callback(null, transformed?.code ?? code, inputSourceMap)
+      const output = transformed?.code ?? code
+      const finalOutput =
+        shouldTranspilePreview && typeof transpileGTSXReactModuleCode === "function"
+          ? transpileGTSXReactModuleCode({ code: output, filePath })
+          : output
+      callback(null, finalOutput, inputSourceMap)
     },
     (error) => {
       callback(error)
@@ -35,4 +49,10 @@ function readLoaderOptions(context) {
   }
 
   return context.query
+}
+
+function hasResourceQuery(resourceQuery, queryName) {
+  if (typeof resourceQuery !== "string" || resourceQuery.length === 0) return false
+  const query = resourceQuery.startsWith("?") ? resourceQuery.slice(1) : resourceQuery
+  return query.split("&").some((part) => part === queryName || part.startsWith(`${queryName}=`))
 }

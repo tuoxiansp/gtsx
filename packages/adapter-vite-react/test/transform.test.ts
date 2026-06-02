@@ -68,7 +68,11 @@ Card.cases = {
     const loaded = plugin.load(resolvedId)
     const projectIndex = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
 
-    expect(projectIndex.files.map((file) => file.path)).toEqual(["src/Child.g.tsx", "src/Included.g.tsx"])
+    expect(projectIndex.files.map((file) => file.path)).toEqual([
+      "src/Child.g.tsx",
+      "src/gtsx/design/Sketch.g.tsx",
+      "src/Included.g.tsx",
+    ])
   })
 
   it("loads project indexes from the nearest TypeScript project scope by default", () => {
@@ -80,7 +84,11 @@ Card.cases = {
     const loaded = plugin.load(resolvedId)
     const projectIndex = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
 
-    expect(projectIndex.files.map((file) => file.path)).toEqual(["src/Child.g.tsx", "src/Included.g.tsx"])
+    expect(projectIndex.files.map((file) => file.path)).toEqual([
+      "src/Child.g.tsx",
+      "src/gtsx/design/Sketch.g.tsx",
+      "src/Included.g.tsx",
+    ])
   })
 
   it("loads resolved gtsx config through a virtual module", () => {
@@ -133,13 +141,13 @@ Card.cases = {
       return null
     }
     const modules: Record<string, () => Promise<GTSXPreviewModule>> = {
-      "./.gtsx/design/GiftFeature.g.tsx": async () => ({ default: Card }),
+      "./gtsx/design/GiftFeature.g.tsx": async () => ({ default: Card }),
       "./components/Card.g.tsx": async () => ({ default: Card }),
     }
     const loadComponent = createGTSXVitePreviewComponentLoader(modules, { projectRoot: "src" })
 
     await expect(loadComponent("src/components/Card.g.tsx#default")).resolves.toBe(Card)
-    await expect(loadComponent("src/.gtsx/design/GiftFeature.g.tsx#default")).resolves.toBe(Card)
+    await expect(loadComponent("src/gtsx/design/GiftFeature.g.tsx#default")).resolves.toBe(Card)
     await expect(loadComponent("src/components/Missing.g.tsx#default")).resolves.toBeUndefined()
   })
 })

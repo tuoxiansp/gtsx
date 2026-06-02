@@ -284,7 +284,7 @@ function StudioDesignWorkspaceView(props: StudioDesignWorkspaceProps) {
               }}
             >
               <strong style={{ color: studioColors.text, fontSize: 12, fontWeight: 600 }}>No design frames</strong>
-              <span>&lt;project.root&gt;/.gtsx/design/*.g.tsx</span>
+              <span>&lt;project.root&gt;/gtsx/design/*.g.tsx</span>
             </section>
           )}
         </div>
@@ -418,17 +418,17 @@ StudioDesignWorkspace.cases = {
         design: {
           frames: [
             {
-              id: "src/.gtsx/design/DesignHost.g.tsx#default",
-              entry: "src/.gtsx/design/DesignHost.g.tsx#default",
-              filePath: "src/.gtsx/design/DesignHost.g.tsx",
+              id: "src/gtsx/design/DesignHost.g.tsx#default",
+              entry: "src/gtsx/design/DesignHost.g.tsx#default",
+              filePath: "src/gtsx/design/DesignHost.g.tsx",
               title: "DesignHost",
               exportName: "default",
               caseName: "live",
             },
             {
-              id: "src/.gtsx/design/CreatorQueue.g.tsx#default",
-              entry: "src/.gtsx/design/CreatorQueue.g.tsx#default",
-              filePath: "src/.gtsx/design/CreatorQueue.g.tsx",
+              id: "src/gtsx/design/CreatorQueue.g.tsx#default",
+              entry: "src/gtsx/design/CreatorQueue.g.tsx#default",
+              filePath: "src/gtsx/design/CreatorQueue.g.tsx",
               title: "CreatorQueue",
               exportName: "default",
               caseName: "live",

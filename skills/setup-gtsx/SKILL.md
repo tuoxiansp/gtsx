@@ -25,7 +25,7 @@ This file is the router. Read the detection profile first, then enter exactly on
   - upgrade `@gtsx/core`, `@gtsx/studio`, and the selected adapter package to compatible current versions;
   - run an upgrade compatibility audit before deciding glue code is still valid;
   - preserve existing `gtsx.config.ts`, route files, framework config wrappers, browser entry branches, Studio URLs, preview URLs, and `.gtsx/preview-entries.ts` import patterns unless the audit shows a package-version contract change requires a minimal migration;
-  - create the conventional design directory at `project.root/.gtsx/design` if it is missing;
+  - create the conventional design directory at `project.root/gtsx/design` if it is missing;
   - restart or ask the user to restart the dev server so adapter-generated files such as `.gtsx/preview-entries.ts` can be refreshed;
   - verify `/gtsx/studio`, `/gtsx/studio#/design`, `/gtsx/studio/manifest`, and at least one preview URL when entries exist.
 - Only use profile templates to fill missing or demonstrably broken glue. Do not overwrite working local integration code just to match the examples.
@@ -58,4 +58,4 @@ Route to sibling skills for component work:
 
 - `authoring-gtsx` — write new `.g.tsx` components and cases.
 - `refactor-to-gtsx` — convert existing TSX components into `.g.tsx`.
-- `design-gtsx` — create and iterate `project.root/.gtsx/design` frames in Studio's design workspace.
+- `design-gtsx` — create and iterate `project.root/gtsx/design` frames in Studio's design workspace.
