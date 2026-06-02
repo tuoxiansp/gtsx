@@ -1,5 +1,3 @@
-English · [简体中文](README.zh-CN.md)
-
 # gtsx
 
 **Make your React UI knowable — to you and to your agents.**
