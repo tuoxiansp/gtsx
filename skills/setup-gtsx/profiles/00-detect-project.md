@@ -50,6 +50,25 @@ JavaScript-only React projects, non-React projects, and projects without a selec
    - Client Runtime for client-only React hosts such as CRA/Webpack, Vite-compatible SPA variants, and isolated Electron renderers.
    - Server Runtime for server/static/islands hosts such as Next.js Pages Router, Remix / React Router framework mode, TanStack Start, Astro, and Gatsby.
 
+## Existing Integration Detection
+
+Before selecting write actions, check whether the project is already integrated:
+
+- gtsx packages in dependencies or devDependencies.
+- `gtsx.config.ts` or an equivalent local gtsx config import.
+- Adapter wrappers in `vite.config.*`, `next.config.*`, or another framework config.
+- Existing `/gtsx`, `/gtsx/studio`, or `/gtsx/studio/manifest` route files or browser-entry branches.
+- Existing `.gtsx/preview-entries.ts` imports or adapter-generated output.
+
+If any of these are present, classify the task as upgrade/ensure mode unless the user explicitly asked for a full reinstall. In upgrade/ensure mode:
+
+- Update gtsx packages, then audit whether the existing glue still matches the upgraded package contracts.
+- Preserve existing route files, config wrappers, browser-entry branches, URL conventions, preview commands, and local customizations.
+- Change glue only when typecheck, adapter exports/types, package examples/docs, generated-file errors, or runtime verification show that a version migration is required.
+- If the adapter package or wrapper must change, preserve the existing wrapper composition order and explain the change.
+- Ensure the conventional design directory exists at `project.root/.gtsx/design`.
+- Verify the integration and report which existing glue files were intentionally left unchanged.
+
 ## Common Configuration Rules
 
 - Always install `@gtsx/core` and `@gtsx/studio`.
@@ -67,15 +86,18 @@ JavaScript-only React projects, non-React projects, and projects without a selec
 2. Run `gtsx check` against the selected scope or a `.g.tsx` file.
 3. Start the host dev server.
 4. Open `/gtsx/studio`.
-5. Confirm the manifest contains only TypeScript Program `.g.tsx` entries. A setup-only project may legitimately have zero entries; Studio should show its empty state.
-6. If at least one `.g.tsx` entry exists, open one `/gtsx?...` preview URL.
-7. Confirm no `Missing entry`, `Unknown gtsx entry`, or `Unknown gtsx case` errors.
-8. Run `gtsx capture` when configured.
+5. Open `/gtsx/studio#/design`.
+6. Confirm the manifest contains only TypeScript Program `.g.tsx` component entries plus design frames from `project.root/.gtsx/design`. A setup-only project may legitimately have zero entries; Studio should show its empty state.
+7. If at least one `.g.tsx` entry exists, open one `/gtsx?...` preview URL.
+8. Confirm no `Missing entry`, `Unknown gtsx entry`, or `Unknown gtsx case` errors.
+9. Run `gtsx capture` when configured.
 
 ## Report
 
 After completion, tell the user:
 
+- First-time setup vs upgrade/ensure mode
+- Upgrade compatibility audit result, including why any glue migration was or was not needed
 - Files changed
 - Packages installed
 - Selected TypeScript project

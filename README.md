@@ -25,6 +25,7 @@ https://github.com/tuoxiansp/gtsx:
 - skills/setup-gtsx
 - skills/authoring-gtsx
 - skills/refactor-to-gtsx
+- skills/design-gtsx
 
 After installing them, run the newly installed `setup-gtsx` skill in this project.
 ```

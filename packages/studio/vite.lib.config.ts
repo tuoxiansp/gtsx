@@ -31,6 +31,8 @@ export default defineConfig({
         "@gtsx/core/config",
         "@gtsx/core/config-model",
         "@gtsx/core/project-index",
+        "node:fs",
+        "node:path",
         "react",
         "react-dom",
         "react-dom/client",

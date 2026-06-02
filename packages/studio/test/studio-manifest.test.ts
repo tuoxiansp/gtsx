@@ -1,10 +1,11 @@
-import { readFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
+import { tmpdir } from "node:os"
 import { describe, expect, it } from "vitest"
 
 import { buildGTSXProjectIndex } from "@gtsx/core/project-index"
 import { createStudioManifest, studioUrlSearchFromSearchParams } from "../src/index.js"
-import { createStudioManifestProvider } from "../src/manifest-server.js"
+import { createStudioManifestProvider, discoverStudioDesignManifest } from "../src/manifest-server.js"
 
 const fixtureRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
 const tsProjectScopeRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/ts-project-scope")
@@ -195,6 +196,40 @@ describe("GTSX Studio manifest", () => {
       allUrlTemplate: "/preview?entry={entry}{gcase}",
     })
     expect(manifest.files.map((file) => file.path)).toEqual(["src/corpus/Badge.g.tsx", "src/corpus/StatusPanel.g.tsx"])
+  })
+
+  it("discovers local design frames under the configured project root", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "gtsx-studio-design-"))
+
+    try {
+      mkdirSync(join(cwd, "components/.gtsx/design/nested"), { recursive: true })
+      writeFileSync(join(cwd, "components/.gtsx/design/DesignHost.g.tsx"), "export default function DesignHost() { return null }\n")
+      writeFileSync(join(cwd, "components/.gtsx/design/current-design.tsx"), "export function CurrentDesign() { return null }\n")
+      writeFileSync(join(cwd, "components/.gtsx/design/nested/SecondFrame.g.tsx"), "export default function SecondFrame() { return null }\n")
+
+      expect(discoverStudioDesignManifest(cwd, "components")).toEqual({
+        frames: [
+          {
+            id: "components/.gtsx/design/DesignHost.g.tsx#default",
+            entry: "components/.gtsx/design/DesignHost.g.tsx#default",
+            filePath: "components/.gtsx/design/DesignHost.g.tsx",
+            title: "DesignHost",
+            exportName: "default",
+            caseName: "live",
+          },
+          {
+            id: "components/.gtsx/design/nested/SecondFrame.g.tsx#default",
+            entry: "components/.gtsx/design/nested/SecondFrame.g.tsx#default",
+            filePath: "components/.gtsx/design/nested/SecondFrame.g.tsx",
+            title: "SecondFrame",
+            exportName: "default",
+            caseName: "live",
+          },
+        ],
+      })
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
   })
 
   it("serializes Studio route search params without losing repeated values", () => {

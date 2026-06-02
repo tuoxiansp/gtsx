@@ -100,6 +100,7 @@ function instructionsTemplate(): string {
 - Configure \`preview.url\` to point at this project's GTSX preview route.
 - Configure \`preview.allUrl\` to render all cases for one entry as a contact sheet.
 - Configure \`project.root\`, \`project.namespace\`, and \`routes\` as the single source of truth for Studio routes.
+- Put design exploration frames in \`project.root/.gtsx/design\`; this path is a convention, not a separate config field.
 - Do not put secrets, credentials, tokens, or customer data in GTSX cases.
 `
 }

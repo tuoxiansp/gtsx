@@ -47,5 +47,5 @@ function normalizeProjectRoot(projectRoot: string): string {
 function toModuleKey(entryFile: string, projectRoot: string): string {
   const prefix = projectRoot === "." ? "" : `${projectRoot}/`
   const localPath = prefix && entryFile.startsWith(prefix) ? entryFile.slice(prefix.length) : entryFile
-  return localPath.startsWith(".") ? localPath : `./${localPath}`
+  return localPath.startsWith("./") || localPath.startsWith("../") ? localPath : `./${localPath}`
 }

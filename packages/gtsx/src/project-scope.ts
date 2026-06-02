@@ -16,10 +16,11 @@ export function discoverGTSXProgramFiles(options: DiscoverGTSXProgramFilesOption
 
   const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, dirname(configPath))
   const files = new Set<string>()
+  const gtsxInternalRoot = resolve(root, ".gtsx")
 
   for (const fileName of parsed.fileNames) {
     const filePath = resolve(fileName)
-    if (filePath.endsWith(".g.tsx") && isPathInside(root, filePath)) {
+    if (filePath.endsWith(".g.tsx") && isPathInside(root, filePath) && !isPathInside(gtsxInternalRoot, filePath)) {
       files.add(relative(options.cwd, filePath).split(sep).join("/"))
     }
   }

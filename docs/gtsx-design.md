@@ -62,6 +62,71 @@ That boundary is intentional. The preview route should not pull in production la
 
 For Next.js App Router, this boundary includes inherited layouts. A `/gtsx` page under `app/gtsx/page.tsx` cannot opt out of `app/layout.tsx` or parent segment layouts. If those layouts mount production shell components, the preview/studio route will execute their hooks and effects before the adapter preview client renders. Isolate GTSX routes with a minimal root layout or route groups, and keep production providers, app clients, subscriptions, navigation, and data fetching in an app-only route group.
 
+## Design Workspace
+
+gtsx also has a lightweight design workspace for AI-assisted product design drafts. It uses the same local preview route and the same Studio shell, but it is deliberately scoped as scratch design work rather than formal component coverage.
+
+The user-facing flow is:
+
+```txt
+local agent conversation
+  -> edits project.root/.gtsx/design/*.g.tsx
+  -> /gtsx/studio#/design
+  -> draggable frames on a canvas
+```
+
+Each `project.root/.gtsx/design/*.g.tsx` file is one design frame. `project.root` comes from `gtsx.config.ts` and defaults to `src`. Studio discovers those files and renders them in the Design view. The frame's position on the board is browser-local state stored in `localStorage`; it is not written into the repository. This keeps the repo focused on the actual design drafts while letting the user freely arrange the board.
+
+Design frames use a smaller contract than production component models:
+
+- one default-exported React component per file
+- one happy-path case named `live`
+- multiple alternatives as multiple files, not multiple cases
+- self-contained TSX preferred, so quick design drafts do not depend on fragile helper resolution
+
+Example:
+
+```tsx
+"use client"
+
+import type { GCases } from "@gtsx/core"
+
+export default function DiscoveryFeed() {
+  return <main>{/* visual draft */}</main>
+}
+
+DiscoveryFeed.cases = {
+  live: { props: {} },
+} satisfies GCases<Record<string, never>>
+```
+
+Open the board at:
+
+```txt
+/gtsx/studio#/design
+```
+
+Open one frame directly at:
+
+```txt
+/gtsx?entry=src%2F.gtsx%2Fdesign%2FDiscoveryFeed.g.tsx%23default&case=live&chrome=0
+```
+
+This design surface intentionally differs from component cases. Component `.g.tsx` files in the TypeScript Program are the durable UI model: they should cover meaningful visual states, provider variants, and branch reachability. `project.root/.gtsx/design` is for early product exploration: a happy-path frame that can be revised quickly by the local agent while the user thinks through shape, density, copy, and interaction.
+
+Short prompts are treated as seeds, not complete specs. The quality bar comes from the workflow around the prompt: the local agent scans the product context, expands the intent into a small brief, chooses one happy path, drafts a frame, critiques it, and revises before handing it back. This is the important distinction: gtsx Design should not depend on magic wording from the user to get a useful first result.
+
+The agent's design loop is:
+
+1. Inspect the existing product surface, including styles, tokens, UI primitives, copy tone, route shape, and likely viewport.
+2. Expand the request into product surface, context of use, interaction weight, taste constraints, and one concrete happy path.
+3. Ask a clarifying question only when the missing choice would change the product direction; otherwise make a visible assumption and proceed.
+4. Plan the information hierarchy, primary action, secondary actions, data density, and visual system before writing TSX.
+5. Generate or update a self-contained design frame in `project.root/.gtsx/design`.
+6. Run a design critique pass and revise if the frame is generic, unclear, visually weak, inaccessible, or inconsistent with the product domain.
+
+The review standard is design-oriented. A good frame should make the screen's purpose legible within seconds, expose a clear primary action, arrange information in the order a user needs it, use realistic content, maintain spacing and type rhythm, avoid overflow or overlapping controls, and feel appropriate to the product domain. For example, an operations dashboard should be dense and scannable, while a consumer mobile flow can be more directional and touch-led. If the project has a design system, the agent should reuse it; if not, the frame should define a small coherent local system instead of drifting into generic AI styling.
+
 ## The Production Path
 
 A `.g.tsx` component in production runs identically to any other React component:

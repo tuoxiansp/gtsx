@@ -32,6 +32,7 @@ describe("Studio package", () => {
     expect(check.stdout).toContain("GTSX pure entry: src/components/PreviewMessage.g.tsx")
     expect(check.stdout).toContain("GTSX pure entry: src/components/SelectedBoundaryOutline.g.tsx")
     expect(check.stdout).toContain("GTSX scope entry: src/components/SidebarComponentPreview.g.tsx")
+    expect(check.stdout).toContain("GTSX pure entry: src/components/StudioDesignWorkspace.g.tsx")
     expect(check.stdout).toContain("GTSX pure entry: src/components/StudioEmptyState.g.tsx")
     expect(check.stdout).toContain("GTSX scope entry: src/components/StudioWorkspaceView.g.tsx")
     expect(check.stdout).toContain("GTSX pure entry: src/components/ViewportPresetTabs.g.tsx")
@@ -72,6 +73,7 @@ describe("Studio package", () => {
       "src/components/PreviewMessage.g.tsx",
       "src/components/SelectedBoundaryOutline.g.tsx",
       "src/components/SidebarComponentPreview.g.tsx",
+      "src/components/StudioDesignWorkspace.g.tsx",
       "src/components/StudioEmptyState.g.tsx",
       "src/components/StudioWorkspaceView.g.tsx",
       "src/components/ViewportPresetTabs.g.tsx",
@@ -87,6 +89,7 @@ describe("Studio package", () => {
       "src/components/PreviewMessage.g.tsx#default",
       "src/components/SelectedBoundaryOutline.g.tsx#default",
       "src/components/SidebarComponentPreview.g.tsx#default",
+      "src/components/StudioDesignWorkspace.g.tsx#default",
       "src/components/StudioEmptyState.g.tsx#default",
       "src/components/StudioWorkspaceView.g.tsx#default",
       "src/components/ViewportPresetTabs.g.tsx#default",

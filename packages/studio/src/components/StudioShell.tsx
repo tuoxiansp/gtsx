@@ -45,6 +45,7 @@ import { StudioPreviewIframePoolProvider } from "../preview-iframe-pool"
 import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
 import { createStudioPreviewMessageFlush } from "../studio-preview-message-flush"
 import { studioColors, studioFontFamily, studioRadii, studioShellStyle } from "../studio-theme"
+import StudioDesignWorkspace from "./StudioDesignWorkspace.g"
 import StudioWorkspaceView from "./StudioWorkspaceView.g"
 
 export type StudioShellLoadedProps = {
@@ -96,6 +97,8 @@ type PendingStudioPreviewMessage = StudioPreviewGeometryCacheMessage & {
   mountedAt?: number
   target: StudioPreviewTarget
 }
+
+type StudioShellView = "components" | "design"
 
 const studioCanvasUrlCommitDelayMilliseconds = 120
 const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
@@ -570,9 +573,13 @@ function isStudioShellPreviewPoolReadyMessage(value: unknown): boolean {
 
 function StudioShellLoaded(props: StudioShellLoadedProps) {
   const scope = useStudioShellScope(props)
+  const [view, setView] = useStudioShellView(props.urlSearch)
+  const designFrameCount = props.manifest.design?.frames.length ?? 0
 
-  const studio = (
-    <>
+  const studioContent =
+    view === "design" ? (
+      <StudioDesignWorkspace manifest={props.manifest} />
+    ) : (
       <StudioWorkspaceView
         canvas={scope.canvas}
         debugPreviewPool={scope.debugPreviewPool}
@@ -592,10 +599,16 @@ function StudioShellLoaded(props: StudioShellLoadedProps) {
         urlWarning={scope.urlWarning}
         workspace={scope.workspace}
       />
+    )
+
+  const studio = (
+    <>
+      <StudioShellModeTabs activeView={view} designFrameCount={designFrameCount} onChangeView={setView} />
+      {studioContent}
     </>
   )
 
-  if (scope.disablePreviewPool) return studio
+  if (view === "design" || scope.disablePreviewPool) return studio
 
   const maximumIdlePreviewFrames = studioPreviewIframePoolMaximumIdleFrames(scope.previewRenderQueue)
   const maximumRetainedPreviewFrames = studioPreviewIframePoolMaximumRetainedFrames(
@@ -612,6 +625,135 @@ function StudioShellLoaded(props: StudioShellLoadedProps) {
     >
       {studio}
     </StudioPreviewIframePoolProvider>
+  )
+}
+
+function useStudioShellView(urlSearch: string | undefined): [StudioShellView, (view: StudioShellView) => void] {
+  const [view, setView] = React.useState<StudioShellView>(() => studioShellViewFromSearch(urlSearch))
+
+  useStudioLayoutEffect(() => {
+    if (typeof window === "undefined") return undefined
+
+    const handleLocationChange = () => {
+      setView(studioShellViewFromLocation())
+    }
+
+    handleLocationChange()
+    window.addEventListener("hashchange", handleLocationChange)
+    window.addEventListener("popstate", handleLocationChange)
+    return () => {
+      window.removeEventListener("hashchange", handleLocationChange)
+      window.removeEventListener("popstate", handleLocationChange)
+    }
+  }, [])
+
+  const changeView = React.useCallback((nextView: StudioShellView) => {
+    setView(nextView)
+    if (typeof window === "undefined") return
+
+    const url = new URL(window.location.href)
+    url.searchParams.delete("view")
+    if (nextView === "design") {
+      url.hash = "/design"
+    } else {
+      url.hash = ""
+    }
+    window.history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`)
+  }, [])
+
+  return [view, changeView]
+}
+
+function studioShellViewFromLocation(search: string | undefined = undefined, hash: string | undefined = undefined): StudioShellView {
+  if (search === undefined && hash === undefined && typeof window === "undefined") return "components"
+
+  const sourceHash = hash ?? (typeof window === "undefined" ? "" : window.location.hash)
+  if (studioShellViewFromHash(sourceHash) === "design") return "design"
+
+  const source = search ?? (typeof window === "undefined" ? "" : window.location.search)
+  const params = new URLSearchParams(source.startsWith("?") ? source.slice(1) : source)
+  return params.get("view") === "design" ? "design" : "components"
+}
+
+function studioShellViewFromSearch(search: string | undefined): StudioShellView {
+  if (search === undefined) return "components"
+
+  const source = search.startsWith("?") ? search.slice(1) : search
+  const params = new URLSearchParams(source)
+  return params.get("view") === "design" ? "design" : "components"
+}
+
+function studioShellViewFromHash(hash: string): StudioShellView {
+  const route = hash.startsWith("#") ? hash.slice(1) : hash
+  return route === "/design" || route === "design" ? "design" : "components"
+}
+
+function StudioShellModeTabs(props: {
+  activeView: StudioShellView
+  designFrameCount: number
+  onChangeView: (view: StudioShellView) => void
+}) {
+  return (
+    <nav
+      aria-label="Studio view"
+      data-gtsx-studio-mode-tabs="true"
+      style={{
+        alignItems: "center",
+        background: "rgba(30,30,30,0.88)",
+        border: `1px solid ${studioColors.panelBorder}`,
+        borderRadius: studioRadii.md,
+        boxShadow: "0 10px 28px rgba(0,0,0,0.2)",
+        display: "flex",
+        left: 16,
+        overflow: "hidden",
+        position: "fixed",
+        top: 12,
+        zIndex: 25,
+      }}
+    >
+      <StudioShellModeTab
+        active={props.activeView === "components"}
+        label="Components"
+        onClick={() => props.onChangeView("components")}
+      />
+      <StudioShellModeTab
+        active={props.activeView === "design"}
+        label="Design"
+        onClick={() => props.onChangeView("design")}
+        title={`${props.designFrameCount} design frames`}
+      />
+    </nav>
+  )
+}
+
+function StudioShellModeTab(props: {
+  active: boolean
+  label: string
+  onClick: () => void
+  title?: string
+}) {
+  return (
+    <button
+      aria-pressed={props.active}
+      onClick={props.onClick}
+      style={{
+        appearance: "none",
+        background: props.active ? studioColors.panelBgElevated : "transparent",
+        border: 0,
+        borderBottom: `2px solid ${props.active ? studioColors.accent : "transparent"}`,
+        color: props.active ? studioColors.text : studioColors.textMuted,
+        cursor: "pointer",
+        fontFamily: studioFontFamily,
+        fontSize: 10,
+        lineHeight: 1,
+        minWidth: 82,
+        padding: "9px 10px 8px",
+      }}
+      title={props.title ?? props.label}
+      type="button"
+    >
+      {props.label}
+    </button>
   )
 }
 

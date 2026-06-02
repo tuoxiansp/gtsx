@@ -166,6 +166,24 @@ describe("gtsx Next React adapter", () => {
     }
   })
 
+  it("includes the convention design workspace entry under the project root when present", () => {
+    const root = mkdtempSync(join(tmpdir(), "gtsx-next-design-registry-"))
+    try {
+      mkdirSync(join(root, "src/.gtsx/design"), { recursive: true })
+      mkdirSync(join(root, "src/components/ui"), { recursive: true })
+      writeFileSync(join(root, "src/.gtsx/design/DesignHost.g.tsx"), "export default function DesignHost() { return null }\n")
+      writeFileSync(join(root, "src/components/ui/Toast.g.tsx"), "export default function Toast() { return null }\n")
+
+      gtsxNextReact({ root })({})
+
+      const output = readFileSync(join(root, ".gtsx/preview-entries.ts"), "utf8")
+      expect(output).toContain('"src/.gtsx/design/DesignHost.g.tsx": () => import("../src/.gtsx/design/DesignHost.g")')
+      expect(output).toContain('"src/components/ui/Toast.g.tsx": () => import("../src/components/ui/Toast.g")')
+    } finally {
+      rmSync(root, { force: true, recursive: true })
+    }
+  })
+
   it("exposes a CommonJS entry for Next config loading", () => {
     const cjsEntry = require("../index.cjs") as typeof import("../src/index.js")
     const config = cjsEntry.gtsxNextReact({ root: "/repo" })({})

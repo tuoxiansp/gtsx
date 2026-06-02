@@ -2,6 +2,8 @@ export { createStudioManifest, createStudioManifestFromGTSXConfig, studioUrlSear
 export type {
   CreateStudioManifestOptions,
   StudioRouteSearchParams,
+  StudioDesignFrameEntry,
+  StudioDesignManifest,
   StudioManifest,
   StudioManifestComponent,
   StudioManifestFile,

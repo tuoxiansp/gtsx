@@ -73,6 +73,15 @@ describe("GTSX project index", () => {
     expect(index.files.map((file) => file.path)).toEqual(["src/Child.g.tsx", "src/Included.g.tsx"])
   })
 
+  it("excludes internal design workspace files from the durable project index", () => {
+    const index = buildGTSXProjectIndex({
+      cwd: tsProjectScopeRoot,
+      tsconfigPath: join(tsProjectScopeRoot, "tsconfig.json"),
+    })
+
+    expect(index.files.map((file) => file.path)).not.toContain("src/.gtsx/design/Sketch.g.tsx")
+  })
+
   it("records static GTSX component dependencies from TypeScript path aliases", () => {
     const index = buildGTSXProjectIndex({
       cwd: tsProjectScopeRoot,

@@ -66,7 +66,7 @@ type ProjectModuleResolution = {
   host: ts.ModuleResolutionHost
 }
 
-const IGNORED_DISCOVERY_DIRS = new Set(["node_modules", "dist", ".vite", ".next", ".git"])
+const IGNORED_DISCOVERY_DIRS = new Set(["node_modules", "dist", ".vite", ".next", ".git", ".gtsx"])
 const DEFAULT_PROJECT_INDEX_CACHE_TTL_MS = 1000
 const globalProjectIndexCacheSymbol = Symbol.for("gtsx.project-index.cache")
 

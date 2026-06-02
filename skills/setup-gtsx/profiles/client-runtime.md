@@ -7,12 +7,14 @@ Use this profile when the host has one browser-owned entry and browser-owned rou
 1. Add `gtsx.config.ts` with `project.root`, optional `project.tsconfig`, routes, and preview commands.
 2. Add a bundler transform so every `.g.tsx` file runs through the gtsx React transform.
 3. Expose the project index and resolved config to the browser entry.
-4. In the browser entry, branch only on gtsx routes:
+4. Create the empty `project.root/.gtsx/design` directory by convention. Do not add a design config key or placeholder frames.
+5. In the browser entry, branch only on gtsx routes:
    - `/gtsx/studio` renders Studio.
    - `/gtsx` renders preview.
    - Every other route keeps the existing app/router.
-5. Load preview components through adapter helpers. Do not hand-roll `entry`, `case`, `gcase`, module key normalization, boundary collection, or iframe protocol.
-6. Verify the original app route still renders.
+6. Load preview components through adapter helpers. Do not hand-roll `entry`, `case`, `gcase`, module key normalization, boundary collection, or iframe protocol.
+7. In upgrade/ensure mode, do not rewrite existing config, bundler glue, browser-entry branches, or preview helpers if they already pass verification; after package upgrades, migrate only glue proven incompatible by typecheck, adapter contracts, or runtime verification.
+8. Verify the original app route still renders.
 
 ## Host Requirements
 

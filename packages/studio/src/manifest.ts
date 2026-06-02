@@ -34,9 +34,23 @@ export type StudioManifestFile = {
   diagnostics: GTSXDiagnostic[]
 }
 
+export type StudioDesignFrameEntry = {
+  id: string
+  entry: string
+  filePath: string
+  title: string
+  exportName: string
+  caseName: string
+}
+
+export type StudioDesignManifest = {
+  frames: StudioDesignFrameEntry[]
+}
+
 export type StudioManifest = {
   version: 1
   cache?: StudioManifestCacheConfig
+  design?: StudioDesignManifest
   routes: StudioManifestRouteConfig
   preview: StudioManifestPreviewConfig
   files: StudioManifestFile[]
@@ -47,6 +61,7 @@ export type CreateStudioManifestOptions = {
   routes?: Partial<StudioManifestRouteConfig>
   preview?: Partial<StudioManifestPreviewConfig>
   cache?: Partial<StudioManifestCacheConfig>
+  design?: StudioDesignManifest
   diagnostics?: GTSXDiagnostic[]
 }
 
@@ -74,6 +89,7 @@ export function createStudioManifest(projectIndex: GTSXProjectIndex, options: Cr
   return {
     version: 1,
     ...(options.cache ? { cache: options.cache } : {}),
+    ...(options.design && options.design.frames.length > 0 ? { design: options.design } : {}),
     routes: { ...DEFAULT_ROUTES, ...options.routes },
     preview: { ...DEFAULT_PREVIEW, ...options.preview },
     files: projectIndex.files.map((projectFile) => {
@@ -90,11 +106,17 @@ export function createStudioManifest(projectIndex: GTSXProjectIndex, options: Cr
   }
 }
 
-export function createStudioManifestFromGTSXConfig(projectIndex: GTSXProjectIndex, config: GTSXConfig): StudioManifest {
+export function createStudioManifestFromGTSXConfig(
+  projectIndex: GTSXProjectIndex,
+  config: GTSXConfig,
+  options: Pick<CreateStudioManifestOptions, "design" | "diagnostics"> = {},
+): StudioManifest {
   const resolved = resolveGTSXConfig(config)
 
   return createStudioManifest(projectIndex, {
     ...(resolved.project.namespace ? { cache: { namespace: resolved.project.namespace } } : {}),
+    design: options.design,
+    diagnostics: options.diagnostics,
     preview: previewConfigFromRoutes(resolved.routes),
     routes: resolved.routes,
   })

@@ -59,6 +59,7 @@ type ResolvedGTSXNextPreviewEntriesOptions = {
 const defaultPreviewEntriesModuleId = "@gtsx/adapter-next-react/preview-entries"
 const defaultPreviewEntriesOutputFile = ".gtsx/preview-entries.ts"
 const ignoredPreviewEntryDirs = new Set(["node_modules", "dist", ".next", ".git", ".gtsx"])
+const defaultPreviewDesignDirectory = ".gtsx/design"
 
 export function gtsxNextReact(options: GTSXNextReactOptions = {}) {
   const root = options.root ?? process.cwd()
@@ -168,12 +169,18 @@ function writeGTSXNextPreviewEntries(root: string, options: ResolvedGTSXNextPrev
 }
 
 function discoverGTSXPreviewFiles(root: string, projectRoot: string): string[] {
-  const directory = resolve(root, projectRoot)
-  if (!existsSync(directory)) return []
-
   const files: string[] = []
-  walk(directory)
+
+  collectGTSXPreviewFiles(resolve(root, projectRoot), files)
+  collectGTSXPreviewFiles(resolve(root, projectRoot, defaultPreviewDesignDirectory), files)
+
   return files.map((filePath) => relative(root, filePath).split(sep).join("/")).sort((left, right) => left.localeCompare(right))
+}
+
+function collectGTSXPreviewFiles(directory: string, files: string[]) {
+  if (!existsSync(directory)) return
+
+  walk(directory)
 
   function walk(currentDirectory: string) {
     for (const dirent of readdirSync(currentDirectory, { withFileTypes: true })) {

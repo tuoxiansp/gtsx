@@ -133,11 +133,13 @@ Card.cases = {
       return null
     }
     const modules: Record<string, () => Promise<GTSXPreviewModule>> = {
+      "./.gtsx/design/GiftFeature.g.tsx": async () => ({ default: Card }),
       "./components/Card.g.tsx": async () => ({ default: Card }),
     }
     const loadComponent = createGTSXVitePreviewComponentLoader(modules, { projectRoot: "src" })
 
     await expect(loadComponent("src/components/Card.g.tsx#default")).resolves.toBe(Card)
+    await expect(loadComponent("src/.gtsx/design/GiftFeature.g.tsx#default")).resolves.toBe(Card)
     await expect(loadComponent("src/components/Missing.g.tsx#default")).resolves.toBeUndefined()
   })
 })
