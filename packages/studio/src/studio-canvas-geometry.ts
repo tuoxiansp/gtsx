@@ -67,6 +67,7 @@ export type MeasuredStudioColumnCardLayout = {
 
 const studioComponentCardColumnGap = 5
 const studioCanvasCardShellViewportStabilityMargin = 24
+const studioMeasuredCanvasLengthPrecision = 100
 export const studioCanvasFixedCasePreviewScale = 0.45
 
 export function domRectToStudioCanvasScreenRect(rect: DOMRect): StudioCanvasScreenRect {
@@ -84,10 +85,10 @@ export function domRectToLocalStudioCanvasScreenRect(
   scale: number,
 ): StudioCanvasScreenRect {
   return {
-    bottom: (rect.bottom - originRect.top) / scale,
-    left: (rect.left - originRect.left) / scale,
-    right: (rect.right - originRect.left) / scale,
-    top: (rect.top - originRect.top) / scale,
+    bottom: stableMeasuredCanvasLength((rect.bottom - originRect.top) / scale),
+    left: stableMeasuredCanvasLength((rect.left - originRect.left) / scale),
+    right: stableMeasuredCanvasLength((rect.right - originRect.left) / scale),
+    top: stableMeasuredCanvasLength((rect.top - originRect.top) / scale),
   }
 }
 
@@ -297,8 +298,8 @@ export function measuredStudioColumnLayoutPackedByComponentOrder(input: {
   for (const coordinate of input.componentCoordinates) {
     const fallbackCardRect = input.fallbackMeasurement.cardRectsByCoordinate[coordinate]
     const measuredCard = input.measuredCardsByCoordinate[coordinate]
-    const width = measuredCard?.width ?? rectWidth(fallbackCardRect)
-    const height = measuredCard?.height ?? rectHeight(fallbackCardRect)
+    const width = measuredCard ? stableMeasuredCanvasLength(measuredCard.width) : rectWidth(fallbackCardRect)
+    const height = measuredCard ? stableMeasuredCanvasLength(measuredCard.height) : rectHeight(fallbackCardRect)
     if (width === undefined || height === undefined) continue
 
     const packedCardRect = {
@@ -704,6 +705,10 @@ function rectHeight(rect: StudioCanvasScreenRect | undefined): number | undefine
 
 function rectWidth(rect: StudioCanvasScreenRect | undefined): number | undefined {
   return rect ? rect.right - rect.left : undefined
+}
+
+function stableMeasuredCanvasLength(value: number): number {
+  return Math.round(value * studioMeasuredCanvasLengthPrecision) / studioMeasuredCanvasLengthPrecision
 }
 
 function translateRect(rect: StudioCanvasScreenRect, x: number, y: number): StudioCanvasScreenRect {

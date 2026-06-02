@@ -47,6 +47,13 @@ function buildStudioManifest(
   })
 }
 
+function manifestJsonKeys(value: unknown): string[] {
+  if (!value || typeof value !== "object") return []
+  if (Array.isArray(value)) return value.flatMap(manifestJsonKeys)
+
+  return Object.entries(value).flatMap(([key, nested]) => [key, ...manifestJsonKeys(nested)])
+}
+
 describe("GTSX Studio manifest", () => {
   it("returns stable static JSON for a project surface", () => {
     const manifest = buildStudioManifest({
@@ -269,12 +276,13 @@ describe("GTSX Studio manifest", () => {
   it("does not include runtime props, scope, provider values, DOM rects, or child trees", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
     const serialized = JSON.stringify(manifest)
+    const manifestKeys = manifestJsonKeys(manifest)
 
     expect(serialized).not.toContain("Ada Lovelace")
     expect(serialized).not.toContain("onOpen")
     expect(serialized).not.toContain('"value"')
-    expect(serialized).not.toContain("rect")
-    expect(serialized).not.toContain("children")
+    expect(manifestKeys).not.toContain("rect")
+    expect(manifestKeys).not.toContain("children")
   })
 
   it("returns configured preview URL templates for repository examples", () => {

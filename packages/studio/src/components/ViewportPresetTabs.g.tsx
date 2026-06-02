@@ -1,3 +1,4 @@
+import React from "react"
 import type { GCases } from "@gtsx/core"
 
 import {
@@ -26,7 +27,7 @@ const presetLabels: Record<ViewportPreset, string> = {
   desktop: "full",
 }
 
-export default function ViewportPresetTabs(props: ViewportPresetTabsProps) {
+function ViewportPresetTabsView(props: ViewportPresetTabsProps) {
   const selectedIndex = Math.max(0, presets.indexOf(props.selectedPreset))
 
   return (
@@ -97,6 +98,12 @@ export default function ViewportPresetTabs(props: ViewportPresetTabsProps) {
     </div>
   )
 }
+
+const ViewportPresetTabs = React.memo(ViewportPresetTabsView) as typeof ViewportPresetTabsView & {
+  cases?: GCases<ViewportPresetTabsProps>
+}
+
+export default ViewportPresetTabs
 
 ViewportPresetTabs.cases = {
   tabletSelected: {

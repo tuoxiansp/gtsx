@@ -49,6 +49,11 @@ import {
   type StudioPreviewRenderObservationSnapshot,
   type StudioPreviewRenderQueueDebugObservationInput,
 } from "../studio-preview-render-observation"
+import {
+  layoutNeutralDrilldownColumnEnterIdentity,
+  preserveStudioCanvasViewportAnchor,
+  type StudioCanvasViewportAnchorPoint,
+} from "../studio-workspace-view-helpers"
 import { useStudioCanvasController } from "../use-studio-canvas-controller"
 import { useStudioCanvasLayout } from "../use-studio-canvas-layout"
 import { useStudioPreviewRenderScheduler } from "../use-studio-preview-render-scheduler"
@@ -66,6 +71,11 @@ import {
   studioShellStyle,
   studioTypography,
 } from "../studio-theme"
+
+export {
+  layoutNeutralDrilldownColumnEnterIdentity,
+  preserveStudioCanvasViewportAnchor,
+} from "../studio-workspace-view-helpers"
 
 export type StudioWorkspaceViewProps = {
   canvas?: StudioCanvasTransform
@@ -138,11 +148,6 @@ type PendingStudioCanvasViewportPresetAnchor = {
   targetViewportPoint: StudioCanvasViewportAnchorPoint
 }
 
-type StudioCanvasViewportAnchorPoint = {
-  x: number
-  y: number
-}
-
 const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
 const canvasWheelExemptSelector = "[data-gtsx-canvas-wheel-exempt]"
 const studioCanvasRevealMargin = 24
@@ -182,13 +187,19 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
       now: () => (typeof performance !== "undefined" ? performance.now() : Date.now()),
     }),
   )
+  const onChangeCanvasViewportPresetRef = React.useRef(props.onChangeCanvasViewportPreset)
+  const onChangeViewportPresetRef = React.useRef(props.onChangeViewportPreset)
   const previewRenderQueueRef = React.useRef(props.previewRenderQueue)
   const requestCanvasPreviewRenderRef = React.useRef<(nextCanvas: StudioCanvasTransform) => void>(() => {})
+  const selectedCardPathKeyRef = React.useRef(selectedCardPathKey)
   const workspaceRef = React.useRef(props.workspace)
   canvasViewportPresetRef.current = canvasViewportPreset
   frameStatesRef.current = props.frameStates
+  onChangeCanvasViewportPresetRef.current = props.onChangeCanvasViewportPreset
+  onChangeViewportPresetRef.current = props.onChangeViewportPreset
   onSelectComponentRef.current = props.onSelectComponent
   previewRenderQueueRef.current = props.previewRenderQueue
+  selectedCardPathKeyRef.current = selectedCardPathKey
   workspaceRef.current = props.workspace
 
   const canvasController = useStudioCanvasController({
@@ -237,6 +248,8 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     renderBufferMargin: studioPreviewRenderQueueRenderBufferMargin(props.previewRenderQueue),
     selectedCardPathKey: selectedCardPathKey ?? viewportPresetAnchorPathKey,
   })
+  const visibleCardsByColumnIndexRef = React.useRef(visibleCardsByColumnIndex)
+  visibleCardsByColumnIndexRef.current = visibleCardsByColumnIndex
 
   const { flushPreviewRender, requestCanvasPreviewRender, requestPreviewRender } = useStudioPreviewRenderScheduler({
     canvasRef: canvasController.canvasRef,
@@ -333,11 +346,11 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
       if (!canvasController.canvasViewportElement) return undefined
 
       const captured = captureStudioCanvasViewportPresetAnchor({
-        canvasCardIndex,
+        canvasCardIndex: canvasCardIndexRef.current,
         canvasViewportElement: canvasController.canvasViewportElement,
         getCardElement: layout.getCardElement,
-        selectedCardPathKey,
-        visibleCardsByColumnIndex,
+        selectedCardPathKey: selectedCardPathKeyRef.current,
+        visibleCardsByColumnIndex: visibleCardsByColumnIndexRef.current,
       })
       if (!captured) return undefined
 
@@ -348,11 +361,8 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
       }
     },
     [
-      canvasCardIndex,
       canvasController.canvasViewportElement,
       layout.getCardElement,
-      selectedCardPathKey,
-      visibleCardsByColumnIndex,
     ],
   )
 
@@ -469,25 +479,19 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   )
   const handleViewportPresetChange = React.useCallback(
     (preset: StudioViewportPreset) => {
-      if (preset !== canvasViewportPreset) {
+      if (preset !== canvasViewportPresetRef.current) {
         const anchor = captureViewportPresetAnchor(preset)
         pendingViewportPresetAnchorRef.current = anchor
         setViewportPresetAnchorPathKey(anchor?.pathKey)
       }
 
-      if (props.onChangeCanvasViewportPreset) {
-        props.onChangeCanvasViewportPreset(preset)
+      if (onChangeCanvasViewportPresetRef.current) {
+        onChangeCanvasViewportPresetRef.current(preset)
       } else {
-        for (const component of visibleWorkspaceComponents(props.workspace)) props.onChangeViewportPreset?.(component, preset)
+        for (const component of visibleWorkspaceComponents(workspaceRef.current)) onChangeViewportPresetRef.current?.(component, preset)
       }
     },
-    [
-      canvasViewportPreset,
-      captureViewportPresetAnchor,
-      props.onChangeCanvasViewportPreset,
-      props.onChangeViewportPreset,
-      props.workspace,
-    ],
+    [captureViewportPresetAnchor],
   )
 
   return {
@@ -668,39 +672,6 @@ function studioCanvasViewportCenterPointForElement(
     x: rect.left + rect.width / 2 - viewportRect.left,
     y: rect.top + rect.height / 2 - viewportRect.top,
   }
-}
-
-export function preserveStudioCanvasViewportAnchor(
-  current: StudioCanvasTransform,
-  input: {
-    currentViewportPoint: StudioCanvasViewportAnchorPoint
-    targetViewportPoint: StudioCanvasViewportAnchorPoint
-  },
-): StudioCanvasTransform {
-  const deltaX = input.targetViewportPoint.x - input.currentViewportPoint.x
-  const deltaY = input.targetViewportPoint.y - input.currentViewportPoint.y
-  if (deltaX === 0 && deltaY === 0) return current
-
-  return {
-    ...current,
-    x: current.x + deltaX,
-    y: current.y + deltaY,
-  }
-}
-
-export function layoutNeutralDrilldownColumnEnterIdentity(
-  workspace: StudioWorkspaceState,
-  columnIndex: number,
-  column: StudioWorkspaceState["columns"][number],
-): string {
-  if (columnIndex === 0) return "root"
-
-  return [
-    `column:${columnIndex}`,
-    `path:${workspace.selectedCoordinatePath.slice(0, columnIndex).join(" > ")}`,
-    `parent:${column.parentCoordinate ?? ""}`,
-    `components:${column.components.map((component) => component.coordinate).join(",")}`,
-  ].join("|")
 }
 
 const useStudioWorkspaceViewScope = createGScopeHook(useRealStudioWorkspaceViewScope)
@@ -895,7 +866,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
   )
 }
 
-function StudioRootProviderVariantControls(props: {
+const StudioRootProviderVariantControls = React.memo(function StudioRootProviderVariantControls(props: {
   axes: StudioProviderVariantAxis[]
   onChange: (providerName: string, variant: string | undefined) => void
 }) {
@@ -1001,7 +972,7 @@ function StudioRootProviderVariantControls(props: {
       ))}
     </div>
   )
-}
+})
 
 function StudioProviderVariantButton(props: {
   onClick: () => void

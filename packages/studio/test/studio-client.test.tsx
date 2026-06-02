@@ -77,6 +77,7 @@ import {
   layoutNeutralDrilldownColumnEnterIdentity,
   preserveStudioCanvasViewportAnchor,
 } from "../src/components/StudioWorkspaceView.g.js"
+import { domRectToLocalStudioCanvasScreenRect } from "../src/studio-canvas-geometry.js"
 import BufferedPreviewIframe from "../src/components/BufferedPreviewIframe.g.js"
 import {
   studioPreviewIframePoolDimOverlayPlacementForAnchor,
@@ -849,6 +850,99 @@ describe("GTSX Studio shell", () => {
       bottom: 580,
       top: 540,
     })
+  })
+
+  it("stabilizes sub-pixel measured card noise before packing canvas cards", () => {
+    const packMeasurement = (height: number) =>
+      measuredStudioColumnLayoutPackedByComponentOrder({
+        componentCoordinates: ["src/Measured.g.tsx#Measured", "src/Next.g.tsx#Next"],
+        fallbackMeasurement: {
+          cardRectsByCoordinate: {
+            "src/Measured.g.tsx#Measured": { bottom: 100, left: 0, right: 280, top: 0 },
+            "src/Next.g.tsx#Next": { bottom: 155, left: 0, right: 280, top: 105 },
+          },
+          height: 155,
+          previewFrameRectsBySessionId: {},
+        },
+        measuredCardsByCoordinate: {
+          "src/Measured.g.tsx#Measured": {
+            height,
+            width: 280.004,
+          },
+        },
+        previewFrameSessionIdsByCoordinate: {},
+      })
+
+    expect(packMeasurement(100.001)).toEqual(packMeasurement(100.004))
+    expect(packMeasurement(100.004).cardRectsByCoordinate["src/Next.g.tsx#Next"]).toMatchObject({
+      bottom: 155,
+      top: 105,
+    })
+  })
+
+  it("stabilizes sub-pixel local preview frame rect noise before measuring canvas cards", () => {
+    const originRect = { bottom: 900, left: 88.743, right: 720, top: -8808.545 } as DOMRect
+    const localRect = (top: number) =>
+      domRectToLocalStudioCanvasScreenRect(
+        { bottom: top + 90.001, left: 120.003, right: 320.003, top } as DOMRect,
+        originRect,
+        0.444,
+      )
+
+    expect(localRect(682.421)).toEqual(localRect(682.4212))
+  })
+
+  it("uses measured preview frame rects for viewport visibility near the screen edge", () => {
+    const sessionId = "src/Measured.g.tsx#Measured:bottom@desktop"
+    const measurement = measuredStudioColumnLayoutPackedByComponentOrder({
+      componentCoordinates: ["src/Measured.g.tsx#Measured"],
+      fallbackMeasurement: {
+        cardRectsByCoordinate: {
+          "src/Measured.g.tsx#Measured": { bottom: 500, left: 0, right: 280, top: 0 },
+        },
+        height: 500,
+        previewFrameRectsBySessionId: {
+          [sessionId]: { bottom: 1200, left: 0, right: 240, top: 1000 },
+        },
+      },
+      measuredCardsByCoordinate: {
+        "src/Measured.g.tsx#Measured": {
+          height: 500,
+          previewFrameRectsBySessionId: {
+            [sessionId]: { bottom: 887.01, left: 0, right: 240, top: 682.42 },
+          },
+          width: 280,
+        },
+      },
+      previewFrameSessionIdsByCoordinate: {
+        "src/Measured.g.tsx#Measured": [sessionId],
+      },
+    })
+    const items = studioPreviewVisibilityItems(
+      {
+        columns: [
+          {
+            components: [
+              {
+                cases: [{ name: "bottom" }],
+                coordinate: "src/Measured.g.tsx#Measured",
+              } as any,
+            ],
+          },
+        ],
+        selectedCoordinatePath: [],
+        selectedViewportPresetByCoordinate: {},
+      } as any,
+      "desktop",
+      { 0: { x: 0, y: 0 } },
+      { 0: measurement },
+      {
+        canvas: { x: 0, y: 0, scale: 1 },
+        viewport: { bottom: 900, left: 0, right: 1440, top: 0 },
+      },
+    )
+
+    expect(items).toEqual([{ rect: { bottom: 887.01, left: 0, right: 240, top: 682.42 }, sessionIds: [sessionId] }])
   })
 
   it("uses normalized rendered component bounds as the component selection target", () => {
