@@ -3,8 +3,8 @@ import { GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT, gtsxPreviewSsrBootstrapScriptId } fr
 export type GTSXNextPreviewSearchParams = Record<string, string | string[] | undefined> | URLSearchParams | undefined
 
 export type GTSXNextPreviewRouteProps = {
-  caseName?: string | null
-  caseOverrides?: Map<string, string>
+  frameName?: string | null
+  frameOverrides?: Map<string, string>
   chrome?: string | null
   entry?: string | null
   pool?: string | null
@@ -28,8 +28,8 @@ export function readGTSXNextPreviewProps(searchParams: GTSXNextPreviewSearchPara
   const params = searchParams instanceof URLSearchParams ? searchParams : searchParamsFromNextRecord(searchParams)
 
   return {
-    caseName: params.get("case"),
-    caseOverrides: readGTSXPreviewCaseOverrides(params),
+    frameName: params.get("frame"),
+    frameOverrides: readGTSXPreviewFrameOverrides(params),
     chrome: params.get("chrome"),
     entry: params.get("entry"),
     pool: params.get("pool"),
@@ -82,9 +82,9 @@ function searchParamsFromNextRecord(searchParams: Record<string, string | string
   return params
 }
 
-function readGTSXPreviewCaseOverrides(params: URLSearchParams): Map<string, string> {
+function readGTSXPreviewFrameOverrides(params: URLSearchParams): Map<string, string> {
   const overrides = new Map<string, string>()
-  for (const value of params.getAll("gcase")) {
+  for (const value of params.getAll("gframe")) {
     const separatorIndex = value.lastIndexOf(":")
     if (separatorIndex > 0) {
       overrides.set(value.slice(0, separatorIndex), value.slice(separatorIndex + 1))

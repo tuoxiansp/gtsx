@@ -8,7 +8,7 @@ export type GTSXDiagnosticStage =
   | "adapter-configuration"
   | "project-compilation"
   | "preview-environment-loading"
-  | "case-rendering"
+  | "frame-rendering"
   | "browser-capture"
 
 export type GTSXDiagnostic = {
@@ -17,10 +17,10 @@ export type GTSXDiagnostic = {
   message: string
   severity?: "error" | "warning"
   file?: string
-  caseName?: string
+  frameName?: string
 }
 
-export type GTSXCaseSummary = {
+export type GTSXFrameSummary = {
   kind: "pure" | "scope"
   name: string
   providerVariants?: Record<string, GTSXProviderVariantSelection>
@@ -31,7 +31,7 @@ export type GTSXProviderVariantSelection = string | string[]
 
 export type GTSXProviderSummary = {
   name: string
-  cases: string[]
+  frames: string[]
   variants?: string[]
 }
 
@@ -39,7 +39,7 @@ export type GTSXAnalysisResult = {
   entry: string
   mode: "pure" | "scope" | "unknown"
   defaultExport: boolean
-  cases: GTSXCaseSummary[]
+  frames: GTSXFrameSummary[]
   providers: Record<string, GTSXProviderSummary>
   diagnostics: GTSXDiagnostic[]
 }
@@ -74,14 +74,14 @@ export type AnalyzeEntryOptions = {
   entry: string
 }
 
-type CasesAssignment = {
+type FramesAssignment = {
   targetName: string
-  cases: GTSXCaseSummary[]
-  staticCases: GTSXCaseStaticFacts[]
+  frames: GTSXFrameSummary[]
+  staticFrames: GTSXFrameStaticFacts[]
   statementStart: number
 }
 
-type GTSXCaseStaticFacts = {
+type GTSXFrameStaticFacts = {
   name: string
   providerVariants?: Record<string, GTSXProviderVariantSelection>
   values: Map<string, StaticBranchValue>
@@ -169,7 +169,7 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
       entry: options.entry,
       mode: "unknown",
       defaultExport: false,
-      cases: [],
+      frames: [],
       providers: {},
       diagnostics: [
         {
@@ -188,7 +188,7 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
       entry: options.entry,
       mode: "unknown",
       defaultExport: false,
-      cases: [],
+      frames: [],
       providers: {},
       diagnostics: [
         {
@@ -205,14 +205,14 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
     ...getScopeHookNames(sourceFile),
     ...getImportedScopeHookNames(sourceFile, entryPath, options.cwd, options.cache),
   ])
-  const providerCases: Record<string, GTSXProviderSummary> = Object.fromEntries(
+  const providerFrames: Record<string, GTSXProviderSummary> = Object.fromEntries(
     getGProviderSummariesForFile(sourceFile, entryPath, options.cwd, options.cache),
   )
-  const componentAssignments: CasesAssignment[] = []
-  const scopeAssignments: CasesAssignment[] = []
+  const componentAssignments: FramesAssignment[] = []
+  const scopeAssignments: FramesAssignment[] = []
 
   for (const statement of sourceFile.statements) {
-    const assignment = getCasesAssignment(statement, sourceFile, diagnostics)
+    const assignment = getFramesAssignment(statement, sourceFile, diagnostics)
     if (!assignment) continue
 
     if (scopeHookNames.has(assignment.targetName)) {
@@ -238,7 +238,7 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
       file: options.entry,
     })
   } else {
-    validateCasesAssignmentOrder(sourceFile, componentExportName, componentAssignments, diagnostics, options.entry)
+    validateFramesAssignmentOrder(sourceFile, componentExportName, componentAssignments, diagnostics, options.entry)
 
     const usedScopeHooks = getGScopeHookCalls(sourceFile, componentExportName, scopeHookNames)
     if (usedScopeHooks.length > 1) {
@@ -274,7 +274,7 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
     diagnostics.push({
       stage: "contract-extraction",
       code: "multiple-scope-hooks",
-      message: "A non-pure GTSX entry may have exactly one primary scope hook with cases.",
+      message: "A non-pure GTSX entry may have exactly one primary scope hook with frames.",
       file: options.entry,
     })
   }
@@ -282,46 +282,46 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
   if (scopeAssignments.length > 0) {
     diagnostics.push({
       stage: "contract-extraction",
-      code: "scope-hook-cases-unsupported",
-      message: "GScope hooks do not own cases; move cases to the exported component.",
+      code: "scope-hook-frames-unsupported",
+      message: "GScope hooks do not own frames; move frames to the exported component.",
       file: options.entry,
     })
   }
 
-  const componentCases = componentAssignments.flatMap((assignment) => assignment.cases)
-  const componentStaticCases = componentAssignments.flatMap((assignment) => assignment.staticCases)
+  const componentFrames = componentAssignments.flatMap((assignment) => assignment.frames)
+  const componentStaticFrames = componentAssignments.flatMap((assignment) => assignment.staticFrames)
   const mode =
-    componentCases.length === 0
+    componentFrames.length === 0
       ? "unknown"
-      : componentCases.some((testCase) => testCase.kind === "scope")
+      : componentFrames.some((frame) => frame.kind === "scope")
         ? "scope"
         : "pure"
-  const selectedCases =
+  const selectedFrames =
     mode === "scope"
-      ? componentCases.map((testCase) => ({ ...testCase, kind: "scope" as const }))
-      : componentCases.map((testCase) => ({ ...testCase, kind: "pure" as const }))
+      ? componentFrames.map((frame) => ({ ...frame, kind: "scope" as const }))
+      : componentFrames.map((frame) => ({ ...frame, kind: "pure" as const }))
 
   const importedNames = getImportedNames(sourceFile)
-  for (const testCase of selectedCases) {
-    for (const providerName of testCase.providers ?? []) {
-      if (!providerCases[providerName] && importedNames.has(providerName)) {
-        providerCases[providerName] = { name: providerName, cases: [] }
+  for (const frame of selectedFrames) {
+    for (const providerName of frame.providers ?? []) {
+      if (!providerFrames[providerName] && importedNames.has(providerName)) {
+        providerFrames[providerName] = { name: providerName, frames: [] }
       }
     }
   }
 
-  if (selectedCases.length === 0) {
+  if (selectedFrames.length === 0) {
     diagnostics.push({
       stage: "contract-extraction",
-      code: "missing-cases",
-      message: "A GTSX entry must expose statically enumerable pure or scope cases.",
+      code: "missing-frames",
+      message: "A GTSX entry must expose statically enumerable pure or scope frames.",
       file: options.entry,
     })
   }
 
-  for (const testCase of selectedCases) {
-    validateProviderSelections(testCase, providerCases, diagnostics, options.entry)
-    validateProviderVariantSelections(testCase, providerCases, diagnostics, options.entry)
+  for (const frame of selectedFrames) {
+    validateProviderSelections(frame, providerFrames, diagnostics, options.entry)
+    validateProviderVariantSelections(frame, providerFrames, diagnostics, options.entry)
   }
 
   if (componentExportName) {
@@ -332,8 +332,8 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
       sourceFilesByPath: options.cache?.sourceFilesByPath ?? new Map([[entryPath, sourceFile]]),
       visitedComponents: new Set(),
     })
-    validateProviderVariantCoverage(consumedProviderNames, providerCases, selectedCases, diagnostics, options.entry)
-    validateJSXTreeCaseReachability(sourceFile, componentExportName, scopeHookNames, componentStaticCases, diagnostics, options.entry, {
+    validateProviderVariantCoverage(consumedProviderNames, providerFrames, selectedFrames, diagnostics, options.entry)
+    validateJSXTreeFrameReachability(sourceFile, componentExportName, scopeHookNames, componentStaticFrames, diagnostics, options.entry, {
       cwd: options.cwd,
       entryPath,
       cache: options.cache,
@@ -344,7 +344,7 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
       sourceFile,
       componentExportName,
       scopeHookNames,
-      providerCases,
+      providerFrames,
       diagnostics,
       options.entry,
       {
@@ -361,8 +361,8 @@ export function analyzeEntry(options: AnalyzeEntryOptions): GTSXAnalysisResult {
     entry: options.entry,
     mode,
     defaultExport: Boolean(componentExportName),
-    cases: selectedCases,
-    providers: providerCases,
+    frames: selectedFrames,
+    providers: providerFrames,
     diagnostics,
   }
 }
@@ -485,10 +485,10 @@ function getScopeHookNames(sourceFile: ts.SourceFile): Set<string> {
   return names
 }
 
-function validateCasesAssignmentOrder(
+function validateFramesAssignmentOrder(
   sourceFile: ts.SourceFile,
   componentName: string,
-  assignments: CasesAssignment[],
+  assignments: FramesAssignment[],
   diagnostics: GTSXDiagnostic[],
   file: string,
 ) {
@@ -500,8 +500,8 @@ function validateCasesAssignmentOrder(
 
     diagnostics.push({
       stage: "contract-extraction",
-      code: "cases-before-component-export",
-      message: `Move ${componentName}.cases after the "${componentName}" component declaration. GTSX component boundaries are initialized at runtime, so cases cannot rely on function hoisting.`,
+      code: "frames-before-component-export",
+      message: `Move ${componentName}.frames after the "${componentName}" component declaration. GTSX component boundaries are initialized at runtime, so frames cannot rely on function hoisting.`,
       file,
     })
   }
@@ -601,7 +601,7 @@ function getGProviderSummaries(sourceFile: ts.SourceFile): Map<string, GTSXProvi
       const variants = readCreateGProviderVariants(initializer)
       providers.set(declaration.name.text, {
         name: declaration.name.text,
-        cases: [],
+        frames: [],
         ...(variants && variants.length > 0 ? { variants } : {}),
       })
     }
@@ -877,44 +877,44 @@ function getImportedNames(sourceFile: ts.SourceFile): Set<string> {
 }
 
 function validateProviderSelections(
-  testCase: GTSXCaseSummary,
-  providerCases: Record<string, GTSXProviderSummary>,
+  frame: GTSXFrameSummary,
+  providerFrames: Record<string, GTSXProviderSummary>,
   diagnostics: GTSXDiagnostic[],
   file: string,
 ) {
-  if (!testCase.providers) return
+  if (!frame.providers) return
 
-  for (const providerName of testCase.providers) {
-    if (!providerCases[providerName]) {
+  for (const providerName of frame.providers) {
+    if (!providerFrames[providerName]) {
       diagnostics.push({
         stage: "contract-extraction",
         code: "missing-provider",
-        message: `Case "${testCase.name}" selects unknown provider "${providerName}".`,
+        message: `Frame "${frame.name}" selects unknown provider "${providerName}".`,
         file,
-        caseName: testCase.name,
+        frameName: frame.name,
       })
     }
   }
 }
 
 function validateProviderVariantSelections(
-  testCase: GTSXCaseSummary,
-  providerCases: Record<string, GTSXProviderSummary>,
+  frame: GTSXFrameSummary,
+  providerFrames: Record<string, GTSXProviderSummary>,
   diagnostics: GTSXDiagnostic[],
   file: string,
 ) {
-  if (!testCase.providerVariants) return
+  if (!frame.providerVariants) return
 
-  for (const [providerName, selection] of Object.entries(testCase.providerVariants)) {
+  for (const [providerName, selection] of Object.entries(frame.providerVariants)) {
     const variants = providerVariantSelectionValues(selection)
-    const provider = providerCases[providerName]
+    const provider = providerFrames[providerName]
     if (!provider) {
       diagnostics.push({
         stage: "contract-extraction",
         code: "missing-provider",
-        message: `Case "${testCase.name}" marks unknown provider "${providerName}" variants "${variants.join(", ")}".`,
+        message: `Frame "${frame.name}" marks unknown provider "${providerName}" variants "${variants.join(", ")}".`,
         file,
-        caseName: testCase.name,
+        frameName: frame.name,
       })
       continue
     }
@@ -923,9 +923,9 @@ function validateProviderVariantSelections(
       diagnostics.push({
         stage: "contract-extraction",
         code: "missing-provider-variants",
-        message: `Case "${testCase.name}" marks provider "${providerName}" variants "${variants.join(", ")}", but "${providerName}" does not declare variants.`,
+        message: `Frame "${frame.name}" marks provider "${providerName}" variants "${variants.join(", ")}", but "${providerName}" does not declare variants.`,
         file,
-        caseName: testCase.name,
+        frameName: frame.name,
       })
       continue
     }
@@ -935,9 +935,9 @@ function validateProviderVariantSelections(
       diagnostics.push({
         stage: "contract-extraction",
         code: "unknown-provider-variant",
-        message: `Case "${testCase.name}" marks unknown "${providerName}" variants "${unknownVariants.join(", ")}". Expected one of: ${provider.variants.join(", ")}.`,
+        message: `Frame "${frame.name}" marks unknown "${providerName}" variants "${unknownVariants.join(", ")}". Expected one of: ${provider.variants.join(", ")}.`,
         file,
-        caseName: testCase.name,
+        frameName: frame.name,
       })
     }
   }
@@ -945,18 +945,18 @@ function validateProviderVariantSelections(
 
 function validateProviderVariantCoverage(
   consumedProviderNames: ReadonlySet<string>,
-  providerCases: Record<string, GTSXProviderSummary>,
-  selectedCases: GTSXCaseSummary[],
+  providerFrames: Record<string, GTSXProviderSummary>,
+  selectedFrames: GTSXFrameSummary[],
   diagnostics: GTSXDiagnostic[],
   file: string,
 ) {
   for (const providerName of consumedProviderNames) {
-    const provider = providerCases[providerName]
+    const provider = providerFrames[providerName]
     if (!provider?.variants || provider.variants.length === 0) continue
 
     const coveredVariants = new Set(
-      selectedCases.flatMap((testCase) => {
-        const selection = testCase.providerVariants?.[providerName]
+      selectedFrames.flatMap((frame) => {
+        const selection = frame.providerVariants?.[providerName]
         return selection ? providerVariantSelectionValues(selection) : []
       }),
     )
@@ -965,8 +965,8 @@ function validateProviderVariantCoverage(
 
     diagnostics.push({
       stage: "contract-extraction",
-      code: "missing-provider-variant-cases",
-      message: `GTSX entry consumes provider "${providerName}" but its cases do not cover variants: ${missingVariants.join(", ")}.`,
+      code: "missing-provider-variant-frames",
+      message: `GTSX entry consumes provider "${providerName}" but its frames do not cover variants: ${missingVariants.join(", ")}.`,
       file,
     })
   }
@@ -976,25 +976,25 @@ function providerVariantSelectionValues(selection: GTSXProviderVariantSelection)
   return Array.isArray(selection) ? selection : [selection]
 }
 
-function validateJSXTreeCaseReachability(
+function validateJSXTreeFrameReachability(
   sourceFile: ts.SourceFile,
   componentName: string,
   scopeHookNames: Set<string>,
-  staticCases: GTSXCaseStaticFacts[],
+  staticFrames: GTSXFrameStaticFacts[],
   diagnostics: GTSXDiagnostic[],
   file: string,
   context: NonGTSXHookAnalysisContext,
 ) {
-  if (staticCases.length === 0) return
+  if (staticFrames.length === 0) return
 
   const component = getFunctionLikeDeclaration(sourceFile, componentName)
   if (!component?.body) return
 
   const branchContext = createJSXBranchAnalysisContext(sourceFile, component, scopeHookNames)
   const defaultValues = defaultStaticValuesForFunctionLike(component)
-  const caseFacts = staticCases.map((testCase) => ({
-    ...testCase,
-    values: new Map([...defaultValues, ...testCase.values]),
+  const frameFacts = staticFrames.map((frame) => ({
+    ...frame,
+    values: new Map([...defaultValues, ...frame.values]),
   }))
   const dependencies = reachableJSXDependenciesForComponent(sourceFile, componentName, branchContext, context)
   const reported = new Set<string>()
@@ -1008,29 +1008,29 @@ function validateJSXTreeCaseReachability(
       diagnostics.push({
         stage: "contract-extraction",
         code: "opaque-jsx-control-flow",
-        message: `JSX dependency <${dependency.tagName}> is controlled by an opaque expression "${opaque.text}". Use props, GTSX context, or GScope values directly so cases can cover the tree structure.`,
+        message: `JSX dependency <${dependency.tagName}> is controlled by an opaque expression "${opaque.text}". Use props, GTSX context, or GScope values directly so frames can cover the tree structure.`,
         file,
       })
       continue
     }
 
-    const evaluations = caseFacts.map((testCase) => evaluateJSXBranchPredicate(dependency.condition, testCase.values))
-    const coveredCaseNames = caseFacts
-      .filter((_testCase, index) => evaluations[index] === true)
-      .map((testCase) => testCase.name)
-    if (coveredCaseNames.length > 0) continue
+    const evaluations = frameFacts.map((frame) => evaluateJSXBranchPredicate(dependency.condition, frame.values))
+    const coveredFrameNames = frameFacts
+      .filter((_frame, index) => evaluations[index] === true)
+      .map((frame) => frame.name)
+    if (coveredFrameNames.length > 0) continue
 
-    const unknownCaseNames = caseFacts
-      .filter((_testCase, index) => evaluations[index] === "unknown")
-      .map((testCase) => testCase.name)
-    if (unknownCaseNames.length > 0) {
+    const unknownFrameNames = frameFacts
+      .filter((_frame, index) => evaluations[index] === "unknown")
+      .map((frame) => frame.name)
+    if (unknownFrameNames.length > 0) {
       const key = `unknown:${dependency.tagName}:${formatJSXBranchPredicate(dependency.condition)}`
       if (reported.has(key)) continue
       reported.add(key)
       diagnostics.push({
         stage: "contract-extraction",
         code: "unknown-jsx-branch-coverage",
-        message: `JSX dependency <${dependency.tagName}> is controlled by "${formatJSXBranchPredicate(dependency.condition)}", but case values are not static enough to prove coverage. Unknown cases: ${unknownCaseNames.join(", ")}.`,
+        message: `JSX dependency <${dependency.tagName}> is controlled by "${formatJSXBranchPredicate(dependency.condition)}", but frame values are not static enough to prove coverage. Unknown frames: ${unknownFrameNames.join(", ")}.`,
         file,
       })
       continue
@@ -1042,7 +1042,7 @@ function validateJSXTreeCaseReachability(
     diagnostics.push({
       stage: "contract-extraction",
       code: "uncovered-jsx-branch",
-      message: `No case renders JSX dependency <${dependency.tagName}> behind "${formatJSXBranchPredicate(dependency.condition)}". Add a case whose props, GTSX context, or GScope values make that branch reachable.`,
+      message: `No frame renders JSX dependency <${dependency.tagName}> behind "${formatJSXBranchPredicate(dependency.condition)}". Add a frame whose props, GTSX context, or GScope values make that branch reachable.`,
       file,
     })
   }
@@ -1052,12 +1052,12 @@ function validateProviderProjectionWarnings(
   sourceFile: ts.SourceFile,
   componentName: string,
   scopeHookNames: Set<string>,
-  providerCases: Record<string, GTSXProviderSummary>,
+  providerFrames: Record<string, GTSXProviderSummary>,
   diagnostics: GTSXDiagnostic[],
   file: string,
   context: NonGTSXHookAnalysisContext,
 ) {
-  const warnings = providerProjectionWarningsForComponent(sourceFile, componentName, scopeHookNames, providerCases, context)
+  const warnings = providerProjectionWarningsForComponent(sourceFile, componentName, scopeHookNames, providerFrames, context)
   const reported = new Set<string>()
 
   for (const warning of warnings) {
@@ -1069,7 +1069,7 @@ function validateProviderProjectionWarnings(
       stage: "contract-extraction",
       severity: "warning",
       code: "unmarked-provider-variant-projection",
-      message: `JSX dependency <${warning.tagName}> receives props derived from provider "${warning.providerName}", but its cases do not mark "${warning.providerName}" variants. If those props are environment projections, add GProviderCase markers; if the child is environment-neutral, this warning can be ignored.`,
+      message: `JSX dependency <${warning.tagName}> receives props derived from provider "${warning.providerName}", but its frames do not mark "${warning.providerName}" variants. If those props are environment projections, add GProviderFrame markers; if the child is environment-neutral, this warning can be ignored.`,
       file,
     })
   }
@@ -1079,7 +1079,7 @@ function providerProjectionWarningsForComponent(
   sourceFile: ts.SourceFile,
   componentName: string,
   scopeHookNames: Set<string>,
-  providerCases: Record<string, GTSXProviderSummary>,
+  providerFrames: Record<string, GTSXProviderSummary>,
   context: NonGTSXHookAnalysisContext,
 ): { providerName: string; tagName: string; target: ComponentDependencyTarget }[] {
   const component = getFunctionLikeDeclaration(sourceFile, componentName)
@@ -1141,14 +1141,14 @@ function providerProjectionWarningsForComponent(
     })
     if (!target) return
 
-    const projectedProviderNames = providerVariantNamesReferencedByJsxAttributes(node.attributes, providerCases, currentBranchContext)
+    const projectedProviderNames = providerVariantNamesReferencedByJsxAttributes(node.attributes, providerFrames, currentBranchContext)
     if (projectedProviderNames.size === 0) return
 
     const targetSourceFile = sourceFileForPath(target.filePath, context)
     if (!targetSourceFile) return
 
     for (const providerName of projectedProviderNames) {
-      const markerStatus = componentCasesProviderVariantMarkerStatus(targetSourceFile, target.componentName, providerName)
+      const markerStatus = componentFramesProviderVariantMarkerStatus(targetSourceFile, target.componentName, providerName)
       if (markerStatus !== false) continue
 
       warnings.push({
@@ -1162,7 +1162,7 @@ function providerProjectionWarningsForComponent(
 
 function providerVariantNamesReferencedByJsxAttributes(
   attributes: ts.JsxAttributes,
-  providerCases: Record<string, GTSXProviderSummary>,
+  providerFrames: Record<string, GTSXProviderSummary>,
   context: JSXBranchAnalysisContext,
 ): Set<string> {
   const providerNames = new Set<string>()
@@ -1178,7 +1178,7 @@ function providerVariantNamesReferencedByJsxAttributes(
           : undefined
     if (!expression) continue
 
-    for (const providerName of providerVariantNamesReferencedByExpression(expression, providerCases, context)) {
+    for (const providerName of providerVariantNamesReferencedByExpression(expression, providerFrames, context)) {
       providerNames.add(providerName)
     }
   }
@@ -1188,7 +1188,7 @@ function providerVariantNamesReferencedByJsxAttributes(
 
 function providerVariantNamesReferencedByExpression(
   expression: ts.Expression,
-  providerCases: Record<string, GTSXProviderSummary>,
+  providerFrames: Record<string, GTSXProviderSummary>,
   context: JSXBranchAnalysisContext,
 ): Set<string> {
   const providerNames = new Set<string>()
@@ -1198,7 +1198,7 @@ function providerVariantNamesReferencedByExpression(
   function visit(node: ts.Node) {
     if (ts.isExpression(node)) {
       const reference = factorReferenceForExpression(node, context)
-      if (reference?.root === "context" && (providerCases[reference.providerName]?.variants?.length ?? 0) > 0) {
+      if (reference?.root === "context" && (providerFrames[reference.providerName]?.variants?.length ?? 0) > 0) {
         providerNames.add(reference.providerName)
       }
     }
@@ -1207,23 +1207,23 @@ function providerVariantNamesReferencedByExpression(
   }
 }
 
-function componentCasesProviderVariantMarkerStatus(
+function componentFramesProviderVariantMarkerStatus(
   sourceFile: ts.SourceFile,
   componentName: string,
   providerName: string,
 ): boolean | undefined {
-  let hasCases = false
+  let hasFrames = false
 
   for (const statement of sourceFile.statements) {
-    const assignment = getCasesAssignment(statement, sourceFile, [])
+    const assignment = getFramesAssignment(statement, sourceFile, [])
     if (!assignment || assignment.targetName !== componentName) continue
-    if (assignment.cases.length === 0) continue
+    if (assignment.frames.length === 0) continue
 
-    hasCases = true
-    if (assignment.cases.some((testCase) => testCase.providerVariants?.[providerName])) return true
+    hasFrames = true
+    if (assignment.frames.some((frame) => frame.providerVariants?.[providerName])) return true
   }
 
-  return hasCases ? false : undefined
+  return hasFrames ? false : undefined
 }
 
 function createJSXBranchAnalysisContext(
@@ -2798,11 +2798,11 @@ function jsxTagIdentifier(tagName: ts.JsxTagNameExpression): string | undefined 
   return undefined
 }
 
-function getCasesAssignment(
+function getFramesAssignment(
   statement: ts.Statement,
   sourceFile: ts.SourceFile,
   diagnostics: GTSXDiagnostic[],
-): CasesAssignment | undefined {
+): FramesAssignment | undefined {
   if (!ts.isExpressionStatement(statement)) return undefined
 
   const expression = statement.expression
@@ -2810,44 +2810,44 @@ function getCasesAssignment(
     return undefined
   }
 
-  if (!ts.isPropertyAccessExpression(expression.left) || expression.left.name.text !== "cases") {
+  if (!ts.isPropertyAccessExpression(expression.left) || expression.left.name.text !== "frames") {
     return undefined
   }
 
   if (!ts.isIdentifier(expression.left.expression)) return undefined
 
-  const casesExpression = unwrapExpression(expression.right)
-  if (!ts.isObjectLiteralExpression(casesExpression)) {
+  const framesExpression = unwrapExpression(expression.right)
+  if (!ts.isObjectLiteralExpression(framesExpression)) {
     diagnostics.push({
       stage: "contract-extraction",
-      code: "malformed-cases",
-      message: "GTSX cases must be a statically enumerable object literal.",
+      code: "malformed-frames",
+      message: "GTSX frames must be a statically enumerable object literal.",
       file: sourceFile.fileName,
     })
-    return { targetName: expression.left.expression.text, cases: [], staticCases: [], statementStart: statement.getStart(sourceFile) }
+    return { targetName: expression.left.expression.text, frames: [], staticFrames: [], statementStart: statement.getStart(sourceFile) }
   }
 
   return {
     targetName: expression.left.expression.text,
     statementStart: statement.getStart(sourceFile),
-    ...readCasesObject(casesExpression, sourceFile, diagnostics),
+    ...readFramesObject(framesExpression, sourceFile, diagnostics),
   }
 }
 
-function readCasesObject(
+function readFramesObject(
   objectLiteral: ts.ObjectLiteralExpression,
   sourceFile: ts.SourceFile,
   diagnostics: GTSXDiagnostic[],
-): Pick<CasesAssignment, "cases" | "staticCases"> {
-  const cases: GTSXCaseSummary[] = []
-  const staticCases: GTSXCaseStaticFacts[] = []
+): Pick<FramesAssignment, "frames" | "staticFrames"> {
+  const frames: GTSXFrameSummary[] = []
+  const staticFrames: GTSXFrameStaticFacts[] = []
 
   for (const property of objectLiteral.properties) {
     if (ts.isSpreadAssignment(property)) {
       diagnostics.push({
         stage: "contract-extraction",
-        code: "malformed-cases",
-        message: "GTSX cases do not support spread composition in the first implementation.",
+        code: "malformed-frames",
+        message: "GTSX frames do not support spread composition in the first implementation.",
         file: sourceFile.fileName,
       })
       continue
@@ -2855,31 +2855,31 @@ function readCasesObject(
 
     if (!ts.isPropertyAssignment(property)) continue
 
-    const caseName = getStaticPropertyName(property.name)
-    if (!caseName) {
+    const frameName = getStaticPropertyName(property.name)
+    if (!frameName) {
       diagnostics.push({
         stage: "contract-extraction",
-        code: "non-static-case-key",
-        message: "GTSX case keys must be statically enumerable object literal keys.",
+        code: "non-static-frame-key",
+        message: "GTSX frame keys must be statically enumerable object literal keys.",
         file: sourceFile.fileName,
       })
       continue
     }
 
     const providerVariants = readProviderVariantMarkers(property.initializer)
-    const caseValue = unwrapExpression(property.initializer)
-    const providers = ts.isObjectLiteralExpression(caseValue) ? readProviderSelections(caseValue) : undefined
-    const kind = ts.isObjectLiteralExpression(caseValue) && hasStaticProperty(caseValue, "scope") ? "scope" : "pure"
-    cases.push({
+    const frameValue = unwrapExpression(property.initializer)
+    const providers = ts.isObjectLiteralExpression(frameValue) ? readProviderSelections(frameValue) : undefined
+    const kind = ts.isObjectLiteralExpression(frameValue) && hasStaticProperty(frameValue, "scope") ? "scope" : "pure"
+    frames.push({
       kind,
-      name: caseName,
+      name: frameName,
       ...(providerVariants && Object.keys(providerVariants).length > 0 ? { providerVariants } : {}),
       ...(providers && Object.keys(providers).length > 0 ? { providers } : {}),
     })
-    staticCases.push(readCaseStaticFacts(caseName, caseValue, providerVariants))
+    staticFrames.push(readFrameStaticFacts(frameName, frameValue, providerVariants))
   }
 
-  return { cases, staticCases }
+  return { frames, staticFrames }
 }
 
 function readProviderVariantMarkers(expression: ts.Expression): Record<string, GTSXProviderVariantSelection> | undefined {
@@ -2888,21 +2888,21 @@ function readProviderVariantMarkers(expression: ts.Expression): Record<string, G
   return undefined
 }
 
-function readCaseStaticFacts(
-  caseName: string,
-  caseValue: ts.Expression,
+function readFrameStaticFacts(
+  frameName: string,
+  frameValue: ts.Expression,
   providerVariants: Record<string, GTSXProviderVariantSelection> | undefined,
-): GTSXCaseStaticFacts {
+): GTSXFrameStaticFacts {
   const values = new Map<string, StaticBranchValue>()
 
-  if (ts.isObjectLiteralExpression(caseValue)) {
-    const props = objectLiteralPropertyExpression(caseValue, "props")
+  if (ts.isObjectLiteralExpression(frameValue)) {
+    const props = objectLiteralPropertyExpression(frameValue, "props")
     if (props) flattenStaticObjectExpression(props, "props", values)
 
-    const scope = objectLiteralPropertyExpression(caseValue, "scope")
+    const scope = objectLiteralPropertyExpression(frameValue, "scope")
     if (scope) flattenStaticObjectExpression(scope, "scope", values)
 
-    const providers = objectLiteralPropertyExpression(caseValue, "providers")
+    const providers = objectLiteralPropertyExpression(frameValue, "providers")
     if (providers) flattenProviderStaticValues(providers, values)
   }
 
@@ -2917,7 +2917,7 @@ function readCaseStaticFacts(
   }
 
   return {
-    name: caseName,
+    name: frameName,
     ...(providerVariants && Object.keys(providerVariants).length > 0 ? { providerVariants } : {}),
     values,
   }
@@ -3049,7 +3049,7 @@ function readProviderVariantMarkersFromType(typeNode: ts.TypeNode): Record<strin
     }
 
     if (!ts.isTypeReferenceNode(node)) return
-    if (!ts.isIdentifier(node.typeName) || node.typeName.text !== "GProviderCase") return
+    if (!ts.isIdentifier(node.typeName) || node.typeName.text !== "GProviderFrame") return
 
     const providerType = node.typeArguments?.[0]
     const variantType = node.typeArguments?.[1]
@@ -3072,8 +3072,8 @@ function readProviderVariantTypeValues(typeNode: ts.TypeNode): string[] {
   return []
 }
 
-function readProviderSelections(caseValue: ts.ObjectLiteralExpression): string[] | undefined {
-  const providersProperty = caseValue.properties.find(
+function readProviderSelections(frameValue: ts.ObjectLiteralExpression): string[] | undefined {
+  const providersProperty = frameValue.properties.find(
     (property): property is ts.PropertyAssignment =>
       ts.isPropertyAssignment(property) && getStaticPropertyName(property.name) === "providers",
   )

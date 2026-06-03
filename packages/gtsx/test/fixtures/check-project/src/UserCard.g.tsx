@@ -1,8 +1,8 @@
 import {
   createGProvider,
   createGScopeHook,
-  type GCases,
-  type GProviderCase,
+  type GFrames,
+  type GProviderFrame,
 } from "@gtsx/core"
 
 export type Props = {
@@ -36,15 +36,15 @@ export default function UserCard(props: Props) {
   return <span>{scope.status}</span>
 }
 
-UserCard.cases = {
+UserCard.frames = {
   loading: {
     props: { userId: "user_1" },
     providers: [[ThemeProvider, { mode: "light" }]],
     scope: { status: "loading" },
-  } satisfies GProviderCase<typeof ThemeProvider, "light">,
+  } satisfies GProviderFrame<typeof ThemeProvider, "light">,
   ready: {
     props: { userId: "user_1" },
     providers: [[ThemeProvider, { mode: "dark" }]],
     scope: { status: "ready", title: "Ada Lovelace", onOpen: () => {} },
-  } satisfies GProviderCase<typeof ThemeProvider, "dark">,
-} satisfies GCases<Props, Scope, typeof providers>
+  } satisfies GProviderFrame<typeof ThemeProvider, "dark">,
+} satisfies GFrames<Props, Scope, typeof providers>

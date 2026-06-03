@@ -55,7 +55,7 @@ Already have components? Tell your agent to run the `refactor-to-gtsx` skill —
 A gtsx component is a normal React file (`.g.tsx`) with one static object appended:
 
 ```tsx
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type BadgeProps = {
   tone: "neutral" | "warning"
@@ -66,19 +66,19 @@ export default function Badge(props: BadgeProps) {
   return <span data-tone={props.tone}>{props.label}</span>
 }
 
-Badge.cases = {
+Badge.frames = {
   neutral: { props: { tone: "neutral", label: "Ready" } },
   warning: { props: { tone: "warning", label: "Needs review" } },
-} satisfies GCases<BadgeProps>
+} satisfies GFrames<BadgeProps>
 ```
 
-That `.cases` object is the entire footprint — inert data that never runs in production and never appears in your bundle. Your agent writes it. The type checker keeps it in sync.
+That `.frames` object is the entire footprint — inert data that never runs in production and never appears in your bundle. Your agent writes it. The type checker keeps it in sync.
 
 No config files. No separate build step. Nothing to maintain.
 
 ### Leave Anytime
 
-Rename `.g.tsx` → `.tsx`, delete `.cases`, remove the Studio route. Plain React. No lock-in.
+Rename `.g.tsx` → `.tsx`, delete `.frames`, remove the Studio route. Plain React. No lock-in.
 
 ## Docs
 

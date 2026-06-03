@@ -1,4 +1,4 @@
-import { createGScopeHook, type GCases } from "@gtsx/core"
+import { createGScopeHook, type GFrames } from "@gtsx/core"
 
 type UserCardProps = {
   userId: string
@@ -49,7 +49,7 @@ export default function UserCard(props: UserCardProps) {
   )
 }
 
-UserCard.cases = {
+UserCard.frames = {
   loading: {
     props: { userId: "user_1" },
     scope: { status: "loading" },
@@ -67,4 +67,4 @@ UserCard.cases = {
       lastSeen: "Active 3 minutes ago",
     },
   },
-} satisfies GCases<UserCardProps, UserCardScope>
+} satisfies GFrames<UserCardProps, UserCardScope>

@@ -51,9 +51,9 @@ export function studioPreviewGeometryCacheKeys(manifest: StudioManifest): string
   return uniqueStrings(
     manifest.files.flatMap((file) =>
       file.components.flatMap((component) =>
-        component.cases.flatMap((testCase) =>
+        component.frames.flatMap((frame) =>
           studioPreviewGeometryViewportPresets.map((viewportPreset) =>
-            studioPreviewCacheKey(component, testCase.name, viewportPreset),
+            studioPreviewCacheKey(component, frame.name, viewportPreset),
           ),
         ),
       ),
@@ -188,9 +188,9 @@ export function studioPreviewGeometrySubscriptionKeys(input: {
   component: StudioManifestComponent
   viewportPreset: StudioViewportPreset
 }): string[] {
-  return input.component.cases.flatMap((testCase) => {
-    const sessionId = previewSessionId(input.component, testCase.name, input.viewportPreset)
-    const cacheKey = studioPreviewCacheKey(input.component, testCase.name, input.viewportPreset)
+  return input.component.frames.flatMap((frame) => {
+    const sessionId = previewSessionId(input.component, frame.name, input.viewportPreset)
+    const cacheKey = studioPreviewCacheKey(input.component, frame.name, input.viewportPreset)
     return [sessionId, cacheKey]
   })
 }

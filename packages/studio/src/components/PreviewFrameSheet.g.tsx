@@ -1,24 +1,24 @@
-import { type GCases } from "@gtsx/core"
+import { type GFrames } from "@gtsx/core"
 import {
-  GTSXPreviewCaseSheet,
-  type GTSXPreviewCase,
-  type GTSXPreviewCaseSheetProps,
+  GTSXPreviewFrameSheet,
+  type GTSXPreviewFrame,
+  type GTSXPreviewFrameSheetProps,
   type GTSXPreviewComponent,
 } from "@gtsx/preview-react"
 
-export type PreviewCase<Props extends object = Record<string, unknown>> = GTSXPreviewCase<Props>
+export type PreviewFrame<Props extends object = Record<string, unknown>> = GTSXPreviewFrame<Props>
 
 export type PreviewComponent<Props extends object = Record<string, unknown>> = GTSXPreviewComponent<Props>
 
-export type PreviewRenderableCase<Props extends object = Record<string, unknown>> = {
+export type PreviewRenderableFrame<Props extends object = Record<string, unknown>> = {
   name: string
-  testCase: PreviewCase<Props>
+  frame: PreviewFrame<Props>
 }
 
-export type PreviewCaseSheetProps<Props extends object = Record<string, unknown>> = GTSXPreviewCaseSheetProps<Props>
+export type PreviewFrameSheetProps<Props extends object = Record<string, unknown>> = GTSXPreviewFrameSheetProps<Props>
 
-export default function PreviewCaseSheet<Props extends object = Record<string, unknown>>(props: PreviewCaseSheetProps<Props>) {
-  return <GTSXPreviewCaseSheet {...props} />
+export default function PreviewFrameSheet<Props extends object = Record<string, unknown>>(props: PreviewFrameSheetProps<Props>) {
+  return <GTSXPreviewFrameSheet {...props} />
 }
 
 type ExamplePreviewProps = {
@@ -42,15 +42,15 @@ function ExamplePreviewComponent(props: ExamplePreviewProps) {
   )
 }
 
-PreviewCaseSheet.cases = {
+PreviewFrameSheet.frames = {
   chromeVisible: {
     props: {
       component: ExamplePreviewComponent,
       entry: "src/components/ExamplePreview.g.tsx#default",
-      selectedCases: [
+      selectedFrames: [
         {
           name: "ready",
-          testCase: {
+          frame: {
             props: { label: "Ready preview", tone: "neutral" },
           },
         },
@@ -61,10 +61,10 @@ PreviewCaseSheet.cases = {
     props: {
       component: ExamplePreviewComponent,
       entry: "src/components/ExamplePreview.g.tsx#default",
-      selectedCases: [
+      selectedFrames: [
         {
           name: "selected",
-          testCase: {
+          frame: {
             props: { label: "Selected preview", tone: "selected" },
           },
         },
@@ -72,4 +72,4 @@ PreviewCaseSheet.cases = {
       showChrome: false,
     },
   },
-} satisfies GCases<PreviewCaseSheetProps<ExamplePreviewProps>>
+} satisfies GFrames<PreviewFrameSheetProps<ExamplePreviewProps>>

@@ -9,6 +9,6 @@ This playground keeps the project shape that matters for gtsx:
 
 - Vite React TypeScript configuration
 - Router-like route module under `src/routes`
-- A `.g.tsx` entry with cases for scaffold failure, first route, and ready app
+- A `.g.tsx` entry with frames for scaffold failure, first route, and ready app
 
 gtsx uses the Script adapter so Vite remains the owner of dev/build behavior.

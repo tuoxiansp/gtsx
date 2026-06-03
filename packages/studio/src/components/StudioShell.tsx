@@ -82,7 +82,7 @@ type StudioShellScope = {
   ) => void
   onSelectComponent: (
     component: StudioManifestComponent,
-    caseFrameStates: Record<string, StudioPreviewFrameState | undefined>,
+    frameStatesByName: Record<string, StudioPreviewFrameState | undefined>,
     options?: StudioComponentSelectionOptions,
   ) => void
   previewCacheReady: boolean
@@ -281,13 +281,13 @@ function useStudioShellScope(props: StudioShellLoadedProps): StudioShellScope {
       commitWorkspace((current) => changeStudioViewportPreset(current, component.coordinate, preset))
     },
     onPreviewFrameMount: handlePreviewFrameMount,
-    onSelectComponent(component, caseFrameStates, options) {
+    onSelectComponent(component, frameStatesByName, options) {
       commitWorkspace((current) =>
         selectStudioComponent(
           current,
           props.manifest,
           component.coordinate,
-          Object.values(caseFrameStates).flatMap((frameState) => (frameState?.tree ? [frameState.tree] : [])),
+          Object.values(frameStatesByName).flatMap((frameState) => (frameState?.tree ? [frameState.tree] : [])),
           options,
         ),
       )

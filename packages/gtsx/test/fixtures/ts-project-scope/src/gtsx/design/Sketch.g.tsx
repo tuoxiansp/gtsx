@@ -1,9 +1,9 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 export default function Sketch() {
   return null
 }
 
-Sketch.cases = {
+Sketch.frames = {
   live: { props: {} },
-} satisfies GCases<Record<string, never>>
+} satisfies GFrames<Record<string, never>>

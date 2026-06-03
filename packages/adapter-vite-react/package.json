@@ -1,6 +1,6 @@
 {
   "name": "@gtsx/adapter-vite-react",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Vite React adapter for GTSX component preview integration.",
   "license": "MIT",
   "type": "module",

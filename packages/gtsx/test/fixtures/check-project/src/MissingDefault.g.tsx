@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type Props = {
   label: string
@@ -8,6 +8,6 @@ export function MissingDefault(props: Props) {
   return <span>{props.label}</span>
 }
 
-MissingDefault.cases = {
+MissingDefault.frames = {
   ready: { props: { label: "Ready" } },
-} satisfies GCases<Props>
+} satisfies GFrames<Props>

@@ -1,5 +1,5 @@
 import React from "react"
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 import {
   studioSegmentedControlButtonStyle,
@@ -100,12 +100,12 @@ function ViewportPresetTabsView(props: ViewportPresetTabsProps) {
 }
 
 const ViewportPresetTabs = React.memo(ViewportPresetTabsView) as typeof ViewportPresetTabsView & {
-  cases?: GCases<ViewportPresetTabsProps>
+  frames?: GFrames<ViewportPresetTabsProps>
 }
 
 export default ViewportPresetTabs
 
-ViewportPresetTabs.cases = {
+ViewportPresetTabs.frames = {
   tabletSelected: {
     props: {
       selectedPreset: "tablet",
@@ -117,4 +117,4 @@ ViewportPresetTabs.cases = {
       selectedPreset: "phone",
     },
   },
-} satisfies GCases<ViewportPresetTabsProps>
+} satisfies GFrames<ViewportPresetTabsProps>

@@ -32,13 +32,13 @@ export type GProviderUpdate<Provider> = Provider extends GProvider<any, infer Up
 
 export type GProviderVariant<Provider> = Provider extends GProvider<any, any, any, infer Variant> ? Variant : never
 
-export type GProviderCase<
+export type GProviderFrame<
   Provider extends AnyGProvider,
   Variant extends GProviderVariant<Provider>,
   Props = any,
   Scope = never,
   Providers extends readonly unknown[] = readonly unknown[],
-> = GCase<Props, Scope, Providers> & {
+> = GFrame<Props, Scope, Providers> & {
   readonly __gtsxProviderVariant?: readonly [Provider, Variant]
 }
 
@@ -65,13 +65,13 @@ export type GProviderOptions<Variants extends readonly string[] = readonly strin
   variants?: Variants
 }
 
-export type GCase<Props, Scope = never, Providers extends readonly unknown[] = readonly unknown[]> = {
+export type GFrame<Props, Scope = never, Providers extends readonly unknown[] = readonly unknown[]> = {
   props: Props
   providers?: GProviderEntriesFor<Providers>
 } & ([Scope] extends [never] ? unknown : { scope?: Scope })
 
-export type GCases<
+export type GFrames<
   Props,
   Scope = never,
   Providers extends readonly unknown[] = readonly unknown[],
-> = Record<string, GCase<Props, Scope, Providers>>
+> = Record<string, GFrame<Props, Scope, Providers>>

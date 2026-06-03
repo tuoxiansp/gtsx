@@ -88,8 +88,8 @@ describe("GTSX preview iframe protocol", () => {
   it("creates pooled iframe render control messages", () => {
     expect(
       createGPreviewRenderMessage({
-        caseName: "ready",
-        caseOverrides: [["src/Child.g.tsx#default", "open"]],
+        frameName: "ready",
+        frameOverrides: [["src/Child.g.tsx#default", "open"]],
         chrome: "0",
         entry: "src/Card.g.tsx#default",
         sessionId: "src/Card.g.tsx#default:ready",
@@ -100,8 +100,8 @@ describe("GTSX preview iframe protocol", () => {
       protocolVersion: 1,
       sessionId: "src/Card.g.tsx#default:ready",
       target: {
-        caseName: "ready",
-        caseOverrides: [["src/Child.g.tsx#default", "open"]],
+        frameName: "ready",
+        frameOverrides: [["src/Child.g.tsx#default", "open"]],
         chrome: "0",
         entry: "src/Card.g.tsx#default",
         sessionId: "src/Card.g.tsx#default:ready",

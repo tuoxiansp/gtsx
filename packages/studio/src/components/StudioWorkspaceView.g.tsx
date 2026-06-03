@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GCases } from "@gtsx/core"
+import { createGScopeHook, type GFrames } from "@gtsx/core"
 
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import {
@@ -9,7 +9,7 @@ import {
   canvasViewportPresetForWorkspace,
   revealStudioCanvasRect,
   resolveStudioSelection,
-  selectedStudioCaseName,
+  selectedStudioFrameName,
   studioManifestProviderVariantAxes,
   studioProviderVariantContextForPath,
   type StudioPreviewCacheEntry,
@@ -101,7 +101,7 @@ export type StudioWorkspaceViewProps = {
   ) => void
   onSelectComponent?: (
     component: StudioManifestComponent,
-    caseFrameStates: Record<string, StudioPreviewFrameState | undefined>,
+    frameStatesByName: Record<string, StudioPreviewFrameState | undefined>,
     options?: StudioComponentSelectionOptions,
   ) => void
   urlWarning?: string
@@ -120,7 +120,7 @@ type StudioWorkspaceViewScope = {
   setColumnElement: (columnIndex: number, element: HTMLElement | null) => void
   onSelectCard: (
     component: StudioManifestComponent,
-    caseFrameStates: Record<string, StudioPreviewFrameState | undefined>,
+    frameStatesByName: Record<string, StudioPreviewFrameState | undefined>,
     columnIndex: number,
     source: "keyboard" | "pointer",
   ) => void
@@ -128,7 +128,7 @@ type StudioWorkspaceViewScope = {
   onViewportPresetChange: (preset: StudioViewportPreset) => void
   onPreviewGeometryChange: () => void
   previewRenderSessionStore: StudioPreviewRenderSessionStore
-  casePreviewScale: number
+  framePreviewScale: number
   selected: { id: string; components: StudioManifestComponent[] }
   selectedCardPathKey?: string
   setCanvasViewportElement: (element: HTMLDivElement | null) => void
@@ -238,8 +238,8 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   )
   const canvasCardIndexRef = React.useRef(canvasCardIndex)
   canvasCardIndexRef.current = canvasCardIndex
-  const casePreviewScaleRef = React.useRef(layout.casePreviewScale)
-  casePreviewScaleRef.current = layout.casePreviewScale
+  const framePreviewScaleRef = React.useRef(layout.framePreviewScale)
+  framePreviewScaleRef.current = layout.framePreviewScale
   const visibleCardsByColumnIndex = useVisibleStudioCanvasCardsByColumnIndex({
     canvas: canvasController.canvas,
     canvasViewportElement: canvasController.canvasViewportElement,
@@ -256,7 +256,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     canvasViewportElement: canvasController.canvasViewportElement,
     canvasViewportPresetRef,
     cardIndexRef: canvasCardIndexRef,
-    casePreviewScaleRef,
+    framePreviewScaleRef,
     columnLayoutByIndexRef: layout.columnLayoutByIndexRef,
     columnMeasurementsByIndexRef: layout.columnMeasurementsByIndexRef,
     frameStatesRef,
@@ -451,7 +451,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   const handleSelectCard = React.useCallback(
     (
       component: StudioManifestComponent,
-      caseFrameStates: Record<string, StudioPreviewFrameState | undefined>,
+      frameStatesByName: Record<string, StudioPreviewFrameState | undefined>,
       columnIndex: number,
       source: "keyboard" | "pointer",
     ) => {
@@ -464,7 +464,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
         })
         return nextCoordinate ? nextSelectedCardPathKey : undefined
       })
-      onSelectComponentRef.current?.(component, caseFrameStates, { columnIndex })
+      onSelectComponentRef.current?.(component, frameStatesByName, { columnIndex })
       scheduleRevealCardOnCanvas(columnIndex, component.coordinate, {
         preserveVerticalCanvasPosition: source === "pointer",
       })
@@ -516,7 +516,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     onChangeRootProviderVariant: handleChangeRootProviderVariant,
     onPreviewGeometryChange: layout.scheduleMeasurement,
     onViewportPresetChange: handleViewportPresetChange,
-    casePreviewScale: layout.casePreviewScale,
+    framePreviewScale: layout.framePreviewScale,
     renderObservationSnapshot,
     renderExpansionCenterPulse,
     visibleCardsByColumnIndex,
@@ -833,7 +833,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                             }}
                           >
                             <StudioComponentCardSlot
-                              casePreviewScale={scope.casePreviewScale}
+                              framePreviewScale={scope.framePreviewScale}
                               columnIndex={columnIndex}
                               component={component}
                               debugPreviewPool={props.debugPreviewPool}
@@ -848,7 +848,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                               providerVariantComponent={findManifestComponent(props.manifest, component.coordinate) ?? component}
                               providerVariantContext={studioProviderVariantContextForPath(props.workspace, providerVariantPath)}
                               selected={scope.selectedCardPathKey === card.pathKey}
-                              selectedCaseName={selectedStudioCaseName(props.workspace, component)}
+                              selectedFrameName={selectedStudioFrameName(props.workspace, component)}
                               viewportPreset={scope.canvasViewportPreset}
                             />
                           </div>
@@ -1058,7 +1058,7 @@ function providerVariantAxisLabel(providerName: string): string {
   return providerName.endsWith("Provider") ? providerName.slice(0, -"Provider".length) : providerName
 }
 
-Studio.cases = {
+Studio.frames = {
   multiExportFile: {
     props: {
       manifest: {
@@ -1069,8 +1069,8 @@ Studio.cases = {
           manifest: "/gtsx/studio/manifest",
         },
         preview: {
-          urlTemplate: "/gtsx?entry={entry}&case={case}{gcase}",
-          allUrlTemplate: "/gtsx?entry={entry}{gcase}",
+          urlTemplate: "/gtsx?entry={entry}&frame={frame}{gframe}",
+          allUrlTemplate: "/gtsx?entry={entry}{gframe}",
         },
         files: [
           {
@@ -1083,7 +1083,7 @@ Studio.cases = {
                 exportName: "NamedBadge",
                 componentName: "NamedBadge",
                 mode: "pure",
-                cases: [{ kind: "pure", name: "ready" }],
+                frames: [{ kind: "pure", name: "ready" }],
                 providers: {},
                 diagnostics: [],
               },
@@ -1104,7 +1104,7 @@ Studio.cases = {
                 exportName: "NamedBadge",
                 componentName: "NamedBadge",
                 mode: "pure",
-                cases: [{ kind: "pure", name: "ready" }],
+                frames: [{ kind: "pure", name: "ready" }],
                 providers: {},
                 diagnostics: [],
               },
@@ -1112,7 +1112,7 @@ Studio.cases = {
           },
         ],
         rootProviderVariants: {},
-        selectedCaseByCoordinate: {},
+        selectedFrameByCoordinate: {},
         selectedCoordinatePath: [],
         selectedProviderVariantsByPath: {},
         selectedRuntimeInstanceByCoordinate: {},
@@ -1122,7 +1122,7 @@ Studio.cases = {
     scope: {
       canvas: { x: 40, y: 40, scale: 1 },
       canvasViewportPreset: "tablet",
-      casePreviewScale: 1,
+      framePreviewScale: 1,
       columnLayoutByIndex: {},
       columnMeasurementsByIndex: {},
       onCanvasPointerCancel() {},
@@ -1153,8 +1153,8 @@ Studio.cases = {
           manifest: "/gtsx/studio/manifest",
         },
         preview: {
-          urlTemplate: "/gtsx?entry={entry}&case={case}{gcase}",
-          allUrlTemplate: "/gtsx?entry={entry}{gcase}",
+          urlTemplate: "/gtsx?entry={entry}&frame={frame}{gframe}",
+          allUrlTemplate: "/gtsx?entry={entry}{gframe}",
         },
         files: [
           {
@@ -1167,14 +1167,14 @@ Studio.cases = {
                 exportName: "default",
                 componentName: "UserCard",
                 mode: "pure",
-                cases: [
+                frames: [
                   { kind: "pure", name: "loading", providerVariants: { ThemeProvider: "light" } },
                   { kind: "pure", name: "ready", providerVariants: { ThemeProvider: "dark" } },
                 ],
                 providers: {
                   ThemeProvider: {
                     name: "ThemeProvider",
-                    cases: [],
+                    frames: [],
                     variants: ["light", "dark"],
                   },
                 },
@@ -1197,14 +1197,14 @@ Studio.cases = {
                 exportName: "default",
                 componentName: "UserCard",
                 mode: "pure",
-                cases: [
+                frames: [
                   { kind: "pure", name: "loading", providerVariants: { ThemeProvider: "light" } },
                   { kind: "pure", name: "ready", providerVariants: { ThemeProvider: "dark" } },
                 ],
                 providers: {
                   ThemeProvider: {
                     name: "ThemeProvider",
-                    cases: [],
+                    frames: [],
                     variants: ["light", "dark"],
                   },
                 },
@@ -1214,7 +1214,7 @@ Studio.cases = {
           },
         ],
         rootProviderVariants: { ThemeProvider: "dark" },
-        selectedCaseByCoordinate: {},
+        selectedFrameByCoordinate: {},
         selectedCoordinatePath: [],
         selectedProviderVariantsByPath: {},
         selectedRuntimeInstanceByCoordinate: {},
@@ -1224,7 +1224,7 @@ Studio.cases = {
     scope: {
       canvas: { x: 40, y: 40, scale: 1 },
       canvasViewportPreset: "tablet",
-      casePreviewScale: 1,
+      framePreviewScale: 1,
       columnLayoutByIndex: {},
       columnMeasurementsByIndex: {},
       onCanvasPointerCancel() {},
@@ -1263,4 +1263,4 @@ Studio.cases = {
       visibleCardsByColumnIndex: {},
     },
   },
-} satisfies GCases<StudioWorkspaceViewProps, StudioWorkspaceViewScope>
+} satisfies GFrames<StudioWorkspaceViewProps, StudioWorkspaceViewScope>

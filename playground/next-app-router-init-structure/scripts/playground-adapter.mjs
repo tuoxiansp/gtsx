@@ -19,9 +19,9 @@ if (action === "capture" && values.out) {
   writeSnapshotPng(join(process.cwd(), values.out), [
     "framework: next app router",
     "issue: vercel/next.js#59845",
-    `case: ${values.case}`,
+    `frame: ${values.frame}`,
     `entry: ${values.entry}`,
   ])
 }
 
-process.stdout.write(`next-app-router ${action} ${values.case ?? ""}\n`)
+process.stdout.write(`next-app-router ${action} ${values.frame ?? ""}\n`)

@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type PrimitiveProps = {
   title: string
@@ -26,7 +26,7 @@ export default function PrimitiveProps(props: PrimitiveProps) {
   )
 }
 
-PrimitiveProps.cases = {
+PrimitiveProps.frames = {
   neutralEmpty: {
     props: {
       title: "Primitive props",
@@ -42,7 +42,7 @@ PrimitiveProps.cases = {
       count: 42,
       active: true,
       tone: "positive",
-      items: ["static case key", "literal props", "array rendering"],
+      items: ["static frame key", "literal props", "array rendering"],
     },
   },
   warningLongText: {
@@ -54,4 +54,4 @@ PrimitiveProps.cases = {
       items: ["overflow pressure", "visual distinction", "agent-readable labels"],
     },
   },
-} satisfies GCases<PrimitiveProps>
+} satisfies GFrames<PrimitiveProps>

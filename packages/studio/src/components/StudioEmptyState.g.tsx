@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 import { studioColors, studioFontFamily, studioRadii } from "../studio-theme"
 
@@ -57,12 +57,12 @@ export default function StudioEmptyState(props: StudioEmptyStateProps) {
   )
 }
 
-StudioEmptyState.cases = {
+StudioEmptyState.frames = {
   empty: {
     props: {
       title: "No components selected",
       detail: "Studio can inspect this package the same way it inspects any other GTSX project.",
-      actionLabel: "Create a case",
+      actionLabel: "Create a frame",
     },
   },
-} satisfies GCases<StudioEmptyStateProps>
+} satisfies GFrames<StudioEmptyStateProps>

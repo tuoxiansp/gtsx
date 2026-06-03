@@ -60,7 +60,7 @@ describe("GTSX Studio manifest", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       projectRoot: "src/corpus",
-      preview: { urlTemplate: "https://preview.test/gtsx?entry={entry}&case={case}&port={port}" },
+      preview: { urlTemplate: "https://preview.test/gtsx?entry={entry}&frame={frame}&port={port}" },
     })
 
     expect(manifest).toEqual({
@@ -71,8 +71,8 @@ describe("GTSX Studio manifest", () => {
         manifest: "/gtsx/studio/manifest",
       },
       preview: {
-        urlTemplate: "https://preview.test/gtsx?entry={entry}&case={case}&port={port}",
-        allUrlTemplate: "/gtsx?entry={entry}{gcase}",
+        urlTemplate: "https://preview.test/gtsx?entry={entry}&frame={frame}&port={port}",
+        allUrlTemplate: "/gtsx?entry={entry}{gframe}",
       },
       files: [
         {
@@ -87,7 +87,7 @@ describe("GTSX Studio manifest", () => {
               exportName: "default",
               componentName: "Badge",
               mode: "pure",
-              cases: [
+              frames: [
                 { kind: "pure", name: "neutral" },
                 { kind: "pure", name: "success" },
               ],
@@ -109,7 +109,7 @@ describe("GTSX Studio manifest", () => {
               exportName: "default",
               componentName: "StatusPanel",
               mode: "pure",
-              cases: [
+              frames: [
                 { kind: "pure", name: "loading" },
                 { kind: "pure", name: "error" },
               ],
@@ -129,7 +129,7 @@ describe("GTSX Studio manifest", () => {
 
     const manifest = createStudioManifest(projectIndex, {
       preview: {
-        urlTemplate: "https://preview.test/gtsx?entry={entry}&case={case}",
+        urlTemplate: "https://preview.test/gtsx?entry={entry}&frame={frame}",
       },
       routes: {
         studio: "/custom/studio",
@@ -142,8 +142,8 @@ describe("GTSX Studio manifest", () => {
       manifest: "/gtsx/studio/manifest",
     })
     expect(manifest.preview).toEqual({
-      urlTemplate: "https://preview.test/gtsx?entry={entry}&case={case}",
-      allUrlTemplate: "/gtsx?entry={entry}{gcase}",
+      urlTemplate: "https://preview.test/gtsx?entry={entry}&frame={frame}",
+      allUrlTemplate: "/gtsx?entry={entry}{gframe}",
     })
     expect(manifest.files.map((file) => file.groupId)).toEqual([
       "file:src/corpus/Badge.g.tsx",
@@ -192,8 +192,8 @@ describe("GTSX Studio manifest", () => {
       manifest: "/studio/manifest",
     })
     expect(manifest.preview).toEqual({
-      urlTemplate: "/preview?entry={entry}&case={case}{gcase}",
-      allUrlTemplate: "/preview?entry={entry}{gcase}",
+      urlTemplate: "/preview?entry={entry}&frame={frame}{gframe}",
+      allUrlTemplate: "/preview?entry={entry}{gframe}",
     })
     expect(manifest.files.map((file) => file.path)).toEqual(["src/corpus/Badge.g.tsx", "src/corpus/StatusPanel.g.tsx"])
   })
@@ -215,7 +215,7 @@ describe("GTSX Studio manifest", () => {
             filePath: "components/gtsx/design/DesignHost.g.tsx",
             title: "DesignHost",
             exportName: "default",
-            caseName: "live",
+            frameName: "live",
           },
           {
             id: "components/gtsx/design/nested/SecondFrame.g.tsx#default",
@@ -223,7 +223,7 @@ describe("GTSX Studio manifest", () => {
             filePath: "components/gtsx/design/nested/SecondFrame.g.tsx",
             title: "SecondFrame",
             exportName: "default",
-            caseName: "live",
+            frameName: "live",
           },
         ],
       })
@@ -274,7 +274,7 @@ describe("GTSX Studio manifest", () => {
       "src/MultiExport.g.tsx#default",
     ])
     expect(multiExportFile?.components.map((component) => component.componentName)).toEqual(["NamedBadge", "DefaultBadge"])
-    expect(multiExportFile?.components.flatMap((component) => component.cases.map((testCase) => testCase.name))).toEqual([
+    expect(multiExportFile?.components.flatMap((component) => component.frames.map((frame) => frame.name))).toEqual([
       "ready",
       "defaultReady",
     ])
@@ -282,22 +282,22 @@ describe("GTSX Studio manifest", () => {
 
   it("preserves analyzer diagnostics on invalid component entries", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
-    const dynamicCasesFile = manifest.files.find((file) => file.path === "src/DynamicCases.g.tsx")
+    const dynamicFramesFile = manifest.files.find((file) => file.path === "src/DynamicFrames.g.tsx")
 
-    expect(dynamicCasesFile?.components).toHaveLength(1)
-    expect(dynamicCasesFile?.components[0]?.diagnostics).toContainEqual(
+    expect(dynamicFramesFile?.components).toHaveLength(1)
+    expect(dynamicFramesFile?.components[0]?.diagnostics).toContainEqual(
       expect.objectContaining({
         stage: "contract-extraction",
-        code: "non-static-case-key",
-        file: expect.stringContaining("DynamicCases.g.tsx"),
+        code: "non-static-frame-key",
+        file: expect.stringContaining("DynamicFrames.g.tsx"),
       }),
     )
-    expect(dynamicCasesFile?.diagnostics).toEqual(dynamicCasesFile?.components[0]?.diagnostics)
+    expect(dynamicFramesFile?.diagnostics).toEqual(dynamicFramesFile?.components[0]?.diagnostics)
     expect(manifest.diagnostics).toContainEqual(
       expect.objectContaining({
         stage: "contract-extraction",
-        code: "non-static-case-key",
-        file: expect.stringContaining("DynamicCases.g.tsx"),
+        code: "non-static-frame-key",
+        file: expect.stringContaining("DynamicFrames.g.tsx"),
       }),
     )
   })
@@ -310,7 +310,7 @@ describe("GTSX Studio manifest", () => {
     expect(userCardFile?.components[0]?.providers).toEqual({
       ThemeProvider: {
         name: "ThemeProvider",
-        cases: [],
+        frames: [],
         variants: ["light", "dark"],
       },
     })
@@ -331,24 +331,24 @@ describe("GTSX Studio manifest", () => {
   it("returns configured preview URL templates for repository examples", () => {
     const manifest = buildStudioManifest({
       cwd: examplesRoot,
-      projectRoot: "src/cases",
+      projectRoot: "src/frames",
       preview: {
-        urlTemplate: "http://localhost:{port}/gtsx?entry={entry}&case={case}{gcase}",
-        allUrlTemplate: "http://localhost:{port}/gtsx?entry={entry}{gcase}",
+        urlTemplate: "http://localhost:{port}/gtsx?entry={entry}&frame={frame}{gframe}",
+        allUrlTemplate: "http://localhost:{port}/gtsx?entry={entry}{gframe}",
       },
     })
 
     expect(manifest.preview).toEqual({
-      urlTemplate: "http://localhost:{port}/gtsx?entry={entry}&case={case}{gcase}",
-      allUrlTemplate: "http://localhost:{port}/gtsx?entry={entry}{gcase}",
+      urlTemplate: "http://localhost:{port}/gtsx?entry={entry}&frame={frame}{gframe}",
+      allUrlTemplate: "http://localhost:{port}/gtsx?entry={entry}{gframe}",
     })
     expect(manifest.files.map((file) => file.path)).toEqual([
-      "src/cases/language/PrimitiveProps.g.tsx",
-      "src/cases/stateful/DashboardShell.g.tsx",
-      "src/cases/stateful/MultiExportPanel.g.tsx",
-      "src/cases/stateful/NotificationBell.g.tsx",
-      "src/cases/stateful/UserCard.g.tsx",
-      "src/cases/ui/NotificationCenter.g.tsx",
+      "src/frames/language/PrimitiveProps.g.tsx",
+      "src/frames/stateful/DashboardShell.g.tsx",
+      "src/frames/stateful/MultiExportPanel.g.tsx",
+      "src/frames/stateful/NotificationBell.g.tsx",
+      "src/frames/stateful/UserCard.g.tsx",
+      "src/frames/ui/NotificationCenter.g.tsx",
     ])
   })
 

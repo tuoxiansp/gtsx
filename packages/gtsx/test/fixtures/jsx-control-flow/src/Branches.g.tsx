@@ -1,4 +1,4 @@
-import { createGProvider, createGScopeHook, useGContext, type GCases, type GProviderCase } from "@gtsx/core"
+import { createGProvider, createGScopeHook, useGContext, type GFrames, type GProviderFrame } from "@gtsx/core"
 
 import Child from "./Child.g"
 
@@ -31,18 +31,18 @@ export function CoveredByProps({ showChild = false }: Props) {
   return showChild ? <Child /> : null
 }
 
-CoveredByProps.cases = {
+CoveredByProps.frames = {
   hidden: { props: {} },
   shown: { props: { showChild: true } },
-} satisfies GCases<Props>
+} satisfies GFrames<Props>
 
 export function UncoveredByProps({ showChild = false }: Props) {
   return showChild ? <Child /> : null
 }
 
-UncoveredByProps.cases = {
+UncoveredByProps.frames = {
   hidden: { props: {} },
-} satisfies GCases<Props>
+} satisfies GFrames<Props>
 
 export function CoveredByScope(props: Props) {
   const scope = useBranchScope(props)
@@ -50,7 +50,7 @@ export function CoveredByScope(props: Props) {
   return scope.status === "ready" ? <Child /> : null
 }
 
-CoveredByScope.cases = {
+CoveredByScope.frames = {
   loading: {
     props: {},
     scope: { status: "loading" },
@@ -59,7 +59,7 @@ CoveredByScope.cases = {
     props: {},
     scope: { status: "ready" },
   },
-} satisfies GCases<Props, BranchScope>
+} satisfies GFrames<Props, BranchScope>
 
 export function CoveredByContext() {
   const login = useGContext(LoginProvider)
@@ -67,14 +67,14 @@ export function CoveredByContext() {
   return login.variant === "anonymous" ? <Child /> : null
 }
 
-CoveredByContext.cases = {
+CoveredByContext.frames = {
   login: {
     props: {},
-  } satisfies GProviderCase<typeof LoginProvider, "login">,
+  } satisfies GProviderFrame<typeof LoginProvider, "login">,
   anonymous: {
     props: {},
-  } satisfies GProviderCase<typeof LoginProvider, "anonymous">,
-} satisfies GCases<Record<string, never>>
+  } satisfies GProviderFrame<typeof LoginProvider, "anonymous">,
+} satisfies GFrames<Record<string, never>>
 
 function shouldShow(mode: Props["mode"]) {
   return mode === "show"
@@ -84,10 +84,10 @@ export function OpaqueByHelper({ mode = "hide" }: Props) {
   return shouldShow(mode) ? <Child /> : null
 }
 
-OpaqueByHelper.cases = {
+OpaqueByHelper.frames = {
   hidden: { props: {} },
   shown: { props: { mode: "show" } },
-} satisfies GCases<Props>
+} satisfies GFrames<Props>
 
 export function CoveredByMapItem({ items }: ListProps) {
   return (
@@ -100,18 +100,18 @@ export function CoveredByMapItem({ items }: ListProps) {
   )
 }
 
-CoveredByMapItem.cases = {
+CoveredByMapItem.frames = {
   hidden: { props: { items: [{ label: "Hidden", show: false }] } },
   shown: { props: { items: [{ label: "Shown", show: true }] } },
-} satisfies GCases<ListProps>
+} satisfies GFrames<ListProps>
 
 export function CoveredByMapItemNegation({ items }: ListProps) {
   return <>{items.map((item) => (!item.show ? <Child /> : null))}</>
 }
 
-CoveredByMapItemNegation.cases = {
+CoveredByMapItemNegation.frames = {
   mixed: { props: { items: [{ label: "Hidden", show: false }, { label: "Shown", show: true }] } },
-} satisfies GCases<ListProps>
+} satisfies GFrames<ListProps>
 
 export function UncoveredByMapItem({ items }: ListProps) {
   return (
@@ -124,9 +124,9 @@ export function UncoveredByMapItem({ items }: ListProps) {
   )
 }
 
-UncoveredByMapItem.cases = {
+UncoveredByMapItem.frames = {
   hidden: { props: { items: [{ label: "Hidden", show: false }] } },
-} satisfies GCases<ListProps>
+} satisfies GFrames<ListProps>
 
 function shouldShowItem(item: Item) {
   return item.show
@@ -136,9 +136,9 @@ export function OpaqueByMapHelper({ items }: ListProps) {
   return <>{items.map((item) => (shouldShowItem(item) ? <Child /> : null))}</>
 }
 
-OpaqueByMapHelper.cases = {
+OpaqueByMapHelper.frames = {
   shown: { props: { items: [{ label: "Shown", show: true }] } },
-} satisfies GCases<ListProps>
+} satisfies GFrames<ListProps>
 
 export function OpaqueBySwitch({ mode = "hide" }: Props) {
   switch (mode) {
@@ -149,20 +149,20 @@ export function OpaqueBySwitch({ mode = "hide" }: Props) {
   }
 }
 
-OpaqueBySwitch.cases = {
+OpaqueBySwitch.frames = {
   hidden: { props: {} },
   shown: { props: { mode: "show" } },
-} satisfies GCases<Props>
+} satisfies GFrames<Props>
 
 export function OpaqueByStoredJSX({ showChild = false }: Props) {
   const child = showChild ? <Child /> : null
   return <>{child}</>
 }
 
-OpaqueByStoredJSX.cases = {
+OpaqueByStoredJSX.frames = {
   hidden: { props: {} },
   shown: { props: { showChild: true } },
-} satisfies GCases<Props>
+} satisfies GFrames<Props>
 
 export function OpaqueByForOf({ items }: ListProps) {
   for (const item of items) {
@@ -172,9 +172,9 @@ export function OpaqueByForOf({ items }: ListProps) {
   return null
 }
 
-OpaqueByForOf.cases = {
+OpaqueByForOf.frames = {
   shown: { props: { items: [{ label: "Shown", show: true }] } },
-} satisfies GCases<ListProps>
+} satisfies GFrames<ListProps>
 
 function RenderList(_props: { items: Item[]; renderItem: (item: Item) => unknown }) {
   return null
@@ -184,10 +184,10 @@ export function CoveredByRenderProp({ items }: ListProps) {
   return <RenderList items={items} renderItem={(item) => (item.show ? <Child /> : null)} />
 }
 
-CoveredByRenderProp.cases = {
+CoveredByRenderProp.frames = {
   hidden: { props: { items: [{ label: "Hidden", show: false }] } },
   shown: { props: { items: [{ label: "Shown", show: true }] } },
-} satisfies GCases<ListProps>
+} satisfies GFrames<ListProps>
 
 function Panel(_props: { footer: unknown }) {
   return null
@@ -197,6 +197,6 @@ export function CoveredBySlot() {
   return <Panel footer={<Child />} />
 }
 
-CoveredBySlot.cases = {
+CoveredBySlot.frames = {
   default: { props: {} },
-} satisfies GCases<Record<string, never>>
+} satisfies GFrames<Record<string, never>>

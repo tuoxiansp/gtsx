@@ -8,6 +8,6 @@ export default defineGTSXConfig({
   preview: {
     serve: "npm run dev -- --port {port}",
     studioUrl: "http://localhost:{port}/gtsx/studio",
-    url: "https://preview.test/vite-react?entry={entry}&case={case}{gcase}&port={port}",
+    url: "https://preview.test/vite-react?entry={entry}&frame={frame}{gframe}&port={port}",
   },
 })

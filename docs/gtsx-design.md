@@ -17,7 +17,7 @@ A `.g.tsx` file is a real TypeScript React component. Your compiler reads it. Yo
 The protocol adds three things. All optional. All additive:
 
 1. **A naming convention.** The `.g.tsx` extension marks participating files.
-2. **A static export.** `Component.cases` declares the component's visual states.
+2. **A static export.** `Component.frames` declares the component's visual states.
 3. **Two seam helpers.** `createGScopeHook` lets you preview stateful components. `createGProvider` lets you preview context-dependent components.
 
 None of these modify React. None change how your component renders in production.
@@ -39,7 +39,7 @@ The invariant:
 
 Whatever your TypeScript Program already contains is what gtsx knows about. gtsx decides nothing about your project shape, folder layout, monorepo boundaries, or build configuration.
 
-One more concept worth naming: **the seam**. This is the single boundary where preview differs from production. In production, a scope hook calls your real hook. In preview, the same scope hook returns the case-supplied value instead. The component itself never branches on "am I in preview?" — the substitution happens above it, at the seam.
+One more concept worth naming: **the seam**. This is the single boundary where preview differs from production. In production, a scope hook calls your real hook. In preview, the same scope hook returns the frame-supplied value instead. The component itself never branches on "am I in preview?" — the substitution happens above it, at the seam.
 
 ## How It Works
 
@@ -55,23 +55,23 @@ export default function Counter(props: Props) {
   return <button onClick={scope.increment}>{scope.count}</button>
 }
 
-Counter.cases = { /* ... */ }
+Counter.frames = { /* ... */ }
 ```
 
 What happens at runtime:
 
 - `useScope(props)` calls `useRealCounterScope(props)`. Full stop.
-- `Counter.cases` is a static property on a function. Nothing in your app reads it.
+- `Counter.frames` is a static property on a function. Nothing in your app reads it.
 - The preview runtime is not loaded. Not in your bundle.
 
-Cases are inert data. They cannot execute, cannot leak network calls, cannot break your app.
+Frames are inert data. They cannot execute, cannot leak network calls, cannot break your app.
 
 ### Preview
 
 In Studio, a substitution happens at the seam:
 
-- `useScope()` returns the case-supplied `scope` instead of the real hook.
-- Provider entries in the case replace the real provider state.
+- `useScope()` returns the frame-supplied `scope` instead of the real hook.
+- Provider entries in the frame replace the real provider state.
 - The render path is the same component, the same TSX, the same React.
 
 One boundary. One well-defined difference. Everything else is shared.
@@ -111,7 +111,7 @@ For Next.js App Router, this means inherited layouts matter. A `/gtsx` page cann
 
 The sidecar model means gtsx has a small, well-defined surface area:
 
-**Production code.** Cases are inert static data. The preview runtime is separate code loaded only by Studio. No production path reads cases. No bundle ships them.
+**Production code.** Frames are inert static data. The preview runtime is separate code loaded only by Studio. No production path reads frames. No bundle ships them.
 
 **Build pipeline.** Adapters plug into your existing pipeline. No parallel bundler, no second dev server, no configuration to keep in sync.
 
@@ -125,7 +125,7 @@ The sidecar model means gtsx has a small, well-defined surface area:
 
 Removal is mechanical and gradual:
 
-1. Remove `Component.cases`. Components still work — they are ordinary TSX with an ignored static property.
+1. Remove `Component.frames`. Components still work — they are ordinary TSX with an ignored static property.
 2. Replace `useScope()` with the underlying real hook. Components still work, behaving exactly as before.
 3. Rename `.g.tsx` → `.tsx`. TypeScript still compiles. Imports update once.
 4. Remove the Adapter from your build config. Your app still builds.

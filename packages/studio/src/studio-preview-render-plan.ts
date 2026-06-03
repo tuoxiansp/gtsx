@@ -28,7 +28,7 @@ export type StudioPreviewRenderPlanInput = {
   canvas: StudioCanvasTransform
   canvasMovement?: StudioCanvasMovement
   canvasViewportPreset: StudioViewportPreset
-  casePreviewScale?: number
+  framePreviewScale?: number
   cardIndex?: StudioCanvasCardIndex
   columnLayoutByIndex: Record<number, StudioColumnLayout>
   columnMeasurementsByIndex: Record<number, StudioColumnLayoutMeasurement>
@@ -67,7 +67,7 @@ export function createStudioPreviewRenderPlan(input: StudioPreviewRenderPlanInpu
       previewGeometryStore: input.previewGeometryStore,
       canvas: input.canvas,
       cardIndex: input.cardIndex,
-      casePreviewScale: input.casePreviewScale,
+      framePreviewScale: input.framePreviewScale,
       renderBufferMargin: studioPreviewRenderQueueRenderBufferMargin(input.queueOptions),
       viewport: input.viewport,
     },

@@ -12,7 +12,7 @@ import {
   readGBoundaryElementRect,
   useGContext,
   useGContextUpdate,
-  type GCases,
+  type GFrames,
 } from "../src/index.js"
 
 type Props = {
@@ -138,16 +138,16 @@ describe("GTSX runtime", () => {
     expect(renderToStaticMarkup(<Card userId="user_1" />)).toBe("<span>user:user_1</span>")
   })
 
-  it("returns the active preview case scope inside a preview provider", () => {
+  it("returns the active preview frame scope inside a preview provider", () => {
     const useScope = createGScopeHook((props: Props) => ({ title: `real:${props.userId}` }))
 
-    const cases = {
+    const frames = {
       ready: {
         props: { userId: "user_1" },
         providers: [[PreviewThemeProvider, { mode: "dark" }]],
         scope: { title: "Ada Lovelace" },
       },
-    } satisfies GCases<Props, { title: string }, [typeof PreviewThemeProvider]>
+    } satisfies GFrames<Props, { title: string }, [typeof PreviewThemeProvider]>
 
     function Card(props: Props) {
       const scope = useScope(props)
@@ -155,7 +155,7 @@ describe("GTSX runtime", () => {
     }
 
     const html = renderToStaticMarkup(
-      <GPreviewProvider scope={cases.ready.scope} providerValues={new Map([[PreviewThemeProvider, { mode: "dark" }]])}>
+      <GPreviewProvider scope={frames.ready.scope} providerValues={new Map([[PreviewThemeProvider, { mode: "dark" }]])}>
         <Card userId="user_1" />
       </GPreviewProvider>,
     )
@@ -199,7 +199,7 @@ describe("GTSX runtime", () => {
     expect(html).toBe("<span>user_1:#0af:42</span>")
   })
 
-  it("derives preview scope from active case provider entries when no real provider exists", () => {
+  it("derives preview scope from active frame provider entries when no real provider exists", () => {
     type ThemeState = {
       color: string
     }
@@ -221,7 +221,7 @@ describe("GTSX runtime", () => {
       const scope = useScope(props)
       return <span>{scope.title}</span>
     })
-    Card.cases = {
+    Card.frames = {
       preview: {
         props: { userId: "user_1" },
         providers: [
@@ -229,7 +229,7 @@ describe("GTSX runtime", () => {
           [CounterProvider, 7],
         ],
       },
-    } satisfies GCases<Props, { title: string }, typeof providers>
+    } satisfies GFrames<Props, { title: string }, typeof providers>
 
     const html = renderToStaticMarkup(
       <GPreviewProvider>
@@ -240,7 +240,7 @@ describe("GTSX runtime", () => {
     expect(html).toBe("<span>user_1:#f0a:7</span>")
   })
 
-  it("reads provider values selected by the active preview case", () => {
+  it("reads provider values selected by the active preview frame", () => {
     function ThemeLabel() {
       const theme = useGContext(PreviewThemeProvider)
       return <span>{theme.mode}</span>
@@ -281,7 +281,7 @@ describe("GTSX runtime", () => {
     expect(realHookCalls).toBe(0)
   })
 
-  it("falls back to the active component case provider entries in preview", () => {
+  it("falls back to the active component frame provider entries in preview", () => {
     type ThemeState = {
       mode: "light" | "dark"
     }
@@ -294,12 +294,12 @@ describe("GTSX runtime", () => {
       const theme = useGContext(ThemeProvider)
       return <span>{theme.mode}</span>
     })
-    ThemeLabel.cases = {
+    ThemeLabel.frames = {
       dark: {
         props: {},
         providers: [[ThemeProvider, { mode: "dark" }]],
       },
-    } satisfies GCases<Record<string, never>>
+    } satisfies GFrames<Record<string, never>>
 
     const html = renderToStaticMarkup(
       <GPreviewProvider>
@@ -310,7 +310,7 @@ describe("GTSX runtime", () => {
     expect(html).toBe("<span>dark</span>")
   })
 
-  it("returns a noop update for preview case provider entries without a real provider", () => {
+  it("returns a noop update for preview frame provider entries without a real provider", () => {
     type ThemeState = {
       mode: "light" | "dark"
     }
@@ -329,12 +329,12 @@ describe("GTSX runtime", () => {
         </button>
       )
     })
-    ThemeButton.cases = {
+    ThemeButton.frames = {
       preview: {
         props: {},
         providers: [[ThemeProvider, { mode: "light" }]],
       },
-    } satisfies GCases<Record<string, never>>
+    } satisfies GFrames<Record<string, never>>
 
     let renderer: ReactTestRenderer | undefined
     act(() => {
@@ -354,7 +354,7 @@ describe("GTSX runtime", () => {
     expect(renderer?.toJSON()).toMatchObject({ type: "button", children: ["light"] })
   })
 
-  it("selects a nested component case by component coordinate", () => {
+  it("selects a nested component frame by component coordinate", () => {
     const useChildScope = createGScopeHook(() => ({ label: "real" }))
 
     function ChildImpl() {
@@ -363,17 +363,17 @@ describe("GTSX runtime", () => {
     }
 
     const Child = defineGComponent("src/Child.g.tsx#Child", ChildImpl)
-    Child.cases = {
+    Child.frames = {
       closed: { props: {}, scope: { label: "closed" } },
       open: { props: {}, scope: { label: "open" } },
-    } satisfies GCases<Record<string, never>, { label: string }>
+    } satisfies GFrames<Record<string, never>, { label: string }>
 
     function Parent() {
       return <Child />
     }
 
     const html = renderToStaticMarkup(
-      <GPreviewProvider caseOverrides={new Map([["src/Child.g.tsx#Child", "open"]])}>
+      <GPreviewProvider frameOverrides={new Map([["src/Child.g.tsx#Child", "open"]])}>
         <Parent />
       </GPreviewProvider>,
     )
@@ -381,23 +381,23 @@ describe("GTSX runtime", () => {
     expect(html).toBe("<span>open</span>")
   })
 
-  it("reports an unknown component case override instead of falling back", () => {
+  it("reports an unknown component frame override instead of falling back", () => {
     function ChildImpl() {
       return <span>child</span>
     }
 
     const Child = defineGComponent("src/Child.g.tsx#Child", ChildImpl)
-    Child.cases = {
+    Child.frames = {
       closed: { props: {} },
-    } satisfies GCases<Record<string, never>>
+    } satisfies GFrames<Record<string, never>>
 
     expect(() =>
       renderToStaticMarkup(
-        <GPreviewProvider caseOverrides={new Map([["src/Child.g.tsx#Child", "missing"]])}>
+        <GPreviewProvider frameOverrides={new Map([["src/Child.g.tsx#Child", "missing"]])}>
           <Child />
         </GPreviewProvider>,
       ),
-    ).toThrow('Unknown GTSX case "missing" for src/Child.g.tsx#Child.')
+    ).toThrow('Unknown GTSX frame "missing" for src/Child.g.tsx#Child.')
   })
 
   it("records GTSX boundary parent-child relationships through runtime context", () => {
@@ -551,12 +551,12 @@ describe("GTSX runtime", () => {
     }) {
       return <span>{props.user.name}</span>
     })
-    ProfileCard.cases = {
+    ProfileCard.frames = {
       ready: {
         props: { user: { name: "Ada" }, onOpen },
         scope: { selectedUserId: "user_1" },
       },
-    } satisfies GCases<{ user: { name: string }; onOpen: () => void }, { selectedUserId: string }>
+    } satisfies GFrames<{ user: { name: string }; onOpen: () => void }, { selectedUserId: string }>
 
     renderToStaticMarkup(
       <GPreviewProvider boundaryCollector={collector} providerValues={new Map([[PreviewThemeProvider, { mode: "dark" }]])}>

@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 function Order() {
   return <article>Order</article>
@@ -10,8 +10,8 @@ export default function OrderPreview() {
   return <GtsxPreviewComponent />
 }
 
-OrderPreview.cases = {
+OrderPreview.frames = {
   ready: {
     props: {},
   },
-} satisfies GCases<Record<string, never>>
+} satisfies GFrames<Record<string, never>>

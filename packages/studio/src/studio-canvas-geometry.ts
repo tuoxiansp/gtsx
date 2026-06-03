@@ -4,15 +4,15 @@ import type { GBoundaryRect } from "@gtsx/core"
 
 import {
   clipPreviewBoundaryRectToViewport,
-  computeStudioCaseGridLayout,
+  computeStudioFrameGridLayout,
   mergeStudioPreviewFrameState,
   previewSessionId,
   studioPreviewCacheKey,
   studioPreviewFrameSize,
   type StudioCanvasScreenRect,
   type StudioCanvasTransform,
-  type StudioCaseGridLayout,
-  type StudioCaseGridItemLayout,
+  type StudioFrameGridLayout,
+  type StudioFrameGridItemLayout,
   type StudioColumnLayout,
   type StudioColumnLayoutMeasurement,
   type StudioPreviewCacheEntry,
@@ -21,13 +21,13 @@ import {
   type StudioWorkspaceState,
 } from "./client"
 import {
-  studioCaseGridMaxSide,
+  studioFrameGridMaxSide,
   studioComponentCardTitleGap,
   studioComponentCardTitleHeight,
-  studioComponentCaseChromeHeight,
-  studioComponentCaseGridGap,
-  studioComponentCaseGridMinScale,
-} from "./case-grid-layout"
+  studioComponentFrameChromeHeight,
+  studioComponentFrameGridGap,
+  studioComponentFrameGridMinScale,
+} from "./frame-grid-layout"
 import { previewFrameLayoutHeight, previewFrameLayoutWidth } from "./preview-frame-layout"
 import {
   studioPreviewRenderBufferMargin,
@@ -36,12 +36,12 @@ import {
 } from "./preview-lazy-loading"
 import type { StudioManifestComponent } from "./manifest"
 import type { StudioPreviewGeometryCacheStore } from "./preview-geometry-cache-store"
-import { studioComponentCaseLayoutFrameStates } from "./studio-component-preview-frame-states"
+import { studioComponentFrameLayoutFrameStates } from "./studio-component-preview-frame-states"
 import { studioBoundaryRectForCoordinate } from "./boundary-tree"
 
 export type StudioComponentCardLayout = {
-  caseGridLayout: StudioCaseGridLayout
-  caseGridItems: StudioCaseGridItemLayout[]
+  frameGridLayout: StudioFrameGridLayout
+  frameGridItems: StudioFrameGridItemLayout[]
   height: number
   width: number
 }
@@ -68,7 +68,7 @@ export type MeasuredStudioColumnCardLayout = {
 const studioComponentCardColumnGap = 5
 const studioCanvasCardShellViewportStabilityMargin = 24
 const studioMeasuredCanvasLengthPrecision = 100
-export const studioCanvasFixedCasePreviewScale = 0.45
+export const studioCanvasFixedFramePreviewScale = 0.45
 
 export function domRectToStudioCanvasScreenRect(rect: DOMRect): StudioCanvasScreenRect {
   return {
@@ -122,16 +122,16 @@ export function studioWorkspaceLayoutMeasurementKey(
     .map((column) =>
       column.components
         .map((component) => {
-          return component.cases
-            .map((testCase) => {
-              const sessionId = previewSessionId(component, testCase.name, viewportPreset)
-              const cacheKey = studioPreviewCacheKey(component, testCase.name, viewportPreset)
+          return component.frames
+            .map((frame) => {
+              const sessionId = previewSessionId(component, frame.name, viewportPreset)
+              const cacheKey = studioPreviewCacheKey(component, frame.name, viewportPreset)
               const frameState = mergeStudioPreviewFrameState(
                 sessionId,
                 frameStates?.[sessionId],
                 previewCache?.[cacheKey]?.frameState,
               )
-              return `${component.coordinate}:${testCase.name}:${studioPreviewLayoutSignature(frameState)}`
+              return `${component.coordinate}:${frame.name}:${studioPreviewLayoutSignature(frameState)}`
             })
             .join(";")
         })
@@ -140,51 +140,51 @@ export function studioWorkspaceLayoutMeasurementKey(
     .join("|")
 }
 
-export function studioCanvasCasePreviewScale(
+export function studioCanvasFramePreviewScale(
   _workspace: StudioWorkspaceState,
   _viewportPreset: StudioViewportPreset,
   _frameStates: Record<string, StudioPreviewFrameState> | undefined,
   _previewCache: Record<string, StudioPreviewCacheEntry> | undefined,
   _previewGeometryStore?: StudioPreviewGeometryCacheStore,
 ): number {
-  return studioCanvasFixedCasePreviewScale
+  return studioCanvasFixedFramePreviewScale
 }
 
 export function studioComponentCardLayout(input: {
-  caseFrameStates: Record<string, StudioPreviewFrameState | undefined>
-  casePreviewScale?: number
+  frameStatesByName: Record<string, StudioPreviewFrameState | undefined>
+  framePreviewScale?: number
   component: StudioManifestComponent
   viewportPreset: StudioViewportPreset
 }): StudioComponentCardLayout {
-  const caseGridItems = studioComponentCaseGridItems(input.component, input.caseFrameStates, input.viewportPreset)
-  const caseGridLayout = computeStudioCaseGridLayout({
-    caseChromeHeight: studioComponentCaseChromeHeight,
-    gap: studioComponentCaseGridGap,
-    items: caseGridItems,
-    maxSide: studioCaseGridMaxSide(input.viewportPreset, input.component.cases.length),
-    minScale: studioComponentCaseGridMinScale,
-    previewScale: input.casePreviewScale,
+  const frameGridItems = studioComponentFrameGridItems(input.component, input.frameStatesByName, input.viewportPreset)
+  const frameGridLayout = computeStudioFrameGridLayout({
+    frameChromeHeight: studioComponentFrameChromeHeight,
+    gap: studioComponentFrameGridGap,
+    items: frameGridItems,
+    maxSide: studioFrameGridMaxSide(input.viewportPreset, input.component.frames.length),
+    minScale: studioComponentFrameGridMinScale,
+    previewScale: input.framePreviewScale,
   })
 
   return {
-    caseGridLayout,
-    caseGridItems,
-    height: studioComponentCardTitleHeight + studioComponentCardTitleGap + caseGridLayout.height,
-    width: Math.max(280, caseGridLayout.width),
+    frameGridLayout,
+    frameGridItems,
+    height: studioComponentCardTitleHeight + studioComponentCardTitleGap + frameGridLayout.height,
+    width: Math.max(280, frameGridLayout.width),
   }
 }
 
 export function studioWorkspaceColumnMeasurementsFromGeometry(input: {
-  casePreviewScale?: number
+  framePreviewScale?: number
   frameStates?: Record<string, StudioPreviewFrameState>
   previewCache?: Record<string, StudioPreviewCacheEntry>
   previewGeometryStore?: StudioPreviewGeometryCacheStore
   viewportPreset: StudioViewportPreset
   workspace: StudioWorkspaceState
 }): Record<number, StudioColumnLayoutMeasurement> {
-  const casePreviewScale =
-    input.casePreviewScale ??
-    studioCanvasCasePreviewScale(
+  const framePreviewScale =
+    input.framePreviewScale ??
+    studioCanvasFramePreviewScale(
       input.workspace,
       input.viewportPreset,
       input.frameStates,
@@ -199,7 +199,7 @@ export function studioWorkspaceColumnMeasurementsFromGeometry(input: {
     let cardTop = 0
 
     for (const component of column.components) {
-      const caseFrameStates = studioComponentCaseLayoutFrameStates(
+      const frameStatesByName = studioComponentFrameLayoutFrameStates(
         component,
         input.viewportPreset,
         input.frameStates,
@@ -207,8 +207,8 @@ export function studioWorkspaceColumnMeasurementsFromGeometry(input: {
         input.previewGeometryStore,
       )
       const cardLayout = studioComponentCardLayout({
-        caseFrameStates,
-        casePreviewScale,
+        frameStatesByName,
+        framePreviewScale,
         component,
         viewportPreset: input.viewportPreset,
       })
@@ -219,21 +219,21 @@ export function studioWorkspaceColumnMeasurementsFromGeometry(input: {
         top: cardTop,
       }
 
-      component.cases.forEach((testCase, caseIndex) => {
-        const caseGridItem = cardLayout.caseGridItems[caseIndex]
-        if (!caseGridItem) return
+      component.frames.forEach((frame, frameIndex) => {
+        const frameGridItem = cardLayout.frameGridItems[frameIndex]
+        if (!frameGridItem) return
 
-        const columnIndex = caseIndex % cardLayout.caseGridLayout.columns
-        const rowIndex = Math.floor(caseIndex / cardLayout.caseGridLayout.columns)
-        const cellLeft = columnIndex * (cardLayout.caseGridLayout.cellWidth + cardLayout.caseGridLayout.gap)
-        const cellTop = rowIndex * (cardLayout.caseGridLayout.cellHeight + cardLayout.caseGridLayout.gap)
-        const frameWidth = Math.ceil(caseGridItem.width * cardLayout.caseGridLayout.previewScale)
-        const frameHeight = Math.ceil(caseGridItem.height * cardLayout.caseGridLayout.previewScale)
-        const frameLeft = cellLeft + (cardLayout.caseGridLayout.cellWidth - frameWidth) / 2
+        const columnIndex = frameIndex % cardLayout.frameGridLayout.columns
+        const rowIndex = Math.floor(frameIndex / cardLayout.frameGridLayout.columns)
+        const cellLeft = columnIndex * (cardLayout.frameGridLayout.cellWidth + cardLayout.frameGridLayout.gap)
+        const cellTop = rowIndex * (cardLayout.frameGridLayout.cellHeight + cardLayout.frameGridLayout.gap)
+        const frameWidth = Math.ceil(frameGridItem.width * cardLayout.frameGridLayout.previewScale)
+        const frameHeight = Math.ceil(frameGridItem.height * cardLayout.frameGridLayout.previewScale)
+        const frameLeft = cellLeft + (cardLayout.frameGridLayout.cellWidth - frameWidth) / 2
         const frameTop =
           studioComponentCardTitleHeight + studioComponentCardTitleGap + cellTop
 
-        previewFrameRectsBySessionId[previewSessionId(component, testCase.name, input.viewportPreset)] = {
+        previewFrameRectsBySessionId[previewSessionId(component, frame.name, input.viewportPreset)] = {
           bottom: cardTop + frameTop + frameHeight,
           left: frameLeft,
           right: frameLeft + frameWidth,
@@ -391,7 +391,7 @@ export function studioPreviewVisibilityItems(
   columnMeasurementsByIndex: Record<number, StudioColumnLayoutMeasurement>,
   options: {
     canvas?: StudioCanvasTransform
-    casePreviewScale?: number
+    framePreviewScale?: number
     cardIndex?: StudioCanvasCardIndex
     frameStates?: Record<string, StudioPreviewFrameState>
     previewCache?: Record<string, StudioPreviewCacheEntry>
@@ -401,7 +401,7 @@ export function studioPreviewVisibilityItems(
   } = {},
 ): StudioCanvasPreviewVisibilityItem[] {
   const items: StudioCanvasPreviewVisibilityItem[] = []
-  let fallbackCasePreviewScale: number | undefined
+  let fallbackFramePreviewScale: number | undefined
   const renderBufferMargin = options.renderBufferMargin ?? studioPreviewRenderBufferMargin
   const viewportFilter =
     options.canvas && options.viewport
@@ -453,8 +453,8 @@ export function studioPreviewVisibilityItems(
       if (!visibleCardEntriesByColumnIndex && viewportFilter && !rectsIntersect(absoluteCardRect, viewportFilter)) continue
 
       const measuredSessionIds = new Set<string>()
-      for (const testCase of component.cases) {
-        const sessionId = previewSessionId(component, testCase.name, viewportPreset)
+      for (const frame of component.frames) {
+        const sessionId = previewSessionId(component, frame.name, viewportPreset)
         const previewFrameRect = previewFrameRectsBySessionId[sessionId]
         if (!previewFrameRect) continue
 
@@ -470,10 +470,10 @@ export function studioPreviewVisibilityItems(
         })
       }
 
-      if (measuredSessionIds.size === component.cases.length) continue
-      fallbackCasePreviewScale ??=
-        options.casePreviewScale ??
-        studioCanvasCasePreviewScale(
+      if (measuredSessionIds.size === component.frames.length) continue
+      fallbackFramePreviewScale ??=
+        options.framePreviewScale ??
+        studioCanvasFramePreviewScale(
           workspace,
           viewportPreset,
           options.frameStates,
@@ -481,9 +481,9 @@ export function studioPreviewVisibilityItems(
           options.previewGeometryStore,
         )
       items.push(
-        ...studioComponentFallbackCasePreviewVisibilityItems({
+        ...studioComponentFallbackFramePreviewVisibilityItems({
           cardRect,
-          casePreviewScale: fallbackCasePreviewScale,
+          framePreviewScale: fallbackFramePreviewScale,
           columnLayout,
           component,
           measuredSessionIds,
@@ -576,13 +576,13 @@ export function sameColumnMeasurementRecord(
   })
 }
 
-function studioComponentCaseGridItems(
+function studioComponentFrameGridItems(
   component: StudioManifestComponent,
-  caseFrameStates: Record<string, StudioPreviewFrameState | undefined>,
+  frameStatesByName: Record<string, StudioPreviewFrameState | undefined>,
   viewportPreset: StudioViewportPreset,
-): StudioCaseGridItemLayout[] {
-  return component.cases.map((testCase) => {
-    const frameState = caseFrameStates[testCase.name]
+): StudioFrameGridItemLayout[] {
+  return component.frames.map((frame) => {
+    const frameState = frameStatesByName[frame.name]
     const displaySize = studioPreviewFrameSize(viewportPreset, frameState?.size)
     const boundaryRect = studioBoundaryRectForComponent(frameState?.tree, component.coordinate)
     const visibleBoundaryRect = clipPreviewBoundaryRectToViewport(boundaryRect, displaySize)
@@ -594,9 +594,9 @@ function studioComponentCaseGridItems(
   })
 }
 
-function studioComponentFallbackCasePreviewVisibilityItems(input: {
+function studioComponentFallbackFramePreviewVisibilityItems(input: {
   cardRect: StudioCanvasScreenRect
-  casePreviewScale: number
+  framePreviewScale: number
   columnLayout: StudioColumnLayout
   component: StudioManifestComponent
   frameStates?: Record<string, StudioPreviewFrameState>
@@ -605,40 +605,40 @@ function studioComponentFallbackCasePreviewVisibilityItems(input: {
   previewGeometryStore?: StudioPreviewGeometryCacheStore
   viewportPreset: StudioViewportPreset
 }): StudioCanvasPreviewVisibilityItem[] {
-  const caseFrameStates = studioComponentCaseLayoutFrameStates(
+  const frameStatesByName = studioComponentFrameLayoutFrameStates(
     input.component,
     input.viewportPreset,
     input.frameStates,
     input.previewCache,
     input.previewGeometryStore,
   )
-  const caseGridItems = studioComponentCaseGridItems(input.component, caseFrameStates, input.viewportPreset)
-  const caseGridLayout = computeStudioCaseGridLayout({
-    caseChromeHeight: studioComponentCaseChromeHeight,
-    gap: studioComponentCaseGridGap,
-    items: caseGridItems,
-    maxSide: studioCaseGridMaxSide(input.viewportPreset, input.component.cases.length),
-    minScale: studioComponentCaseGridMinScale,
-    previewScale: input.casePreviewScale,
+  const frameGridItems = studioComponentFrameGridItems(input.component, frameStatesByName, input.viewportPreset)
+  const frameGridLayout = computeStudioFrameGridLayout({
+    frameChromeHeight: studioComponentFrameChromeHeight,
+    gap: studioComponentFrameGridGap,
+    items: frameGridItems,
+    maxSide: studioFrameGridMaxSide(input.viewportPreset, input.component.frames.length),
+    minScale: studioComponentFrameGridMinScale,
+    previewScale: input.framePreviewScale,
   })
   const gridLeft = input.cardRect.left
-  const gridTop = input.cardRect.bottom - caseGridLayout.height
+  const gridTop = input.cardRect.bottom - frameGridLayout.height
   const items: StudioCanvasPreviewVisibilityItem[] = []
 
-  input.component.cases.forEach((testCase, caseIndex) => {
-    const sessionId = previewSessionId(input.component, testCase.name, input.viewportPreset)
+  input.component.frames.forEach((frame, frameIndex) => {
+    const sessionId = previewSessionId(input.component, frame.name, input.viewportPreset)
     if (input.measuredSessionIds.has(sessionId)) return
 
-    const gridItem = caseGridItems[caseIndex]
+    const gridItem = frameGridItems[frameIndex]
     if (!gridItem) return
 
-    const column = caseIndex % caseGridLayout.columns
-    const row = Math.floor(caseIndex / caseGridLayout.columns)
-    const cellLeft = gridLeft + column * (caseGridLayout.cellWidth + caseGridLayout.gap)
-    const cellTop = gridTop + row * (caseGridLayout.cellHeight + caseGridLayout.gap)
-    const frameWidth = Math.ceil(gridItem.width * caseGridLayout.previewScale)
-    const frameHeight = Math.ceil(gridItem.height * caseGridLayout.previewScale)
-    const frameLeft = cellLeft + (caseGridLayout.cellWidth - frameWidth) / 2
+    const column = frameIndex % frameGridLayout.columns
+    const row = Math.floor(frameIndex / frameGridLayout.columns)
+    const cellLeft = gridLeft + column * (frameGridLayout.cellWidth + frameGridLayout.gap)
+    const cellTop = gridTop + row * (frameGridLayout.cellHeight + frameGridLayout.gap)
+    const frameWidth = Math.ceil(gridItem.width * frameGridLayout.previewScale)
+    const frameHeight = Math.ceil(gridItem.height * frameGridLayout.previewScale)
+    const frameLeft = cellLeft + (frameGridLayout.cellWidth - frameWidth) / 2
     const frameTop = cellTop
 
     items.push({

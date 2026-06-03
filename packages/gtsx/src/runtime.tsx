@@ -5,8 +5,8 @@ import type { GRuntimeValuesSnapshot } from "./preview-protocol.js"
 import { serializeGRuntimeValue } from "./runtime-values.js"
 import type {
   AnyGProvider,
-  GCases,
-  GCase,
+  GFrames,
+  GFrame,
   GProvider,
   GProviderOptions,
   GProviderStates,
@@ -18,14 +18,14 @@ import type {
 type PreviewRuntimeValue = {
   scope?: unknown
   providerValues: Map<AnyGProvider, unknown>
-  caseOverrides: Map<string, string>
+  frameOverrides: Map<string, string>
   boundaryCollector?: GBoundaryCollector
 }
 
-type AnyComponentCases<Props> = Record<string, GCase<Props> | GCase<Props, unknown>>
+type AnyComponentFrames<Props> = Record<string, GFrame<Props> | GFrame<Props, unknown>>
 
 const PreviewRuntimeContext = React.createContext<PreviewRuntimeValue | null>(null)
-const ActiveComponentCaseContext = React.createContext<GCase<unknown, unknown> | null>(null)
+const ActiveComponentFrameContext = React.createContext<GFrame<unknown, unknown> | null>(null)
 const BoundaryParentContext = React.createContext<string | null>(null)
 const noopUpdate = () => {}
 
@@ -68,7 +68,7 @@ export type GBoundaryCollector = {
 export type GPreviewProviderProps = {
   scope?: unknown
   providerValues?: Map<AnyGProvider, unknown>
-  caseOverrides?: Map<string, string>
+  frameOverrides?: Map<string, string>
   boundaryCollector?: GBoundaryCollector
   children: React.ReactNode
 }
@@ -78,7 +78,7 @@ export function GPreviewProvider(props: GPreviewProviderProps) {
   const previewValue: PreviewRuntimeValue = {
     ...(Object.prototype.hasOwnProperty.call(props, "scope") ? { scope: props.scope } : {}),
     providerValues: props.providerValues ?? new Map(),
-    caseOverrides: props.caseOverrides ?? new Map(),
+    frameOverrides: props.frameOverrides ?? new Map(),
     boundaryCollector: props.boundaryCollector,
   }
 
@@ -174,8 +174,8 @@ export function createGProvider<Props extends object, State, Update extends GPro
 
   const Provider = ((props: Props & { children?: React.ReactNode }) => {
     const preview = React.useContext(PreviewRuntimeContext)
-    const activeCase = React.useContext(ActiveComponentCaseContext)
-    if (preview && (preview.providerValues.has(Provider) || readCaseProviderValue(activeCase, Provider).found)) {
+    const activeFrame = React.useContext(ActiveComponentFrameContext)
+    if (preview && (preview.providerValues.has(Provider) || readFrameProviderValue(activeFrame, Provider).found)) {
       return <>{props.children}</>
     }
 
@@ -212,8 +212,8 @@ export function useGContextUpdate<Provider extends GProvider<any, any, any, any>
   }
 
   const preview = React.useContext(PreviewRuntimeContext)
-  const activeCase = React.useContext(ActiveComponentCaseContext)
-  if (preview && (preview.providerValues.has(provider) || readCaseProviderValue(activeCase, provider).found)) {
+  const activeFrame = React.useContext(ActiveComponentFrameContext)
+  if (preview && (preview.providerValues.has(provider) || readFrameProviderValue(activeFrame, provider).found)) {
     return noopUpdate as GProviderUpdate<Provider>
   }
 
@@ -232,9 +232,9 @@ export function createGScopeHook<Props, Providers extends readonly GProvider<any
 ): ((props: Props) => Scope) | (() => Scope) {
   return ((props?: Props): Scope => {
     const providerStates = providers?.map((provider) => useGContext(provider)) as GProviderStates<Providers> | undefined
-    const activeCase = React.useContext(ActiveComponentCaseContext)
-    if (activeCase && "scope" in activeCase) {
-      return activeCase.scope as Scope
+    const activeFrame = React.useContext(ActiveComponentFrameContext)
+    if (activeFrame && "scope" in activeFrame) {
+      return activeFrame.scope as Scope
     }
 
     const preview = React.useContext(PreviewRuntimeContext)
@@ -263,10 +263,10 @@ export function useGContext<Value>(provider: GProvider<Value> | AnyGProvider): V
     return preview.providerValues.get(provider) as Value
   }
 
-  const activeCase = React.useContext(ActiveComponentCaseContext)
-  const caseValue = readCaseProviderValue(activeCase, provider)
-  if (caseValue.found) {
-    return caseValue.value as Value
+  const activeFrame = React.useContext(ActiveComponentFrameContext)
+  const frameValue = readFrameProviderValue(activeFrame, provider)
+  if (frameValue.found) {
+    return frameValue.value as Value
   }
 
   throw new Error(`No GTSX provider value is active for ${provider.name || "anonymous provider"}.`)
@@ -278,15 +278,15 @@ function isManagedGProvider<State, Update extends GProviderUpdateFn>(
   return "__gtsxPresenceContext" in provider && "__gtsxUseTrackedState" in provider && "__gtsxUseUpdate" in provider
 }
 
-function readCaseProviderValue(
-  activeCase: GCase<unknown, unknown> | null,
+function readFrameProviderValue(
+  activeFrame: GFrame<unknown, unknown> | null,
   provider: AnyGProvider,
 ): { found: true; value: unknown } | { found: false } {
-  if (!activeCase || !Array.isArray(activeCase.providers)) {
+  if (!activeFrame || !Array.isArray(activeFrame.providers)) {
     return { found: false }
   }
 
-  for (const [entryProvider, value] of activeCase.providers) {
+  for (const [entryProvider, value] of activeFrame.providers) {
     if (entryProvider === provider) {
       return { found: true, value }
     }
@@ -298,24 +298,24 @@ function readCaseProviderValue(
 export function defineGComponent<Props extends object>(
   coordinate: string,
   Component: React.ComponentType<Props>,
-): React.ComponentType<Props> & { cases?: AnyComponentCases<Props> } {
+): React.ComponentType<Props> & { frames?: AnyComponentFrames<Props> } {
   const GComponentBoundary = ((props: Props) => {
     const stableBoundaryId = `gtsx-boundary:${React.useId()}`
     const preview = React.useContext(PreviewRuntimeContext)
     const parentBoundaryId = React.useContext(BoundaryParentContext)
     const boundaryId = preview?.boundaryCollector?.registerBoundary(coordinate, parentBoundaryId, stableBoundaryId) ?? null
-    const activeCase = preview ? resolveComponentCase(coordinate, GComponentBoundary.cases, preview) : null
+    const activeFrame = preview ? resolveComponentFrame(coordinate, GComponentBoundary.frames, preview) : null
     if (preview && boundaryId) {
       preview.boundaryCollector?.updateBoundaryValues(boundaryId, {
         props: serializeGRuntimeValue(props),
-        scope: serializeGRuntimeValue(readScopeSnapshot(activeCase, preview)),
+        scope: serializeGRuntimeValue(readScopeSnapshot(activeFrame, preview)),
         providerValues: serializeProviderValues(preview.providerValues),
       })
     }
-    const rendered = activeCase ? (
-      <ActiveComponentCaseContext.Provider value={activeCase as GCase<unknown, unknown>}>
+    const rendered = activeFrame ? (
+      <ActiveComponentFrameContext.Provider value={activeFrame as GFrame<unknown, unknown>}>
         <Component {...props} />
-      </ActiveComponentCaseContext.Provider>
+      </ActiveComponentFrameContext.Provider>
     ) : (
       <Component {...props} />
     )
@@ -328,14 +328,14 @@ export function defineGComponent<Props extends object>(
         </div>
       </BoundaryParentContext.Provider>
     )
-  }) as React.ComponentType<Props> & { cases?: AnyComponentCases<Props>; displayName?: string }
+  }) as React.ComponentType<Props> & { frames?: AnyComponentFrames<Props>; displayName?: string }
 
   GComponentBoundary.displayName = Component.displayName || Component.name
   return GComponentBoundary
 }
 
-function readScopeSnapshot(activeCase: object | null, preview: PreviewRuntimeValue): unknown {
-  if (activeCase && "scope" in activeCase) return (activeCase as { scope: unknown }).scope
+function readScopeSnapshot(activeFrame: object | null, preview: PreviewRuntimeValue): unknown {
+  if (activeFrame && "scope" in activeFrame) return (activeFrame as { scope: unknown }).scope
   return preview.scope
 }
 
@@ -354,29 +354,29 @@ function readPreviewContextIfRendering(): PreviewRuntimeValue | null {
   }
 }
 
-function readActiveComponentCaseIfRendering(): GCase<unknown, unknown> | null {
+function readActiveComponentFrameIfRendering(): GFrame<unknown, unknown> | null {
   try {
-    return React.useContext(ActiveComponentCaseContext)
+    return React.useContext(ActiveComponentFrameContext)
   } catch {
     return null
   }
 }
 
-function resolveComponentCase<Props extends object>(
+function resolveComponentFrame<Props extends object>(
   coordinate: string,
-  cases: AnyComponentCases<Props> | undefined,
+  frames: AnyComponentFrames<Props> | undefined,
   preview: PreviewRuntimeValue,
-): GCase<Props> | GCase<Props, unknown> | null {
-  if (!cases) return null
+): GFrame<Props> | GFrame<Props, unknown> | null {
+  if (!frames) return null
 
-  const overrideName = preview.caseOverrides.get(coordinate)
+  const overrideName = preview.frameOverrides.get(coordinate)
   if (overrideName) {
-    const overrideCase = cases[overrideName]
-    if (!overrideCase) {
-      throw new Error(`Unknown GTSX case "${overrideName}" for ${coordinate}.`)
+    const overrideFrame = frames[overrideName]
+    if (!overrideFrame) {
+      throw new Error(`Unknown GTSX frame "${overrideName}" for ${coordinate}.`)
     }
-    return overrideCase
+    return overrideFrame
   }
 
-  return Object.values(cases)[0] ?? null
+  return Object.values(frames)[0] ?? null
 }

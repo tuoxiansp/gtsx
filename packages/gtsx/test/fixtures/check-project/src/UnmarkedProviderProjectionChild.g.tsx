@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type Props = {
   userName: string
@@ -8,11 +8,11 @@ export default function UnmarkedProviderProjectionChild(props: Props) {
   return <span>{props.userName}</span>
 }
 
-UnmarkedProviderProjectionChild.cases = {
+UnmarkedProviderProjectionChild.frames = {
   guest: {
     props: { userName: "Guest" },
   },
   named: {
     props: { userName: "Ada" },
   },
-} satisfies GCases<Props>
+} satisfies GFrames<Props>

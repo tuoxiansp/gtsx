@@ -1,5 +1,5 @@
 import React from "react"
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 function HookChild() {
   const [count] = React.useState(0)
@@ -12,6 +12,6 @@ export default function AliasHookDependency() {
   return <PreviewChild />
 }
 
-AliasHookDependency.cases = {
+AliasHookDependency.frames = {
   ready: { props: {} },
-} satisfies GCases<Record<string, never>>
+} satisfies GFrames<Record<string, never>>

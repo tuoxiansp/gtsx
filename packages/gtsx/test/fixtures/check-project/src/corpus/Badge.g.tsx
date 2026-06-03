@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type BadgeProps = {
   label: string
@@ -9,7 +9,7 @@ export default function Badge(props: BadgeProps) {
   return <span data-tone={props.tone}>{props.label}</span>
 }
 
-Badge.cases = {
+Badge.frames = {
   neutral: { props: { label: "Ready", tone: "neutral" } },
   success: { props: { label: "Shipped", tone: "success" } },
-} satisfies GCases<BadgeProps>
+} satisfies GFrames<BadgeProps>

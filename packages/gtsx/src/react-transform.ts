@@ -129,7 +129,7 @@ export function transformGTSXComponentBoundaries(input: GTSXReactTransformInput)
       replacements.push({
         start: statement.getStart(sourceFile),
         end: statement.end,
-        text: `const ${defaultComponentName} = __gtsxDefineGComponent(${JSON.stringify(`${coordinateFile}#default`)}, ${boundary.implementationName})\n${defaultComponentName}.cases = ${boundary.componentName}.cases\nexport default ${defaultComponentName}`,
+        text: `const ${defaultComponentName} = __gtsxDefineGComponent(${JSON.stringify(`${coordinateFile}#default`)}, ${boundary.implementationName})\n${defaultComponentName}.frames = ${boundary.componentName}.frames\nexport default ${defaultComponentName}`,
       })
     }
 
@@ -159,7 +159,7 @@ function functionDeclarationBoundary(input: {
   if (!ts.isFunctionDeclaration(input.statement) || !input.statement.name) return undefined
 
   const componentName = input.statement.name.text
-  if (!hasComponentCases(input.code, componentName)) return undefined
+  if (!hasComponentFrames(input.code, componentName)) return undefined
 
   const exportKind = boundaryExportKind(input.statement, componentName, input.defaultExportAssignments, input.localExportNames)
   if (!exportKind) return undefined
@@ -206,7 +206,7 @@ function variableStatementBoundary(input: {
   if (!declaration || !ts.isIdentifier(declaration.name) || !isFunctionLikeVariableInitializer(declaration.initializer)) return undefined
 
   const componentName = declaration.name.text
-  if (!hasComponentCases(input.code, componentName)) return undefined
+  if (!hasComponentFrames(input.code, componentName)) return undefined
 
   const exportKind = boundaryExportKind(input.statement, componentName, input.defaultExportAssignments, input.localExportNames)
   if (!exportKind) return undefined
@@ -400,8 +400,8 @@ function toCoordinateFile(root: string, filePath: string): string {
   return relative(root, filePath).split("\\").join("/")
 }
 
-function hasComponentCases(code: string, componentName: string): boolean {
-  return new RegExp(`\\b${escapeRegExp(componentName)}\\.cases\\s*=`).test(code)
+function hasComponentFrames(code: string, componentName: string): boolean {
+  return new RegExp(`\\b${escapeRegExp(componentName)}\\.frames\\s*=`).test(code)
 }
 
 function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {

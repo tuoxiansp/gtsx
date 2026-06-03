@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 function PureChild() {
   return <span>Pure</span>
@@ -10,6 +10,6 @@ export default function AliasPureDependency() {
   return <PreviewChild />
 }
 
-AliasPureDependency.cases = {
+AliasPureDependency.frames = {
   ready: { props: {} },
-} satisfies GCases<Record<string, never>>
+} satisfies GFrames<Record<string, never>>

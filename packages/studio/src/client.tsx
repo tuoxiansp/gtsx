@@ -36,7 +36,7 @@ export type StudioWorkspaceState = {
   canvasViewportPreset?: StudioViewportPreset
   columns: StudioWorkspaceColumn[]
   rootProviderVariants: StudioProviderVariantContext
-  selectedCaseByCoordinate: Record<string, string>
+  selectedFrameByCoordinate: Record<string, string>
   selectedCoordinatePath: string[]
   selectedProviderVariantsByPath: Record<string, StudioProviderVariantContext>
   selectedRuntimeInstanceByCoordinate: Record<string, string>
@@ -67,13 +67,13 @@ export type StudioColumnLayoutMeasurement = {
   previewFrameRectsBySessionId?: Record<string, StudioCanvasScreenRect>
 }
 
-export type StudioCaseGridItemLayout = {
+export type StudioFrameGridItemLayout = {
   height: number
   width: number
 }
 
-export type StudioCaseGridLayout = {
-  caseChromeHeight: number
+export type StudioFrameGridLayout = {
+  frameChromeHeight: number
   cellHeight: number
   cellWidth: number
   columns: number
@@ -129,7 +129,7 @@ export type StudioRuntimeValuesRequest = {
 }
 
 export type StudioProviderVariantOption = {
-  caseName?: string
+  frameName?: string
   name: string
   selected: boolean
 }
@@ -155,15 +155,15 @@ export type StudioPreviewTarget = {
   title: string
 }
 
-export type StudioPreviewCaseOverride = {
-  caseName: string
+export type StudioPreviewFrameOverride = {
+  frameName: string
   coordinate: string
 }
 
-export type StudioProviderVariantCaseState = "match" | "mismatch" | "neutral"
+export type StudioProviderVariantFrameState = "match" | "mismatch" | "neutral"
 
-export type StudioProviderVariantCaseStatus = {
-  state: StudioProviderVariantCaseState
+export type StudioProviderVariantFrameStatus = {
+  state: StudioProviderVariantFrameState
   title?: string
 }
 
@@ -268,7 +268,7 @@ export function createStudioWorkspaceState(manifest: StudioManifest, selection?:
     canvasViewportPreset: "tablet",
     columns: [{ components: selected.components }],
     rootProviderVariants: {},
-    selectedCaseByCoordinate: {},
+    selectedFrameByCoordinate: {},
     selectedCoordinatePath: [],
     selectedProviderVariantsByPath: {},
     selectedRuntimeInstanceByCoordinate: {},
@@ -301,7 +301,7 @@ export function selectStudioComponent(
     canvasViewportPreset: canvasViewportPresetForWorkspace(state),
     columns: nextColumns,
     rootProviderVariants: state.rootProviderVariants,
-    selectedCaseByCoordinate: omitStudioSelectedCases(state.selectedCaseByCoordinate, selectedPath),
+    selectedFrameByCoordinate: omitStudioSelectedFrames(state.selectedFrameByCoordinate, selectedPath),
     selectedCoordinatePath: selectedPath,
     selectedProviderVariantsByPath: omitStudioSelectedProviderVariantsByPath(
       state.selectedProviderVariantsByPath,
@@ -329,13 +329,13 @@ function studioSelectedColumnIndexForCoordinate(
   return state.columns.findIndex((column) => column.components.some((component) => component.coordinate === coordinate))
 }
 
-export function selectedStudioCaseName(
-  state: Pick<StudioWorkspaceState, "selectedCaseByCoordinate">,
+export function selectedStudioFrameName(
+  state: Pick<StudioWorkspaceState, "selectedFrameByCoordinate">,
   component: StudioManifestComponent,
 ): string {
-  const selectedCaseName = state.selectedCaseByCoordinate[component.coordinate]
-  if (selectedCaseName && component.cases.some((testCase) => testCase.name === selectedCaseName)) return selectedCaseName
-  return component.cases[0]?.name ?? "No cases"
+  const selectedFrameName = state.selectedFrameByCoordinate[component.coordinate]
+  if (selectedFrameName && component.frames.some((frame) => frame.name === selectedFrameName)) return selectedFrameName
+  return component.frames[0]?.name ?? "No frames"
 }
 
 export function studioProviderVariantAxes(
@@ -347,19 +347,19 @@ export function studioProviderVariantAxes(
   for (const [providerName, provider] of Object.entries(component.providers)) {
     if (provider.variants && provider.variants.length > 0) providerNames.add(providerName)
   }
-  for (const testCase of component.cases) {
-    for (const providerName of Object.keys(testCase.providerVariants ?? {})) providerNames.add(providerName)
+  for (const frame of component.frames) {
+    for (const providerName of Object.keys(frame.providerVariants ?? {})) providerNames.add(providerName)
   }
 
   return [...providerNames].flatMap((providerName) => {
-    const caseVariants = uniqueStrings(
-      component.cases.flatMap((testCase) => {
-        const variant = testCase.providerVariants?.[providerName]
+    const frameVariants = uniqueStrings(
+      component.frames.flatMap((frame) => {
+        const variant = frame.providerVariants?.[providerName]
         return providerVariantSelectionValues(variant)
       }),
     )
     const declaredVariants = component.providers[providerName]?.variants ?? []
-    const variants = declaredVariants.length > 0 ? declaredVariants.filter((variant) => caseVariants.includes(variant)) : caseVariants
+    const variants = declaredVariants.length > 0 ? declaredVariants.filter((variant) => frameVariants.includes(variant)) : frameVariants
     if (variants.length < 2) return []
 
     const selectedVariant = context[providerName]
@@ -369,7 +369,7 @@ export function studioProviderVariantAxes(
         providerName,
         ...(hasSelectedVariant ? { selectedVariant } : {}),
         variants: variants.map((variant) => ({
-          caseName: component.cases.find((testCase) => providerVariantSelectionValues(testCase.providerVariants?.[providerName]).includes(variant))?.name,
+          frameName: component.frames.find((frame) => providerVariantSelectionValues(frame.providerVariants?.[providerName]).includes(variant))?.name,
           name: variant,
           selected: hasSelectedVariant && selectedVariant === variant,
         })),
@@ -433,70 +433,70 @@ export function sameStudioProviderVariantContext(
   return leftEntries.every(([providerName, variant]) => rightContext[providerName] === variant)
 }
 
-export function studioFilteredCasesForProviderVariantContext(
+export function studioFilteredFramesForProviderVariantContext(
   component: StudioManifestComponent,
   context: StudioProviderVariantContext,
-): StudioManifestComponent["cases"] {
+): StudioManifestComponent["frames"] {
   void context
-  return component.cases
+  return component.frames
 }
 
-export function studioProviderVariantCaseStatus(
+export function studioProviderVariantFrameStatus(
   component: StudioManifestComponent,
-  testCase: StudioManifestComponent["cases"][number],
+  frame: StudioManifestComponent["frames"][number],
   context: StudioProviderVariantContext = {},
-): StudioProviderVariantCaseStatus {
+): StudioProviderVariantFrameStatus {
   const mismatches: string[] = []
   let matched = false
 
   for (const [providerName, selectedVariant] of Object.entries(context)) {
-    const caseVariants = uniqueStrings(
-      component.cases.flatMap((candidate) => {
+    const frameVariants = uniqueStrings(
+      component.frames.flatMap((candidate) => {
         const variant = candidate.providerVariants?.[providerName]
         return providerVariantSelectionValues(variant)
       }),
     )
     const declaredVariants = component.providers[providerName]?.variants ?? []
-    if (caseVariants.length === 0 && !declaredVariants.includes(selectedVariant)) continue
+    if (frameVariants.length === 0 && !declaredVariants.includes(selectedVariant)) continue
 
-    const caseVariant = testCase.providerVariants?.[providerName]
-    if (caseVariant === undefined) continue
+    const frameVariant = frame.providerVariants?.[providerName]
+    if (frameVariant === undefined) continue
 
-    if (providerVariantSelectionValues(caseVariant).includes(selectedVariant)) {
+    if (providerVariantSelectionValues(frameVariant).includes(selectedVariant)) {
       matched = true
       continue
     }
 
-    mismatches.push(`${providerName}: ${formatProviderVariantSelection(caseVariant)} does not match ${selectedVariant}`)
+    mismatches.push(`${providerName}: ${formatProviderVariantSelection(frameVariant)} does not match ${selectedVariant}`)
   }
 
   if (mismatches.length > 0) return { state: "mismatch", title: mismatches.join("; ") }
   return { state: matched ? "match" : "neutral" }
 }
 
-function studioProviderVariantCaseForContext(
+function studioProviderVariantFrameForContext(
   component: StudioManifestComponent,
   context: StudioProviderVariantContext,
-): StudioManifestComponent["cases"][number] | undefined {
+): StudioManifestComponent["frames"][number] | undefined {
   const activeProviderNames = Object.keys(context)
   if (activeProviderNames.length === 0) return undefined
 
-  return component.cases.find((testCase) => {
+  return component.frames.find((frame) => {
     let matched = false
     for (const providerName of activeProviderNames) {
       const selectedVariant = context[providerName]
       if (!selectedVariant) continue
 
-      const caseVariants = uniqueStrings(
-        component.cases.flatMap((candidate) => {
+      const frameVariants = uniqueStrings(
+        component.frames.flatMap((candidate) => {
           const variant = candidate.providerVariants?.[providerName]
           return providerVariantSelectionValues(variant)
         }),
       )
       const declaredVariants = component.providers[providerName]?.variants ?? []
-      if (caseVariants.length === 0 && !declaredVariants.includes(selectedVariant)) continue
+      if (frameVariants.length === 0 && !declaredVariants.includes(selectedVariant)) continue
 
-      if (!providerVariantSelectionValues(testCase.providerVariants?.[providerName]).includes(selectedVariant)) return false
+      if (!providerVariantSelectionValues(frame.providerVariants?.[providerName]).includes(selectedVariant)) return false
       matched = true
     }
 
@@ -516,19 +516,19 @@ export function studioWorkspaceWithProviderVariantFilters(workspace: StudioWorks
   return workspace
 }
 
-export function studioPreviewCaseOverridesForProviderVariantContext(
+export function studioPreviewFrameOverridesForProviderVariantContext(
   manifest: StudioManifest,
   context: StudioProviderVariantContext = {},
-): StudioPreviewCaseOverride[] {
+): StudioPreviewFrameOverride[] {
   if (Object.keys(context).length === 0) return []
 
   return manifest.files
     .flatMap((file) => file.components)
     .flatMap((component) => {
-      const testCase = studioProviderVariantCaseForContext(component, context)
-      return testCase ? [{ caseName: testCase.name, coordinate: component.coordinate }] : []
+      const frame = studioProviderVariantFrameForContext(component, context)
+      return frame ? [{ frameName: frame.name, coordinate: component.coordinate }] : []
     })
-    .sort((left, right) => left.coordinate.localeCompare(right.coordinate) || left.caseName.localeCompare(right.caseName))
+    .sort((left, right) => left.coordinate.localeCompare(right.coordinate) || left.frameName.localeCompare(right.frameName))
 }
 
 export function changeStudioRootProviderVariant(
@@ -566,10 +566,10 @@ export function changeStudioComponentProviderVariant(
   }
 }
 
-export function changeStudioComponentCase(
+export function changeStudioComponentFrame(
   state: StudioWorkspaceState,
   coordinate: string,
-  caseName: string,
+  frameName: string,
   options: { keepDrilldown?: boolean } = {},
 ): StudioWorkspaceState {
   const selectedColumnIndex = state.columns.findIndex((column) =>
@@ -581,9 +581,9 @@ export function changeStudioComponentCase(
     canvasViewportPreset: canvasViewportPresetForWorkspace(state),
     columns,
     rootProviderVariants: state.rootProviderVariants,
-    selectedCaseByCoordinate: {
-      ...state.selectedCaseByCoordinate,
-      [coordinate]: caseName,
+    selectedFrameByCoordinate: {
+      ...state.selectedFrameByCoordinate,
+      [coordinate]: frameName,
     },
     selectedCoordinatePath:
       options.keepDrilldown || selectedColumnIndex < 0
@@ -655,8 +655,8 @@ export function createStudioWorkspaceUrlSearchParams(
   appendStudioProviderVariantPathUrlParams(params, workspace.selectedProviderVariantsByPath)
 
   for (const coordinate of workspace.selectedCoordinatePath) {
-    const caseName = workspace.selectedCaseByCoordinate[coordinate]
-    if (caseName) params.append("case", `${coordinate}:${caseName}`)
+    const frameName = workspace.selectedFrameByCoordinate[coordinate]
+    if (frameName) params.append("frame", `${coordinate}:${frameName}`)
 
     const boundaryId = workspace.selectedRuntimeInstanceByCoordinate[coordinate]
     if (boundaryId) params.append("instance", `${coordinate}:${boundaryId}`)
@@ -701,14 +701,14 @@ export function createStudioWorkspaceStateFromUrl(
   const rawPath = params.getAll("path")
   const selectedCoordinatePath = rawPath.filter((coordinate) => Boolean(findManifestComponent(manifest, coordinate)))
   const pathCoordinates = new Set(selectedCoordinatePath)
-  const selectedCaseByCoordinate = selectedCasesFromUrl(manifest, params, pathCoordinates)
+  const selectedFrameByCoordinate = selectedFramesFromUrl(manifest, params, pathCoordinates)
   const selectedRuntimeInstanceByCoordinate = selectedRuntimeInstancesFromUrl(manifest, params, pathCoordinates)
   const selectedViewportPresetByCoordinate = selectedViewportPresetsFromUrl(manifest, params, pathCoordinates)
   const canvasViewportPreset = canvasViewportPresetFromUrl(params, selectedViewportPresetByCoordinate, selectedCoordinatePath)
   const hasInvalidUrlState =
     Boolean(selection && selection !== resolvedSelection.id) ||
     rawPath.length !== selectedCoordinatePath.length ||
-    hasInvalidSelectedCase(manifest, params, pathCoordinates) ||
+    hasInvalidSelectedFrame(manifest, params, pathCoordinates) ||
     hasInvalidSelectedRuntimeInstance(manifest, params, pathCoordinates) ||
     hasInvalidCanvasViewportPreset(params)
   const warning = hasInvalidUrlState ? "Invalid Studio URL state was ignored." : undefined
@@ -721,7 +721,7 @@ export function createStudioWorkspaceStateFromUrl(
         canvasViewportPreset,
         columns: [{ components: resolvedSelection.components }],
         rootProviderVariants: rootProviderVariantsFromUrl(params),
-        selectedCaseByCoordinate,
+        selectedFrameByCoordinate,
         selectedCoordinatePath: [],
         selectedProviderVariantsByPath: selectedProviderVariantsFromUrl(params, selectedCoordinatePath),
         selectedRuntimeInstanceByCoordinate,
@@ -748,7 +748,7 @@ export function createStudioWorkspaceStateFromUrl(
         }),
       ],
       rootProviderVariants: rootProviderVariantsFromUrl(params),
-      selectedCaseByCoordinate,
+      selectedFrameByCoordinate,
       selectedCoordinatePath,
       selectedProviderVariantsByPath: selectedProviderVariantsFromUrl(params, selectedCoordinatePath),
       selectedRuntimeInstanceByCoordinate,
@@ -770,30 +770,30 @@ export function createStudioRuntimeValuesRequest(
   const sourceComponent = findManifestComponent(manifest, sourceCoordinate)
   if (!sourceComponent) return undefined
 
-  const sourceCaseName = selectedStudioCaseName(workspace, sourceComponent)
-  const sessionId = previewSessionId(sourceComponent, sourceCaseName, canvasViewportPresetForWorkspace(workspace))
+  const sourceFrameName = selectedStudioFrameName(workspace, sourceComponent)
+  const sessionId = previewSessionId(sourceComponent, sourceFrameName, canvasViewportPresetForWorkspace(workspace))
   return {
     sessionId,
     message: createGPreviewRequestValuesMessage(sessionId, boundaryId),
   }
 }
 
-function selectedCasesFromUrl(
+function selectedFramesFromUrl(
   manifest: StudioManifest,
   params: URLSearchParams,
   pathCoordinates: Set<string>,
 ): Record<string, string> {
-  const selectedCases: Record<string, string> = {}
-  for (const value of params.getAll("case")) {
+  const selectedFrames: Record<string, string> = {}
+  for (const value of params.getAll("frame")) {
     const parsed = parseCoordinateValuePair(manifest, value)
     if (!parsed) continue
 
     const component = findManifestComponent(manifest, parsed.coordinate)
-    if (pathCoordinates.has(parsed.coordinate) && component?.cases.some((testCase) => testCase.name === parsed.value)) {
-      selectedCases[parsed.coordinate] = parsed.value
+    if (pathCoordinates.has(parsed.coordinate) && component?.frames.some((frame) => frame.name === parsed.value)) {
+      selectedFrames[parsed.coordinate] = parsed.value
     }
   }
-  return selectedCases
+  return selectedFrames
 }
 
 function selectedRuntimeInstancesFromUrl(
@@ -875,13 +875,13 @@ function hasInvalidCanvasViewportPreset(params: URLSearchParams): boolean {
   return Boolean(value && !isStudioViewportPreset(value))
 }
 
-function hasInvalidSelectedCase(manifest: StudioManifest, params: URLSearchParams, pathCoordinates: Set<string>): boolean {
-  return params.getAll("case").some((value) => {
+function hasInvalidSelectedFrame(manifest: StudioManifest, params: URLSearchParams, pathCoordinates: Set<string>): boolean {
+  return params.getAll("frame").some((value) => {
     const parsed = parseCoordinateValuePair(manifest, value)
     if (!parsed || !pathCoordinates.has(parsed.coordinate)) return true
 
     const component = findManifestComponent(manifest, parsed.coordinate)
-    return !component?.cases.some((testCase) => testCase.name === parsed.value)
+    return !component?.frames.some((frame) => frame.name === parsed.value)
   })
 }
 
@@ -973,12 +973,12 @@ function normalizeStudioBoundaryTrees(tree: GBoundaryTreeNode[] | GBoundaryTreeN
   return Array.isArray(tree[0]) ? (tree as GBoundaryTreeNode[][]) : [tree as GBoundaryTreeNode[]]
 }
 
-function omitStudioSelectedCases(
-  selectedCaseByCoordinate: Record<string, string>,
+function omitStudioSelectedFrames(
+  selectedFrameByCoordinate: Record<string, string>,
   coordinates: string[],
 ): Record<string, string> {
   const omitted = new Set(coordinates)
-  const next = Object.fromEntries(Object.entries(selectedCaseByCoordinate).filter(([coordinate]) => !omitted.has(coordinate)))
+  const next = Object.fromEntries(Object.entries(selectedFrameByCoordinate).filter(([coordinate]) => !omitted.has(coordinate)))
   return next
 }
 
@@ -1311,30 +1311,30 @@ export function computeStudioColumnLayout(input: {
   return layoutsByIndex
 }
 
-export function computeStudioCaseGridLayout(input: {
-  caseChromeHeight?: number
+export function computeStudioFrameGridLayout(input: {
+  frameChromeHeight?: number
   gap?: number
-  items: StudioCaseGridItemLayout[]
+  items: StudioFrameGridItemLayout[]
   maxSide?: number
   minScale?: number
   previewScale?: number
-}): StudioCaseGridLayout {
+}): StudioFrameGridLayout {
   const gap = input.gap ?? 14
-  const caseChromeHeight = input.caseChromeHeight ?? 20
+  const frameChromeHeight = input.frameChromeHeight ?? 20
   const maxSide = input.maxSide ?? 760
   const minScale = input.minScale ?? 0.24
   const items = input.items.length > 0 ? input.items : [{ height: 160, width: 280 }]
   const itemCount = items.length
   const maxItemWidth = Math.max(1, ...items.map((item) => item.width))
   const maxItemHeight = Math.max(1, ...items.map((item) => item.height))
-  let bestLayout: StudioCaseGridLayout | undefined
+  let bestLayout: StudioFrameGridLayout | undefined
   let bestScore = Number.POSITIVE_INFINITY
 
   for (let columns = 1; columns <= itemCount; columns += 1) {
     const rows = Math.ceil(itemCount / columns)
     const naturalWidth = columns * maxItemWidth + (columns - 1) * gap
     const previewNaturalHeight = rows * maxItemHeight
-    const chromeHeight = rows * caseChromeHeight + (rows - 1) * gap
+    const chromeHeight = rows * frameChromeHeight + (rows - 1) * gap
     const heightAvailableForPreviews = Math.max(maxSide * minScale, maxSide - chromeHeight)
     const fittingPreviewScale = clamp(
       Math.min(1, maxSide / naturalWidth, heightAvailableForPreviews / previewNaturalHeight),
@@ -1343,7 +1343,7 @@ export function computeStudioCaseGridLayout(input: {
     )
     const previewScale = input.previewScale === undefined ? fittingPreviewScale : clamp(input.previewScale, minScale, 1)
     const cellWidth = Math.ceil(maxItemWidth * previewScale)
-    const cellHeight = Math.ceil(caseChromeHeight + maxItemHeight * previewScale)
+    const cellHeight = Math.ceil(frameChromeHeight + maxItemHeight * previewScale)
     const width = Math.ceil(columns * cellWidth + (columns - 1) * gap)
     const height = Math.ceil(rows * cellHeight + (rows - 1) * gap)
     const aspectPenalty = Math.abs(Math.log(width / height))
@@ -1355,7 +1355,7 @@ export function computeStudioCaseGridLayout(input: {
     if (score < bestScore) {
       bestScore = score
       bestLayout = {
-        caseChromeHeight,
+        frameChromeHeight,
         cellHeight,
         cellWidth,
         columns,
@@ -1370,12 +1370,12 @@ export function computeStudioCaseGridLayout(input: {
 
   return (
     bestLayout ?? {
-      caseChromeHeight,
-      cellHeight: caseChromeHeight + 160,
+      frameChromeHeight,
+      cellHeight: frameChromeHeight + 160,
       cellWidth: 280,
       columns: 1,
       gap,
-      height: caseChromeHeight + 160,
+      height: frameChromeHeight + 160,
       previewScale: 1,
       rows: 1,
       width: 280,
@@ -1572,19 +1572,19 @@ export function findManifestComponent(manifest: StudioManifest, coordinate: stri
 export function createStudioPreviewUrl(
   manifest: StudioManifest,
   component: StudioManifestComponent,
-  caseName: string,
-  sessionId = previewSessionId(component, caseName),
-  options: { caseOverrides?: readonly StudioPreviewCaseOverride[]; static?: boolean } = {},
+  frameName: string,
+  sessionId = previewSessionId(component, frameName),
+  options: { frameOverrides?: readonly StudioPreviewFrameOverride[]; static?: boolean } = {},
 ): string {
   const params = new URLSearchParams({
     entry: component.coordinate,
-    case: caseName,
+    frame: frameName,
     chrome: "0",
     sessionId,
   })
   if (options.static) params.set("static", "1")
-  for (const override of options.caseOverrides ?? []) {
-    params.append("gcase", `${override.coordinate}:${override.caseName}`)
+  for (const override of options.frameOverrides ?? []) {
+    params.append("gframe", `${override.coordinate}:${override.frameName}`)
   }
   return `${manifest.routes.preview}?${params.toString()}`
 }
@@ -1595,14 +1595,14 @@ export function createStudioPreviewPoolUrl(manifest: StudioManifest): string {
 
 export function studioPreviewRenderTargetFromUrl(previewUrl: string, fallbackSessionId: string): GPreviewRenderTarget {
   const url = new URL(previewUrl, "http://gtsx.local")
-  const caseOverrides = url.searchParams.getAll("gcase").flatMap((value) => {
+  const frameOverrides = url.searchParams.getAll("gframe").flatMap((value) => {
     const separatorIndex = value.lastIndexOf(":")
     return separatorIndex > 0 ? ([[value.slice(0, separatorIndex), value.slice(separatorIndex + 1)]] as [string, string][]) : []
   })
 
   return {
-    caseName: url.searchParams.get("case"),
-    ...(caseOverrides.length > 0 ? { caseOverrides } : {}),
+    frameName: url.searchParams.get("frame"),
+    ...(frameOverrides.length > 0 ? { frameOverrides } : {}),
     chrome: url.searchParams.get("chrome"),
     entry: url.searchParams.get("entry"),
     sessionId: url.searchParams.get("sessionId") ?? fallbackSessionId,
@@ -1618,18 +1618,18 @@ function appendStudioPreviewSearchParams(url: string, params: URLSearchParams): 
 
 export function previewSessionId(
   component: StudioManifestComponent,
-  caseName: string,
+  frameName: string,
   viewportPreset?: StudioViewportPreset,
 ): string {
-  return `${component.coordinate}:${caseName}${viewportPreset && viewportPreset !== "tablet" ? `@${viewportPreset}` : ""}`
+  return `${component.coordinate}:${frameName}${viewportPreset && viewportPreset !== "tablet" ? `@${viewportPreset}` : ""}`
 }
 
 export function studioPreviewCacheKey(
   component: StudioManifestComponent,
-  caseName: string,
+  frameName: string,
   viewportPreset: StudioViewportPreset,
 ): string {
-  return `${viewportPreset}\n${component.sourceHash ?? "no-source-hash"}\n${component.coordinate}\n${caseName}`
+  return `${viewportPreset}\n${component.sourceHash ?? "no-source-hash"}\n${component.coordinate}\n${frameName}`
 }
 
 export function studioPreviewFrameSize(
@@ -1664,7 +1664,7 @@ export function currentPreviewSessionIds(workspace: StudioWorkspaceState): Set<s
   return new Set(
     workspace.columns.flatMap((column) =>
       column.components.flatMap((component) =>
-        component.cases.map((testCase) => previewSessionId(component, testCase.name, viewportPreset)),
+        component.frames.map((frame) => previewSessionId(component, frame.name, viewportPreset)),
       ),
     ),
   )
@@ -1673,18 +1673,18 @@ export function currentPreviewSessionIds(workspace: StudioWorkspaceState): Set<s
 export function currentStudioPreviewTargets(manifest: StudioManifest, workspace: StudioWorkspaceState): StudioPreviewTarget[] {
   const viewportPreset = canvasViewportPresetForWorkspace(workspace)
   return visibleWorkspaceComponentEntries(workspace).flatMap(({ component, path }) => {
-    const caseOverrides = studioPreviewCaseOverridesForProviderVariantContext(
+    const frameOverrides = studioPreviewFrameOverridesForProviderVariantContext(
       manifest,
       studioProviderVariantContextForPath(workspace, path),
     )
-    return component.cases.map((testCase) =>
+    return component.frames.map((frame) =>
       studioPreviewTarget(
         manifest,
         component,
-        testCase.name,
+        frame.name,
         viewportPreset,
-        previewSessionId(component, testCase.name, viewportPreset),
-        caseOverrides,
+        previewSessionId(component, frame.name, viewportPreset),
+        frameOverrides,
       ),
     )
   })
@@ -1693,17 +1693,17 @@ export function currentStudioPreviewTargets(manifest: StudioManifest, workspace:
 function studioPreviewTarget(
   manifest: StudioManifest,
   component: StudioManifestComponent,
-  caseName: string,
+  frameName: string,
   viewportPreset: StudioViewportPreset,
   sessionId: string,
-  caseOverrides: readonly StudioPreviewCaseOverride[] = [],
+  frameOverrides: readonly StudioPreviewFrameOverride[] = [],
 ): StudioPreviewTarget {
   return {
-    cacheKey: studioPreviewCacheKey(component, caseName, viewportPreset),
-    previewUrl: createStudioPreviewUrl(manifest, component, caseName, sessionId, { caseOverrides, static: true }),
+    cacheKey: studioPreviewCacheKey(component, frameName, viewportPreset),
+    previewUrl: createStudioPreviewUrl(manifest, component, frameName, sessionId, { frameOverrides, static: true }),
     sessionId,
     size: studioPreviewFrameSize(viewportPreset, undefined) as { width: number; height: number },
-    title: `${component.componentName} ${caseName} preview`,
+    title: `${component.componentName} ${frameName} preview`,
   }
 }
 

@@ -32,10 +32,10 @@ export type {
   GProviderUpdate,
   GProviderUseValue,
   GProviderVariant,
-  GProviderCase,
+  GProviderFrame,
   GProviderOptions,
-  GCase,
-  GCases,
+  GFrame,
+  GFrames,
 } from "./types.js"
 export type { GBoundaryCollector, GBoundaryRect, GBoundaryTreeNode } from "./runtime.js"
 export { serializeGRuntimeValue } from "./runtime-values.js"

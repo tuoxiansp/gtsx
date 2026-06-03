@@ -1,7 +1,7 @@
 import {
   createGProvider,
   createGScopeHook,
-  type GCases,
+  type GFrames,
 } from "@gtsx/core"
 import React from "react"
 
@@ -60,7 +60,7 @@ export default function RootRouteShell(props: RootProps) {
   )
 }
 
-RootRouteShell.cases = {
+RootRouteShell.frames = {
   apiDown: {
     props: { requestId: "req_tanstack_7133" },
     providers: [[QueryClientProvider, { apiBaseUrl: "https://api.example.test", retryAfterMs: 5000 }]],
@@ -80,4 +80,4 @@ RootRouteShell.cases = {
     providers: [[QueryClientProvider, { apiBaseUrl: "https://api.example.test" }]],
     scope: { status: "ready", userName: "Ada Lovelace" },
   },
-} satisfies GCases<RootProps, RootScope, typeof providers>
+} satisfies GFrames<RootProps, RootScope, typeof providers>

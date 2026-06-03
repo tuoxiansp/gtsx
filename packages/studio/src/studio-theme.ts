@@ -49,7 +49,7 @@ export const studioTypography = {
     letterSpacing: "0.06em",
     lineHeight: 1,
   },
-  caseLabel: {
+  frameLabel: {
     fontSize: 9,
     fontWeight: 400,
     letterSpacing: "0.05em",
@@ -149,14 +149,14 @@ export function studioCardTitleIndicatorStyle(selected: boolean): CSSProperties 
   }
 }
 
-export function studioCaseLabelStyle(mismatch: boolean): CSSProperties {
+export function studioFrameLabelStyle(mismatch: boolean): CSSProperties {
   return {
     color: mismatch ? studioColors.textDim : studioColors.textLabel,
     fontFamily: studioFontFamily,
-    fontSize: studioTypography.caseLabel.fontSize,
-    fontWeight: studioTypography.caseLabel.fontWeight,
-    letterSpacing: studioTypography.caseLabel.letterSpacing,
-    lineHeight: studioTypography.caseLabel.lineHeight,
+    fontSize: studioTypography.frameLabel.fontSize,
+    fontWeight: studioTypography.frameLabel.fontWeight,
+    letterSpacing: studioTypography.frameLabel.letterSpacing,
+    lineHeight: studioTypography.frameLabel.lineHeight,
     maxWidth: "100%",
     overflow: "hidden",
     textAlign: "center",

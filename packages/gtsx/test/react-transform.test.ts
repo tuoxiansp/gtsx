@@ -10,7 +10,7 @@ import {
 const root = "/repo"
 
 describe("GTSX React transform", () => {
-  it("wraps default component exports that declare cases", () => {
+  it("wraps default component exports that declare frames", () => {
     const output = transformGTSXComponentBoundaries({
       root,
       filePath: "/repo/src/Card.g.tsx",
@@ -19,7 +19,7 @@ export default function Card(props: { label: string }) {
   return <span>{props.label}</span>
 }
 
-Card.cases = {
+Card.frames = {
   ready: { props: { label: "Ready" } },
 }
 `,
@@ -29,7 +29,7 @@ Card.cases = {
     expect(output).toContain("function CardGTSXImpl(props: { label: string })")
     expect(output).toContain('const Card = __gtsxDefineGComponent("src/Card.g.tsx#default", CardGTSXImpl)')
     expect(output).toContain("export default Card")
-    expect(output).toContain("Card.cases = {")
+    expect(output).toContain("Card.frames = {")
   })
 
   it("keeps directive prologues before injected imports", () => {
@@ -42,7 +42,7 @@ export default function Card(props: { label: string }) {
   return <span>{props.label}</span>
 }
 
-Card.cases = {
+Card.frames = {
   ready: { props: { label: "Ready" } },
 }
 `,
@@ -51,7 +51,7 @@ Card.cases = {
     expect(output.startsWith('"use client"\nimport { defineGComponent as __gtsxDefineGComponent } from "@gtsx/core"')).toBe(true)
   })
 
-  it("wraps named component exports that declare cases", () => {
+  it("wraps named component exports that declare frames", () => {
     const output = transformGTSXComponentBoundaries({
       root,
       filePath: "/repo/src/Card.g.tsx",
@@ -60,7 +60,7 @@ export function NamedCard(props: { label: string }) {
   return <span>{props.label}</span>
 }
 
-NamedCard.cases = {
+NamedCard.frames = {
   ready: { props: { label: "Ready" } },
 }
 `,
@@ -70,7 +70,7 @@ NamedCard.cases = {
     expect(output).toContain(
       'export const NamedCard = __gtsxDefineGComponent("src/Card.g.tsx#NamedCard", NamedCardGTSXImpl)',
     )
-    expect(output).toContain("NamedCard.cases = {")
+    expect(output).toContain("NamedCard.frames = {")
   })
 
   it("wraps local components exported from a list", () => {
@@ -82,7 +82,7 @@ function NamedCard(props: { label: string }) {
   return <span>{props.label}</span>
 }
 
-NamedCard.cases = {
+NamedCard.frames = {
   ready: { props: { label: "Ready" } },
 }
 
@@ -97,7 +97,7 @@ export { NamedCard, Helper }
     expect(output).toContain("function NamedCardGTSXImpl(props: { label: string })")
     expect(output).toContain('const NamedCard = __gtsxDefineGComponent("src/Card.g.tsx#NamedCard", NamedCardGTSXImpl)')
     expect(output).toContain("export { NamedCard, Helper }")
-    expect(output).toContain("NamedCard.cases = {")
+    expect(output).toContain("NamedCard.frames = {")
     expect(output).not.toContain("HelperGTSXImpl")
   })
 
@@ -110,7 +110,7 @@ const Toaster = (props: { richColors?: boolean }) => {
   return <span>{props.richColors ? "rich" : "default"}</span>
 }
 
-Toaster.cases = {
+Toaster.frames = {
   default: { props: {} },
 }
 
@@ -121,7 +121,7 @@ export { Toaster }
     expect(output).toContain("const ToasterGTSXImpl = (props: { richColors?: boolean }) =>")
     expect(output).toContain('const Toaster = __gtsxDefineGComponent("src/Toaster.g.tsx#Toaster", ToasterGTSXImpl)')
     expect(output).toContain("export { Toaster }")
-    expect(output).toContain("Toaster.cases = {")
+    expect(output).toContain("Toaster.frames = {")
   })
 
   it("wraps default export assignments separately from named component exports", () => {
@@ -133,7 +133,7 @@ export function NamedCard(props: { label: string }) {
   return <span>{props.label}</span>
 }
 
-NamedCard.cases = {
+NamedCard.frames = {
   ready: { props: { label: "Ready" } },
 }
 
@@ -146,7 +146,7 @@ export default NamedCard
       'export const NamedCard = __gtsxDefineGComponent("src/Card.g.tsx#NamedCard", NamedCardGTSXImpl)',
     )
     expect(output).toContain('const NamedCardGTSXDefault = __gtsxDefineGComponent("src/Card.g.tsx#default", NamedCardGTSXImpl)')
-    expect(output).toContain("NamedCardGTSXDefault.cases = NamedCard.cases")
+    expect(output).toContain("NamedCardGTSXDefault.frames = NamedCard.frames")
     expect(output).toContain("export default NamedCardGTSXDefault")
   })
 
@@ -159,7 +159,7 @@ export function First() {
   return <span>first</span>
 }
 
-First.cases = {
+First.frames = {
   ready: { props: {} },
 }
 
@@ -167,7 +167,7 @@ export function Second() {
   return <span>second</span>
 }
 
-Second.cases = {
+Second.frames = {
   ready: { props: {} },
 }
 `,
@@ -193,7 +193,7 @@ export function Card(props: ChildProps) {
   return <><Child {...props} /><AliasChild {...props} /></>
 }
 
-Card.cases = {
+Card.frames = {
   ready: { props: { label: "Ready" } },
 }
 `,
@@ -207,7 +207,7 @@ Card.cases = {
     expect(output).toContain('export const Card = __gtsxDefineGComponent("src/Card.g.tsx#Card", CardGTSXImpl)')
   })
 
-  it("propagates preview queries through wrapper files without cases", () => {
+  it("propagates preview queries through wrapper files without frames", () => {
     const code = `
 import { Child } from "./Child.g"
 export { Badge } from "@fixture/Badge.g"
@@ -255,7 +255,7 @@ export function Card() {
   return <Child label="Ready" />
 }
 
-Card.cases = {
+Card.frames = {
   ready: { props: {} },
 }
 `,
@@ -269,7 +269,7 @@ Card.cases = {
     expect(output).toContain('export const Card = __gtsxDefineGComponent("src/Card.g.tsx#Card", CardGTSXImpl)')
   })
 
-  it("leaves component exports without cases untouched", () => {
+  it("leaves component exports without frames untouched", () => {
     const code = `
 export function PlainComponent() {
   return <span>plain</span>

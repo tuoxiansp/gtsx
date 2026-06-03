@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 import { studioPreviewCacheKey, type StudioPreviewCacheEntry } from "../client"
 import type { StudioManifest, StudioManifestFile } from "../manifest"
@@ -77,8 +77,8 @@ export default function FileGroupLink(props: FileGroupLinkProps) {
               <SidebarComponentPreview
                 component={component}
                 frameState={
-                  component.cases[0]?.name
-                    ? props.previewCache?.[studioPreviewCacheKey(component, component.cases[0].name, "tablet")]?.frameState
+                  component.frames[0]?.name
+                    ? props.previewCache?.[studioPreviewCacheKey(component, component.frames[0].name, "tablet")]?.frameState
                     : undefined
                 }
                 manifest={props.manifest}
@@ -91,7 +91,7 @@ export default function FileGroupLink(props: FileGroupLinkProps) {
   )
 }
 
-FileGroupLink.cases = {
+FileGroupLink.frames = {
   selectedComponent: {
     props: {
       file: {
@@ -104,7 +104,7 @@ FileGroupLink.cases = {
             exportName: "default",
             componentName: "UserCard",
             mode: "scope",
-            cases: [{ kind: "scope", name: "ready" }],
+            frames: [{ kind: "scope", name: "ready" }],
             providers: {},
             diagnostics: [],
           },
@@ -119,8 +119,8 @@ FileGroupLink.cases = {
           manifest: "/gtsx/studio/manifest",
         },
         preview: {
-          urlTemplate: "/gtsx?entry={entry}&case={case}{gcase}",
-          allUrlTemplate: "/gtsx?entry={entry}{gcase}",
+          urlTemplate: "/gtsx?entry={entry}&frame={frame}{gframe}",
+          allUrlTemplate: "/gtsx?entry={entry}{gframe}",
         },
         files: [],
         diagnostics: [],
@@ -129,4 +129,4 @@ FileGroupLink.cases = {
       selectedId: "component:src/UserCard.g.tsx#default",
     },
   },
-} satisfies GCases<FileGroupLinkProps>
+} satisfies GFrames<FileGroupLinkProps>

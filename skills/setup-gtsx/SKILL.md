@@ -46,8 +46,8 @@ When upgrade/ensure mode updates package versions, the agent must self-check whe
 - Never add `@gtsx/preview-react` directly to the user project; it is adapter internals.
 - Host preview code owns only framework wiring: search params, CSS/setup imports, providers/mocks, and adapter loading.
 - The preview route must recreate the component visual environment that the normal app route would provide through CSS or static DOM: global styles, design-system stylesheets, font/style setup imports, and root theme/style classes or `data-*` attributes.
-- Keep preview route shells static. Do not wrap the preview client in production layouts or providers that run ordinary React hooks, auth/session clients, data fetchers, routers, or effects. If visual context is needed, prefer CSS imports, static wrapper elements, and gtsx `createGProvider` cases.
-- Do not reimplement preview runtime in the app. No custom `GPreviewProvider`, boundary collectors, iframe `postMessage` handlers, resize observers, boundary rect readers, case override merging, or scope fallback logic.
+- Keep preview route shells static. Do not wrap the preview client in production layouts or providers that run ordinary React hooks, auth/session clients, data fetchers, routers, or effects. If visual context is needed, prefer CSS imports, static wrapper elements, and gtsx `createGProvider` frames.
+- Do not reimplement preview runtime in the app. No custom `GPreviewProvider`, boundary collectors, iframe `postMessage` handlers, resize observers, boundary rect readers, frame override merging, or scope fallback logic.
 - Keep existing app routes, config wrappers, router entrypoints, providers, and production behavior intact.
 - Treat the installer as idempotent: re-running it must not duplicate wrappers/routes, reset project structure, or erase local gtsx customizations.
 - Never write runtime props, scope, provider values, DOM rects, or serialized snapshots into public files.
@@ -56,6 +56,6 @@ When upgrade/ensure mode updates package versions, the agent must self-check whe
 
 Route to sibling skills for component work:
 
-- `authoring-gtsx` — write new `.g.tsx` components and cases.
+- `authoring-gtsx` — write new `.g.tsx` components and frames.
 - `refactor-to-gtsx` — convert existing TSX components into `.g.tsx`.
 - `design-gtsx` — create and iterate `project.root/gtsx/design` frames in Studio's design workspace.

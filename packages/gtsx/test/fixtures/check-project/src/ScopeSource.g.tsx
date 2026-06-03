@@ -1,7 +1,7 @@
 import {
   createGProvider,
   createGScopeHook,
-  type GCases,
+  type GFrames,
 } from "@gtsx/core"
 
 type ImportedScope = {
@@ -24,9 +24,9 @@ function ScopeSource() {
 
 export { ScopeSource, useImportedScope }
 
-ScopeSource.cases = {
+ScopeSource.frames = {
   ready: {
     props: {},
     providers: [[ImportedScopeProvider, { label: "source" }]],
   },
-} satisfies GCases<React.ComponentProps<typeof ScopeSource>, never, [typeof ImportedScopeProvider]>
+} satisfies GFrames<React.ComponentProps<typeof ScopeSource>, never, [typeof ImportedScopeProvider]>

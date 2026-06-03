@@ -1,9 +1,9 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 export default function Child() {
   return <span>Child</span>
 }
 
-Child.cases = {
+Child.frames = {
   ready: { props: {} },
-} satisfies GCases<Record<string, never>>
+} satisfies GFrames<Record<string, never>>

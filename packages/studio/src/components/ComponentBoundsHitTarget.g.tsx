@@ -1,4 +1,4 @@
-import type { GBoundaryRect, GCases } from "@gtsx/core"
+import type { GBoundaryRect, GFrames } from "@gtsx/core"
 
 type ComponentBoundsHitTargetProps = {
   coordinate: string
@@ -30,11 +30,11 @@ export default function ComponentBoundsHitTarget(props: ComponentBoundsHitTarget
   )
 }
 
-ComponentBoundsHitTarget.cases = {
+ComponentBoundsHitTarget.frames = {
   userCardBounds: {
     props: {
       coordinate: "src/UserCard.g.tsx#default",
       rect: { x: 12, y: 20, width: 320, height: 88 },
     },
   },
-} satisfies GCases<ComponentBoundsHitTargetProps>
+} satisfies GFrames<ComponentBoundsHitTargetProps>

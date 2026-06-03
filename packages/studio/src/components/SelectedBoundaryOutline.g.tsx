@@ -1,4 +1,4 @@
-import type { GBoundaryRect, GCases } from "@gtsx/core"
+import type { GBoundaryRect, GFrames } from "@gtsx/core"
 
 import { studioColors } from "../studio-theme"
 
@@ -25,10 +25,10 @@ export default function SelectedBoundaryOutline(props: SelectedBoundaryOutlinePr
   )
 }
 
-SelectedBoundaryOutline.cases = {
+SelectedBoundaryOutline.frames = {
   userCardSelected: {
     props: {
       rect: { x: 12, y: 20, width: 320, height: 88 },
     },
   },
-} satisfies GCases<SelectedBoundaryOutlineProps>
+} satisfies GFrames<SelectedBoundaryOutlineProps>

@@ -5,25 +5,25 @@ import { analyzeEntry } from "../src/analyzer.js"
 import { runCLI } from "../src/cli.js"
 
 const fixtureRoot = join(import.meta.dirname, "fixtures/check-project")
-const casesBeforeExportRoot = join(import.meta.dirname, "fixtures/cases-before-export")
+const framesBeforeExportRoot = join(import.meta.dirname, "fixtures/frames-before-export")
 const jsxControlFlowRoot = join(import.meta.dirname, "fixtures/jsx-control-flow")
 const tsProjectScopeRoot = join(import.meta.dirname, "fixtures/ts-project-scope")
 
 describe("GTSX analyzer", () => {
-  it("discovers pure component cases through component-level metadata", () => {
+  it("discovers pure component frames through component-level metadata", () => {
     const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/Badge.g.tsx" })
 
     expect(result.diagnostics).toEqual([])
     expect(result.mode).toBe("pure")
-    expect(result.cases.map((testCase) => testCase.name)).toEqual(["neutral", "warning"])
+    expect(result.frames.map((frame) => frame.name)).toEqual(["neutral", "warning"])
   })
 
-  it("discovers stateful component cases and provider selections", () => {
+  it("discovers stateful component frames and provider selections", () => {
     const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/UserCard.g.tsx" })
 
     expect(result.diagnostics).toEqual([])
     expect(result.mode).toBe("scope")
-    expect(result.cases).toEqual([
+    expect(result.frames).toEqual([
       {
         kind: "scope",
         name: "loading",
@@ -39,25 +39,25 @@ describe("GTSX analyzer", () => {
     ])
     expect(result.providers.ThemeProvider).toEqual({
       name: "ThemeProvider",
-      cases: [],
+      frames: [],
       variants: ["light", "dark"],
     })
   })
 
-  it("discovers named component cases by file export coordinate", () => {
+  it("discovers named component frames by file export coordinate", () => {
     const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/MultiExport.g.tsx#NamedBadge" })
 
     expect(result.diagnostics).toEqual([])
     expect(result.mode).toBe("pure")
-    expect(result.cases.map((testCase) => testCase.name)).toEqual(["ready"])
+    expect(result.frames.map((frame) => frame.name)).toEqual(["ready"])
   })
 
-  it("discovers cases on local functions exported from a list", () => {
+  it("discovers frames on local functions exported from a list", () => {
     const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/ExportList.g.tsx#ExportListBadge" })
 
     expect(result.diagnostics).toEqual([])
     expect(result.mode).toBe("pure")
-    expect(result.cases.map((testCase) => testCase.name)).toEqual(["ready"])
+    expect(result.frames.map((frame) => frame.name)).toEqual(["ready"])
   })
 
   it("recognizes createGScopeHook through type casts", () => {
@@ -65,22 +65,22 @@ describe("GTSX analyzer", () => {
 
     expect(result.diagnostics).toEqual([])
     expect(result.mode).toBe("scope")
-    expect(result.cases.map((testCase) => testCase.name)).toEqual(["ready"])
+    expect(result.frames.map((frame) => frame.name)).toEqual(["ready"])
   })
 
-  it("allows cases to select imported GTSX providers", () => {
+  it("allows frames to select imported GTSX providers", () => {
     const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/ImportedProvider.g.tsx#ImportedProviderPanel" })
 
     expect(result.diagnostics).toEqual([])
     expect(result.mode).toBe("pure")
-    expect(result.cases).toEqual([
+    expect(result.frames).toEqual([
       {
         kind: "pure",
         name: "light",
         providers: ["ThemeProvider"],
       },
     ])
-    expect(result.providers.ThemeProvider.cases).toEqual([])
+    expect(result.providers.ThemeProvider.frames).toEqual([])
   })
 
   it("allows components to call imported GTSX scope hooks", () => {
@@ -88,7 +88,7 @@ describe("GTSX analyzer", () => {
 
     expect(result.diagnostics).toEqual([])
     expect(result.mode).toBe("pure")
-    expect(result.cases).toEqual([
+    expect(result.frames).toEqual([
       {
         kind: "pure",
         name: "ready",
@@ -102,14 +102,14 @@ describe("GTSX analyzer", () => {
 
     expect(result.diagnostics).toEqual([])
     expect(result.mode).toBe("pure")
-    expect(result.cases.map((testCase) => testCase.name)).toEqual(["ready"])
+    expect(result.frames.map((frame) => frame.name)).toEqual(["ready"])
   })
 
   it("reports contract diagnostics for malformed entries", () => {
     const missingDefault = analyzeEntry({ cwd: fixtureRoot, entry: "src/MissingDefault.g.tsx#default" })
     const multipleScopes = analyzeEntry({ cwd: fixtureRoot, entry: "src/MultipleScopes.g.tsx" })
-    const dynamicCases = analyzeEntry({ cwd: fixtureRoot, entry: "src/DynamicCases.g.tsx" })
-    const legacyScopeCases = analyzeEntry({ cwd: fixtureRoot, entry: "src/LegacyScopeCases.g.tsx" })
+    const dynamicFrames = analyzeEntry({ cwd: fixtureRoot, entry: "src/DynamicFrames.g.tsx" })
+    const legacyScopeFrames = analyzeEntry({ cwd: fixtureRoot, entry: "src/LegacyScopeFrames.g.tsx" })
     const nonGTSXHook = analyzeEntry({ cwd: fixtureRoot, entry: "src/NonGTSXHook.g.tsx" })
     const reactMemberHook = analyzeEntry({ cwd: fixtureRoot, entry: "src/ReactMemberHook.g.tsx" })
     const helperHook = analyzeEntry({ cwd: fixtureRoot, entry: "src/HelperHook.g.tsx" })
@@ -121,7 +121,7 @@ describe("GTSX analyzer", () => {
     const aliasPureDependency = analyzeEntry({ cwd: fixtureRoot, entry: "src/AliasPureDependency.g.tsx" })
     const missingProviderVariant = analyzeEntry({ cwd: fixtureRoot, entry: "src/MissingProviderVariant.g.tsx" })
     const thinWrapper = analyzeEntry({ cwd: fixtureRoot, entry: "src/ThinWrapper.g.tsx" })
-    const casesBeforeExport = analyzeEntry({ cwd: casesBeforeExportRoot, entry: "src/CasesBeforeExport.g.tsx" })
+    const framesBeforeExport = analyzeEntry({ cwd: framesBeforeExportRoot, entry: "src/FramesBeforeExport.g.tsx" })
 
     expect(missingDefault.diagnostics).toContainEqual(
       expect.objectContaining({ code: "missing-default-export", stage: "contract-extraction" }),
@@ -129,11 +129,11 @@ describe("GTSX analyzer", () => {
     expect(multipleScopes.diagnostics).toContainEqual(
       expect.objectContaining({ code: "multiple-scope-hooks", stage: "contract-extraction" }),
     )
-    expect(dynamicCases.diagnostics).toContainEqual(
-      expect.objectContaining({ code: "non-static-case-key", stage: "contract-extraction" }),
+    expect(dynamicFrames.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "non-static-frame-key", stage: "contract-extraction" }),
     )
-    expect(legacyScopeCases.diagnostics).toContainEqual(
-      expect.objectContaining({ code: "scope-hook-cases-unsupported", stage: "contract-extraction" }),
+    expect(legacyScopeFrames.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "scope-hook-frames-unsupported", stage: "contract-extraction" }),
     )
     expect(nonGTSXHook.diagnostics).toContainEqual(
       expect.objectContaining({ code: "non-gtsx-hook", stage: "contract-extraction" }),
@@ -161,19 +161,19 @@ describe("GTSX analyzer", () => {
     )
     expect(aliasPureDependency.diagnostics).toEqual([])
     expect(missingProviderVariant.diagnostics).toContainEqual(
-      expect.objectContaining({ code: "missing-provider-variant-cases", stage: "contract-extraction" }),
+      expect.objectContaining({ code: "missing-provider-variant-frames", stage: "contract-extraction" }),
     )
     expect(thinWrapper.diagnostics).toEqual([])
-    expect(casesBeforeExport.diagnostics).toContainEqual(
-      expect.objectContaining({ code: "cases-before-component-export", stage: "contract-extraction" }),
+    expect(framesBeforeExport.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "frames-before-component-export", stage: "contract-extraction" }),
     )
   })
 
-  it("allows provider variant projection cases without injecting provider values", () => {
+  it("allows provider variant projection frames without injecting provider values", () => {
     const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/ProviderVariantProjection.g.tsx" })
 
     expect(result.diagnostics).toEqual([])
-    expect(result.cases).toEqual([
+    expect(result.frames).toEqual([
       {
         kind: "pure",
         name: "loginName",
@@ -187,12 +187,12 @@ describe("GTSX analyzer", () => {
     ])
     expect(result.providers.LoginProvider).toEqual({
       name: "LoginProvider",
-      cases: [],
+      frames: [],
       variants: ["login", "anonymous"],
     })
   })
 
-  it("warns when provider-derived props flow into unmarked child projection cases", () => {
+  it("warns when provider-derived props flow into unmarked child projection frames", () => {
     const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/ProviderProjectionParent.g.tsx" })
 
     expect(result.diagnostics).toEqual([
@@ -204,17 +204,17 @@ describe("GTSX analyzer", () => {
     ])
   })
 
-  it("does not warn when child projection cases mark the provider variants", () => {
+  it("does not warn when child projection frames mark the provider variants", () => {
     const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/ProviderProjectionCoveredParent.g.tsx" })
 
     expect(result.diagnostics).toEqual([])
   })
 
-  it("allows one case to explicitly cover multiple provider variants", () => {
-    const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/MultiVariantProviderCase.g.tsx" })
+  it("allows one frame to explicitly cover multiple provider variants", () => {
+    const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/MultiVariantProviderFrame.g.tsx" })
 
     expect(result.diagnostics).toEqual([])
-    expect(result.cases).toEqual([
+    expect(result.frames).toEqual([
       {
         kind: "pure",
         name: "loading",
@@ -224,18 +224,18 @@ describe("GTSX analyzer", () => {
     ])
   })
 
-  it("does not let child projection cases replace parent provider coverage", () => {
+  it("does not let child projection frames replace parent provider coverage", () => {
     const result = analyzeEntry({ cwd: fixtureRoot, entry: "src/ProviderProjectionDelegatingMissingCoverage.g.tsx" })
 
     expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({ code: "missing-provider-variant-cases", stage: "contract-extraction" }),
+      expect.objectContaining({ code: "missing-provider-variant-frames", stage: "contract-extraction" }),
     )
     expect(result.diagnostics).not.toContainEqual(
       expect.objectContaining({ code: "unmarked-provider-variant-projection", severity: "warning" }),
     )
   })
 
-  it("checks JSX tree reachability against props, scope, and GTSX context cases", () => {
+  it("checks JSX tree reachability against props, scope, and GTSX context frames", () => {
     expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByProps" }).diagnostics).toEqual([])
     expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByScope" }).diagnostics).toEqual([])
     expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByContext" }).diagnostics).toEqual([])
@@ -277,7 +277,7 @@ describe("GTSX analyzer", () => {
     expect(result.exitCode).toBe(0)
     expect(JSON.parse(result.stdout)).toMatchObject({
       mode: "pure",
-      cases: [{ name: "neutral" }, { name: "warning" }],
+      frames: [{ name: "neutral" }, { name: "warning" }],
       diagnostics: [],
     })
   })

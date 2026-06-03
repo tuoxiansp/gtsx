@@ -38,7 +38,7 @@ export function studioPreviewIndexedDBNamespace(manifest: StudioManifest): strin
         components: file.components.map((component) => ({
           coordinate: component.coordinate,
           exportName: component.exportName,
-          cases: component.cases.map((testCase) => testCase.name),
+          frames: component.frames.map((frame) => frame.name),
         })),
       })),
       routes: manifest.routes,

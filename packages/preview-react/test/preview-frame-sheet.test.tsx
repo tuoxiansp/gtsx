@@ -3,14 +3,14 @@ import { describe, expect, it } from "vitest"
 
 import { createGProvider, createGScopeHook } from "@gtsx/core"
 import {
-  GTSXPreviewCaseSheet,
+  GTSXPreviewFrameSheet,
   applyGTSXPreviewRenderTargetRequest,
   createGTSXPreviewRenderTargetMailboxState,
   type GTSXPreviewComponent,
 } from "../src/index.js"
 
-describe("GTSXPreviewCaseSheet", () => {
-  it("does not turn a missing case scope into an undefined preview override", () => {
+describe("GTSXPreviewFrameSheet", () => {
+  it("does not turn a missing frame scope into an undefined preview override", () => {
     const useChildScope = createGScopeHook(() => ({ label: "real child scope" }))
 
     function Child() {
@@ -19,24 +19,24 @@ describe("GTSXPreviewCaseSheet", () => {
     }
 
     const Parent = (() => <Child />) as GTSXPreviewComponent
-    Parent.cases = {
+    Parent.frames = {
       ready: {
         props: {},
       },
     }
 
     const html = renderToStaticMarkup(
-      <GTSXPreviewCaseSheet
+      <GTSXPreviewFrameSheet
         component={Parent}
         entry="src/Parent.g.tsx#default"
-        selectedCases={[{ name: "ready", testCase: Parent.cases.ready }]}
+        selectedFrames={[{ name: "ready", frame: Parent.frames.ready }]}
       />,
     )
 
     expect(html).toContain("real child scope")
   })
 
-  it("makes case providers available to the top-level preview component", () => {
+  it("makes frame providers available to the top-level preview component", () => {
     const MessageProvider = createGProvider((props: { value: string }) => [props.value, () => {}] as const)
     const useMessage = createGScopeHook(
       (_props: Record<string, never>, [message]: readonly [string]) => ({ message }),
@@ -47,27 +47,27 @@ describe("GTSXPreviewCaseSheet", () => {
       const scope = useMessage({})
       return <span>{scope.message}</span>
     }) as GTSXPreviewComponent
-    Message.cases = {
+    Message.frames = {
       ready: {
         props: {},
-        providers: [[MessageProvider, "case provider value"]],
+        providers: [[MessageProvider, "frame provider value"]],
       },
     }
 
     const html = renderToStaticMarkup(
-      <GTSXPreviewCaseSheet
+      <GTSXPreviewFrameSheet
         component={Message}
         entry="src/Message.g.tsx#default"
-        selectedCases={[{ name: "ready", testCase: Message.cases.ready }]}
+        selectedFrames={[{ name: "ready", frame: Message.frames.ready }]}
       />,
     )
 
-    expect(html).toContain("case provider value")
+    expect(html).toContain("frame provider value")
   })
 
   it("gives repeated acknowledged pool renders a fresh request identity", () => {
     const target = {
-      caseName: "ready",
+      frameName: "ready",
       chrome: "0",
       entry: "src/UserCard.g.tsx#default",
       sessionId: "src/UserCard.g.tsx#default:ready",

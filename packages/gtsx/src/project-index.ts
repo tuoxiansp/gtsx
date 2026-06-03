@@ -13,7 +13,7 @@ export type GTSXProjectIndexComponent = {
   exportName: string
   componentName: string
   mode: GTSXAnalysisResult["mode"]
-  cases: GTSXAnalysisResult["cases"]
+  frames: GTSXAnalysisResult["frames"]
   providers: GTSXAnalysisResult["providers"]
   dependencies?: string[]
   diagnostics: GTSXDiagnostic[]
@@ -203,7 +203,7 @@ function buildProjectIndexComponent(
     exportName: component.exportName,
     componentName: component.componentName,
     mode: analysis.mode,
-    cases: analysis.cases,
+    frames: analysis.frames,
     providers: analysis.providers,
     ...(dependencies.length > 0 ? { dependencies } : {}),
     diagnostics: analysis.diagnostics,
@@ -255,7 +255,7 @@ function createProjectModuleResolution(cwd: string, tsconfigPath: string | undef
 
 function readExportedComponents(sourceFile: ts.SourceFile): ExportedComponent[] {
   const components: ExportedComponent[] = []
-  const caseTargets = readCaseTargetNames(sourceFile)
+  const frameTargets = readFrameTargetNames(sourceFile)
 
   for (const statement of sourceFile.statements) {
     if (
@@ -279,7 +279,7 @@ function readExportedComponents(sourceFile: ts.SourceFile): ExportedComponent[] 
     if (ts.isVariableStatement(statement) && hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
       for (const declaration of statement.declarationList.declarations) {
         if (!ts.isIdentifier(declaration.name)) continue
-        if (!caseTargets.has(declaration.name.text)) continue
+        if (!frameTargets.has(declaration.name.text)) continue
         if (!isFunctionLikeInitializer(declaration.initializer)) continue
 
         components.push({
@@ -299,7 +299,7 @@ function readExportedComponents(sourceFile: ts.SourceFile): ExportedComponent[] 
     if (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
       for (const element of statement.exportClause.elements) {
         const localName = element.propertyName?.text ?? element.name.text
-        if (!caseTargets.has(localName)) continue
+        if (!frameTargets.has(localName)) continue
         if (components.some((component) => component.localName === localName)) continue
         const declaration = findComponentDeclaration(sourceFile, localName)
         if (!declaration) continue
@@ -316,7 +316,7 @@ function readExportedComponents(sourceFile: ts.SourceFile): ExportedComponent[] 
   return components
 }
 
-function readCaseTargetNames(sourceFile: ts.SourceFile): Set<string> {
+function readFrameTargetNames(sourceFile: ts.SourceFile): Set<string> {
   const names = new Set<string>()
 
   for (const statement of sourceFile.statements) {
@@ -324,7 +324,7 @@ function readCaseTargetNames(sourceFile: ts.SourceFile): Set<string> {
     const expression = statement.expression
     if (!ts.isBinaryExpression(expression)) continue
     if (expression.operatorToken.kind !== ts.SyntaxKind.EqualsToken) continue
-    if (!ts.isPropertyAccessExpression(expression.left) || expression.left.name.text !== "cases") continue
+    if (!ts.isPropertyAccessExpression(expression.left) || expression.left.name.text !== "frames") continue
     if (ts.isIdentifier(expression.left.expression)) {
       names.add(expression.left.expression.text)
     }

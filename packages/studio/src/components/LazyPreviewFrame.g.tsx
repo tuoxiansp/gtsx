@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GBoundaryRect, type GCases } from "@gtsx/core"
+import { createGScopeHook, type GBoundaryRect, type GFrames } from "@gtsx/core"
 
 import ComponentBoundsHitTarget from "./ComponentBoundsHitTarget.g"
 import SelectedBoundaryOutline from "./SelectedBoundaryOutline.g"
@@ -229,13 +229,13 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
   )
 }
 
-LazyPreviewFrame.cases = {
+LazyPreviewFrame.frames = {
   loadedPhone: {
     props: {
       "data-gtsx-preview-session-id": "src/UserCard.g.tsx#default:ready",
       boundaryRect: { x: 10, y: 20, width: 320, height: 88 },
       coordinate: "src/UserCard.g.tsx#default",
-      previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0",
+      previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
       selectedBoundaryRect: { x: 10, y: 20, width: 320, height: 88 },
       shouldLoad: true,
       size: { width: 390, height: 844 },
@@ -254,7 +254,7 @@ LazyPreviewFrame.cases = {
         expectedSessionId: "src/UserCard.g.tsx#default:ready",
         ready: true,
       },
-      previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0",
+      previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
       selectedBoundaryRect: { x: 10, y: 20, width: 320, height: 88 },
       shouldLoad: true,
       size: { width: 390, height: 844 },
@@ -263,7 +263,7 @@ LazyPreviewFrame.cases = {
       viewportPreset: "phone",
     },
   },
-} satisfies GCases<LazyPreviewFrameProps, LazyPreviewFrameScope>
+} satisfies GFrames<LazyPreviewFrameProps, LazyPreviewFrameScope>
 
 function studioPreviewRenderFlowDebugState(input: {
   iframeOrigin: StudioPreviewIframeBorrowOrigin | "pending"

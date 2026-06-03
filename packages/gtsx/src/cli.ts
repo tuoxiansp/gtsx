@@ -43,7 +43,7 @@ Usage:
   gtsx init [--dry-run]
   gtsx check [-p <tsconfig-or-dir>] <entry.g.tsx[#export]|dir> [--json]
   gtsx serve [-p <tsconfig-or-dir>] [--port <port>]
-  gtsx capture [-p <tsconfig-or-dir>] <entry.g.tsx[#export]|dir> [--case <name>|--all] [--gcase <entry.g.tsx#export:case>] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
+  gtsx capture [-p <tsconfig-or-dir>] <entry.g.tsx[#export]|dir> [--frame <name>|--all] [--gframe <entry.g.tsx#export:frame>] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
   gtsx strip [--check]
   gtsx diagnose
 `
@@ -113,7 +113,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     }
 
     const port = readOption(args, "--port") ?? "4300"
-    const studioUrl = expandUrl(config.config.preview.studioUrl, { entry: "", caseName: "", port })
+    const studioUrl = expandUrl(config.config.preview.studioUrl, { entry: "", frameName: "", port })
     const previewServer = await startPreviewServer(config.config.preview.serve, cwd, { port, readyUrl: studioUrl })
     if (previewServer.exitCode !== 0) return previewServer
 
@@ -180,12 +180,12 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
 
       const port = readOption(args, "--port") ?? "4300"
       const viewport = readOption(args, "--viewport") ?? "1440x900"
-      const gcases = readOptions(args, "--gcase")
+      const gframes = readOptions(args, "--gframe")
       const readyUrl = expandUrl(config.config.preview.allUrl, {
         entry: resolvedEntries.entries[0] ?? "",
-        caseName: "",
+        frameName: "",
         port,
-        gcases,
+        gframes,
       })
       const previewServer = await startPreviewServer(config.config.preview.serve, cwd, {
         port,
@@ -200,7 +200,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
           const outPath = outForDirectoryContactSheet(out, candidate)
           await capturePreviewPage({
             cwd,
-            url: expandUrl(config.config.preview.allUrl, { entry: candidate, caseName: "", port, gcases }),
+            url: expandUrl(config.config.preview.allUrl, { entry: candidate, frameName: "", port, gframes }),
             viewport,
             out: outPath,
           })
@@ -251,11 +251,11 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     const port = readOption(args, "--port") ?? "4300"
     const viewport = readOption(args, "--viewport") ?? "1440x900"
     const out = readOption(args, "--out") ?? "gtsx-capture.png"
-    const captureAllCases = args.includes("--all")
-    const selectedCase = readOption(args, "--case") ?? check.cases[0]?.name
-    const gcases = readOptions(args, "--gcase")
+    const captureAllFrames = args.includes("--all")
+    const selectedFrame = readOption(args, "--frame") ?? check.frames[0]?.name
+    const gframes = readOptions(args, "--gframe")
 
-    if (captureAllCases && !config.config.preview.allUrl) {
+    if (captureAllFrames && !config.config.preview.allUrl) {
       return diagnosticsResult([
         {
           stage: "adapter-configuration",
@@ -265,7 +265,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       ])
     }
 
-    if (!captureAllCases && !config.config.preview.url) {
+    if (!captureAllFrames && !config.config.preview.url) {
       return diagnosticsResult([
         {
           stage: "adapter-configuration",
@@ -275,20 +275,20 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       ])
     }
 
-    if (!captureAllCases && !selectedCase) {
+    if (!captureAllFrames && !selectedFrame) {
       return diagnosticsResult([
         {
           stage: "contract-extraction",
-          code: "missing-cases",
-          message: `No cases found for ${entry}.`,
+          code: "missing-frames",
+          message: `No frames found for ${entry}.`,
           file: entry,
         },
       ])
     }
 
-    const captureUrl = captureAllCases
-      ? expandUrl(config.config.preview.allUrl ?? "", { entry: selectedEntry, caseName: "", port, gcases })
-      : expandUrl(config.config.preview.url ?? "", { entry: selectedEntry, caseName: selectedCase ?? "", port, gcases })
+    const captureUrl = captureAllFrames
+      ? expandUrl(config.config.preview.allUrl ?? "", { entry: selectedEntry, frameName: "", port, gframes })
+      : expandUrl(config.config.preview.url ?? "", { entry: selectedEntry, frameName: selectedFrame ?? "", port, gframes })
     const previewServer = await startPreviewServer(config.config.preview.serve, cwd, {
       port,
       readyUrl: captureUrl,
@@ -297,7 +297,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     if (previewServer.exitCode !== 0) return previewServer
 
     try {
-      if (captureAllCases) {
+      if (captureAllFrames) {
         const outPath = outForEntryContactSheet(out, selectedEntry)
         await capturePreviewPage({
           cwd,
@@ -314,7 +314,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
         viewport,
         out,
       })
-      return { exitCode: 0, stdout: `Captured ${selectedCase} to ${out}\n`, stderr: context.stderr }
+      return { exitCode: 0, stdout: `Captured ${selectedFrame} to ${out}\n`, stderr: context.stderr }
     } catch (error) {
       return diagnosticsResult([
         {
@@ -697,15 +697,15 @@ async function waitForPreviewUrl(readyUrl: string, exitPromise: Promise<number>)
   return "timeout"
 }
 
-export function expandUrl(template: string, params: { entry: string; caseName: string; port: string; gcases?: string[] }): string {
+export function expandUrl(template: string, params: { entry: string; frameName: string; port: string; gframes?: string[] }): string {
   const replacements: Record<string, string> = {
     entry: params.entry,
-    case: params.caseName,
+    frame: params.frameName,
     port: params.port,
-    gcase: params.gcases?.map((gcase) => `&gcase=${encodeURIComponent(gcase)}`).join("") ?? "",
+    gframe: params.gframes?.map((gframe) => `&gframe=${encodeURIComponent(gframe)}`).join("") ?? "",
   }
   return template.replace(/\{([a-z]+)\}/g, (_match, key: string) => {
-    if (key === "gcase") return replacements.gcase
+    if (key === "gframe") return replacements.gframe
     return encodeURIComponent(replacements[key] ?? "")
   })
 }
@@ -745,8 +745,8 @@ function adapterResult(adapter: Awaited<ReturnType<typeof runScriptAdapter>>): C
 
 function formatCheckResult(result: GTSXAnalysisResult): string {
   const lines = [`GTSX ${result.mode} entry: ${result.entry}`]
-  for (const testCase of result.cases) {
-    lines.push(`- ${testCase.name}`)
+  for (const frame of result.frames) {
+    lines.push(`- ${frame.name}`)
   }
   for (const diagnostic of result.diagnostics) {
     lines.push(formatDiagnostic(diagnostic))

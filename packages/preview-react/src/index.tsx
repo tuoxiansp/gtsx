@@ -19,14 +19,14 @@ import {
   type AnyGProvider,
 } from "@gtsx/core"
 
-export type GTSXPreviewCase<Props extends object = Record<string, unknown>> = {
+export type GTSXPreviewFrame<Props extends object = Record<string, unknown>> = {
   props: Props
   providers?: readonly (readonly [AnyGProvider, unknown])[]
   scope?: unknown
 }
 
 export type GTSXPreviewComponent<Props extends object = Record<string, unknown>> = React.ComponentType<Props> & {
-  cases?: Record<string, GTSXPreviewCase<Props>>
+  frames?: Record<string, GTSXPreviewFrame<Props>>
 }
 
 export type GTSXPreviewModule = Record<string, unknown>
@@ -42,8 +42,8 @@ type LoadedGTSXPreviewEntry = {
 }
 
 export type GTSXPreviewRouteParams = {
-  caseName: string | null
-  caseOverrides: Map<string, string>
+  frameName: string | null
+  frameOverrides: Map<string, string>
   chrome: string | null
   entry: string | null
   poolMode: boolean
@@ -64,8 +64,8 @@ export type GTSXPreviewRenderTargetMailboxUpdate = {
 }
 
 export type GTSXReactPreviewClientProps = {
-  caseName?: string | null
-  caseOverrides?: Map<string, string>
+  frameName?: string | null
+  frameOverrides?: Map<string, string>
   chrome?: boolean | string | null
   defaultEntry?: string
   entry?: string | null
@@ -76,12 +76,12 @@ export type GTSXReactPreviewClientProps = {
   staticMode?: boolean
 }
 
-export type GTSXPreviewCaseSheetProps<Props extends object = Record<string, unknown>> = {
+export type GTSXPreviewFrameSheetProps<Props extends object = Record<string, unknown>> = {
   boundaryCollector?: GBoundaryCollector
-  caseOverrides?: Map<string, string>
+  frameOverrides?: Map<string, string>
   component: GTSXPreviewComponent<Props>
   entry: string
-  selectedCases: Array<{ name: string; testCase: GTSXPreviewCase<Props> }>
+  selectedFrames: Array<{ name: string; frame: GTSXPreviewFrame<Props> }>
   showChrome?: boolean
 }
 
@@ -89,8 +89,8 @@ const loadedGTSXPreviewEntriesByLoader = new WeakMap<GTSXPreviewComponentLoader,
 const loadingGTSXPreviewEntriesByLoader = new WeakMap<GTSXPreviewComponentLoader, Map<string, Promise<LoadedGTSXPreviewEntry>>>()
 
 export function GTSXReactPreviewClient({
-  caseName = null,
-  caseOverrides = new Map(),
+  frameName = null,
+  frameOverrides = new Map(),
   chrome = null,
   defaultEntry,
   entry,
@@ -102,8 +102,8 @@ export function GTSXReactPreviewClient({
 }: GTSXReactPreviewClientProps) {
   const routeTarget = React.useMemo(
     () => ({
-      caseName,
-      caseOverrides,
+      frameName,
+      frameOverrides,
       chrome: typeof chrome === "boolean" ? (chrome ? "1" : "0") : chrome,
       entry: entry ?? defaultEntry ?? null,
       poolMode: typeof pool === "boolean" ? pool : pool === "1",
@@ -111,7 +111,7 @@ export function GTSXReactPreviewClient({
       sessionId,
       staticMode,
     }),
-    [caseName, caseOverrides, chrome, defaultEntry, entry, pool, sessionId, staticMode],
+    [frameName, frameOverrides, chrome, defaultEntry, entry, pool, sessionId, staticMode],
   )
   const renderTarget = useGTSXPreviewRenderTarget(routeTarget)
   const showChrome = showChromeForPreviewTarget(renderTarget.chrome)
@@ -133,8 +133,8 @@ export function GTSXReactPreviewClient({
     <>
       <GTSXPreviewDocumentBackground showChrome={showChrome} />
       <GTSXEntryPreview
-        caseName={renderTarget.caseName}
-        caseOverrides={renderTarget.caseOverrides}
+        frameName={renderTarget.frameName}
+        frameOverrides={renderTarget.frameOverrides}
         entry={renderTarget.entry}
         key={previewRenderTargetKey(renderTarget)}
         loadComponent={loadComponent}
@@ -147,16 +147,16 @@ export function GTSXReactPreviewClient({
 }
 
 function GTSXEntryPreview({
-  caseName,
-  caseOverrides,
+  frameName,
+  frameOverrides,
   entry,
   loadComponent,
   sessionId,
   showChrome,
   staticMode,
 }: {
-  caseName: string | null
-  caseOverrides: Map<string, string>
+  frameName: string | null
+  frameOverrides: Map<string, string>
   entry: string
   loadComponent: GTSXPreviewComponentLoader
   sessionId: string | null
@@ -198,8 +198,8 @@ function GTSXEntryPreview({
 
   return (
     <LoadedGTSXEntryPreview
-      caseName={caseName}
-      caseOverrides={caseOverrides}
+      frameName={frameName}
+      frameOverrides={frameOverrides}
       component={effectiveLoadedEntry.component}
       entry={entry}
       sessionId={sessionId}
@@ -251,16 +251,16 @@ function loadGTSXPreviewEntry(
 }
 
 function LoadedGTSXEntryPreview({
-  caseName,
-  caseOverrides,
+  frameName,
+  frameOverrides,
   component,
   entry,
   sessionId,
   showChrome,
   staticMode,
 }: {
-  caseName: string | null
-  caseOverrides: Map<string, string>
+  frameName: string | null
+  frameOverrides: Map<string, string>
   component: GTSXPreviewComponent
   entry: string
   sessionId: string | null
@@ -268,41 +268,41 @@ function LoadedGTSXEntryPreview({
   staticMode: boolean
 }) {
   const collector = React.useMemo(() => createGBoundaryCollector(), [])
-  const cases = component.cases ?? {}
-  const selectedCases = caseName ? [[caseName, cases[caseName]] as const] : Object.entries(cases)
-  const renderableCases = selectedCases.flatMap(([name, testCase]) => (testCase ? [{ name, testCase }] : []))
-  const hasRenderableCases = selectedCases.length > 0 && renderableCases.length === selectedCases.length
+  const frames = component.frames ?? {}
+  const selectedFrames = frameName ? [[frameName, frames[frameName]] as const] : Object.entries(frames)
+  const renderableFrames = selectedFrames.flatMap(([name, frame]) => (frame ? [{ name, frame }] : []))
+  const hasRenderableFrames = selectedFrames.length > 0 && renderableFrames.length === selectedFrames.length
 
-  useGTSXPreviewProtocolMessages(sessionId, collector, hasRenderableCases, { staticMode })
+  useGTSXPreviewProtocolMessages(sessionId, collector, hasRenderableFrames, { staticMode })
 
-  if (!hasRenderableCases) {
-    return <GTSXPreviewMessage detail={caseName ?? "No cases declared"} sessionId={sessionId} title="Unknown GTSX case" />
+  if (!hasRenderableFrames) {
+    return <GTSXPreviewMessage detail={frameName ?? "No frames declared"} sessionId={sessionId} title="Unknown GTSX frame" />
   }
 
   return (
-    <GTSXPreviewCaseSheet
+    <GTSXPreviewFrameSheet
       boundaryCollector={collector}
-      caseOverrides={caseOverrides}
+      frameOverrides={frameOverrides}
       component={component}
       entry={entry}
-      selectedCases={renderableCases}
+      selectedFrames={renderableFrames}
       showChrome={showChrome}
     />
   )
 }
 
-export function GTSXPreviewCaseSheet<Props extends object = Record<string, unknown>>({
+export function GTSXPreviewFrameSheet<Props extends object = Record<string, unknown>>({
   boundaryCollector,
-  caseOverrides = new Map(),
+  frameOverrides = new Map(),
   component: Component,
   entry,
-  selectedCases,
+  selectedFrames,
   showChrome = true,
-}: GTSXPreviewCaseSheetProps<Props>) {
+}: GTSXPreviewFrameSheetProps<Props>) {
   return (
     <main style={{ display: "grid", gap: 16, minHeight: showChrome ? "100vh" : undefined, padding: showChrome ? 24 : 0 }}>
-      {selectedCases.map(({ name, testCase }) => (
-        <section data-gtsx-preview-case={name} key={name}>
+      {selectedFrames.map(({ name, frame }) => (
+        <section data-gtsx-preview-frame={name} key={name}>
           {showChrome ? (
             <header
               style={{
@@ -316,10 +316,10 @@ export function GTSXPreviewCaseSheet<Props extends object = Record<string, unkno
           ) : null}
           <GPreviewProvider
             boundaryCollector={boundaryCollector}
-            caseOverrides={caseOverridesForFrame(entry, name, caseOverrides)}
-            {...previewRuntimeProps(testCase)}
+            frameOverrides={frameOverridesForFrame(entry, name, frameOverrides)}
+            {...previewRuntimeProps(frame)}
           >
-            <Component {...testCase.props} />
+            <Component {...frame.props} />
           </GPreviewProvider>
         </section>
       ))}
@@ -365,8 +365,8 @@ export function GTSXPreviewMessage({
 
 export function readGTSXPreviewRouteParams(params: URLSearchParams): GTSXPreviewRouteParams {
   return {
-    caseName: params.get("case"),
-    caseOverrides: readGTSXPreviewCaseOverrides(params),
+    frameName: params.get("frame"),
+    frameOverrides: readGTSXPreviewFrameOverrides(params),
     chrome: params.get("chrome"),
     entry: params.get("entry"),
     poolMode: params.get("pool") === "1",
@@ -478,8 +478,8 @@ function previewRouteParamsFromRenderTarget(
   renderRequestSequence: number,
 ): GTSXPreviewRouteParams {
   return {
-    caseName: target.caseName,
-    caseOverrides: new Map(target.caseOverrides ?? []),
+    frameName: target.frameName,
+    frameOverrides: new Map(target.frameOverrides ?? []),
     chrome: target.chrome,
     entry: target.entry,
     poolMode: false,
@@ -540,7 +540,7 @@ function isGPreviewRenderTarget(value: unknown): value is GPreviewRenderTarget {
     typeof value === "object" &&
     value !== null &&
     Object.prototype.hasOwnProperty.call(value, "entry") &&
-    Object.prototype.hasOwnProperty.call(value, "caseName") &&
+    Object.prototype.hasOwnProperty.call(value, "frameName") &&
     Object.prototype.hasOwnProperty.call(value, "sessionId")
   )
 }
@@ -551,8 +551,8 @@ function showChromeForPreviewTarget(chrome: string | null): boolean {
 
 function previewRenderTargetKey(target: GTSXPreviewRouteParams): string {
   return JSON.stringify({
-    caseName: target.caseName,
-    caseOverrides: [...target.caseOverrides],
+    frameName: target.frameName,
+    frameOverrides: [...target.frameOverrides],
     chrome: target.chrome,
     entry: target.entry,
     poolMode: target.poolMode,
@@ -564,8 +564,8 @@ function previewRenderTargetKey(target: GTSXPreviewRouteParams): string {
 
 function previewRenderTargetContentKey(target: GTSXPreviewRouteParams): string {
   return JSON.stringify({
-    caseName: target.caseName,
-    caseOverrides: [...target.caseOverrides],
+    frameName: target.frameName,
+    frameOverrides: [...target.frameOverrides],
     chrome: target.chrome,
     entry: target.entry,
     poolMode: target.poolMode,
@@ -574,9 +574,9 @@ function previewRenderTargetContentKey(target: GTSXPreviewRouteParams): string {
   })
 }
 
-export function readGTSXPreviewCaseOverrides(params: URLSearchParams): Map<string, string> {
+export function readGTSXPreviewFrameOverrides(params: URLSearchParams): Map<string, string> {
   const overrides = new Map<string, string>()
-  for (const value of params.getAll("gcase")) {
+  for (const value of params.getAll("gframe")) {
     const separatorIndex = value.lastIndexOf(":")
     if (separatorIndex > 0) {
       overrides.set(value.slice(0, separatorIndex), value.slice(separatorIndex + 1))
@@ -585,8 +585,8 @@ export function readGTSXPreviewCaseOverrides(params: URLSearchParams): Map<strin
   return overrides
 }
 
-export function caseOverridesForFrame(entry: string, caseName: string, childOverrides: Map<string, string>): Map<string, string> {
-  return new Map([...childOverrides, [toComponentCoordinate(entry), caseName]])
+export function frameOverridesForFrame(entry: string, frameName: string, childOverrides: Map<string, string>): Map<string, string> {
+  return new Map([...childOverrides, [toComponentCoordinate(entry), frameName]])
 }
 
 export function parseGTSXPreviewEntry(entry: string): { file: string; exportName: string } {
@@ -599,11 +599,11 @@ export function isGTSXPreviewComponent(value: unknown): value is GTSXPreviewComp
 }
 
 function previewRuntimeProps<Props extends object>(
-  testCase: GTSXPreviewCase<Props>,
+  frame: GTSXPreviewFrame<Props>,
 ): Pick<React.ComponentProps<typeof GPreviewProvider>, "providerValues" | "scope"> {
   return {
-    ...(Object.prototype.hasOwnProperty.call(testCase, "scope") ? { scope: testCase.scope } : {}),
-    ...(testCase.providers ? { providerValues: new Map(testCase.providers) } : {}),
+    ...(Object.prototype.hasOwnProperty.call(frame, "scope") ? { scope: frame.scope } : {}),
+    ...(frame.providers ? { providerValues: new Map(frame.providers) } : {}),
   }
 }
 

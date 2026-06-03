@@ -24,9 +24,9 @@ If one of these values controls whether a JSX subtree renders, that relationship
 
 `gtsx check` asks one narrow question per branch:
 
-> Does at least one case make this branch reachable?
+> Does at least one frame make this branch reachable?
 
-It does not prove every combination of every prop. It only prevents a visual branch from existing in the component while disappearing entirely from the case set.
+It does not prove every combination of every prop. It only prevents a visual branch from existing in the component while disappearing entirely from the frame set.
 
 ### What counts as inspectable
 
@@ -50,7 +50,7 @@ For this to work, JSX-producing control flow must stay first-order over the thre
 
 Opaque shapes are valid React. They are not valid gtsx protocol shape. `gtsx check` reports them as diagnostics — the component must be refactored into inspectable expressions before coverage can be verified.
 
-### Case values follow the same rule
+### Frame values follow the same rule
 
 Literal props, scope values, provider values, and literal arrays are inspectable. Values imported from helpers or composed through spread may typecheck, but they are not static enough for branch coverage. When they affect JSX reachability, `gtsx check` reports the uncertainty rather than silently accepting it.
 
@@ -68,37 +68,37 @@ This means: the provider has exactly these named states, and components consumin
 
 ### Marking coverage
 
-Cases mark which variant they represent:
+Frames mark which variant they represent:
 
 ```tsx
-Panel.cases = {
+Panel.frames = {
   light: {
     props: { title: "Settings" },
     providers: [[ThemeProvider, { mode: "light" }]],
-  } satisfies GProviderCase<typeof ThemeProvider, "light", PanelProps, never, [typeof ThemeProvider]>,
+  } satisfies GProviderFrame<typeof ThemeProvider, "light", PanelProps, never, [typeof ThemeProvider]>,
 }
 ```
 
-`GProviderCase` is a static marker — it tells Studio and `gtsx check` what environment the case covers. Runtime state is still supplied separately through `providers: [[Provider, value]]`.
+`GProviderFrame` is a static marker — it tells Studio and `gtsx check` what environment the frame covers. Runtime state is still supplied separately through `providers: [[Provider, value]]`.
 
 ### Coverage rules
 
-- If a component consumes a provider with declared variants, its cases **must** cover every variant.
-- A case that is genuinely orthogonal to the axis can stay unmarked (neutral in Studio).
-- A case covering multiple variants can use a union: `GProviderCase<typeof Provider, "login" | "anonymous">`.
+- If a component consumes a provider with declared variants, its frames **must** cover every variant.
+- A frame that is genuinely orthogonal to the axis can stay unmarked (neutral in Studio).
+- A frame covering multiple variants can use a union: `GProviderFrame<typeof Provider, "login" | "anonymous">`.
 - Variants are only for meaningful finite axes (theme, auth state, role, locale, platform). Omit `variants` for providers carrying arbitrary data.
 
 ### Projection
 
-A child that only receives plain props can still mark cases with `GProviderCase` when those props are shaped by a parent's provider variant. This lets Studio show the environment axis without forcing the child to read context directly.
+A child that only receives plain props can still mark frames with `GProviderFrame` when those props are shaped by a parent's provider variant. This lets Studio show the environment axis without forcing the child to read context directly.
 
-Child projection cases supplement Studio expression. They do not replace the parent's coverage obligation.
+Child projection frames supplement Studio expression. They do not replace the parent's coverage obligation.
 
 If gtsx sees provider-derived props flowing into an unmarked child, it reports a non-blocking warning — an agent can decide whether projection markers are needed.
 
 ### Studio expression
 
-Declared variants become environment controls in Studio. A root-level selection constrains the canvas. A component-level selection overrides locally. Matching and mismatching cases are distinguished visually rather than filtered away, so you always see the full state model.
+Declared variants become environment controls in Studio. A root-level selection constrains the canvas. A component-level selection overrides locally. Matching and mismatching frames are distinguished visually rather than filtered away, so you always see the full state model.
 
 ## Diagnostics
 
@@ -107,14 +107,14 @@ All coverage and control-flow diagnostics are fatal (`gtsx check` exits non-zero
 | Diagnostic | Meaning |
 |-----------|---------|
 | `opaque-jsx-control-flow` | A JSX branch cannot be traced to props/scope/context |
-| `unknown-jsx-branch-coverage` | Case values affecting reachability are not static enough |
-| `uncovered-jsx-branch` | No case makes a JSX branch reachable |
-| `missing-provider-variant-cases` | A consumed provider's variants are not fully covered |
+| `unknown-jsx-branch-coverage` | Frame values affecting reachability are not static enough |
+| `uncovered-jsx-branch` | No frame makes a JSX branch reachable |
+| `missing-provider-variant-frames` | A consumed provider's variants are not fully covered |
 
 Projection hints are warnings (non-blocking):
 
 | Diagnostic | Meaning |
 |-----------|---------|
-| `unmarked-provider-variant-projection` | A child might need `GProviderCase` markers for provider-derived props |
+| `unmarked-provider-variant-projection` | A child might need `GProviderFrame` markers for provider-derived props |
 
 The point is not to restrict how production React works. The point is to prevent Studio's map from drifting away from the component's real TSX.

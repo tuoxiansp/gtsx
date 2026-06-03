@@ -1,6 +1,6 @@
 import React from "react"
 
-import { createGProvider, type GCases } from "../src/index.js"
+import { createGProvider, type GFrames } from "../src/index.js"
 
 type Props = {
   userId: string
@@ -20,7 +20,7 @@ const ThemeProvider = createGProvider((_props: Record<string, never>) =>
 const CounterProvider = createGProvider((_props: Record<string, never>) => React.useState(0))
 const providers = [ThemeProvider, CounterProvider] as const
 
-const validCases = {
+const validFrames = {
   ready: {
     props: { userId: "user_1" },
     providers: [
@@ -29,11 +29,11 @@ const validCases = {
     ],
     scope: { title: "Ada" },
   },
-} satisfies GCases<Props, Scope, typeof providers>
+} satisfies GFrames<Props, Scope, typeof providers>
 
-void validCases
+void validFrames
 
-const wrongOrderCases = {
+const wrongOrderFrames = {
   ready: {
     props: { userId: "user_1" },
     providers: [
@@ -44,6 +44,6 @@ const wrongOrderCases = {
     ],
     scope: { title: "Ada" },
   },
-} satisfies GCases<Props, Scope, typeof providers>
+} satisfies GFrames<Props, Scope, typeof providers>
 
-void wrongOrderCases
+void wrongOrderFrames

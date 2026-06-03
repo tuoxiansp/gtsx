@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 export type AppRouteProps = {
   template: "react-ts"
@@ -33,7 +33,7 @@ export default function AppRoute(props: AppRouteProps) {
   )
 }
 
-AppRoute.cases = {
+AppRoute.frames = {
   createVitePnpmFailure: {
     props: {
       template: "react-ts",
@@ -55,4 +55,4 @@ AppRoute.cases = {
       scaffoldStatus: "ready",
     },
   },
-} satisfies GCases<AppRouteProps>
+} satisfies GFrames<AppRouteProps>

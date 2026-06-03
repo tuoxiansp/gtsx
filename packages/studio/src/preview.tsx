@@ -18,7 +18,7 @@ export function GTSXPreviewApp() {
     <GTSXVitePreviewClient
       {...params}
       loadComponent={loadStudioPreviewComponent}
-      missingEntryDetail="Pass ?entry=src/components/.../*.g.tsx to render a Studio package case."
+      missingEntryDetail="Pass ?entry=src/components/.../*.g.tsx to render a Studio package frame."
     />
   )
 }

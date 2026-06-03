@@ -32,7 +32,7 @@ describe("gtsx CLI", () => {
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain("gtsx check [-p <tsconfig-or-dir>] <entry.g.tsx[#export]|dir>")
     expect(result.stdout).toContain("gtsx serve [-p <tsconfig-or-dir>] [--port <port>]")
-    expect(result.stdout).toContain("--gcase <entry.g.tsx#export:case>")
+    expect(result.stdout).toContain("--gframe <entry.g.tsx#export:frame>")
     expect(result.stdout).toContain("gtsx capture [-p <tsconfig-or-dir>] <entry.g.tsx[#export]|dir>")
   })
 
@@ -168,16 +168,16 @@ describe("gtsx CLI", () => {
     expect(result.stdout).not.toContain("missing-config")
   })
 
-  it("expands child case overrides as query parameters", () => {
+  it("expands child frame overrides as query parameters", () => {
     expect(
-      expandUrl("http://localhost:{port}/gtsx?entry={entry}&case={case}{gcase}", {
-        entry: "src/cases/stateful/DashboardShell.g.tsx",
-        caseName: "stagingReview",
+      expandUrl("http://localhost:{port}/gtsx?entry={entry}&frame={frame}{gframe}", {
+        entry: "src/frames/stateful/DashboardShell.g.tsx",
+        frameName: "stagingReview",
         port: "4321",
-        gcases: ["src/cases/stateful/NotificationBell.g.tsx#default:expanded"],
+        gframes: ["src/frames/stateful/NotificationBell.g.tsx#default:expanded"],
       }),
     ).toBe(
-      "http://localhost:4321/gtsx?entry=src%2Fcases%2Fstateful%2FDashboardShell.g.tsx&case=stagingReview&gcase=src%2Fcases%2Fstateful%2FNotificationBell.g.tsx%23default%3Aexpanded",
+      "http://localhost:4321/gtsx?entry=src%2Fframes%2Fstateful%2FDashboardShell.g.tsx&frame=stagingReview&gframe=src%2Fframes%2Fstateful%2FNotificationBell.g.tsx%23default%3Aexpanded",
     )
   })
 })

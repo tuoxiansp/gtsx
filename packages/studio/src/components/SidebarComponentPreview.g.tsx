@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GBoundaryRect, type GCases, type GPreviewProtocolMessage } from "@gtsx/core"
+import { createGScopeHook, type GBoundaryRect, type GFrames, type GPreviewProtocolMessage } from "@gtsx/core"
 
 import type { StudioPreviewFrameState } from "../client"
 import { studioBoundaryRectForCoordinate } from "../boundary-tree"
@@ -113,7 +113,7 @@ export default function SidebarComponentPreview(props: SidebarComponentPreviewPr
   )
 }
 
-SidebarComponentPreview.cases = {
+SidebarComponentPreview.frames = {
   tabletLoaded: {
     props: {
       component: {
@@ -122,7 +122,7 @@ SidebarComponentPreview.cases = {
         exportName: "default",
         componentName: "UserCard",
         mode: "scope",
-        cases: [{ kind: "scope", name: "ready" }],
+        frames: [{ kind: "scope", name: "ready" }],
         providers: {},
         diagnostics: [],
       },
@@ -134,8 +134,8 @@ SidebarComponentPreview.cases = {
           manifest: "/gtsx/studio/manifest",
         },
         preview: {
-          urlTemplate: "/gtsx?entry={entry}&case={case}{gcase}",
-          allUrlTemplate: "/gtsx?entry={entry}{gcase}",
+          urlTemplate: "/gtsx?entry={entry}&frame={frame}{gframe}",
+          allUrlTemplate: "/gtsx?entry={entry}{gframe}",
         },
         files: [],
         diagnostics: [],
@@ -159,15 +159,15 @@ SidebarComponentPreview.cases = {
       shouldLoad: true,
     },
   },
-} satisfies GCases<SidebarComponentPreviewProps, SidebarComponentPreviewScope>
+} satisfies GFrames<SidebarComponentPreviewProps, SidebarComponentPreviewScope>
 
 function sidebarPreviewUrlForComponent(manifest: StudioManifest, component: StudioManifestComponent): string | undefined {
-  const caseName = component.cases[0]?.name
-  if (!caseName) return undefined
+  const frameName = component.frames[0]?.name
+  if (!frameName) return undefined
 
   const params = new URLSearchParams({
     entry: component.coordinate,
-    case: caseName,
+    frame: frameName,
     chrome: "0",
     sessionId: sidebarPreviewSessionId(component),
     static: "1",
@@ -176,7 +176,7 @@ function sidebarPreviewUrlForComponent(manifest: StudioManifest, component: Stud
 }
 
 function sidebarPreviewSessionId(component: StudioManifestComponent): string {
-  return `sidebar:${component.coordinate}:${component.cases[0]?.name ?? "No cases"}`
+  return `sidebar:${component.coordinate}:${component.frames[0]?.name ?? "No frames"}`
 }
 
 function selectedBoundaryRectForComponent(tree: StudioPreviewFrameState["tree"], coordinate: string): GBoundaryRect | undefined {

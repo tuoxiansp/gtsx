@@ -13,7 +13,7 @@ import {
 } from "@gtsx/preview-react"
 
 export type {
-  GTSXPreviewCase,
+  GTSXPreviewFrame,
   GTSXPreviewComponent,
   GTSXPreviewComponentLoader,
   GTSXPreviewModule,

@@ -1,11 +1,11 @@
 import React from "react"
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 export function HookDependencyChild() {
   const [count] = React.useState(0)
   return <span>{count}</span>
 }
 
-HookDependencyChild.cases = {
+HookDependencyChild.frames = {
   ready: { props: {} },
-} satisfies GCases<Record<string, never>>
+} satisfies GFrames<Record<string, never>>

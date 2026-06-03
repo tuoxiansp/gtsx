@@ -43,14 +43,14 @@ describe("GTSX preview commands", () => {
     ])
   })
 
-  it("does not pass component case overrides to the project-level serve command", async () => {
+  it("does not pass component frame overrides to the project-level serve command", async () => {
     const port = await getFreePort()
     const result = await runCLI(
       [
         "serve",
-        "--gcase",
+        "--gframe",
         "src/Child.g.tsx#Child:open",
-        "--gcase",
+        "--gframe",
         "src/Menu.g.tsx#default:closed",
         "--port",
         port,
@@ -87,7 +87,7 @@ describe("GTSX preview commands", () => {
     expect(existsSync(checkProjectLogFile)).toBe(false)
   })
 
-  it("requires an all-cases preview URL before capturing a contact sheet", async () => {
+  it("requires an all-frames preview URL before capturing a contact sheet", async () => {
     const result = await runCLI(["capture", "src/Badge.g.tsx", "--all"], {
       cwd: checkProjectRoot,
       stdout: "",

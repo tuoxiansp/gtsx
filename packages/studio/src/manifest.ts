@@ -20,7 +20,7 @@ export type StudioManifestComponent = {
   exportName: string
   componentName: string
   mode: GTSXProjectIndexComponent["mode"]
-  cases: GTSXProjectIndexComponent["cases"]
+  frames: GTSXProjectIndexComponent["frames"]
   providers: GTSXProjectIndexComponent["providers"]
   dependencies?: GTSXProjectIndexComponent["dependencies"]
   diagnostics: GTSXDiagnostic[]
@@ -40,7 +40,7 @@ export type StudioDesignFrameEntry = {
   filePath: string
   title: string
   exportName: string
-  caseName: string
+  frameName: string
 }
 
 export type StudioDesignManifest = {
@@ -81,8 +81,8 @@ const DEFAULT_ROUTES: StudioManifestRouteConfig = {
 }
 
 const DEFAULT_PREVIEW: StudioManifestPreviewConfig = {
-  urlTemplate: "/gtsx?entry={entry}&case={case}{gcase}",
-  allUrlTemplate: "/gtsx?entry={entry}{gcase}",
+  urlTemplate: "/gtsx?entry={entry}&frame={frame}{gframe}",
+  allUrlTemplate: "/gtsx?entry={entry}{gframe}",
 }
 
 export function createStudioManifest(projectIndex: GTSXProjectIndex, options: CreateStudioManifestOptions = {}): StudioManifest {
@@ -140,7 +140,7 @@ export function studioUrlSearchFromSearchParams(searchParams: StudioRouteSearchP
 
 function previewConfigFromRoutes(routes: StudioManifestRouteConfig): StudioManifestPreviewConfig {
   return {
-    urlTemplate: `${routes.preview}?entry={entry}&case={case}{gcase}`,
-    allUrlTemplate: `${routes.preview}?entry={entry}{gcase}`,
+    urlTemplate: `${routes.preview}?entry={entry}&frame={frame}{gframe}`,
+    allUrlTemplate: `${routes.preview}?entry={entry}{gframe}`,
   }
 }

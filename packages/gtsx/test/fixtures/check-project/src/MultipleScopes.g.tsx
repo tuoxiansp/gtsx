@@ -1,4 +1,4 @@
-import { createGScopeHook, type GCases } from "@gtsx/core"
+import { createGScopeHook, type GFrames } from "@gtsx/core"
 
 type Props = {
   id: string
@@ -13,6 +13,6 @@ export default function MultipleScopes(props: Props) {
   return <span>{first.label + second.label}</span>
 }
 
-MultipleScopes.cases = {
+MultipleScopes.frames = {
   ready: { props: { id: "1" }, scope: { label: "first" } },
-} satisfies GCases<Props, { label: string }>
+} satisfies GFrames<Props, { label: string }>

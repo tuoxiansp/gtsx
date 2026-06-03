@@ -1,6 +1,6 @@
 {
   "name": "@gtsx/core",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Core runtime and CLI for authoring and previewing GTSX React components.",
   "license": "MIT",
   "type": "module",

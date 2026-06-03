@@ -56,8 +56,8 @@ export default defineGTSXConfig({
   preview: {
     serve: "npm run dev -- --hostname 127.0.0.1 --port {port}",
     studioUrl: "http://127.0.0.1:{port}/gtsx/studio",
-    url: "http://127.0.0.1:{port}/gtsx?entry={entry}&case={case}{gcase}",
-    allUrl: "http://127.0.0.1:{port}/gtsx?entry={entry}{gcase}",
+    url: "http://127.0.0.1:{port}/gtsx?entry={entry}&frame={frame}{gframe}",
+    allUrl: "http://127.0.0.1:{port}/gtsx?entry={entry}{gframe}",
   },
   studio: {
     manifestCacheTtlMs: 1000,

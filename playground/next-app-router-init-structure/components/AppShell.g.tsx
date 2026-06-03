@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 export type AppShellProps = {
   route: "/"
@@ -15,11 +15,11 @@ export default function AppShell(props: AppShellProps) {
   )
 }
 
-AppShell.cases = {
+AppShell.frames = {
   firstLoad: {
     props: { route: "/", routeHandlerStatus: "healthy" },
   },
   routeHandlerTrouble: {
     props: { route: "/", routeHandlerStatus: "hanging" },
   },
-} satisfies GCases<AppShellProps>
+} satisfies GFrames<AppShellProps>

@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type Notification = {
   id: string
@@ -36,7 +36,7 @@ export default function NotificationCenter(props: NotificationCenterProps) {
   )
 }
 
-NotificationCenter.cases = {
+NotificationCenter.frames = {
   empty: {
     props: {
       heading: "Notification center",
@@ -64,4 +64,4 @@ NotificationCenter.cases = {
       ],
     },
   },
-} satisfies GCases<NotificationCenterProps>
+} satisfies GFrames<NotificationCenterProps>

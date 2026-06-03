@@ -1,5 +1,5 @@
 import React from "react"
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 function HookChild() {
   const [count] = React.useState(0)
@@ -10,6 +10,6 @@ export default function LocalHookDependency() {
   return <HookChild />
 }
 
-LocalHookDependency.cases = {
+LocalHookDependency.frames = {
   ready: { props: {} },
-} satisfies GCases<Record<string, never>>
+} satisfies GFrames<Record<string, never>>

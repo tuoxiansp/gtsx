@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 import { HookDependencyChild } from "./HookDependencyChild.g"
 
@@ -6,6 +6,6 @@ export default function ImportedHookDependency() {
   return <HookDependencyChild />
 }
 
-ImportedHookDependency.cases = {
+ImportedHookDependency.frames = {
   ready: { props: {} },
-} satisfies GCases<Record<string, never>>
+} satisfies GFrames<Record<string, never>>

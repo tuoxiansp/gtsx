@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type Props = {
   label: string
@@ -8,8 +8,8 @@ export default function Child(props: Props) {
   return <span>{props.label}</span>
 }
 
-Child.cases = {
+Child.frames = {
   ready: { props: { label: "Child" } },
-} satisfies GCases<Props>
+} satisfies GFrames<Props>
 
 export { Child }

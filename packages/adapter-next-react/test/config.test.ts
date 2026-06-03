@@ -202,26 +202,26 @@ describe("gtsx Next React adapter", () => {
     expect(config.turbopack?.resolveAlias?.["@gtsx/adapter-next-react/preview-entries"]).toBe("./.gtsx/preview-entries.ts")
   })
 
-  it("reads preview props from Next search params including child case overrides", () => {
+  it("reads preview props from Next search params including child frame overrides", () => {
     const props = readGTSXNextPreviewProps({
-      case: "ready",
+      frame: "ready",
       chrome: "0",
       entry: "src/Card.g.tsx#default",
-      gcase: ["src/Child.g.tsx#default:open", "src/Menu.g.tsx#default:hover"],
+      gframe: ["src/Child.g.tsx#default:open", "src/Menu.g.tsx#default:hover"],
       pool: "1",
       sessionId: "session-1",
       static: "1",
     })
 
     expect(props).toMatchObject({
-      caseName: "ready",
+      frameName: "ready",
       chrome: "0",
       entry: "src/Card.g.tsx#default",
       pool: "1",
       sessionId: "session-1",
       staticMode: true,
     })
-    expect([...props.caseOverrides!]).toEqual([
+    expect([...props.frameOverrides!]).toEqual([
       ["src/Child.g.tsx#default", "open"],
       ["src/Menu.g.tsx#default", "hover"],
     ])

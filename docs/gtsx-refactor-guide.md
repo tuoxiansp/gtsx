@@ -50,7 +50,7 @@ The simplest refactor. The `.g.tsx` file becomes the production component.
 
 1. Move component, UI prop types, and visual helpers into `Component.g.tsx`.
 2. Keep component name and props contract stable.
-3. Add `Component.cases` with meaningful visual states.
+3. Add `Component.frames` with meaningful visual states.
 4. Update imports from `./Component` to `./Component.g`.
 5. Preserve public APIs through barrels: `export { Component } from "./Component.g"`.
 
@@ -63,7 +63,7 @@ For components that mix hooks/effects/state with visual TSX.
 3. Move production behavior into `useRealComponentScope(props)`.
 4. Wrap it: `const useScope = createGScopeHook(useRealComponentScope)`.
 5. The `.g.tsx` component calls only the wrapped hook and renders the real TSX.
-6. Add cases injecting `scope` for each important visual state.
+6. Add frames injecting `scope` for each important visual state.
 
 The old file may remain as the scope hook source, or you can co-locate the real hook in the `.g.tsx` file — whatever keeps imports clean.
 
@@ -93,8 +93,8 @@ These are never valid refactor outputs:
 - [ ] The `.g.tsx` file contains real visual UI, not a wrapper
 - [ ] Export names and props contracts are stable
 - [ ] Imports point at the `.g` module (or barrel re-exports it)
-- [ ] Cases enumerate meaningful visual states (happy-path first, at least two)
-- [ ] Stateful cases use concrete scope values and no-op callbacks
+- [ ] Frames enumerate meaningful visual states (happy-path first, at least two)
+- [ ] Stateful frames use concrete scope values and no-op callbacks
 - [ ] The old file no longer owns the migrated visual branches
 - [ ] `gtsx check` passes
 - [ ] Project typecheck passes

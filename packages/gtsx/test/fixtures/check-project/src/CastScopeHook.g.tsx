@@ -1,4 +1,4 @@
-import { createGScopeHook, type GCases } from "@gtsx/core"
+import { createGScopeHook, type GFrames } from "@gtsx/core"
 
 type CastScope = {
   label: string
@@ -12,9 +12,9 @@ export function CastScopeHook() {
   return <span>{scope.label}</span>
 }
 
-CastScopeHook.cases = {
+CastScopeHook.frames = {
   ready: {
     props: {},
     scope: { label: "Preview" },
   },
-} satisfies GCases<React.ComponentProps<typeof CastScopeHook>, CastScope>
+} satisfies GFrames<React.ComponentProps<typeof CastScopeHook>, CastScope>

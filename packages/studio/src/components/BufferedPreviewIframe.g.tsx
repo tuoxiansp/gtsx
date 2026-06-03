@@ -1,6 +1,6 @@
 "use client"
 
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 import type { StudioPreviewFrameSlot } from "../preview-frame-slot"
 import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
@@ -60,15 +60,15 @@ export default function BufferedPreviewIframe(props: BufferedPreviewIframeProps)
   )
 }
 
-BufferedPreviewIframe.cases = {
+BufferedPreviewIframe.frames = {
   active: {
     props: {
       size: { width: 390, height: 844 },
       slot: {
-        previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0",
+        previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
         sessionId: "src/UserCard.g.tsx#default:ready",
         title: "UserCard preview",
       },
     },
   },
-} satisfies GCases<BufferedPreviewIframeProps>
+} satisfies GFrames<BufferedPreviewIframeProps>

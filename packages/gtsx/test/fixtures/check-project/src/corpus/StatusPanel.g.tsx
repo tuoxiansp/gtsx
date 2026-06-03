@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type StatusPanelProps = {
   state: "loading" | "error"
@@ -14,7 +14,7 @@ export default function StatusPanel(props: StatusPanelProps) {
   )
 }
 
-StatusPanel.cases = {
+StatusPanel.frames = {
   loading: { props: { state: "loading", message: "Fetching data" } },
   error: { props: { state: "error", message: "Request failed" } },
-} satisfies GCases<StatusPanelProps>
+} satisfies GFrames<StatusPanelProps>

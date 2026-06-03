@@ -1,6 +1,6 @@
 import {
   useGContext,
-  type GCases,
+  type GFrames,
 } from "@gtsx/core"
 
 import ProviderVariantProjection from "./ProviderVariantProjection.g"
@@ -11,9 +11,9 @@ export default function ProviderProjectionDelegatingMissingCoverage() {
   return <ProviderVariantProjection userName={login.kind === "login" ? login.name : "Guest"} />
 }
 
-ProviderProjectionDelegatingMissingCoverage.cases = {
+ProviderProjectionDelegatingMissingCoverage.frames = {
   loading: {
     props: {},
     providers: [[LoginProvider, { kind: "anonymous" }]],
   },
-} satisfies GCases<Record<string, never>, never, [typeof LoginProvider]>
+} satisfies GFrames<Record<string, never>, never, [typeof LoginProvider]>

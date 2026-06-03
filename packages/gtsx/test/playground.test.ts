@@ -11,7 +11,7 @@ type PlaygroundProject = {
   snapshotName: string
   root: string
   entry: string
-  expectedCases: string[]
+  expectedFrames: string[]
 }
 
 const repositoryRoot = resolve(import.meta.dirname, "../../..")
@@ -22,21 +22,21 @@ const projects: PlaygroundProject[] = [
     snapshotName: "tanstack-start-root-provider-error",
     root: join(repositoryRoot, "playground/tanstack-start-root-provider-error"),
     entry: "src/routes/__root.g.tsx",
-    expectedCases: ["apiDown", "recovering", "ready"],
+    expectedFrames: ["apiDown", "recovering", "ready"],
   },
   {
     name: "Next.js App Router init structure",
     snapshotName: "next-app-router-init-structure",
     root: join(repositoryRoot, "playground/next-app-router-init-structure"),
     entry: "components/AppShell.g.tsx",
-    expectedCases: ["firstLoad", "routeHandlerTrouble"],
+    expectedFrames: ["firstLoad", "routeHandlerTrouble"],
   },
   {
     name: "Vite React TS TanStack Router scaffold",
     snapshotName: "vite-react-ts-tanstack-router",
     root: join(repositoryRoot, "playground/vite-react-ts-tanstack-router"),
     entry: "src/routes/AppRoute.g.tsx",
-    expectedCases: ["createVitePnpmFailure", "generatedFirstRoute", "ready"],
+    expectedFrames: ["createVitePnpmFailure", "generatedFirstRoute", "ready"],
   },
 ]
 
@@ -53,15 +53,15 @@ describe("playground full-chain examples", () => {
     }
   })
 
-  it.each(projects)("$name exposes statically enumerable GTSX cases", async (project) => {
+  it.each(projects)("$name exposes statically enumerable GTSX frames", async (project) => {
     const check = await runCLI(["check", project.entry, "--json"], {
       cwd: project.root,
       stdout: "",
       stderr: "",
     })
     expect(check.exitCode).toBe(0)
-    expect(JSON.parse(check.stdout).cases.map((testCase: { name: string }) => testCase.name)).toEqual(
-      project.expectedCases,
+    expect(JSON.parse(check.stdout).frames.map((frame: { name: string }) => frame.name)).toEqual(
+      project.expectedFrames,
     )
   })
 
@@ -116,7 +116,7 @@ describe("playground full-chain examples", () => {
                 componentName: "AppShell",
                 exportName: "default",
                 mode: "pure",
-                cases: [
+                frames: [
                   { kind: "pure", name: "firstLoad" },
                   { kind: "pure", name: "routeHandlerTrouble" },
                 ],
@@ -157,13 +157,13 @@ describe("playground full-chain examples", () => {
       expect(html).toContain('data-gtsx-card-coordinate="components/AppShell.g.tsx#default"')
       expect(html).not.toContain("selection=component%3Acomponents%2FAppShell.g.tsx%23default")
       expect(normalizedHtml).toContain(
-        'data-gtsx-preview-src="/gtsx?entry=components%2FAppShell.g.tsx%23default&case=firstLoad&chrome=0&sessionId=components%2FAppShell.g.tsx%23default%3AfirstLoad&static=1"',
+        'data-gtsx-preview-src="/gtsx?entry=components%2FAppShell.g.tsx%23default&frame=firstLoad&chrome=0&sessionId=components%2FAppShell.g.tsx%23default%3AfirstLoad&static=1"',
       )
       expect(normalizedHtml).not.toContain(
-        '<iframe src="/gtsx?entry=components%2FAppShell.g.tsx%23default&case=firstLoad&chrome=0&sessionId=components%2FAppShell.g.tsx%23default%3AfirstLoad&static=1"',
+        '<iframe src="/gtsx?entry=components%2FAppShell.g.tsx%23default&frame=firstLoad&chrome=0&sessionId=components%2FAppShell.g.tsx%23default%3AfirstLoad&static=1"',
       )
 
-      const previewHtml = await fetchTextWhenReady(`http://localhost:${port}/gtsx?case=firstLoad`)
+      const previewHtml = await fetchTextWhenReady(`http://localhost:${port}/gtsx?frame=firstLoad`)
       expect(previewHtml).toContain("Root route is present.")
       expect(previewHtml).not.toContain("GTSX Studio")
     } finally {

@@ -11,8 +11,8 @@ export type ScriptAdapterAction = "serve" | "capture" | "strip" | "diagnose"
 export type ScriptAdapterParams = {
   cwd: string
   entry?: string
-  caseName?: string
-  gcases?: string[]
+  frameName?: string
+  gframes?: string[]
   port?: string
   viewport?: string
   out?: string
@@ -74,7 +74,7 @@ export async function runScriptAdapter(
           stage: stageForAction(action),
           code: `${action}-script-failed`,
           message: processError.stderr || processError.message,
-          ...(params.caseName ? { caseName: params.caseName } : {}),
+          ...(params.frameName ? { frameName: params.frameName } : {}),
         },
       ],
     }
@@ -84,9 +84,9 @@ export async function runScriptAdapter(
 export function expandCommand(template: string, params: ScriptAdapterParams): string {
   const replacements: Record<string, string> = {
     entry: params.entry ?? "",
-    case: params.caseName ?? "",
-    gcase: params.gcases?.join(",") ?? "",
-    gcases: params.gcases?.map((gcase) => `--gcase ${shellQuote(gcase)}`).join(" ") ?? "",
+    frame: params.frameName ?? "",
+    gframe: params.gframes?.join(",") ?? "",
+    gframes: params.gframes?.map((gframe) => `--gframe ${shellQuote(gframe)}`).join(" ") ?? "",
     port: params.port ?? "",
     viewport: params.viewport ?? "",
     out: params.out ?? "",
@@ -94,7 +94,7 @@ export function expandCommand(template: string, params: ScriptAdapterParams): st
   }
 
   return template.replace(/\{([a-z]+)\}/g, (_match, key: string) => {
-    if (key === "gcases") return replacements.gcases
+    if (key === "gframes") return replacements.gframes
     return shellQuote(replacements[key] ?? "")
   })
 }

@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type ExportListBadgeProps = {
   label: string
@@ -8,9 +8,9 @@ function ExportListBadge(props: ExportListBadgeProps) {
   return <span>{props.label}</span>
 }
 
-ExportListBadge.cases = {
+ExportListBadge.frames = {
   ready: { props: { label: "Export list" } },
-} satisfies GCases<ExportListBadgeProps>
+} satisfies GFrames<ExportListBadgeProps>
 
 function ExportListHelper() {
   return <span>Helper</span>

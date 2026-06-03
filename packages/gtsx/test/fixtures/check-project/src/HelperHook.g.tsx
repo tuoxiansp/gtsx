@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type Props = {
   label: string
@@ -14,6 +14,6 @@ export default function HelperHook(props: Props) {
   return <span>{renderLabel(props.label)}</span>
 }
 
-HelperHook.cases = {
+HelperHook.frames = {
   ready: { props: { label: "Ready" } },
-} satisfies GCases<Props>
+} satisfies GFrames<Props>

@@ -7,7 +7,7 @@ Complete patterns for `.g.tsx` components, from simple to advanced.
 Every preview state described by props alone.
 
 ```tsx
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type AlertProps = {
   severity: "info" | "warning" | "error"
@@ -24,14 +24,14 @@ export default function Alert(props: AlertProps) {
   )
 }
 
-Alert.cases = {
+Alert.frames = {
   info: {
     props: { severity: "info", message: "Saved.", dismissible: true },
   },
   errorNonDismissible: {
     props: { severity: "error", message: "Connection lost.", dismissible: false },
   },
-} satisfies GCases<AlertProps>
+} satisfies GFrames<AlertProps>
 ```
 
 ## Pattern 2: Stateful Scope
@@ -40,7 +40,7 @@ Component depends on application state (hooks, stores, queries, routers).
 
 ```tsx
 import { useState } from "react"
-import { createGScopeHook, type GCases } from "@gtsx/core"
+import { createGScopeHook, type GFrames } from "@gtsx/core"
 
 type SearchProps = { placeholder: string }
 
@@ -70,7 +70,7 @@ export default function Search(props: SearchProps) {
   )
 }
 
-Search.cases = {
+Search.frames = {
   empty: {
     props: { placeholder: "Search…" },
     scope: { query: "", results: [], onSearch() {} },
@@ -79,20 +79,20 @@ Search.cases = {
     props: { placeholder: "Search…" },
     scope: { query: "react", results: ["React", "React Native"], onSearch() {} },
   },
-} satisfies GCases<SearchProps, SearchScope>
+} satisfies GFrames<SearchProps, SearchScope>
 ```
 
 Key points:
 - The real hook can call any React hooks.
 - `createGScopeHook` returns a gtsx hook that the component calls.
-- Cases supply `scope`, bypassing the real hook during preview.
+- Frames supply `scope`, bypassing the real hook during preview.
 
 ## Pattern 3: Discriminated Union Scope
 
-Multi-state components where each case represents one branch.
+Multi-state components where each frame represents one branch.
 
 ```tsx
-import { createGScopeHook, type GCases } from "@gtsx/core"
+import { createGScopeHook, type GFrames } from "@gtsx/core"
 
 type Props = { resourceId: string }
 
@@ -121,7 +121,7 @@ export default function Resource(props: Props) {
   return <div><h1>{scope.title}</h1><p>{scope.data.length} items</p></div>
 }
 
-Resource.cases = {
+Resource.frames = {
   loading: {
     props: { resourceId: "res_1" },
     scope: { status: "loading" },
@@ -134,7 +134,7 @@ Resource.cases = {
     props: { resourceId: "res_1" },
     scope: { status: "ready", title: "Dashboard", data: [1, 2, 3] },
   },
-} satisfies GCases<Props, Scope>
+} satisfies GFrames<Props, Scope>
 ```
 
 ## Pattern 4: Provider Context
@@ -143,7 +143,7 @@ Component reads shared context (theme, locale, auth, feature flags).
 
 ```tsx
 import React from "react"
-import { createGProvider, useGContext, type GCases, type GProviderCase } from "@gtsx/core"
+import { createGProvider, useGContext, type GFrames, type GProviderFrame } from "@gtsx/core"
 
 type ThemeValue = { mode: "light" | "dark"; accent: string }
 
@@ -159,31 +159,31 @@ export default function Card(props: CardProps) {
   return <div data-mode={theme.mode} style={{ color: theme.accent }}>{props.title}</div>
 }
 
-Card.cases = {
+Card.frames = {
   lightCard: {
     props: { title: "Settings" },
     providers: [[ThemeProvider, { mode: "light", accent: "#0066cc" }]],
-  } satisfies GProviderCase<typeof ThemeProvider, "light", CardProps, never, [typeof ThemeProvider]>,
+  } satisfies GProviderFrame<typeof ThemeProvider, "light", CardProps, never, [typeof ThemeProvider]>,
   darkCard: {
     props: { title: "Settings" },
     providers: [[ThemeProvider, { mode: "dark", accent: "#66ccff" }]],
-  } satisfies GProviderCase<typeof ThemeProvider, "dark", CardProps, never, [typeof ThemeProvider]>,
-} satisfies GCases<CardProps, never, [typeof ThemeProvider]>
+  } satisfies GProviderFrame<typeof ThemeProvider, "dark", CardProps, never, [typeof ThemeProvider]>,
+} satisfies GFrames<CardProps, never, [typeof ThemeProvider]>
 ```
 
 Key points:
 - `createGProvider(useValue)` creates the provider.
 - `createGProvider(useValue, { variants })` declares a finite environment axis for Studio and static coverage.
-- Cases supply fallback state: `providers: [[Provider, state]]`.
-- `GProviderCase<typeof Provider, "variant">` marks which variant a case covers; it does not supply provider state by itself.
-- Third type parameter of `GCases` lists providers as a tuple.
+- Frames supply fallback state: `providers: [[Provider, state]]`.
+- `GProviderFrame<typeof Provider, "variant">` marks which variant a frame covers; it does not supply provider state by itself.
+- Third type parameter of `GFrames` lists providers as a tuple.
 
 ## Pattern 5: Multiple Exports
 
 One `.g.tsx` file, multiple components, each with its own coordinate.
 
 ```tsx
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type ButtonProps = { label: string; variant: "primary" | "ghost" }
 
@@ -191,17 +191,17 @@ export function PrimaryButton(props: ButtonProps) {
   return <button className="primary">{props.label}</button>
 }
 
-PrimaryButton.cases = {
+PrimaryButton.frames = {
   ready: { props: { label: "Submit", variant: "primary" } },
-} satisfies GCases<ButtonProps>
+} satisfies GFrames<ButtonProps>
 
 export default function GhostButton(props: ButtonProps) {
   return <button className="ghost">{props.label}</button>
 }
 
-GhostButton.cases = {
+GhostButton.frames = {
   ready: { props: { label: "Cancel", variant: "ghost" } },
-} satisfies GCases<ButtonProps>
+} satisfies GFrames<ButtonProps>
 ```
 
 Coordinates: `src/Buttons.g.tsx#default`, `src/Buttons.g.tsx#PrimaryButton`.
@@ -211,7 +211,7 @@ Coordinates: `src/Buttons.g.tsx#default`, `src/Buttons.g.tsx#PrimaryButton`.
 The scope hook accepts props when state depends on prop values.
 
 ```tsx
-import { createGScopeHook, type GCases } from "@gtsx/core"
+import { createGScopeHook, type GFrames } from "@gtsx/core"
 
 type Props = { userId: string }
 type Scope = { name: string; online: boolean }
@@ -228,10 +228,10 @@ export default function UserStatus(props: Props) {
   return <span>{scope.name} ({scope.online ? "online" : "offline"})</span>
 }
 
-UserStatus.cases = {
+UserStatus.frames = {
   online:  { props: { userId: "u1" }, scope: { name: "Ada", online: true } },
   offline: { props: { userId: "u2" }, scope: { name: "Bob", online: false } },
-} satisfies GCases<Props, Scope>
+} satisfies GFrames<Props, Scope>
 ```
 
 ## Pattern 7: Scope + Provider Combined
@@ -240,7 +240,7 @@ Internal state and external context together. The scope hook receives provider v
 
 ```tsx
 import React from "react"
-import { createGProvider, createGScopeHook, type GCases, type GProviderCase } from "@gtsx/core"
+import { createGProvider, createGScopeHook, type GFrames, type GProviderFrame } from "@gtsx/core"
 
 type AuthValue = { role: "admin" | "viewer" }
 
@@ -272,18 +272,18 @@ export default function Page(props: Props) {
   )
 }
 
-Page.cases = {
+Page.frames = {
   adminView: {
     props: { pageId: "p1" },
     providers: [[AuthProvider, { role: "admin" }]],
     scope: { title: "Dashboard", canEdit: true },
-  } satisfies GProviderCase<typeof AuthProvider, "admin", Props, Scope, typeof providers>,
+  } satisfies GProviderFrame<typeof AuthProvider, "admin", Props, Scope, typeof providers>,
   viewerView: {
     props: { pageId: "p1" },
     providers: [[AuthProvider, { role: "viewer" }]],
     scope: { title: "Dashboard", canEdit: false },
-  } satisfies GProviderCase<typeof AuthProvider, "viewer", Props, Scope, typeof providers>,
-} satisfies GCases<Props, Scope, typeof providers>
+  } satisfies GProviderFrame<typeof AuthProvider, "viewer", Props, Scope, typeof providers>,
+} satisfies GFrames<Props, Scope, typeof providers>
 ```
 
 ## Pattern 8: Composition
@@ -291,7 +291,7 @@ Page.cases = {
 A `.g.tsx` component rendering another `.g.tsx` component. The parent imports the child directly — no special composition API needed.
 
 ```tsx
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 import Badge from "./Badge.g"
 
 type NotificationProps = {
@@ -308,20 +308,20 @@ export default function Notification(props: NotificationProps) {
   )
 }
 
-Notification.cases = {
+Notification.frames = {
   noUnread: { props: { title: "Inbox", unread: 0 } },
   withUnread: { props: { title: "Inbox", unread: 3 } },
-} satisfies GCases<NotificationProps>
+} satisfies GFrames<NotificationProps>
 ```
 
-The child (`Badge.g`) has its own cases for isolated preview. The parent's cases exercise the composition — Studio shows both, with children reachable by drilldown.
+The child (`Badge.g`) has its own frames for isolated preview. The parent's frames exercise the composition — Studio shows both, with children reachable by drilldown.
 
 ## Pattern 9: Traceable Collection Branches
 
 When JSX is produced inside a collection callback, the collection must come from props, gtsx scope, or gtsx provider context. The item parameter then becomes part of that source for branch coverage.
 
 ```tsx
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type Row = { id: string; label: string; visible: boolean }
 type Props = { rows: Row[] }
@@ -334,10 +334,10 @@ export default function RowList(props: Props) {
   )
 }
 
-RowList.cases = {
+RowList.frames = {
   allHidden: { props: { rows: [{ id: "1", label: "Draft", visible: false }] } },
   visibleRow: { props: { rows: [{ id: "2", label: "Published", visible: true }] } },
-} satisfies GCases<Props>
+} satisfies GFrames<Props>
 ```
 
 Avoid moving the predicate into a helper such as `shouldShow(row)`. That hides the JSX branch from static analysis and `gtsx check` reports opaque control flow.
@@ -347,7 +347,7 @@ Avoid moving the predicate into a helper such as `shouldShow(row)`. That hides t
 A child component may receive plain props that were shaped by a parent provider variant. It does not need to read the provider just to preserve that environment axis in Studio.
 
 ```tsx
-import type { GCases, GProviderCase } from "@gtsx/core"
+import type { GFrames, GProviderFrame } from "@gtsx/core"
 import { UserSignProvider } from "./environment.g"
 
 type Props = { userName: string }
@@ -356,38 +356,38 @@ export default function AccountName(props: Props) {
   return <span>{props.userName}</span>
 }
 
-AccountName.cases = {
+AccountName.frames = {
   loginName: {
     props: { userName: "Ada" },
-  } satisfies GProviderCase<typeof UserSignProvider, "login", Props>,
+  } satisfies GProviderFrame<typeof UserSignProvider, "login", Props>,
   anonymousName: {
     props: { userName: "Guest" },
-  } satisfies GProviderCase<typeof UserSignProvider, "anonymous", Props>,
-} satisfies GCases<Props>
+  } satisfies GProviderFrame<typeof UserSignProvider, "anonymous", Props>,
+} satisfies GFrames<Props>
 ```
 
-Use this only when the props really are projections of that provider environment. If the child has no relationship to the provider axis, leave the cases unmarked.
+Use this only when the props really are projections of that provider environment. If the child has no relationship to the provider axis, leave the frames unmarked.
 
-Unmarked cases are neutral in Studio, but they do not count as coverage for a component that consumes the provider. If one case intentionally covers multiple variants, mark the union explicitly:
+Unmarked frames are neutral in Studio, but they do not count as coverage for a component that consumes the provider. If one frame intentionally covers multiple variants, mark the union explicitly:
 
 ```tsx
 loading: {
   props: { status: "loading" },
-} satisfies GProviderCase<typeof UserSignProvider, "login" | "anonymous", Props>
+} satisfies GProviderFrame<typeof UserSignProvider, "login" | "anonymous", Props>
 ```
 
 Projection markers on a child do not replace coverage on a parent that directly reads provider context.
 
-## Case Design Guidelines
+## Frame Design Guidelines
 
 ### Name by visual state, not data
 
 ```tsx
 // Good
-cases = { empty: {…}, loading: {…}, overflowing: {…}, errorRetryable: {…} }
+frames = { empty: {…}, loading: {…}, overflowing: {…}, errorRetryable: {…} }
 
 // Bad
-cases = { case1: {…}, withData: {…}, testCase: {…} }
+frames = { case1: {…}, withData: {…}, frame: {…} }
 ```
 
 ### Cover boundary states
@@ -400,7 +400,7 @@ For any component, consider:
 - **Overflow** — long text, large lists, many items
 - **Edge** — disabled, readonly, first-use, permission-denied
 
-### Keep case data minimal but realistic
+### Keep frame data minimal but realistic
 
 ```tsx
 // Good
@@ -430,8 +430,8 @@ scope: { count: 0, increment() {}, reset() {} }
 | Mistake | Fix |
 |---------|-----|
 | `useState` directly in component body | Wrap in `createGScopeHook` |
-| `.cases` on the scope hook | Move to the component export |
-| Template literals as case keys | Use plain string literals |
-| Missing `satisfies GCases<…>` | Always add for type safety |
+| `.frames` on the scope hook | Move to the component export |
+| Template literals as frame keys | Use plain string literals |
+| Missing `satisfies GFrames<…>` | Always add for type safety |
 | Importing from `"/gtsx/runtime"` | Import from `"@gtsx/core"` |
-| Cases depending on runtime values | Cases must be statically evaluable |
+| Frames depending on runtime values | Frames must be statically evaluable |

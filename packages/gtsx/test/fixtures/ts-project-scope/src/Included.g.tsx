@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 import { Child } from "@fixture/Child.g"
 
@@ -10,6 +10,6 @@ export default function Included(props: Props) {
   return <Child label={props.label} />
 }
 
-Included.cases = {
+Included.frames = {
   ready: { props: { label: "Included" } },
-} satisfies GCases<Props>
+} satisfies GFrames<Props>

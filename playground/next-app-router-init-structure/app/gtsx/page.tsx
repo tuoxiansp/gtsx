@@ -2,33 +2,33 @@ import AppShell from "../../components/AppShell.g"
 
 type GTSXPreviewPageProps = {
   searchParams?: Promise<{
-    case?: string
+    frame?: string
   }>
 }
 
 export default async function GTSXPreviewPage(props: GTSXPreviewPageProps) {
   const searchParams = await props.searchParams
-  const cases = AppShell.cases ?? {}
-  const caseName = searchParams?.case
+  const frames = AppShell.frames ?? {}
+  const frameName = searchParams?.frame
 
-  if (!caseName) {
+  if (!frameName) {
     return (
       <main style={{ display: "grid", gap: 24, padding: 24 }}>
-        {Object.entries(cases).map(([name, testCase]) => (
+        {Object.entries(frames).map(([name, frame]) => (
           <section key={name} style={{ border: "1px solid #d0d7de", padding: 16 }}>
             <h2>{name}</h2>
-            <AppShell {...testCase.props} />
+            <AppShell {...frame.props} />
           </section>
         ))}
       </main>
     )
   }
 
-  const selectedCase = Object.entries(cases).find(([name]) => name === caseName)?.[1]
+  const selectedFrame = Object.entries(frames).find(([name]) => name === frameName)?.[1]
 
-  if (!selectedCase) {
-    return <main>Unknown GTSX case: {caseName}</main>
+  if (!selectedFrame) {
+    return <main>Unknown GTSX frame: {frameName}</main>
   }
 
-  return <AppShell {...selectedCase.props} />
+  return <AppShell {...selectedFrame.props} />
 }

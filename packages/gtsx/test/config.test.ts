@@ -26,8 +26,8 @@ export default defineGTSXConfig({
   preview: {
     serve: "pnpm dev --port {port}",
     studioUrl: "http://localhost:{port}/dev/gtsx/studio",
-    url: "http://localhost:{port}/dev/gtsx?entry={entry}&case={case}{gcase}",
-    allUrl: "http://localhost:{port}/dev/gtsx?entry={entry}{gcase}",
+    url: "http://localhost:{port}/dev/gtsx?entry={entry}&frame={frame}{gframe}",
+    allUrl: "http://localhost:{port}/dev/gtsx?entry={entry}{gframe}",
   },
   studio: {
     manifestCacheTtlMs: 2500,

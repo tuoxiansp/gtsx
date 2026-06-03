@@ -20,7 +20,7 @@ Every successful integration needs:
 1. TypeScript Program scope for `.g.tsx` discovery.
 2. React transform for `.g.tsx` component boundaries.
 3. Project index / manifest built from the selected scope.
-4. Preview route that maps `entry`, `case`, and `gcase` search params to the preview client.
+4. Preview route that maps `entry`, `frame`, and `gframe` search params to the preview client.
 5. Studio route that renders `StudioShell` with the manifest.
 6. Stable `preview.serve`, `preview.url`, `preview.allUrl`, and optional `preview.studioUrl` commands for verification and capture.
 
@@ -89,7 +89,7 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 5. Open `/gtsx/studio#/design`.
 6. Confirm the manifest contains TypeScript Program `.g.tsx` entries, including design frames from `project.root/gtsx/design` when present. A setup-only project may legitimately have zero entries; Studio should show its empty state.
 7. If at least one `.g.tsx` entry exists, open one `/gtsx?...` preview URL.
-8. Confirm no `Missing entry`, `Unknown gtsx entry`, or `Unknown gtsx case` errors.
+8. Confirm no `Missing entry`, `Unknown gtsx entry`, or `Unknown GTSX frame` errors.
 9. Run `gtsx capture` when configured.
 
 ## Report

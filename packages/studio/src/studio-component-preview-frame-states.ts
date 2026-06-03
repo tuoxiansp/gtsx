@@ -11,7 +11,7 @@ import {
 import type { StudioManifestComponent } from "./manifest"
 import type { StudioPreviewGeometryCacheStore } from "./preview-geometry-cache-store"
 
-export function studioComponentCaseLayoutFrameStates(
+export function studioComponentFrameLayoutFrameStates(
   component: StudioManifestComponent,
   viewportPreset: StudioViewportPreset,
   frameStates: Record<string, StudioPreviewFrameState> | undefined,
@@ -19,11 +19,11 @@ export function studioComponentCaseLayoutFrameStates(
   previewGeometryStore?: StudioPreviewGeometryCacheStore,
 ): Record<string, StudioPreviewFrameState | undefined> {
   return Object.fromEntries(
-    component.cases.map((testCase) => {
-      const sessionId = previewSessionId(component, testCase.name, viewportPreset)
-      const cacheKey = studioPreviewCacheKey(component, testCase.name, viewportPreset)
+    component.frames.map((frame) => {
+      const sessionId = previewSessionId(component, frame.name, viewportPreset)
+      const cacheKey = studioPreviewCacheKey(component, frame.name, viewportPreset)
       return [
-        testCase.name,
+        frame.name,
         previewGeometryStore
           ? previewGeometryStore.getLayoutFrameState(sessionId, cacheKey)
           : mergeStudioPreviewFrameState(sessionId, frameStates?.[sessionId], previewCache?.[cacheKey]?.frameState),
@@ -32,7 +32,7 @@ export function studioComponentCaseLayoutFrameStates(
   )
 }
 
-export function studioComponentCaseFrameStates(
+export function studioComponentFrameFrameStates(
   component: StudioManifestComponent,
   viewportPreset: StudioViewportPreset,
   frameStates: Record<string, StudioPreviewFrameState> | undefined,
@@ -40,11 +40,11 @@ export function studioComponentCaseFrameStates(
   previewGeometryStore?: StudioPreviewGeometryCacheStore,
 ): Record<string, StudioPreviewFrameState | undefined> {
   return Object.fromEntries(
-    component.cases.map((testCase) => {
-      const sessionId = previewSessionId(component, testCase.name, viewportPreset)
-      const cacheKey = studioPreviewCacheKey(component, testCase.name, viewportPreset)
+    component.frames.map((frame) => {
+      const sessionId = previewSessionId(component, frame.name, viewportPreset)
+      const cacheKey = studioPreviewCacheKey(component, frame.name, viewportPreset)
       return [
-        testCase.name,
+        frame.name,
         previewGeometryStore
           ? previewGeometryStore.getMergedFrameState(sessionId, cacheKey)
           : mergeStudioPreviewFrameState(sessionId, frameStates?.[sessionId], previewCache?.[cacheKey]?.frameState),

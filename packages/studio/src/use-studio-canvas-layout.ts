@@ -21,7 +21,7 @@ import {
   measuredStudioColumnLayoutPackedByComponentOrder,
   sameColumnLayoutRecord,
   sameColumnMeasurementRecord,
-  studioCanvasCasePreviewScale,
+  studioCanvasFramePreviewScale,
   studioWorkspaceColumnMeasurementsFromGeometry,
   studioWorkspaceLayoutMeasurementKey,
 } from "./studio-canvas-geometry"
@@ -36,7 +36,7 @@ type MountedStudioColumnCardElement = {
 }
 
 export type StudioCanvasLayout = {
-  casePreviewScale: number
+  framePreviewScale: number
   columnLayoutByIndex: Record<number, StudioColumnLayout>
   columnLayoutByIndexRef: MutableRef<Record<number, StudioColumnLayout>>
   columnMeasurementsByIndex: Record<number, StudioColumnLayoutMeasurement>
@@ -61,8 +61,8 @@ export function useStudioCanvasLayout(input: {
   previewGeometryStore?: StudioPreviewGeometryCacheStore
   workspace: StudioWorkspaceState
 }): StudioCanvasLayout {
-  const [casePreviewScale, setCasePreviewScale] = React.useState(() =>
-    studioCanvasCasePreviewScale(
+  const [framePreviewScale, setFramePreviewScale] = React.useState(() =>
+    studioCanvasFramePreviewScale(
       input.workspace,
       input.canvasViewportPreset,
       input.frameStates,
@@ -73,7 +73,7 @@ export function useStudioCanvasLayout(input: {
   const fallbackColumnMeasurementsByIndex = React.useMemo(
     () =>
       studioWorkspaceColumnMeasurementsFromGeometry({
-        casePreviewScale,
+        framePreviewScale,
         frameStates: input.frameStates,
         previewCache: input.previewCache,
         previewGeometryStore: input.previewGeometryStore,
@@ -81,7 +81,7 @@ export function useStudioCanvasLayout(input: {
         workspace: input.workspace,
       }),
     [
-      casePreviewScale,
+      framePreviewScale,
       input.canvasViewportPreset,
       input.frameStates,
       input.previewCache,
@@ -145,15 +145,15 @@ export function useStudioCanvasLayout(input: {
     [],
   )
 
-  const recomputeCasePreviewScale = React.useCallback(() => {
-    const nextScale = studioCanvasCasePreviewScale(
+  const recomputeFramePreviewScale = React.useCallback(() => {
+    const nextScale = studioCanvasFramePreviewScale(
       input.workspace,
       input.canvasViewportPreset,
       input.frameStates,
       input.previewCache,
       input.previewGeometryStore,
     )
-    setCasePreviewScale((current) => (current === nextScale ? current : nextScale))
+    setFramePreviewScale((current) => (current === nextScale ? current : nextScale))
   }, [input.canvasViewportPreset, input.frameStates, input.previewCache, input.previewGeometryStore, input.workspace])
 
   const measure = React.useCallback(() => {
@@ -195,7 +195,7 @@ export function useStudioCanvasLayout(input: {
         previewFrameSessionIdsByCoordinate: Object.fromEntries(
           column.components.map((component) => [
             component.coordinate,
-            component.cases.map((testCase) => previewSessionId(component, testCase.name, input.canvasViewportPreset)),
+            component.frames.map((frame) => previewSessionId(component, frame.name, input.canvasViewportPreset)),
           ]),
         ),
       })
@@ -216,7 +216,7 @@ export function useStudioCanvasLayout(input: {
   }, [fallbackColumnMeasurementsByIndex, input.canvasRef, input.workspace])
 
   const scheduleMeasurement = React.useCallback(() => {
-    recomputeCasePreviewScale()
+    recomputeFramePreviewScale()
     if (typeof window === "undefined") {
       measure()
       return
@@ -226,12 +226,12 @@ export function useStudioCanvasLayout(input: {
       layoutFrame.current = 0
       measure()
     })
-  }, [measure, recomputeCasePreviewScale])
+  }, [measure, recomputeFramePreviewScale])
 
   useStudioLayoutEffect(() => {
-    recomputeCasePreviewScale()
+    recomputeFramePreviewScale()
     measure()
-  }, [input.canvasSurfaceElement, layoutMeasurementKey, measure, recomputeCasePreviewScale])
+  }, [input.canvasSurfaceElement, layoutMeasurementKey, measure, recomputeFramePreviewScale])
 
   React.useEffect(() => {
     return () => {
@@ -240,7 +240,7 @@ export function useStudioCanvasLayout(input: {
   }, [])
 
   return {
-    casePreviewScale,
+    framePreviewScale,
     columnLayoutByIndex,
     columnLayoutByIndexRef,
     columnMeasurementsByIndex,

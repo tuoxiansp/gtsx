@@ -1,5 +1,5 @@
 import React from "react"
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type Props = {
   label: string
@@ -10,6 +10,6 @@ export default function ReactMemberHook(props: Props) {
   return <span>{props.label + count}</span>
 }
 
-ReactMemberHook.cases = {
+ReactMemberHook.frames = {
   ready: { props: { label: "Ready" } },
-} satisfies GCases<Props>
+} satisfies GFrames<Props>

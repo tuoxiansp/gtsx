@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 import {
   ImportedScopeProvider,
@@ -10,9 +10,9 @@ export function ImportedScopeConsumer() {
   return <span>{scope.label}</span>
 }
 
-ImportedScopeConsumer.cases = {
+ImportedScopeConsumer.frames = {
   ready: {
     props: {},
     providers: [[ImportedScopeProvider, { label: "imported" }]],
   },
-} satisfies GCases<React.ComponentProps<typeof ImportedScopeConsumer>, never, [typeof ImportedScopeProvider]>
+} satisfies GFrames<React.ComponentProps<typeof ImportedScopeConsumer>, never, [typeof ImportedScopeProvider]>

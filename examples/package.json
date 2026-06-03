@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "gtsx:check": "gtsx check src/cases",
-    "gtsx:capture": "gtsx capture src/cases --all --out ../snapshots/examples",
+    "gtsx:check": "gtsx check src/frames",
+    "gtsx:capture": "gtsx capture src/frames --all --out ../snapshots/examples",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

@@ -1,7 +1,7 @@
 {
   "name": "@gtsx/studio",
-  "version": "0.0.3",
-  "description": "Studio UI for browsing and previewing GTSX component cases.",
+  "version": "0.0.4",
+  "description": "Studio UI for browsing and previewing GTSX component frames.",
   "license": "MIT",
   "type": "module",
   "repository": {

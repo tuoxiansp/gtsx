@@ -1,19 +1,19 @@
 import {
   useGContext,
-  type GCases,
-  type GProviderCase,
+  type GFrames,
+  type GProviderFrame,
 } from "@gtsx/core"
 
 import { LoginProvider } from "./MissingProviderVariant.g"
 
-export default function MultiVariantProviderCase() {
+export default function MultiVariantProviderFrame() {
   const login = useGContext(LoginProvider)
   return <span>{login.kind === "login" ? login.name : "Guest"}</span>
 }
 
-MultiVariantProviderCase.cases = {
+MultiVariantProviderFrame.frames = {
   loading: {
     props: {},
     providers: [[LoginProvider, { kind: "anonymous" }]],
-  } satisfies GProviderCase<typeof LoginProvider, "login" | "anonymous">,
-} satisfies GCases<Record<string, never>, never, [typeof LoginProvider]>
+  } satisfies GProviderFrame<typeof LoginProvider, "login" | "anonymous">,
+} satisfies GFrames<Record<string, never>, never, [typeof LoginProvider]>

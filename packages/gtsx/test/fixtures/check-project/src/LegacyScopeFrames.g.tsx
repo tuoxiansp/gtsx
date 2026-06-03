@@ -1,4 +1,4 @@
-import { createGScopeHook, type GCases } from "@gtsx/core"
+import { createGScopeHook, type GFrames } from "@gtsx/core"
 
 type Props = {
   id: string
@@ -10,11 +10,11 @@ type Scope = {
 
 const useLegacyGScope = createGScopeHook((_props: Props): Scope => ({ label: "real" }))
 
-useLegacyGScope.cases = {
+useLegacyGScope.frames = {
   ready: { props: { id: "1" }, scope: { label: "legacy" } },
-} satisfies GCases<Props, Scope>
+} satisfies GFrames<Props, Scope>
 
-export default function LegacyScopeCases(props: Props) {
+export default function LegacyScopeFrames(props: Props) {
   const scope = useLegacyGScope(props)
   return <span>{scope.label}</span>
 }

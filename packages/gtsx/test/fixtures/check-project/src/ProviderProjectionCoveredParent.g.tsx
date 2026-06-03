@@ -1,7 +1,7 @@
 import {
   useGContext,
-  type GCases,
-  type GProviderCase,
+  type GFrames,
+  type GProviderFrame,
 } from "@gtsx/core"
 
 import ProviderVariantProjection from "./ProviderVariantProjection.g"
@@ -12,13 +12,13 @@ export default function ProviderProjectionCoveredParent() {
   return <ProviderVariantProjection userName={login.kind === "login" ? login.name : "Guest"} />
 }
 
-ProviderProjectionCoveredParent.cases = {
+ProviderProjectionCoveredParent.frames = {
   login: {
     props: {},
     providers: [[LoginProvider, { kind: "login", name: "Ada" }]],
-  } satisfies GProviderCase<typeof LoginProvider, "login">,
+  } satisfies GProviderFrame<typeof LoginProvider, "login">,
   anonymous: {
     props: {},
     providers: [[LoginProvider, { kind: "anonymous" }]],
-  } satisfies GProviderCase<typeof LoginProvider, "anonymous">,
-} satisfies GCases<Record<string, never>, never, [typeof LoginProvider]>
+  } satisfies GProviderFrame<typeof LoginProvider, "anonymous">,
+} satisfies GFrames<Record<string, never>, never, [typeof LoginProvider]>

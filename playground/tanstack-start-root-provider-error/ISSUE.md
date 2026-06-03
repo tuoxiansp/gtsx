@@ -11,6 +11,6 @@ The server responds with raw JSON such as:
 ```
 
 This playground keeps that shape by placing the primary gtsx entry at
-`src/routes/__root.g.tsx`. The cases model `apiDown`, `recovering`, and `ready`
+`src/routes/__root.g.tsx`. The frames model `apiDown`, `recovering`, and `ready`
 states so gtsx can check, serve, capture, and strip the same boundary-adjacent
 component through the Script adapter.

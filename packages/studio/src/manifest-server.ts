@@ -47,7 +47,7 @@ export function discoverStudioDesignManifest(cwd: string, projectRoot = "src"): 
           filePath,
           title: basename(filePath).replace(/\.g\.tsx$/, ""),
           exportName,
-          caseName: "live",
+          frameName: "live",
         }
       })
     : []

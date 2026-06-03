@@ -19,9 +19,9 @@ if (action === "capture" && values.out) {
   writeSnapshotPng(join(process.cwd(), values.out), [
     "framework: tanstack start",
     "issue: tanstack/router#7133",
-    `case: ${values.case}`,
+    `frame: ${values.frame}`,
     `entry: ${values.entry}`,
   ])
 }
 
-process.stdout.write(`tanstack-start ${action} ${values.case ?? ""}\n`)
+process.stdout.write(`tanstack-start ${action} ${values.frame ?? ""}\n`)

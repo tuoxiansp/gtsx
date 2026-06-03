@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type IncludedProps = {
   label: string
@@ -8,10 +8,10 @@ export default function Included(props: IncludedProps) {
   return <span>{props.label}</span>
 }
 
-Included.cases = {
+Included.frames = {
   ready: {
     props: {
       label: "ready",
     },
   },
-} satisfies GCases<IncludedProps>
+} satisfies GFrames<IncludedProps>

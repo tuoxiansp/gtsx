@@ -50,7 +50,7 @@ export function useStudioPreviewRenderScheduler(input: {
   canvasViewportElement: HTMLDivElement | null
   canvasViewportPresetRef: MutableRef<StudioViewportPreset>
   cardIndexRef: MutableRef<StudioCanvasCardIndex>
-  casePreviewScaleRef: MutableRef<number>
+  framePreviewScaleRef: MutableRef<number>
   columnLayoutByIndexRef: MutableRef<Record<number, StudioColumnLayout>>
   columnMeasurementsByIndexRef: MutableRef<Record<number, StudioColumnLayoutMeasurement>>
   frameStatesRef: MutableRef<Record<string, StudioPreviewFrameState> | undefined>
@@ -88,7 +88,7 @@ export function useStudioPreviewRenderScheduler(input: {
         canvasViewportElement: input.canvasViewportElement,
         canvasViewportPreset: input.canvasViewportPresetRef.current,
         cardIndex: input.cardIndexRef.current,
-        casePreviewScale: input.casePreviewScaleRef.current,
+        framePreviewScale: input.framePreviewScaleRef.current,
         columnLayoutByIndex: input.columnLayoutByIndexRef.current,
         columnMeasurementsByIndex: input.columnMeasurementsByIndexRef.current,
         completionSource,
@@ -144,7 +144,7 @@ export function useStudioPreviewRenderScheduler(input: {
       input.canvasViewportElement,
       input.canvasViewportPresetRef,
       input.cardIndexRef,
-      input.casePreviewScaleRef,
+      input.framePreviewScaleRef,
       input.columnLayoutByIndexRef,
       input.columnMeasurementsByIndexRef,
       input.frameStatesRef,
@@ -225,7 +225,7 @@ function createStudioPreviewRenderPlanForScheduler(input: {
   canvasViewportElement: HTMLDivElement | null
   canvasViewportPreset: StudioViewportPreset
   cardIndex: StudioCanvasCardIndex
-  casePreviewScale?: number
+  framePreviewScale?: number
   columnLayoutByIndex: Record<number, StudioColumnLayout>
   columnMeasurementsByIndex: Record<number, StudioColumnLayoutMeasurement>
   completionSource: StudioPreviewRenderCompletionSource
@@ -245,7 +245,7 @@ function createStudioPreviewRenderPlanForScheduler(input: {
     canvasMovement: input.canvasMovement,
     canvasViewportPreset: input.canvasViewportPreset,
     cardIndex: input.cardIndex,
-    casePreviewScale: input.casePreviewScale,
+    framePreviewScale: input.framePreviewScale,
     columnLayoutByIndex: input.columnLayoutByIndex,
     columnMeasurementsByIndex: input.columnMeasurementsByIndex,
     completedSessionIds: baseCompletedSessionIds,

@@ -1,4 +1,4 @@
-import { createGScopeHook, type GCases } from "@gtsx/core"
+import { createGScopeHook, type GFrames } from "@gtsx/core"
 
 type NotificationBellProps = {
   label: string
@@ -37,7 +37,7 @@ export default function NotificationBell(props: NotificationBellProps) {
   )
 }
 
-NotificationBell.cases = {
+NotificationBell.frames = {
   quiet: {
     props: { label: "Notifications" },
     scope: { unread: 0, expanded: false },
@@ -46,4 +46,4 @@ NotificationBell.cases = {
     props: { label: "Notifications" },
     scope: { unread: 3, expanded: true },
   },
-} satisfies GCases<NotificationBellProps, NotificationBellScope>
+} satisfies GFrames<NotificationBellProps, NotificationBellScope>

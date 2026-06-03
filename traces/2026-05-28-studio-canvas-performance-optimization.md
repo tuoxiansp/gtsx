@@ -8,13 +8,13 @@ This trace records the performance and abstraction work done after the Studio ca
 
 ## Background
 
-The Studio canvas was changed from a case-by-case right-sidebar workflow into a canvas-first workflow:
+The Studio canvas was changed from a frame-by-frame right-sidebar workflow into a canvas-first workflow:
 
 - Remove the right sidebar.
-- Each UI component card displays all of that component's cases.
-- A card should lay out cases with an attractive square-space-filling algorithm.
+- Each UI component card displays all of that component's frames.
+- A card should lay out frames with an attractive square-space-filling algorithm.
 - Canvas zoom should be unified across cards.
-- Highlighting targets the whole case collection/card, not each individual case.
+- Highlighting targets the whole frame collection/card, not each individual frame.
 - Highlight state must include drill-down path, because the same child can be reached from different parent paths.
 - Preview rendering needs to be fast enough to feel close to a virtual list while scrolling.
 
@@ -22,7 +22,7 @@ The initial iframe-pool attempt exposed several bugs:
 
 - Cards flickered and repeatedly showed preview loading text.
 - Some cards never rendered after fast scrolling or viewport changes.
-- `preview unavailable` appeared for some cases.
+- `preview unavailable` appeared for some frames.
 - Selection or panning triggered massive rerenders.
 - The canvas transform sometimes jumped while cards were measuring/rendering.
 - Pool debug dots were misleading because all cards looked green while the experience was not better than no-pool mode.
@@ -222,7 +222,7 @@ flowchart TD
   G --> H["Borrow iframe from stable pool"]
   H --> I["Place iframe over card anchor"]
   I --> J["Post preview render request"]
-  J --> K["Preview renders React case/component"]
+  J --> K["Preview renders React frame/component"]
   K --> L["Preview reports ready + geometry + completion"]
   L --> M["Commit geometry if changed"]
   M --> N["Release or retain iframe according to buffer boundary"]
@@ -231,13 +231,13 @@ flowchart TD
 
 ## Key Decisions
 
-### Keep One Case Collection Per Card
+### Keep One Frame Collection Per Card
 
-Rendering multiple cases inside one iframe was discussed as a possible optimization, but it has correctness hazards when cases use viewport-relative units like `vw` and `vh`.
+Rendering multiple frames inside one iframe was discussed as a possible optimization, but it has correctness hazards when frames use viewport-relative units like `vw` and `vh`.
 
 Decision:
 
-- Do not collapse many cases into one iframe as a default optimization.
+- Do not collapse many frames into one iframe as a default optimization.
 - First make the iframe pool and scheduling model correct.
 
 ### Iframe Pool Must Be Pull-Based and Lazy
@@ -276,11 +276,11 @@ Debug modes added during the work:
   - Green dot: render used a pooled iframe.
   - Orange dot: render created a new iframe.
 - Visible-region task indicator:
-  - Shows when a card/case is selected as a visible-area render task.
+  - Shows when a card/frame is selected as a visible-area render task.
 - Diffusion center indicator:
   - A short-lived dot appears when idle diffusion render starts, so the expansion center can be visually verified.
-- Per-case render lifecycle indicator:
-  - Helps inspect whether a case is queued, dispatched, accepted by preview, rendered, measured, and completed.
+- Per-frame render lifecycle indicator:
+  - Helps inspect whether a frame is queued, dispatched, accepted by preview, rendered, measured, and completed.
 
 These indicators were added because the pool source alone was misleading: all-green did not prove the pool was improving user-perceived scroll response.
 

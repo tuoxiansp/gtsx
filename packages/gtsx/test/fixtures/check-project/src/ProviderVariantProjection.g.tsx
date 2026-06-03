@@ -1,6 +1,6 @@
 import {
-  type GCases,
-  type GProviderCase,
+  type GFrames,
+  type GProviderFrame,
 } from "@gtsx/core"
 
 import { LoginProvider } from "./MissingProviderVariant.g"
@@ -13,11 +13,11 @@ export default function ProviderVariantProjection(props: Props) {
   return <span>{props.userName}</span>
 }
 
-ProviderVariantProjection.cases = {
+ProviderVariantProjection.frames = {
   loginName: {
     props: { userName: "Ada" },
-  } satisfies GProviderCase<typeof LoginProvider, "login">,
+  } satisfies GProviderFrame<typeof LoginProvider, "login">,
   anonymousName: {
     props: { userName: "Guest" },
-  } satisfies GProviderCase<typeof LoginProvider, "anonymous">,
-} satisfies GCases<Props>
+  } satisfies GProviderFrame<typeof LoginProvider, "anonymous">,
+} satisfies GFrames<Props>

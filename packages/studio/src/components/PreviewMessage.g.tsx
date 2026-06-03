@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 export type PreviewMessageProps = {
   detail: string
@@ -21,17 +21,17 @@ export default function PreviewMessage(props: PreviewMessageProps) {
   )
 }
 
-PreviewMessage.cases = {
+PreviewMessage.frames = {
   missingEntry: {
     props: {
-      detail: "Pass ?entry=src/components/.../*.g.tsx to render a Studio package case.",
+      detail: "Pass ?entry=src/components/.../*.g.tsx to render a Studio package frame.",
       title: "Missing entry",
     },
   },
-  unknownCase: {
+  unknownFrame: {
     props: {
-      detail: "No cases declared",
-      title: "Unknown case",
+      detail: "No frames declared",
+      title: "Unknown frame",
     },
   },
   loading: {
@@ -40,4 +40,4 @@ PreviewMessage.cases = {
       title: "Loading",
     },
   },
-} satisfies GCases<PreviewMessageProps>
+} satisfies GFrames<PreviewMessageProps>

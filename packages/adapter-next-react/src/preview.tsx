@@ -2,7 +2,7 @@
 
 import { GTSXReactPreviewClient, type GTSXReactPreviewClientProps } from "@gtsx/preview-react"
 
-export type { GTSXPreviewCase, GTSXPreviewComponent, GTSXPreviewModule } from "@gtsx/preview-react"
+export type { GTSXPreviewFrame, GTSXPreviewComponent, GTSXPreviewModule } from "@gtsx/preview-react"
 
 export type GTSXNextPreviewClientProps = Omit<GTSXReactPreviewClientProps, "loadComponent">
 

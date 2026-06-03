@@ -1,7 +1,7 @@
 import {
   useGContext,
-  type GCases,
-  type GProviderCase,
+  type GFrames,
+  type GProviderFrame,
 } from "@gtsx/core"
 
 import UnmarkedProviderProjectionChild from "./UnmarkedProviderProjectionChild.g"
@@ -12,13 +12,13 @@ export default function ProviderProjectionParent() {
   return <UnmarkedProviderProjectionChild userName={login.kind === "login" ? login.name : "Guest"} />
 }
 
-ProviderProjectionParent.cases = {
+ProviderProjectionParent.frames = {
   login: {
     props: {},
     providers: [[LoginProvider, { kind: "login", name: "Ada" }]],
-  } satisfies GProviderCase<typeof LoginProvider, "login">,
+  } satisfies GProviderFrame<typeof LoginProvider, "login">,
   anonymous: {
     props: {},
     providers: [[LoginProvider, { kind: "anonymous" }]],
-  } satisfies GProviderCase<typeof LoginProvider, "anonymous">,
-} satisfies GCases<Record<string, never>, never, [typeof LoginProvider]>
+  } satisfies GProviderFrame<typeof LoginProvider, "anonymous">,
+} satisfies GFrames<Record<string, never>, never, [typeof LoginProvider]>

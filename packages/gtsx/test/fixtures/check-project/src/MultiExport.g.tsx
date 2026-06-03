@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type BadgeProps = {
   label: string
@@ -8,9 +8,9 @@ export function NamedBadge(props: BadgeProps) {
   return <span>{props.label}</span>
 }
 
-NamedBadge.cases = {
+NamedBadge.frames = {
   ready: { props: { label: "Named" } },
-} satisfies GCases<BadgeProps>
+} satisfies GFrames<BadgeProps>
 
 type DefaultBadgeProps = {
   label: string
@@ -20,6 +20,6 @@ export default function DefaultBadge(props: DefaultBadgeProps) {
   return <strong>{props.label}</strong>
 }
 
-DefaultBadge.cases = {
+DefaultBadge.frames = {
   defaultReady: { props: { label: "Default" } },
-} satisfies GCases<DefaultBadgeProps>
+} satisfies GFrames<DefaultBadgeProps>

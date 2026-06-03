@@ -9,14 +9,14 @@ const previewPageUrl = pathToFileURL(
 ).href
 
 describe("Next App Router GTSX preview entry", () => {
-  it("renders a selected case from the target project's .g.tsx component", async () => {
+  it("renders a selected frame from the target project's .g.tsx component", async () => {
     const { default: GTSXPreviewPage } = (await import(/* @vite-ignore */ previewPageUrl)) as {
       default: (props: {
-        searchParams?: Promise<{ case?: string }>
+        searchParams?: Promise<{ frame?: string }>
       }) => React.ReactElement | Promise<React.ReactElement>
     }
     const element = await GTSXPreviewPage({
-      searchParams: Promise.resolve({ case: "routeHandlerTrouble" }),
+      searchParams: Promise.resolve({ frame: "routeHandlerTrouble" }),
     })
 
     const html = renderToStaticMarkup(element)

@@ -77,8 +77,8 @@ export type GPreviewValuesMessage = GPreviewProtocolBase & {
 }
 
 export type GPreviewRenderTarget = {
-  caseName: string | null
-  caseOverrides?: [string, string][]
+  frameName: string | null
+  frameOverrides?: [string, string][]
   chrome: string | null
   entry: string | null
   sessionId: string | null

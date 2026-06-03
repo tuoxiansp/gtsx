@@ -15,7 +15,7 @@ export default function Card(props: { label: string }) {
   return <span>{props.label}</span>
 }
 
-Card.cases = {
+Card.frames = {
   ready: { props: { label: "Ready" } },
 }
 `,

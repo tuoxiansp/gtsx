@@ -1,8 +1,8 @@
 import {
   createGProvider,
   useGContext,
-  type GCases,
-  type GProviderCase,
+  type GFrames,
+  type GProviderFrame,
 } from "@gtsx/core"
 
 type LoginState =
@@ -19,9 +19,9 @@ export default function MissingProviderVariant() {
   return <span>{login.kind === "login" ? login.name : "Guest"}</span>
 }
 
-MissingProviderVariant.cases = {
+MissingProviderVariant.frames = {
   login: {
     props: {},
     providers: [[LoginProvider, { kind: "login", name: "Ada" }]],
-  } satisfies GProviderCase<typeof LoginProvider, "login">,
-} satisfies GCases<Record<string, never>, never, [typeof LoginProvider]>
+  } satisfies GProviderFrame<typeof LoginProvider, "login">,
+} satisfies GFrames<Record<string, never>, never, [typeof LoginProvider]>

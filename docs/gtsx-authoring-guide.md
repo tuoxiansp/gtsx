@@ -16,19 +16,19 @@ A `.g.tsx` file is a real component that also declares its visual states:
 (props, context) → scope → view
 ```
 
-Cases inject at the seam. Preview renders any visual state without executing production hooks. The component itself never knows whether it is running in production or in preview — the substitution happens above it.
+Frames inject at the seam. Preview renders any visual state without executing production hooks. The component itself never knows whether it is running in production or in preview — the substitution happens above it.
 
 A `.g.tsx` file contains:
 
 - Real visual TSX (the actual DOM this component owns)
 - Props and scope types
-- Static `Component.cases` declaring visual states
+- Static `Component.frames` declaring visual states
 - Optionally: a production hook wrapped by `createGScopeHook`, providers created with `createGProvider`
 
 ## Principles
 
 1. **Author visual surfaces, not orchestration.** Route glue, provider nesting, layout slots, and permission gates belong outside `.g.tsx`.
-2. **Model visual states through props, scope, and providers.** A case describes what the user sees.
+2. **Model visual states through props, scope, and providers.** A frame describes what the user sees.
 3. **Scope is UI state and callbacks.** Not routers, query clients, stores, or React nodes.
 4. **No visual surface → no `.g.tsx`.** Don't create files to mirror project structure.
 
@@ -51,10 +51,10 @@ When in doubt, start with Pure. Introduce scope or providers only when props alo
 
 ## Pure Component
 
-The simplest case. Every preview state is described by props:
+The simplest frame. Every preview state is described by props:
 
 ```tsx
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type BadgeProps = {
   tone: "neutral" | "warning"
@@ -65,10 +65,10 @@ export default function Badge(props: BadgeProps) {
   return <span data-tone={props.tone}>{props.label}</span>
 }
 
-Badge.cases = {
+Badge.frames = {
   neutral: { props: { tone: "neutral", label: "Ready" } },
   warning: { props: { tone: "warning", label: "Needs review" } },
-} satisfies GCases<BadgeProps>
+} satisfies GFrames<BadgeProps>
 ```
 
 ## Stateful Component
@@ -76,7 +76,7 @@ Badge.cases = {
 When the UI depends on application state, wrap your production hook:
 
 ```tsx
-import { createGScopeHook, type GCases } from "@gtsx/core"
+import { createGScopeHook, type GFrames } from "@gtsx/core"
 
 type CounterScope = { count: number; increment: () => void }
 
@@ -87,13 +87,13 @@ export default function Counter(props: CounterProps) {
   return <button onClick={scope.increment}>{scope.count}</button>
 }
 
-Counter.cases = {
+Counter.frames = {
   zero: { props: { title: "Counter" }, scope: { count: 0, increment() {} } },
   five: { props: { title: "Counter" }, scope: { count: 5, increment() {} } },
-} satisfies GCases<CounterProps, CounterScope>
+} satisfies GFrames<CounterProps, CounterScope>
 ```
 
-The real hook can call any React hooks. `createGScopeHook` wraps it so that in preview, the case-supplied scope is returned instead.
+The real hook can call any React hooks. `createGScopeHook` wraps it so that in preview, the frame-supplied scope is returned instead.
 
 For discriminated unions, combined scope+provider patterns, and collection branches, see the [full reference](../skills/authoring-gtsx/REFERENCE.md).
 
@@ -106,9 +106,9 @@ Inside a `.g.tsx` component body, call only:
 
 Never call `useState`, `useEffect`, `useQuery`, or other React/library hooks directly. Production behavior lives inside the real hook; `createGScopeHook` wraps it.
 
-## Cases
+## Frames
 
-Cases are static object literals attached to the component export.
+Frames are static object literals attached to the component export.
 
 **Naming:** describe the visual state, not the implementation.
 
@@ -120,8 +120,8 @@ Cases are static object literals attached to the component export.
 
 **Rules:**
 
-- Happy-path case first, then edge states.
-- At least two cases (unless the component truly has one stable visual state).
+- Happy-path frame first, then edge states.
+- At least two frames (unless the component truly has one stable visual state).
 - Static object literals only — no computed keys, no dynamic generation.
 - No secrets or customer data.
 - No-op functions for callbacks: `increment() {}`.
@@ -143,12 +143,12 @@ gtsx check src                # directory
 
 | Diagnostic | Fix |
 |-----------|-----|
-| `missing-cases` | Add `Component.cases = { ... } satisfies GCases<…>` |
-| `non-static-case-key` | Use literal case keys |
+| `missing-frames` | Add `Component.frames = { ... } satisfies GFrames<…>` |
+| `non-static-frame-key` | Use literal frame keys |
 | `non-gtsx-hook` | Wrap with `createGScopeHook`, call only the returned hook |
-| `scope-hook-cases-unsupported` | Move `.cases` from scope hook to component export |
-| `missing-provider-variant-cases` | Mark cases with `GProviderCase` for every consumed provider variant |
+| `scope-hook-frames-unsupported` | Move `.frames` from scope hook to component export |
+| `missing-provider-variant-frames` | Mark frames with `GProviderFrame` for every consumed provider variant |
 | `opaque-jsx-control-flow` | Rewrite branches as direct props/scope/context expressions |
-| `uncovered-jsx-branch` | Add a case that makes the branch reachable |
+| `uncovered-jsx-branch` | Add a frame that makes the branch reachable |
 
 Full diagnostic list: [Static Contract — Diagnostics](./gtsx-static-contract.md#diagnostics).

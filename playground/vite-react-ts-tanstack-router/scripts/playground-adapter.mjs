@@ -19,9 +19,9 @@ if (action === "capture" && values.out) {
   writeSnapshotPng(join(process.cwd(), values.out), [
     "framework: vite react ts",
     "issue: vitejs/vite#21614",
-    `case: ${values.case}`,
+    `frame: ${values.frame}`,
     `entry: ${values.entry}`,
   ])
 }
 
-process.stdout.write(`vite-react-ts ${action} ${values.case ?? ""}\n`)
+process.stdout.write(`vite-react-ts ${action} ${values.frame ?? ""}\n`)

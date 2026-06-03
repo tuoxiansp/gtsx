@@ -15,8 +15,8 @@ The difference:
 | | Component `.g.tsx` | Design frame |
 |---|---|---|
 | **Purpose** | Cover all meaningful visual states | Explore one happy path |
-| **Cases** | Multiple, named by visual state | One: `live` |
-| **Alternatives** | Multiple cases in one file | Multiple files |
+| **Frames** | Multiple, named by visual state | One: `live` |
+| **Alternatives** | Multiple frames in one file | Multiple files |
 | **Scope** | Production component model | Scratch iteration |
 | **Style** | May import shared code | Prefer self-contained |
 
@@ -31,8 +31,8 @@ The difference:
 
 - Location: `project.root/gtsx/design/<FrameName>.g.tsx` (where `project.root` comes from `gtsx.config.ts`, defaults to `src`).
 - One default-exported React component per file.
-- One case named `live`.
-- Multiple alternatives = multiple files, not multiple cases.
+- One frame named `live`.
+- Multiple alternatives = multiple files, not multiple frames.
 - Prefer self-contained TSX — quick drafts shouldn't depend on fragile helper resolution.
 - Never write screenshots, serialized DOM, or layout positions into the repo.
 
@@ -41,15 +41,15 @@ Minimal frame:
 ```tsx
 "use client"
 
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 export default function CheckoutFlow() {
   return <main>{/* visual draft */}</main>
 }
 
-CheckoutFlow.cases = {
+CheckoutFlow.frames = {
   live: { props: {} },
-} satisfies GCases<Record<string, never>>
+} satisfies GFrames<Record<string, never>>
 ```
 
 ## Opening It
@@ -63,7 +63,7 @@ The design board:
 A single frame directly:
 
 ```
-/gtsx?entry=src%2Fgtsx%2Fdesign%2FCheckoutFlow.g.tsx%23default&case=live&chrome=0
+/gtsx?entry=src%2Fgtsx%2Fdesign%2FCheckoutFlow.g.tsx%23default&frame=live&chrome=0
 ```
 
 Replace `src` with your configured `project.root` if it differs.

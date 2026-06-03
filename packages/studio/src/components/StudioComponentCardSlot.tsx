@@ -17,13 +17,13 @@ import {
 } from "../preview-geometry-cache-store"
 import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
 import {
-  studioComponentCaseFrameStates,
-  studioComponentCaseLayoutFrameStates,
+  studioComponentFrameFrameStates,
+  studioComponentFrameLayoutFrameStates,
 } from "../studio-component-preview-frame-states"
 import ComponentCard from "./ComponentCard.g"
 
 type StudioComponentCardSlotProps = {
-  casePreviewScale?: number
+  framePreviewScale?: number
   columnIndex: number
   component: StudioManifestComponent
   debugPreviewPool?: boolean
@@ -39,7 +39,7 @@ type StudioComponentCardSlotProps = {
   onPreviewGeometryChange?: () => void
   onSelect: (
     component: StudioManifestComponent,
-    caseFrameStates: Record<string, StudioPreviewFrameState | undefined>,
+    frameStatesByName: Record<string, StudioPreviewFrameState | undefined>,
     columnIndex: number,
     source: "keyboard" | "pointer",
   ) => void
@@ -47,7 +47,7 @@ type StudioComponentCardSlotProps = {
   providerVariantComponent?: StudioManifestComponent
   providerVariantContext?: StudioProviderVariantContext
   selected: boolean
-  selectedCaseName: string
+  selectedFrameName: string
   viewportPreset: StudioViewportPreset
 }
 
@@ -63,9 +63,9 @@ function StudioComponentCardSlotView(props: StudioComponentCardSlotProps) {
     previewGeometryStore: props.previewGeometryStore,
     viewportPreset: props.viewportPreset,
   })
-  const caseFrameStates = React.useMemo(
+  const frameStatesByName = React.useMemo(
     () =>
-      studioComponentCaseFrameStates(
+      studioComponentFrameFrameStates(
         props.component,
         props.viewportPreset,
         props.fallbackFrameStates,
@@ -81,9 +81,9 @@ function StudioComponentCardSlotView(props: StudioComponentCardSlotProps) {
       previewGeometryStoreVersion,
     ],
   )
-  const caseLayoutFrameStates = React.useMemo(
+  const layoutFrameStatesByName = React.useMemo(
     () =>
-      studioComponentCaseLayoutFrameStates(
+      studioComponentFrameLayoutFrameStates(
         props.component,
         props.viewportPreset,
         props.fallbackFrameStates,
@@ -99,15 +99,15 @@ function StudioComponentCardSlotView(props: StudioComponentCardSlotProps) {
       previewGeometryStoreVersion,
     ],
   )
-  const layoutSignature = studioComponentPreviewGeometrySignature(props.component, caseLayoutFrameStates)
+  const layoutSignature = studioComponentPreviewGeometrySignature(props.component, layoutFrameStatesByName)
   const handleSelect = React.useCallback(
     (
       component: StudioManifestComponent,
-      caseFrameStates: Record<string, StudioPreviewFrameState | undefined>,
+      frameStatesByName: Record<string, StudioPreviewFrameState | undefined>,
       columnIndex: number,
       source: "keyboard" | "pointer",
     ) => {
-      onSelectRef.current(component, caseFrameStates, columnIndex, source)
+      onSelectRef.current(component, frameStatesByName, columnIndex, source)
     },
     [],
   )
@@ -117,9 +117,9 @@ function StudioComponentCardSlotView(props: StudioComponentCardSlotProps) {
 
   return (
     <ComponentCard
-      caseFrameStates={caseFrameStates}
-      caseLayoutFrameStates={caseLayoutFrameStates}
-      casePreviewScale={props.casePreviewScale}
+      frameStatesByName={frameStatesByName}
+      layoutFrameStatesByName={layoutFrameStatesByName}
+      framePreviewScale={props.framePreviewScale}
       columnIndex={props.columnIndex}
       component={props.component}
       debugPreviewPool={props.debugPreviewPool}
@@ -130,7 +130,7 @@ function StudioComponentCardSlotView(props: StudioComponentCardSlotProps) {
       providerVariantComponent={props.providerVariantComponent}
       providerVariantContext={props.providerVariantContext}
       selected={props.selected}
-      selectedCaseName={props.selectedCaseName}
+      selectedFrameName={props.selectedFrameName}
       viewportPreset={props.viewportPreset}
     />
   )
@@ -145,7 +145,7 @@ function areStudioComponentCardSlotPropsEqual(
   next: StudioComponentCardSlotProps,
 ): boolean {
   return (
-    previous.casePreviewScale === next.casePreviewScale &&
+    previous.framePreviewScale === next.framePreviewScale &&
     previous.columnIndex === next.columnIndex &&
     previous.component === next.component &&
     previous.debugPreviewPool === next.debugPreviewPool &&
@@ -160,7 +160,7 @@ function areStudioComponentCardSlotPropsEqual(
     previous.providerVariantComponent === next.providerVariantComponent &&
     sameStudioProviderVariantContext(previous.providerVariantContext, next.providerVariantContext) &&
     previous.selected === next.selected &&
-    previous.selectedCaseName === next.selectedCaseName &&
+    previous.selectedFrameName === next.selectedFrameName &&
     previous.viewportPreset === next.viewportPreset
   )
 }
@@ -196,10 +196,10 @@ function useStudioComponentPreviewGeometryVersion(input: {
 
 function studioComponentPreviewGeometrySignature(
   component: StudioManifestComponent,
-  caseFrameStates: Record<string, StudioPreviewFrameState | undefined>,
+  frameStatesByName: Record<string, StudioPreviewFrameState | undefined>,
 ): string {
-  return component.cases
-    .map((testCase) => `${testCase.name}:${studioPreviewLayoutSignature(caseFrameStates[testCase.name])}`)
+  return component.frames
+    .map((frame) => `${frame.name}:${studioPreviewLayoutSignature(frameStatesByName[frame.name])}`)
     .join("|")
 }
 

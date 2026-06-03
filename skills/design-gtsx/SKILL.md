@@ -19,9 +19,9 @@ The user talks to the local agent. The agent edits local files. Studio renders t
 ## File Contract
 
 - Put design drafts in `project.root/gtsx/design/<FrameName>.g.tsx`, where `project.root` comes from `gtsx.config.ts` and defaults to `src`.
-- Each frame is one default-exported React component with one happy-path case named `live`.
+- Each frame is one default-exported React component with one happy-path frame named `live`.
 - Prefer self-contained files. Do not split a design frame into sibling helper files unless the target adapter is known to resolve them in preview.
-- Multiple alternatives are separate files, not multiple cases.
+- Multiple alternatives are separate files, not multiple frames.
 - Do not write screenshots, serialized DOM, runtime state, or generated layout positions into the repo.
 - Treat `.gtsx/` as generated adapter output that may be ignored, but never ignore `project.root/gtsx/design/`.
 
@@ -30,15 +30,15 @@ Minimal frame:
 ```tsx
 "use client"
 
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 export default function CheckoutDesign() {
   return <main>{/* real visual TSX */}</main>
 }
 
-CheckoutDesign.cases = {
+CheckoutDesign.frames = {
   live: { props: {} },
-} satisfies GCases<Record<string, never>>
+} satisfies GFrames<Record<string, never>>
 ```
 
 ## Design Loop
@@ -48,7 +48,7 @@ Do not rely on a stronger prompt to produce a better design. Treat the user's pr
 1. **Context scan**: inspect the target app, nearby screens, existing components, CSS variables, tokens, icons, copy tone, route shape, and likely viewport.
 2. **Intent expansion**: convert the request into a compact private brief: goal, audience, core job, product surface, content model, interaction weight, constraints, and taste.
 3. **Direction gate**: ask one clarifying question only when the missing choice changes the product direction. Otherwise make a visible assumption and proceed.
-4. **Happy-path selection**: choose the one moment that best communicates the feature's value. Design exploration is not exhaustive case coverage.
+4. **Happy-path selection**: choose the one moment that best communicates the feature's value. Design exploration is not exhaustive frame coverage.
 5. **Design reference pass**: for substantive visual work, read [`DESIGN_REFERENCE.md`](./DESIGN_REFERENCE.md) and apply the relevant surface rules. Use it as a web design quality reference, not as a substitute for product context.
 6. **Layout plan**: decide the information hierarchy, primary action, secondary actions, data density, and visual system before writing TSX.
 7. **Frame implementation**: create or update a named `project.root/gtsx/design/*.g.tsx` frame with credible content and stable dimensions.
@@ -67,7 +67,7 @@ For a short request like "design a gift feature", infer enough product design co
 
 State the key assumptions briefly in the user-facing update, then implement. Keep the assumptions concrete enough that the user can correct them in the next turn.
 
-## Edge Cases
+## Edge Frames
 
 - If the user asks for broad exploration, create 2-3 named frame files with distinct concepts.
 - If the user asks for a precise tweak, update the current frame instead of creating a new one.
@@ -119,7 +119,7 @@ Open:
 
 ```txt
 /gtsx/studio#/design
-/gtsx?entry=src%2Fgtsx%2Fdesign%2F<FrameName>.g.tsx%23default&case=live&chrome=0
+/gtsx?entry=src%2Fgtsx%2Fdesign%2F<FrameName>.g.tsx%23default&frame=live&chrome=0
 ```
 
 Also run the project typecheck when available. Replace `src` in the direct frame URL with the configured `project.root` when it differs. Design frames are expected to live under `gtsx.config.ts` `project.root`, so they should be inside the gtsx project scope by convention.

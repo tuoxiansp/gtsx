@@ -26,7 +26,7 @@ describe("GTSX project index", () => {
               exportName: "default",
               componentName: "Badge",
               mode: "pure",
-              cases: [
+              frames: [
                 { kind: "pure", name: "neutral" },
                 { kind: "pure", name: "success" },
               ],
@@ -47,7 +47,7 @@ describe("GTSX project index", () => {
               exportName: "default",
               componentName: "StatusPanel",
               mode: "pure",
-              cases: [
+              frames: [
                 { kind: "pure", name: "loading" },
                 { kind: "pure", name: "error" },
               ],
@@ -90,12 +90,12 @@ describe("GTSX project index", () => {
   })
 
   it("records static GTSX component dependencies from JSX imports", () => {
-    const index = buildGTSXProjectIndex({ cwd: examplesRoot, projectRoot: "src/cases" })
+    const index = buildGTSXProjectIndex({ cwd: examplesRoot, projectRoot: "src/frames" })
     const dashboard = index.files
       .flatMap((file) => file.components)
-      .find((component) => component.coordinate === "src/cases/stateful/DashboardShell.g.tsx#default")
+      .find((component) => component.coordinate === "src/frames/stateful/DashboardShell.g.tsx#default")
 
-    expect(dashboard?.dependencies).toEqual(["src/cases/stateful/NotificationBell.g.tsx#default"])
+    expect(dashboard?.dependencies).toEqual(["src/frames/stateful/NotificationBell.g.tsx#default"])
   })
 
   it("records static GTSX component dependencies through local JSX aliases", () => {
@@ -107,7 +107,7 @@ describe("GTSX project index", () => {
     expect(aliasImportedDependency?.dependencies).toEqual(["src/HookDependencyChild.g.tsx#HookDependencyChild"])
   })
 
-  it("indexes local functions exported from a list when they declare cases", () => {
+  it("indexes local functions exported from a list when they declare frames", () => {
     const index = buildGTSXProjectIndex({ cwd: fixtureRoot, projectRoot: "src" })
     const exportList = index.files.find((file) => file.path === "src/ExportList.g.tsx")
 

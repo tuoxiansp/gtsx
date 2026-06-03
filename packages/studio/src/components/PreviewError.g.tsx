@@ -1,9 +1,9 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 import { studioColors, studioFontFamily, studioRadii } from "../studio-theme"
 
 type PreviewErrorProps = {
-  caseName: string
+  frameName: string
   coordinate: string
   error: {
     message: string
@@ -35,8 +35,8 @@ export default function PreviewError(props: PreviewErrorProps) {
           <dd style={{ margin: 0 }}>{props.coordinate}</dd>
         </div>
         <div>
-          <dt>Case</dt>
-          <dd style={{ margin: 0 }}>{props.caseName}</dd>
+          <dt>Frame</dt>
+          <dd style={{ margin: 0 }}>{props.frameName}</dd>
         </div>
         <div>
           <dt>Preview URL</dt>
@@ -49,16 +49,16 @@ export default function PreviewError(props: PreviewErrorProps) {
   )
 }
 
-PreviewError.cases = {
+PreviewError.frames = {
   renderFailure: {
     props: {
-      caseName: "ready",
+      frameName: "ready",
       coordinate: "src/UserCard.g.tsx#default",
       error: {
         message: "Cannot read properties of undefined",
         stack: "TypeError: Cannot read properties of undefined\n    at UserCard",
       },
-      previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&case=ready&chrome=0",
+      previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
     },
   },
-} satisfies GCases<PreviewErrorProps>
+} satisfies GFrames<PreviewErrorProps>

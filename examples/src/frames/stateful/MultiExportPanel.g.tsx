@@ -1,4 +1,4 @@
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 type PanelProps = {
   label: string
@@ -8,14 +8,14 @@ export function NamedPanel(props: PanelProps) {
   return <section className="named-panel">Named export: {props.label}</section>
 }
 
-NamedPanel.cases = {
+NamedPanel.frames = {
   namedReady: { props: { label: "selected by file coordinate" } },
-} satisfies GCases<PanelProps>
+} satisfies GFrames<PanelProps>
 
 export default function DefaultPanel(props: PanelProps) {
   return <section className="named-panel">Default export: {props.label}</section>
 }
 
-DefaultPanel.cases = {
+DefaultPanel.frames = {
   defaultReady: { props: { label: "default coordinate" } },
-} satisfies GCases<PanelProps>
+} satisfies GFrames<PanelProps>

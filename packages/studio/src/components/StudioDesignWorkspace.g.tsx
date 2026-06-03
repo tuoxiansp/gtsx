@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import type { GCases } from "@gtsx/core"
+import type { GFrames } from "@gtsx/core"
 
 import type { StudioViewportPreset } from "../client"
 import {
@@ -9,7 +9,7 @@ import {
   studioComponentCardTitleHeight,
   studioComponentCardTitleScreenGap,
   studioComponentCardTitleScreenHeight,
-} from "../case-grid-layout"
+} from "../frame-grid-layout"
 import type { StudioDesignFrameEntry, StudioManifest } from "../manifest"
 import {
   studioCanvasScreenStableChromeContentBeforeCanvasAnchorStyle,
@@ -384,9 +384,9 @@ function studioDesignWorkspaceStorageKey(manifest: StudioManifest): string {
 
 function studioDesignFramePreviewUrl(manifest: StudioManifest, frame: StudioDesignFrameEntry): string {
   const url = replaceStudioDesignPreviewTemplate(manifest.preview.urlTemplate, {
-    case: encodeURIComponent(frame.caseName),
+    frame: encodeURIComponent(frame.frameName),
     entry: encodeURIComponent(frame.entry),
-    gcase: "",
+    gframe: "",
   })
   return appendStudioDesignPreviewSearchParam(url, "chrome", "0")
 }
@@ -405,12 +405,12 @@ function appendStudioDesignPreviewSearchParam(url: string, key: string, value: s
 }
 
 const StudioDesignWorkspace = React.memo(StudioDesignWorkspaceView) as typeof StudioDesignWorkspaceView & {
-  cases?: GCases<StudioDesignWorkspaceProps>
+  frames?: GFrames<StudioDesignWorkspaceProps>
 }
 
 export default StudioDesignWorkspace
 
-StudioDesignWorkspace.cases = {
+StudioDesignWorkspace.frames = {
   designFrames: {
     props: {
       manifest: {
@@ -423,7 +423,7 @@ StudioDesignWorkspace.cases = {
               filePath: "src/gtsx/design/DesignHost.g.tsx",
               title: "DesignHost",
               exportName: "default",
-              caseName: "live",
+              frameName: "live",
             },
             {
               id: "src/gtsx/design/CreatorQueue.g.tsx#default",
@@ -431,7 +431,7 @@ StudioDesignWorkspace.cases = {
               filePath: "src/gtsx/design/CreatorQueue.g.tsx",
               title: "CreatorQueue",
               exportName: "default",
-              caseName: "live",
+              frameName: "live",
             },
           ],
         },
@@ -441,12 +441,12 @@ StudioDesignWorkspace.cases = {
           manifest: "/gtsx/studio/manifest",
         },
         preview: {
-          urlTemplate: "/gtsx?entry={entry}&case={case}{gcase}",
-          allUrlTemplate: "/gtsx?entry={entry}{gcase}",
+          urlTemplate: "/gtsx?entry={entry}&frame={frame}{gframe}",
+          allUrlTemplate: "/gtsx?entry={entry}{gframe}",
         },
         files: [],
         diagnostics: [],
       },
     },
   },
-} satisfies GCases<StudioDesignWorkspaceProps>
+} satisfies GFrames<StudioDesignWorkspaceProps>

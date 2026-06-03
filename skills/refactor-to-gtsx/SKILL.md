@@ -23,17 +23,17 @@ If the project isn't wired for gtsx yet, run the `setup-gtsx` skill first.
 1. Inspect the target component and its tree.
 2. Apply decision gates: does it render DOM? Own visual states? States controllable by props/scope/providers? Would `.g.tsx` just wrap old TSX?
 3. Choose action:
-   - **migrate** — pure UI, move into `.g.tsx`, add cases
+   - **migrate** — pure UI, move into `.g.tsx`, add frames
    - **split** — mixed hooks+UI, separate scope from view
    - **descend** — orchestration, inspect children instead
    - **skip** — too risky or no visual surface
 4. For `descend`: keep reading until finding real visual surfaces.
-5. For `migrate`: move real UI + types + helpers into `.g.tsx`, add static cases, update imports.
+5. For `migrate`: move real UI + types + helpers into `.g.tsx`, add static frames, update imports.
 6. For `split`: define `Scope` type, move production behavior behind `useRealScope`, wrap with `createGScopeHook`, render real TSX from `.g.tsx` component.
-7. For provider-dependent UI, declare variants only when the provider has a meaningful finite environment axis, then mark coverage with `GProviderCase`; keep provider values in `providers: [[Provider, value]]`.
+7. For provider-dependent UI, declare variants only when the provider has a meaningful finite environment axis, then mark coverage with `GProviderFrame`; keep provider values in `providers: [[Provider, value]]`.
 8. Keep JSX-producing branches inspectable: direct conditionals over props/scope/providers, `if` returns, `&&`, `||`, and traceable `map`/render callbacks. Refactor helper predicates, `switch`, JSX-returning loops, and stored JSX variables before calling the refactor done.
 9. Update imports from `./Component` to `./Component.g`. Preserve barrels.
-10. Run `gtsx check` + project typecheck. Render a case in Studio if available.
+10. Run `gtsx check` + project typecheck. Render a frame in Studio if available.
 
 ## Never
 
@@ -49,8 +49,8 @@ If the project isn't wired for gtsx yet, run the `setup-gtsx` skill first.
 ## Done When
 
 - `.g.tsx` owns the migrated visual TSX
-- Cases describe meaningful visual states (happy-path first, at least two)
-- Stateful cases: concrete scope data + no-op callbacks
+- Frames describe meaningful visual states (happy-path first, at least two)
+- Stateful frames: concrete scope data + no-op callbacks
 - Old TSX no longer owns migrated visual branches
 - `gtsx check` passes
 - Project typecheck passes (or unrelated failures reported)
