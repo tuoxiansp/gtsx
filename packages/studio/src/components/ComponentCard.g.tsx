@@ -472,7 +472,7 @@ function getPreviewError(component: StudioManifestComponent): string | undefined
   }
 
   if (!component.frames[0]) {
-    return "missing-frame"
+    return "missing-frames"
   }
 
   return undefined

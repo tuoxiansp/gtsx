@@ -11,6 +11,7 @@ import {
   changeStudioViewportPreset,
   createStudioPreviewPoolUrl,
   createStudioWorkspaceStateFromUrl,
+  currentStudioDesignPreviewTargets,
   currentStudioPreviewTargets,
   initialStudioUrlSearchParams,
   isGPreviewProtocolMessage,
@@ -103,7 +104,7 @@ type StudioShellView = "components" | "design"
 const studioCanvasUrlCommitDelayMilliseconds = 120
 const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
 
-function useStudioShellScope(props: StudioShellLoadedProps): StudioShellScope {
+function useStudioShellScope(props: StudioShellLoadedProps, view: StudioShellView): StudioShellScope {
   const initialUrlParams = React.useMemo(
     () => initialStudioUrlSearchParams(props.selection, props.urlSearch),
     [props.selection, props.urlSearch],
@@ -126,7 +127,13 @@ function useStudioShellScope(props: StudioShellLoadedProps): StudioShellScope {
   const filteredWorkspace = React.useMemo(() => studioWorkspaceWithProviderVariantFilters(workspace), [workspace])
   const previewFrames = React.useRef(new Map<string, HTMLIFrameElement>())
   const previewFrameMountedAt = React.useRef(new Map<string, number>())
-  const currentTargets = React.useMemo(() => currentStudioPreviewTargets(props.manifest, filteredWorkspace), [props.manifest, filteredWorkspace])
+  const currentTargets = React.useMemo(
+    () =>
+      view === "design"
+        ? currentStudioDesignPreviewTargets(props.manifest, canvasViewportPresetForWorkspace(filteredWorkspace))
+        : currentStudioPreviewTargets(props.manifest, filteredWorkspace),
+    [props.manifest, filteredWorkspace, view],
+  )
   const sessionIds = React.useMemo(() => new Set(currentTargets.map((target) => target.sessionId)), [currentTargets])
   const previewCacheNamespace = React.useMemo(() => studioPreviewIndexedDBNamespace(props.manifest), [props.manifest])
   const previewGeometryCacheKeys = React.useMemo(() => studioPreviewGeometryCacheKeys(props.manifest), [props.manifest])
@@ -572,13 +579,25 @@ function isStudioShellPreviewPoolReadyMessage(value: unknown): boolean {
 }
 
 function StudioShellLoaded(props: StudioShellLoadedProps) {
-  const scope = useStudioShellScope(props)
   const [view, setView] = useStudioShellView(props.urlSearch)
-  const designFrameCount = props.manifest.design?.frames.length ?? 0
+  const scope = useStudioShellScope(props, view)
+  const canvasViewportPreset = canvasViewportPresetForWorkspace(scope.workspace)
 
   const studioContent =
     view === "design" ? (
-      <StudioDesignWorkspace manifest={props.manifest} />
+      <StudioDesignWorkspace
+        canvas={scope.canvas}
+        debugPreviewPool={scope.debugPreviewPool}
+        debugPreviewQueue={scope.debugPreviewQueue}
+        manifest={props.manifest}
+        onChangeCanvas={scope.onChangeCanvas}
+        onChangeViewportPreset={scope.onChangeCanvasViewportPreset}
+        onPreviewFrameMount={scope.onPreviewFrameMount}
+        previewCacheReady={scope.previewCacheReady}
+        previewGeometryStore={scope.previewGeometryStore}
+        previewRenderQueue={scope.previewRenderQueue}
+        viewportPreset={canvasViewportPreset}
+      />
     ) : (
       <StudioWorkspaceView
         canvas={scope.canvas}
@@ -603,12 +622,12 @@ function StudioShellLoaded(props: StudioShellLoadedProps) {
 
   const studio = (
     <>
-      <StudioShellModeTabs activeView={view} designFrameCount={designFrameCount} onChangeView={setView} />
+      <StudioShellModeTabs activeView={view} onChangeView={setView} />
       {studioContent}
     </>
   )
 
-  if (view === "design" || scope.disablePreviewPool) return studio
+  if (scope.disablePreviewPool) return studio
 
   const maximumIdlePreviewFrames = studioPreviewIframePoolMaximumIdleFrames(scope.previewRenderQueue)
   const maximumRetainedPreviewFrames = studioPreviewIframePoolMaximumRetainedFrames(
@@ -690,7 +709,6 @@ function studioShellViewFromHash(hash: string): StudioShellView {
 
 function StudioShellModeTabs(props: {
   activeView: StudioShellView
-  designFrameCount: number
   onChangeView: (view: StudioShellView) => void
 }) {
   return (
@@ -720,7 +738,6 @@ function StudioShellModeTabs(props: {
         active={props.activeView === "design"}
         label="Design"
         onClick={() => props.onChangeView("design")}
-        title={`${props.designFrameCount} design frames`}
       />
     </nav>
   )

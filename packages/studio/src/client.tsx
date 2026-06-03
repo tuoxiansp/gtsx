@@ -1569,6 +1569,24 @@ export function findManifestComponent(manifest: StudioManifest, coordinate: stri
   return manifest.files.flatMap((file) => file.components).find((component) => component.coordinate === coordinate)
 }
 
+export function studioDesignManifestComponents(manifest: StudioManifest): StudioManifestComponent[] {
+  const componentsByCoordinate = new Map(
+    manifest.files.flatMap((file) => file.components).map((component) => [component.coordinate, component] as const),
+  )
+  const seen = new Set<string>()
+  const components: StudioManifestComponent[] = []
+
+  for (const frame of manifest.design?.frames ?? []) {
+    const component = componentsByCoordinate.get(frame.entry)
+    if (!component || seen.has(component.coordinate)) continue
+
+    seen.add(component.coordinate)
+    components.push(component)
+  }
+
+  return components
+}
+
 export function createStudioPreviewUrl(
   manifest: StudioManifest,
   component: StudioManifestComponent,
@@ -1688,6 +1706,23 @@ export function currentStudioPreviewTargets(manifest: StudioManifest, workspace:
       ),
     )
   })
+}
+
+export function currentStudioDesignPreviewTargets(
+  manifest: StudioManifest,
+  viewportPreset: StudioViewportPreset,
+): StudioPreviewTarget[] {
+  return studioDesignManifestComponents(manifest).flatMap((component) =>
+    component.frames.map((frame) =>
+      studioPreviewTarget(
+        manifest,
+        component,
+        frame.name,
+        viewportPreset,
+        previewSessionId(component, frame.name, viewportPreset),
+      ),
+    ),
+  )
 }
 
 function studioPreviewTarget(

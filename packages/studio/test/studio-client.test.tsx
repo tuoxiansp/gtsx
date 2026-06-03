@@ -32,6 +32,7 @@ import {
   createStudioWorkspaceStateFromUrl,
   createStudioWorkspaceState,
   createStudioWorkspaceUrlSearchParams,
+  currentStudioDesignPreviewTargets,
   defaultStudioPreviewRenderQueueMaximumConcurrentRenderTasksDuringCanvasMovement,
   defaultStudioPreviewRenderQueueMinimumVisibleRenderTasksDuringCanvasMovement,
   isGPreviewProtocolMessage,
@@ -48,6 +49,7 @@ import {
   selectedStudioFrameName,
   selectStudioRuntimeInstance,
   selectStudioComponent,
+  studioDesignManifestComponents,
   studioFilteredFramesForProviderVariantContext,
   studioManifestProviderVariantAxes,
   studioCanvasMinScale,
@@ -130,6 +132,7 @@ function buildStudioManifest(
   })
   return createStudioManifest(projectIndex, {
     cache: options.cache,
+    design: options.design,
     preview: options.preview,
     routes: options.routes,
     diagnostics: options.diagnostics,
@@ -399,6 +402,78 @@ describe("GTSX Studio shell", () => {
     expect(html).not.toContain("GTSX component index")
     expect(html).not.toContain("data-gtsx-sidebar-preview-coordinate")
     expect(html).toContain('data-gtsx-viewport-preset="tablet"')
+  })
+
+  it("renders design frames as auto-packed component cards with the shared preview pool", () => {
+    const manifest = buildStudioManifest({
+      cwd: fixtureRoot,
+      projectRoot: "src",
+      routes: { preview: "/gtsx" },
+      design: {
+        frames: [
+          {
+            id: "src/UserCard.g.tsx#default:loading",
+            entry: "src/UserCard.g.tsx#default",
+            filePath: "src/UserCard.g.tsx",
+            title: "UserCard",
+            exportName: "default",
+            frameName: "loading",
+          },
+          {
+            id: "src/UserCard.g.tsx#default:ready",
+            entry: "src/UserCard.g.tsx#default",
+            filePath: "src/UserCard.g.tsx",
+            title: "UserCard",
+            exportName: "default",
+            frameName: "ready",
+          },
+        ],
+      },
+    })
+
+    const html = renderToStaticMarkup(
+      <StudioShell manifest={manifest} urlSearch="view=design&rootEnv=ThemeProvider:dark&debug=pool" />,
+    )
+
+    expect(html).toContain('data-gtsx-studio-design-workspace="true"')
+    expect(html).toContain('data-gtsx-studio-design-layout-width="1600"')
+    expect(html).toContain('data-gtsx-card-coordinate="src/UserCard.g.tsx#default"')
+    expect(html).toContain('data-gtsx-frame-tile="loading"')
+    expect(html).toContain('data-gtsx-frame-tile="ready"')
+    expect(html).toContain('data-gtsx-preview-iframe-pool="true"')
+    expect(html).toContain('data-gtsx-preview-iframe-pool-stats="true"')
+    expect(html).not.toContain("design frames")
+    expect(html).not.toContain("data-gtsx-root-env-controls")
+    expect(html).not.toContain('data-gtsx-frame-provider-variant-state="mismatch"')
+    expect(html).not.toContain("data-gtsx-studio-design-frame-preview")
+  })
+
+  it("derives design preview targets from design component cards", () => {
+    const manifest = buildStudioManifest({
+      cwd: fixtureRoot,
+      projectRoot: "src",
+      routes: { preview: "/gtsx" },
+      design: {
+        frames: [
+          {
+            id: "src/UserCard.g.tsx#default:loading",
+            entry: "src/UserCard.g.tsx#default",
+            filePath: "src/UserCard.g.tsx",
+            title: "UserCard",
+            exportName: "default",
+            frameName: "loading",
+          },
+        ],
+      },
+    })
+
+    expect(studioDesignManifestComponents(manifest).map((component) => component.coordinate)).toEqual([
+      "src/UserCard.g.tsx#default",
+    ])
+    expect(currentStudioDesignPreviewTargets(manifest, "tablet").map((target) => target.sessionId)).toEqual([
+      "src/UserCard.g.tsx#default:loading",
+      "src/UserCard.g.tsx#default:ready",
+    ])
   })
 
   it("renders the canvas without top chrome or redundant card metadata", () => {

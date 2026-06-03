@@ -1,407 +1,517 @@
 "use client"
 
 import React from "react"
-import type { GFrames } from "@gtsx/core"
+import { createGScopeHook, type GFrames } from "@gtsx/core"
 
-import type { StudioViewportPreset } from "../client"
 import {
-  studioComponentCardTitleGap,
-  studioComponentCardTitleHeight,
-  studioComponentCardTitleScreenGap,
-  studioComponentCardTitleScreenHeight,
-} from "../frame-grid-layout"
-import type { StudioDesignFrameEntry, StudioManifest } from "../manifest"
+  previewSessionId,
+  studioDesignManifestComponents,
+  type StudioCanvasTransform,
+  type StudioPreviewCacheEntry,
+  type StudioPreviewFrameState,
+  type StudioProviderVariantContext,
+  type StudioViewportPreset,
+} from "../client"
+import type { StudioManifest, StudioManifestComponent } from "../manifest"
+import type { StudioPreviewGeometryCacheStore } from "../preview-geometry-cache-store"
+import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
+import { studioPreviewRenderQueueRenderBufferMargin, type StudioPreviewRenderQueueOptions } from "../preview-render-queue"
 import {
-  studioCanvasScreenStableChromeContentBeforeCanvasAnchorStyle,
-  studioCanvasScreenStableChromeSlotStyle,
-} from "../studio-canvas-screen-stable-chrome"
-import { studioCanvasTransformStyle } from "../studio-canvas-geometry"
+  createStudioPreviewRenderSessionStore,
+  StudioPreviewRenderSessionStoreProvider,
+  type StudioPreviewRenderSessionStore,
+} from "../preview-render-session-store"
+import {
+  studioCanvasFixedFramePreviewScale,
+  studioCanvasTransformStyle,
+  studioPathKey,
+  studioComponentCardLayout,
+  visibleStudioCanvasCardEntriesByColumnIndex,
+  type StudioCanvasCardIndex,
+  type StudioCanvasCardIndexEntry,
+} from "../studio-canvas-geometry"
+import { studioCanvasTransformChangedEventType } from "../studio-canvas-transform-event"
+import { studioComponentFrameLayoutFrameStates } from "../studio-component-preview-frame-states"
 import {
   studioCanvasBackgroundStyle,
-  studioCardTitleIndicatorStyle,
-  studioCardTitleStyle,
   studioColors,
   studioFontFamily,
   studioRadii,
   studioShellStyle,
 } from "../studio-theme"
 import { useStudioCanvasController } from "../use-studio-canvas-controller"
+import StudioComponentCardSlot from "./StudioComponentCardSlot"
 import ViewportPresetTabs from "./ViewportPresetTabs.g"
 
 export type StudioDesignWorkspaceProps = {
+  canvas?: StudioCanvasTransform
+  debugPreviewPool?: boolean
+  debugPreviewQueue?: boolean
+  frameStates?: Record<string, StudioPreviewFrameState>
   manifest: StudioManifest
+  onChangeCanvas?: (canvas: StudioCanvasTransform) => void
+  onChangeViewportPreset?: (preset: StudioViewportPreset) => void
+  onPreviewFrameMount?: (
+    sessionId: string,
+    frame: HTMLIFrameElement | null,
+    state?: StudioPreviewIframeMountState,
+  ) => void
+  previewCache?: Record<string, StudioPreviewCacheEntry>
+  previewCacheReady?: boolean
+  previewGeometryStore?: StudioPreviewGeometryCacheStore
+  previewRenderQueue?: StudioPreviewRenderQueueOptions
+  viewportPreset?: StudioViewportPreset
 }
 
-type StudioDesignFrameLayout = {
-  x: number
-  y: number
-}
-
-type StudioDesignFrameLayouts = Record<string, StudioDesignFrameLayout>
-
-type StudioDesignDragState = {
-  frameId: string
-  originClientX: number
-  originClientY: number
-  originX: number
-  originY: number
-  pointerId: number
-}
-
-type StudioDesignFrameSize = {
+type StudioDesignCardLayout = {
   height: number
   width: number
 }
 
-const studioDesignViewportSizes = {
-  phone: { height: 812, width: 375 },
-  tablet: { height: 960, width: 768 },
-  desktop: { height: 900, width: 1180 },
-} satisfies Record<StudioViewportPreset, StudioDesignFrameSize>
+type StudioDesignPackedLayout = {
+  cardLayoutsByCoordinate: Record<string, StudioDesignCardLayout>
+  cardRectsByCoordinate: Record<string, StudioDesignCanvasRect>
+  height: number
+  width: number
+}
 
-const studioDesignFrameColumnGap = 56
-const studioDesignFrameRowGap = 104
-const emptyStudioDesignFrames: StudioDesignFrameEntry[] = []
+type StudioDesignCanvasRect = {
+  bottom: number
+  left: number
+  right: number
+  top: number
+}
+
+type StudioDesignWorkspaceScope = {
+  canvas: StudioCanvasTransform
+  canvasHeight: number
+  canvasWidth: number
+  components: StudioManifestComponent[]
+  onCanvasPointerCancel: React.PointerEventHandler<HTMLDivElement>
+  onCanvasPointerDown: React.PointerEventHandler<HTMLDivElement>
+  onCanvasPointerMove: React.PointerEventHandler<HTMLDivElement>
+  onCanvasPointerUp: React.PointerEventHandler<HTMLDivElement>
+  onPreviewGeometryChange: () => void
+  onSelectCard: (
+    component: StudioManifestComponent,
+    frameStatesByName: Record<string, StudioPreviewFrameState | undefined>,
+    columnIndex: number,
+    source: "keyboard" | "pointer",
+  ) => void
+  onViewportPresetChange: (preset: StudioViewportPreset) => void
+  previewRenderSessionStore: StudioPreviewRenderSessionStore
+  selectedCoordinate?: string
+  setCanvasSurfaceElement: (element: HTMLDivElement | null) => void
+  setCanvasViewportElement: (element: HTMLDivElement | null) => void
+  viewportPreset: StudioViewportPreset
+  visibleCards: StudioCanvasCardIndexEntry[]
+}
+
+const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
 const canvasWheelExemptSelector = "[data-gtsx-canvas-wheel-exempt]"
+const defaultStudioDesignVirtualViewportSize = { height: 720, width: 1280 }
+const emptyProviderVariantContext: StudioProviderVariantContext = {}
+const studioDesignCanvasWidth = 1600
+const studioDesignCanvasPaddingBottom = 120
+const studioDesignCanvasPaddingLeft = 96
+const studioDesignCanvasPaddingRight = 96
+const studioDesignCanvasPaddingTop = 108
+const studioDesignCardColumnGap = 36
+const studioDesignCardRowGap = 88
+const emptyStudioDesignCards: StudioCanvasCardIndexEntry[] = []
 
 function shouldHandleCanvasWheelTarget(target: EventTarget | null): boolean {
   return !(typeof Element !== "undefined" && target instanceof Element && target.closest(canvasWheelExemptSelector))
 }
 
-function StudioDesignWorkspaceView(props: StudioDesignWorkspaceProps) {
-  const frames = props.manifest.design?.frames ?? emptyStudioDesignFrames
-  const storageKey = React.useMemo(() => studioDesignWorkspaceStorageKey(props.manifest), [props.manifest])
-  const { layouts, persistLayouts, updateLayouts } = useStudioDesignFrameLayouts(frames, storageKey)
-  const dragRef = React.useRef<StudioDesignDragState | undefined>(undefined)
-  const [activeFrameId, setActiveFrameId] = React.useState<string | undefined>()
-  const [viewportPreset, setViewportPreset] = React.useState<StudioViewportPreset>("tablet")
+function useRealStudioDesignWorkspaceScope(props: StudioDesignWorkspaceProps): StudioDesignWorkspaceScope {
+  const components = React.useMemo(() => studioDesignManifestComponents(props.manifest), [props.manifest])
+  const [localViewportPreset, setLocalViewportPreset] = React.useState<StudioViewportPreset>("tablet")
+  const [selectedCoordinate, setSelectedCoordinate] = React.useState<string | undefined>()
+  const [layoutVersion, setLayoutVersion] = React.useState(0)
+  const viewportPreset = props.viewportPreset ?? localViewportPreset
+  const previewRenderSessionStore = React.useMemo(() => createStudioPreviewRenderSessionStore(), [])
   const canvasController = useStudioCanvasController({
+    canvas: props.canvas,
+    onCanvasChange: props.onChangeCanvas,
     onCanvasMove() {},
     onCanvasPanEnd() {},
     shouldHandleWheelTarget: shouldHandleCanvasWheelTarget,
   })
-  const canvasSurfaceTransform = studioCanvasTransformStyle(canvasController.canvas)
-  const frameSize = studioDesignViewportSizes[viewportPreset]
-
-  const handleFrameHeaderPointerDown = React.useCallback(
-    (frame: StudioDesignFrameEntry, layout: StudioDesignFrameLayout): React.PointerEventHandler<HTMLDivElement> =>
-      (event) => {
-        if (event.button !== 0) return
-
-        event.preventDefault()
-        event.stopPropagation()
-        event.currentTarget.setPointerCapture(event.pointerId)
-        dragRef.current = {
-          frameId: frame.id,
-          originClientX: event.clientX,
-          originClientY: event.clientY,
-          originX: layout.x,
-          originY: layout.y,
-          pointerId: event.pointerId,
-        }
-        setActiveFrameId(frame.id)
-      },
+  const packedLayout = React.useMemo(
+    () =>
+      createStudioDesignPackedLayout({
+        components,
+        frameStates: props.frameStates,
+        previewCache: props.previewCache,
+        previewGeometryStore: props.previewGeometryStore,
+        viewportPreset,
+      }),
+    [
+      components,
+      layoutVersion,
+      props.frameStates,
+      props.previewCache,
+      props.previewGeometryStore,
+      viewportPreset,
+    ],
+  )
+  const columnLayoutByIndex = React.useMemo(
+    () => ({ 0: { x: studioDesignCanvasPaddingLeft, y: studioDesignCanvasPaddingTop } }),
     [],
   )
+  const cardIndex = React.useMemo(
+    () => createStudioDesignCanvasCardIndex(components, packedLayout.cardRectsByCoordinate),
+    [components, packedLayout.cardRectsByCoordinate],
+  )
+  const visibleCardsByColumnIndex = useVisibleStudioDesignCanvasCards({
+    canvas: canvasController.canvas,
+    canvasViewportElement: canvasController.canvasViewportElement,
+    cardIndex,
+    columnLayoutByIndex,
+    renderBufferMargin: studioPreviewRenderQueueRenderBufferMargin(props.previewRenderQueue),
+  })
+  const visibleCards = visibleCardsByColumnIndex[0] ?? emptyStudioDesignCards
 
-  const handleFrameHeaderPointerMove = React.useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      const drag = dragRef.current
-      if (!drag || drag.pointerId !== event.pointerId) return
+  React.useEffect(() => {
+    const sessionIds = new Set(
+      visibleCards.flatMap((card) => card.component.frames.map((frame) => previewSessionId(card.component, frame.name, viewportPreset))),
+    )
+    previewRenderSessionStore.setSessionIds(sessionIds, sessionIds)
+  }, [previewRenderSessionStore, viewportPreset, visibleCards])
 
-      event.stopPropagation()
-      const scale = Math.max(0.01, canvasController.canvasRef.current.scale)
-      const nextX = Math.round(drag.originX + (event.clientX - drag.originClientX) / scale)
-      const nextY = Math.round(drag.originY + (event.clientY - drag.originClientY) / scale)
-      updateLayouts((current) => ({
-        ...current,
-        [drag.frameId]: {
-          ...(current[drag.frameId] ?? { x: drag.originX, y: drag.originY }),
-          x: nextX,
-          y: nextY,
-        },
-      }))
+  const handleViewportPresetChange = React.useCallback(
+    (preset: StudioViewportPreset) => {
+      setLocalViewportPreset(preset)
+      props.onChangeViewportPreset?.(preset)
     },
-    [canvasController.canvasRef, updateLayouts],
+    [props.onChangeViewportPreset],
   )
-
-  const handleFrameHeaderPointerEnd = React.useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      const drag = dragRef.current
-      if (!drag || drag.pointerId !== event.pointerId) return
-
-      event.stopPropagation()
-      dragRef.current = undefined
-      setActiveFrameId(undefined)
-      persistLayouts()
+  const handleSelectCard = React.useCallback(
+    (
+      component: StudioManifestComponent,
+      _frameStatesByName: Record<string, StudioPreviewFrameState | undefined>,
+      _columnIndex: number,
+      _source: "keyboard" | "pointer",
+    ) => {
+      setSelectedCoordinate((current) => (current === component.coordinate ? undefined : component.coordinate))
     },
-    [persistLayouts],
+    [],
   )
-
-  return (
-    <main
-      data-gtsx-studio-design-workspace="true"
-      style={{
-        ...studioShellStyle(),
-        height: "100vh",
-        overflow: "hidden",
-        position: "relative",
-      }}
-    >
-      <div
-        aria-label="GTSX Studio design canvas viewport"
-        data-gtsx-studio-design-viewport="true"
-        onPointerCancel={canvasController.onCanvasPointerCancel}
-        onPointerDown={canvasController.onCanvasPointerDown}
-        onPointerMove={canvasController.onCanvasPointerMove}
-        onPointerUp={canvasController.onCanvasPointerUp}
-        ref={canvasController.setCanvasViewportElement}
-        role="application"
-        style={{
-          ...studioCanvasBackgroundStyle(),
-          cursor: "grab",
-          height: "100%",
-          minHeight: 0,
-          overscrollBehavior: "none",
-          overflow: "hidden",
-          position: "relative",
-          touchAction: "none",
-          width: "100%",
-        }}
-        tabIndex={0}
-      >
-        <ViewportPresetTabs floating onChange={setViewportPreset} selectedPreset={viewportPreset} />
-        <div
-          data-gtsx-canvas-surface="true"
-          data-gtsx-studio-design-canvas="true"
-          ref={canvasController.setCanvasSurfaceElement}
-          style={{
-            display: "block",
-            left: 0,
-            paddingBottom: 80,
-            paddingRight: 80,
-            position: "absolute",
-            top: 0,
-            transform: canvasSurfaceTransform,
-            transformOrigin: "0px 0px",
-          }}
-        >
-          {frames.length > 0 ? (
-            frames.map((frame, index) => {
-              const layout = layouts[frame.id] ?? defaultStudioDesignFrameLayout(index)
-              const active = activeFrameId === frame.id
-              return (
-                <section
-                  data-gtsx-studio-design-frame={frame.id}
-                  key={frame.id}
-                  style={{
-                    display: "grid",
-                    height: studioComponentCardTitleHeight + studioComponentCardTitleGap + frameSize.height,
-                    position: "absolute",
-                    transform: `translate(${layout.x}px, ${layout.y}px)`,
-                    width: frameSize.width,
-                  }}
-                >
-                  <div
-                    data-gtsx-studio-design-frame-title="true"
-                    onPointerCancel={handleFrameHeaderPointerEnd}
-                    onPointerDown={handleFrameHeaderPointerDown(frame, layout)}
-                    onPointerMove={handleFrameHeaderPointerMove}
-                    onPointerUp={handleFrameHeaderPointerEnd}
-                    style={{
-                      ...studioCanvasScreenStableChromeSlotStyle({
-                        height: studioComponentCardTitleHeight + studioComponentCardTitleGap,
-                        width: frameSize.width,
-                      }),
-                      cursor: active ? "grabbing" : "grab",
-                      touchAction: "none",
-                      userSelect: "none",
-                    }}
-                  >
-                    <span
-                      data-gtsx-card-title-selected={active ? "true" : undefined}
-                      style={{
-                        ...studioCardTitleStyle(active),
-                        ...studioCanvasScreenStableChromeContentBeforeCanvasAnchorStyle({
-                          anchorCanvasLength: studioComponentCardTitleHeight + studioComponentCardTitleGap,
-                          screenGapAfter: studioComponentCardTitleScreenGap,
-                          screenLength: studioComponentCardTitleScreenHeight,
-                        }),
-                      }}
-                      title={frame.title}
-                    >
-                      <span aria-hidden="true" style={studioCardTitleIndicatorStyle(active)} />
-                      <span
-                        style={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {frame.title}
-                      </span>
-                    </span>
-                  </div>
-                  <iframe
-                    data-gtsx-studio-design-frame-preview="true"
-                    src={studioDesignFramePreviewUrl(props.manifest, frame)}
-                    style={{
-                      background: "#ffffff",
-                      border: `1px solid ${studioColors.panelBorder}`,
-                      borderRadius: studioRadii.md,
-                      boxShadow: active ? "0 18px 42px rgba(0,0,0,0.36)" : "0 10px 26px rgba(0,0,0,0.24)",
-                      display: "block",
-                      height: frameSize.height,
-                      outline: active ? `1.6px solid ${studioColors.accentBorder}` : "0 solid transparent",
-                      outlineOffset: 0,
-                      overflow: "hidden",
-                      pointerEvents: "none",
-                      width: frameSize.width,
-                    }}
-                    title={frame.title}
-                  />
-                </section>
-              )
-            })
-          ) : (
-            <section
-              data-gtsx-studio-design-empty="true"
-              style={{
-                background: studioColors.panelBg,
-                border: `1px solid ${studioColors.panelBorder}`,
-                borderRadius: studioRadii.md,
-                color: studioColors.textMuted,
-                display: "grid",
-                fontFamily: studioFontFamily,
-                fontSize: 12,
-                gap: 6,
-                left: 80,
-                lineHeight: 1.4,
-                padding: 18,
-                position: "absolute",
-                top: 120,
-                width: 300,
-              }}
-            >
-              <strong style={{ color: studioColors.text, fontSize: 12, fontWeight: 600 }}>No design frames</strong>
-              <span>&lt;project.root&gt;/gtsx/design/*.g.tsx</span>
-            </section>
-          )}
-        </div>
-      </div>
-    </main>
-  )
-}
-
-function defaultStudioDesignFrameSize(): StudioDesignFrameSize {
-  return studioDesignViewportSizes.tablet
-}
-
-function useStudioDesignFrameLayouts(frames: StudioDesignFrameEntry[], storageKey: string) {
-  const [layouts, setLayouts] = React.useState<StudioDesignFrameLayouts>(() => createDefaultStudioDesignFrameLayouts(frames))
-  const layoutsRef = React.useRef(layouts)
-
-  const updateLayouts = React.useCallback((updater: (current: StudioDesignFrameLayouts) => StudioDesignFrameLayouts) => {
-    setLayouts((current) => {
-      const next = updater(current)
-      layoutsRef.current = next
-      return next
-    })
+  const handlePreviewGeometryChange = React.useCallback(() => {
+    setLayoutVersion((current) => current + 1)
   }, [])
 
-  React.useEffect(() => {
-    layoutsRef.current = layouts
-  }, [layouts])
+  return {
+    canvas: canvasController.canvas,
+    canvasHeight: studioDesignCanvasPaddingTop + packedLayout.height + studioDesignCanvasPaddingBottom,
+    canvasWidth: studioDesignCanvasPaddingLeft + packedLayout.width + studioDesignCanvasPaddingRight,
+    components,
+    onCanvasPointerCancel: canvasController.onCanvasPointerCancel,
+    onCanvasPointerDown: canvasController.onCanvasPointerDown,
+    onCanvasPointerMove: canvasController.onCanvasPointerMove,
+    onCanvasPointerUp: canvasController.onCanvasPointerUp,
+    onPreviewGeometryChange: handlePreviewGeometryChange,
+    onSelectCard: handleSelectCard,
+    onViewportPresetChange: handleViewportPresetChange,
+    previewRenderSessionStore,
+    selectedCoordinate,
+    setCanvasSurfaceElement: canvasController.setCanvasSurfaceElement,
+    setCanvasViewportElement: canvasController.setCanvasViewportElement,
+    viewportPreset,
+    visibleCards,
+  }
+}
+
+const useStudioDesignWorkspaceScope = createGScopeHook(useRealStudioDesignWorkspaceScope)
+
+function StudioDesignWorkspaceView(props: StudioDesignWorkspaceProps) {
+  const scope = useStudioDesignWorkspaceScope(props)
+  const previewCacheReady = props.previewCacheReady ?? true
+  const canvasSurfaceTransform = studioCanvasTransformStyle(scope.canvas)
+
+  return (
+    <StudioPreviewRenderSessionStoreProvider store={scope.previewRenderSessionStore}>
+      <main
+        data-gtsx-studio-design-workspace="true"
+        style={{
+          ...studioShellStyle(),
+          height: "100vh",
+          overflow: "hidden",
+          position: "relative",
+        }}
+      >
+        <div
+          aria-label="GTSX Studio design canvas viewport"
+          data-gtsx-canvas-viewport="true"
+          data-gtsx-studio-design-viewport="true"
+          onPointerCancel={scope.onCanvasPointerCancel}
+          onPointerDown={scope.onCanvasPointerDown}
+          onPointerMove={scope.onCanvasPointerMove}
+          onPointerUp={scope.onCanvasPointerUp}
+          ref={scope.setCanvasViewportElement}
+          role="application"
+          style={{
+            ...studioCanvasBackgroundStyle(),
+            cursor: "grab",
+            height: "100%",
+            minHeight: 0,
+            overscrollBehavior: "none",
+            overflow: "hidden",
+            position: "relative",
+            touchAction: "none",
+            width: "100%",
+          }}
+          tabIndex={0}
+        >
+          <ViewportPresetTabs floating onChange={scope.onViewportPresetChange} selectedPreset={scope.viewportPreset} />
+          {previewCacheReady ? (
+            <div
+              data-gtsx-canvas-surface="true"
+              data-gtsx-studio-design-canvas="true"
+              data-gtsx-studio-design-layout-width={studioDesignCanvasWidth}
+              ref={scope.setCanvasSurfaceElement}
+              style={{
+                display: "block",
+                height: scope.canvasHeight,
+                left: 0,
+                position: "absolute",
+                top: 0,
+                transform: canvasSurfaceTransform,
+                transformOrigin: "0px 0px",
+                width: scope.canvasWidth,
+              }}
+            >
+              {scope.components.length > 0 ? (
+                scope.visibleCards.map((card) => {
+                  const component = card.component
+                  const rect = card.rect
+                  if (!rect) return null
+
+                  return (
+                    <div
+                      data-gtsx-studio-design-card={component.coordinate}
+                      key={component.coordinate}
+                      style={{
+                        display: "grid",
+                        left: studioDesignCanvasPaddingLeft + rect.left,
+                        position: "absolute",
+                        top: studioDesignCanvasPaddingTop + rect.top,
+                        width: rect.right - rect.left,
+                      }}
+                    >
+                      <StudioComponentCardSlot
+                        framePreviewScale={studioCanvasFixedFramePreviewScale}
+                        columnIndex={0}
+                        component={component}
+                        debugPreviewPool={props.debugPreviewPool}
+                        debugPreviewQueue={props.debugPreviewQueue}
+                        fallbackFrameStates={props.frameStates}
+                        fallbackPreviewCache={props.previewCache}
+                        manifest={props.manifest}
+                        onPreviewFrameMount={props.onPreviewFrameMount}
+                        onPreviewGeometryChange={scope.onPreviewGeometryChange}
+                        onSelect={scope.onSelectCard}
+                        previewGeometryStore={props.previewGeometryStore}
+                        providerVariantComponent={component}
+                        providerVariantContext={emptyProviderVariantContext}
+                        selected={scope.selectedCoordinate === component.coordinate}
+                        selectedFrameName={component.frames[0]?.name ?? "missing-frames"}
+                        viewportPreset={scope.viewportPreset}
+                      />
+                    </div>
+                  )
+                })
+              ) : (
+                <section
+                  data-gtsx-studio-design-empty="true"
+                  style={{
+                    background: studioColors.panelBg,
+                    border: `1px solid ${studioColors.panelBorder}`,
+                    borderRadius: studioRadii.md,
+                    color: studioColors.textMuted,
+                    display: "grid",
+                    fontFamily: studioFontFamily,
+                    fontSize: 12,
+                    gap: 6,
+                    left: studioDesignCanvasPaddingLeft,
+                    lineHeight: 1.4,
+                    padding: 18,
+                    position: "absolute",
+                    top: studioDesignCanvasPaddingTop,
+                    width: 300,
+                  }}
+                >
+                  <strong style={{ color: studioColors.text, fontSize: 12, fontWeight: 600 }}>No design frames</strong>
+                  <span>&lt;project.root&gt;/gtsx/design/*.g.tsx</span>
+                </section>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </main>
+    </StudioPreviewRenderSessionStoreProvider>
+  )
+}
+
+function createStudioDesignPackedLayout(input: {
+  components: StudioManifestComponent[]
+  frameStates?: Record<string, StudioPreviewFrameState>
+  previewCache?: Record<string, StudioPreviewCacheEntry>
+  previewGeometryStore?: StudioPreviewGeometryCacheStore
+  viewportPreset: StudioViewportPreset
+}): StudioDesignPackedLayout {
+  const cardLayoutsByCoordinate: Record<string, StudioDesignCardLayout> = {}
+  const cardRectsByCoordinate: Record<string, StudioDesignCanvasRect> = {}
+  let cursorX = 0
+  let cursorY = 0
+  let rowHeight = 0
+
+  for (const component of input.components) {
+    const frameStatesByName = studioComponentFrameLayoutFrameStates(
+      component,
+      input.viewportPreset,
+      input.frameStates,
+      input.previewCache,
+      input.previewGeometryStore,
+    )
+    const cardLayout = studioComponentCardLayout({
+      component,
+      framePreviewScale: studioCanvasFixedFramePreviewScale,
+      frameStatesByName,
+      viewportPreset: input.viewportPreset,
+    })
+
+    if (cursorX > 0 && cursorX + cardLayout.width > studioDesignCanvasWidth) {
+      cursorX = 0
+      cursorY += rowHeight + studioDesignCardRowGap
+      rowHeight = 0
+    }
+
+    cardLayoutsByCoordinate[component.coordinate] = {
+      height: cardLayout.height,
+      width: cardLayout.width,
+    }
+    cardRectsByCoordinate[component.coordinate] = {
+      bottom: cursorY + cardLayout.height,
+      left: cursorX,
+      right: cursorX + cardLayout.width,
+      top: cursorY,
+    }
+    cursorX += cardLayout.width + studioDesignCardColumnGap
+    rowHeight = Math.max(rowHeight, cardLayout.height)
+  }
+
+  return {
+    cardLayoutsByCoordinate,
+    cardRectsByCoordinate,
+    height: input.components.length > 0 ? cursorY + rowHeight : 0,
+    width: studioDesignCanvasWidth,
+  }
+}
+
+function createStudioDesignCanvasCardIndex(
+  components: StudioManifestComponent[],
+  cardRectsByCoordinate: Record<string, StudioDesignCanvasRect>,
+): StudioCanvasCardIndex {
+  let complete = true
+  const byPathKey: Record<string, StudioCanvasCardIndexEntry> = {}
+  const entries = components
+    .map((component) => {
+      const rect = cardRectsByCoordinate[component.coordinate]
+      if (!rect) complete = false
+      const entry: StudioCanvasCardIndexEntry = {
+        columnIndex: 0,
+        component,
+        pathKey: studioPathKey([component.coordinate]),
+        rect,
+      }
+      byPathKey[entry.pathKey] = entry
+      return entry
+    })
+    .sort((left, right) => (left.rect?.top ?? 0) - (right.rect?.top ?? 0) || (left.rect?.left ?? 0) - (right.rect?.left ?? 0))
+
+  return {
+    byColumnIndex: { 0: entries },
+    byPathKey,
+    complete,
+  }
+}
+
+function useVisibleStudioDesignCanvasCards(input: {
+  canvas: StudioCanvasTransform
+  canvasViewportElement: HTMLDivElement | null
+  cardIndex: StudioCanvasCardIndex
+  columnLayoutByIndex: Record<number, { x: number; y: number }>
+  renderBufferMargin: number
+}): Record<number, StudioCanvasCardIndexEntry[]> {
+  const [canvas, setCanvas] = React.useState(input.canvas)
+  const [viewportSize, setViewportSize] = React.useState(defaultStudioDesignVirtualViewportSize)
+
+  useStudioLayoutEffect(() => {
+    setCanvas(input.canvas)
+  }, [input.canvas])
+
+  useStudioLayoutEffect(() => {
+    const element = input.canvasViewportElement
+    if (!element || typeof ResizeObserver === "undefined") {
+      if (element) setViewportSize(studioDesignCanvasViewportElementSize(element))
+      return
+    }
+
+    const updateViewportSize = () => setViewportSize(studioDesignCanvasViewportElementSize(element))
+    updateViewportSize()
+    const observer = new ResizeObserver(updateViewportSize)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [input.canvasViewportElement])
 
   React.useEffect(() => {
-    const stored = readStoredStudioDesignFrameLayouts(storageKey)
-    updateLayouts((current) => mergeStudioDesignFrameLayouts(frames, stored ?? current))
-  }, [frames, storageKey, updateLayouts])
-
-  const persistLayouts = React.useCallback(() => {
     if (typeof window === "undefined") return
-    window.localStorage.setItem(storageKey, JSON.stringify(layoutsRef.current))
-  }, [storageKey])
 
-  return { layouts, persistLayouts, updateLayouts }
+    let frame = 0
+    const handleCanvasTransformChange = (event: Event) => {
+      const nextCanvas = (event as CustomEvent<StudioCanvasTransform>).detail
+      if (!nextCanvas) return
+      if (frame) window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        setCanvas(nextCanvas)
+      })
+    }
+
+    window.addEventListener(studioCanvasTransformChangedEventType, handleCanvasTransformChange)
+    return () => {
+      window.removeEventListener(studioCanvasTransformChangedEventType, handleCanvasTransformChange)
+      if (frame) window.cancelAnimationFrame(frame)
+    }
+  }, [])
+
+  return React.useMemo(
+    () =>
+      visibleStudioCanvasCardEntriesByColumnIndex({
+        canvas,
+        cardIndex: input.cardIndex,
+        columnLayoutByIndex: input.columnLayoutByIndex,
+        renderBufferMargin: input.renderBufferMargin,
+        viewportSize,
+      }),
+    [
+      canvas,
+      input.cardIndex,
+      input.columnLayoutByIndex,
+      input.renderBufferMargin,
+      viewportSize,
+    ],
+  )
 }
 
-function createDefaultStudioDesignFrameLayouts(frames: StudioDesignFrameEntry[]): StudioDesignFrameLayouts {
-  return Object.fromEntries(frames.map((frame, index) => [frame.id, defaultStudioDesignFrameLayout(index)]))
-}
-
-function defaultStudioDesignFrameLayout(index: number): StudioDesignFrameLayout {
-  const column = index % 3
-  const row = Math.floor(index / 3)
-  const size = defaultStudioDesignFrameSize()
+function studioDesignCanvasViewportElementSize(element: HTMLElement): { height: number; width: number } {
+  const rect = element.getBoundingClientRect()
   return {
-    x: 96 + column * (size.width + studioDesignFrameColumnGap),
-    y: 120 + row * (size.height + studioDesignFrameRowGap),
+    height: Math.max(1, rect.height),
+    width: Math.max(1, rect.width),
   }
-}
-
-function mergeStudioDesignFrameLayouts(
-  frames: StudioDesignFrameEntry[],
-  current: StudioDesignFrameLayouts,
-): StudioDesignFrameLayouts {
-  const defaults = createDefaultStudioDesignFrameLayouts(frames)
-  const next: StudioDesignFrameLayouts = {}
-
-  for (const frame of frames) {
-    next[frame.id] = sanitizeStudioDesignFrameLayout(current[frame.id]) ?? defaults[frame.id] ?? defaultStudioDesignFrameLayout(0)
-  }
-
-  return next
-}
-
-function sanitizeStudioDesignFrameLayout(value: StudioDesignFrameLayout | undefined): StudioDesignFrameLayout | undefined {
-  if (!value) return undefined
-  if (![value.x, value.y].every(Number.isFinite)) return undefined
-
-  return {
-    x: Math.max(-2000, Math.min(20000, Math.round(value.x))),
-    y: Math.max(-2000, Math.min(20000, Math.round(value.y))),
-  }
-}
-
-function readStoredStudioDesignFrameLayouts(storageKey: string): StudioDesignFrameLayouts | undefined {
-  if (typeof window === "undefined") return undefined
-
-  try {
-    const raw = window.localStorage.getItem(storageKey)
-    const parsed = raw ? JSON.parse(raw) : undefined
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined
-
-    return parsed as StudioDesignFrameLayouts
-  } catch {
-    return undefined
-  }
-}
-
-function studioDesignWorkspaceStorageKey(manifest: StudioManifest): string {
-  return `gtsx:studio:design-workspace:v2:${manifest.cache?.namespace ?? manifest.routes.manifest}`
-}
-
-function studioDesignFramePreviewUrl(manifest: StudioManifest, frame: StudioDesignFrameEntry): string {
-  const url = replaceStudioDesignPreviewTemplate(manifest.preview.urlTemplate, {
-    frame: encodeURIComponent(frame.frameName),
-    entry: encodeURIComponent(frame.entry),
-    gframe: "",
-  })
-  return appendStudioDesignPreviewSearchParam(url, "chrome", "0")
-}
-
-function replaceStudioDesignPreviewTemplate(template: string, values: Record<string, string>): string {
-  let next = template
-  for (const [key, value] of Object.entries(values)) {
-    next = next.split(`{${key}}`).join(value)
-  }
-  return next
-}
-
-function appendStudioDesignPreviewSearchParam(url: string, key: string, value: string): string {
-  const separator = url.includes("?") ? "&" : "?"
-  return `${url}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`
 }
 
 const StudioDesignWorkspace = React.memo(StudioDesignWorkspaceView) as typeof StudioDesignWorkspaceView & {
@@ -418,7 +528,7 @@ StudioDesignWorkspace.frames = {
         design: {
           frames: [
             {
-              id: "src/gtsx/design/DesignHost.g.tsx#default",
+              id: "src/gtsx/design/DesignHost.g.tsx#default:live",
               entry: "src/gtsx/design/DesignHost.g.tsx#default",
               filePath: "src/gtsx/design/DesignHost.g.tsx",
               title: "DesignHost",
@@ -426,12 +536,12 @@ StudioDesignWorkspace.frames = {
               frameName: "live",
             },
             {
-              id: "src/gtsx/design/CreatorQueue.g.tsx#default",
-              entry: "src/gtsx/design/CreatorQueue.g.tsx#default",
-              filePath: "src/gtsx/design/CreatorQueue.g.tsx",
-              title: "CreatorQueue",
+              id: "src/gtsx/design/DesignHost.g.tsx#default:loaded",
+              entry: "src/gtsx/design/DesignHost.g.tsx#default",
+              filePath: "src/gtsx/design/DesignHost.g.tsx",
+              title: "DesignHost",
               exportName: "default",
-              frameName: "live",
+              frameName: "loaded",
             },
           ],
         },
@@ -444,7 +554,28 @@ StudioDesignWorkspace.frames = {
           urlTemplate: "/gtsx?entry={entry}&frame={frame}{gframe}",
           allUrlTemplate: "/gtsx?entry={entry}{gframe}",
         },
-        files: [],
+        files: [
+          {
+            path: "src/gtsx/design/DesignHost.g.tsx",
+            groupId: "file:src/gtsx/design/DesignHost.g.tsx",
+            components: [
+              {
+                coordinate: "src/gtsx/design/DesignHost.g.tsx#default",
+                filePath: "src/gtsx/design/DesignHost.g.tsx",
+                exportName: "default",
+                componentName: "DesignHost",
+                mode: "pure",
+                frames: [
+                  { kind: "pure", name: "live" },
+                  { kind: "pure", name: "loaded" },
+                ],
+                providers: {},
+                diagnostics: [],
+              },
+            ],
+            diagnostics: [],
+          },
+        ],
         diagnostics: [],
       },
     },

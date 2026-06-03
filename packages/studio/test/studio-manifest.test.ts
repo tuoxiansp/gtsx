@@ -42,6 +42,7 @@ function buildStudioManifest(
   })
   return createStudioManifest(projectIndex, {
     cache: options.cache,
+    design: options.design,
     preview: options.preview,
     routes: options.routes,
     diagnostics: options.diagnostics,
@@ -203,26 +204,57 @@ describe("GTSX Studio manifest", () => {
 
     try {
       mkdirSync(join(cwd, "components/gtsx/design/nested"), { recursive: true })
-      writeFileSync(join(cwd, "components/gtsx/design/DesignHost.g.tsx"), "export default function DesignHost() { return null }\n")
+      writeFileSync(
+        join(cwd, "components/gtsx/design/alpha.g.tsx"),
+        [
+          "export function AlphaDesign() { return null }",
+          "AlphaDesign.frames = {",
+          "  live: { props: {} },",
+          "  dense: { props: {} },",
+          "}",
+          "",
+        ].join("\n"),
+      )
       writeFileSync(join(cwd, "components/gtsx/design/current-design.tsx"), "export function CurrentDesign() { return null }\n")
-      writeFileSync(join(cwd, "components/gtsx/design/nested/SecondFrame.g.tsx"), "export default function SecondFrame() { return null }\n")
+      writeFileSync(join(cwd, "components/gtsx/design/missing.g.tsx"), "export default function MissingDesign() { return null }\n")
+      writeFileSync(
+        join(cwd, "components/gtsx/design/nested/beta.g.tsx"),
+        ["export function BetaDesign() { return null }", "BetaDesign.frames = { live: { props: {} } }", ""].join("\n"),
+      )
+      const projectIndex = buildGTSXProjectIndex({ cwd, projectRoot: "components" })
 
-      expect(discoverStudioDesignManifest(cwd, "components")).toEqual({
+      expect(discoverStudioDesignManifest(projectIndex, "components")).toEqual({
         frames: [
           {
-            id: "components/gtsx/design/DesignHost.g.tsx#default",
-            entry: "components/gtsx/design/DesignHost.g.tsx#default",
-            filePath: "components/gtsx/design/DesignHost.g.tsx",
-            title: "DesignHost",
-            exportName: "default",
+            id: "components/gtsx/design/alpha.g.tsx#AlphaDesign:live",
+            entry: "components/gtsx/design/alpha.g.tsx#AlphaDesign",
+            filePath: "components/gtsx/design/alpha.g.tsx",
+            title: "AlphaDesign",
+            exportName: "AlphaDesign",
             frameName: "live",
           },
           {
-            id: "components/gtsx/design/nested/SecondFrame.g.tsx#default",
-            entry: "components/gtsx/design/nested/SecondFrame.g.tsx#default",
-            filePath: "components/gtsx/design/nested/SecondFrame.g.tsx",
-            title: "SecondFrame",
+            id: "components/gtsx/design/alpha.g.tsx#AlphaDesign:dense",
+            entry: "components/gtsx/design/alpha.g.tsx#AlphaDesign",
+            filePath: "components/gtsx/design/alpha.g.tsx",
+            title: "AlphaDesign",
+            exportName: "AlphaDesign",
+            frameName: "dense",
+          },
+          {
+            id: "components/gtsx/design/missing.g.tsx#default:missing-frames",
+            entry: "components/gtsx/design/missing.g.tsx#default",
+            filePath: "components/gtsx/design/missing.g.tsx",
+            title: "MissingDesign",
             exportName: "default",
+            frameName: "missing-frames",
+          },
+          {
+            id: "components/gtsx/design/nested/beta.g.tsx#BetaDesign:live",
+            entry: "components/gtsx/design/nested/beta.g.tsx#BetaDesign",
+            filePath: "components/gtsx/design/nested/beta.g.tsx",
+            title: "BetaDesign",
+            exportName: "BetaDesign",
             frameName: "live",
           },
         ],
