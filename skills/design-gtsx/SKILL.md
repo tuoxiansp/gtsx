@@ -1,13 +1,11 @@
 ---
 name: design-gtsx
-description: Create and iterate ordinary product design drafts inside a gtsx project using local project.root/gtsx/design frames and Studio's design workspace. Use when the user asks for design exploration, UI drafts, visual prototypes, direct TSX design, making a product surface look good, or adjusting an existing gtsx design board without explicitly requesting the high-quality image-first workflow.
+description: Create and iterate product design drafts inside a gtsx project using local project.root/gtsx/design frames and Studio's design workspace. Use when the user asks for design exploration, UI drafts, visual prototypes, making a product surface look good, or adjusting an existing gtsx design board.
 ---
 
 # Design gtsx
 
-Use this skill when the user wants an AI-assisted product/UI design pass inside an existing gtsx-enabled workspace and has not explicitly asked for the high-quality image-first workflow.
-
-This is the ordinary direct-code design skill. Do not silently decide to generate design reference images. If the user wants a high-quality image-first process, use `design-gtsx-high-quality` instead and make that workflow explicit to the user.
+Use this skill when the user wants an AI-assisted product/UI design pass inside an existing gtsx-enabled workspace.
 
 ## User Flow
 
@@ -89,7 +87,6 @@ State the key assumptions briefly in the user-facing update, then implement. Kee
 - Keep the result inspectable in Studio: stable frame dimensions, no text overflow, no overlapping controls, no hidden essential UI, and enough contrast for normal reading.
 - Do not hand off a generic scaffold. Revise until hierarchy, spacing, content, actions, and visual system are specific enough for the user to critique.
 - For substantive visual work, use [`DESIGN_REFERENCE.md`](./DESIGN_REFERENCE.md) as the detailed web design quality checklist. Apply the surface-specific rules for product GUI, marketing pages, content pages, and interactive prototypes.
-- Do not use image generation in this ordinary workflow. Image-first visual exploration belongs to `design-gtsx-high-quality` and should be explicit to the user.
 
 ## Prompt Handling
 
