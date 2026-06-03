@@ -8,17 +8,18 @@ For the architecture and safety model, see [Design](./gtsx-design.md).
 
 ---
 
-## Three Inputs
+## Known Inputs
 
-gtsx treats exactly three things as sources of visual state for a `.g.tsx` component:
+gtsx treats three dynamic inputs, plus local or imported static constants, as sources of visual state for a `.g.tsx` component:
 
 | Input | How it enters |
 |-------|--------------|
 | **props** | Passed by parent |
 | **scope** | Returned from `createGScopeHook(...)` |
 | **provider context** | Read through `useGContext(Provider)` |
+| **static const literals** | Local `const` values, or imported `const` exports, initialized from literal arrays, objects, and primitives |
 
-If one of these values controls whether a JSX subtree renders, that relationship must be statically visible. gtsx does not need to understand every JavaScript execution path. It only needs to trace the visual branches back to these three inputs.
+If one of these values controls whether a JSX subtree renders, that relationship must be statically visible. gtsx does not need to understand every JavaScript execution path. It only needs to trace the visual branches back to these known inputs.
 
 ## Branch Coverage
 
@@ -30,7 +31,7 @@ It does not prove every combination of every prop. It only prevents a visual bra
 
 ### What counts as inspectable
 
-For this to work, JSX-producing control flow must stay first-order over the three inputs:
+For this to work, JSX-producing control flow must stay first-order over the known inputs:
 
 | Inspectable shape | Why it works |
 |-------------------|-------------|
@@ -38,6 +39,12 @@ For this to work, JSX-producing control flow must stay first-order over the thre
 | `if (scope.status === "ready") return <Panel />` | Direct comparison over scope |
 | `scope.canEdit && <button>Edit</button>` | Logical short-circuit over scope |
 | `props.items.map(item => item.visible ? <Row /> : null)` | Collection callback traceable to props |
+| `staticItems.map(item => item.visible ? <Row /> : null)` | Const literal collection is statically enumerable |
+| `staticConfig.enabled ? <Panel /> : null` | Const object properties are static facts |
+| `staticMode === "show" && <Panel />` | Const primitives can drive comparisons |
+| `importedConfig.enabled ? <Panel /> : null` | Imported const literal exports can be traced across local source files |
+| `Barrel.Values.enabled ? <Panel /> : null` | Static const exports can flow through star, named, and namespace barrels |
+| `{ ...baseConfig, enabled: true }` | Spread is inspectable when the spread source is a static const literal |
 
 ### What is opaque
 
@@ -52,7 +59,7 @@ Opaque shapes are valid React. They are not valid gtsx protocol shape. `gtsx che
 
 ### Frame values follow the same rule
 
-Literal props, scope values, provider values, and literal arrays are inspectable. Values imported from helpers or composed through spread may typecheck, but they are not static enough for branch coverage. When they affect JSX reachability, `gtsx check` reports the uncertainty rather than silently accepting it.
+Literal props, scope values, provider values, and const declarations initialized from literal arrays, objects, and primitives are inspectable. Imported constants must resolve to local source exports with literal initializers; named re-exports, star re-exports, namespace re-exports, default exports, and aliases of other static const literals are supported. Object and array spreads are inspectable when every spread source is also static. Values produced by helpers, external packages, or unresolved spread composition may typecheck, but they are not static enough for branch coverage. When they affect JSX reachability, `gtsx check` reports the uncertainty rather than silently accepting it.
 
 ## Provider Variants
 

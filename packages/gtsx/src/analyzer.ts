@@ -46,8 +46,10 @@ export type GTSXAnalysisResult = {
 
 export type GTSXAnalysisCache = {
   componentDependencyBindingsByPath: Map<string, ComponentDependencyBindings>
+  exportedStaticValuesByPath: Map<string, Map<string, StaticExportValue>>
   exportedComponentTargetsByPath: Map<string, Map<string, ComponentDependencyTarget>>
   importedGTSXPathByKey: Map<string, string | null>
+  importedStaticSourcePathByKey: Map<string, string | null>
   importedScopeHookNamesByPath: Map<string, Set<string>>
   providerSummariesByPath: Map<string, Map<string, GTSXProviderSummary>>
   scopeHookProviderNamesByPath: Map<string, Map<string, string[]>>
@@ -58,8 +60,10 @@ export type GTSXAnalysisCache = {
 export function createGTSXAnalysisCache(sourceFilesByPath = new Map<string, ts.SourceFile>()): GTSXAnalysisCache {
   return {
     componentDependencyBindingsByPath: new Map(),
+    exportedStaticValuesByPath: new Map(),
     exportedComponentTargetsByPath: new Map(),
     importedGTSXPathByKey: new Map(),
+    importedStaticSourcePathByKey: new Map(),
     importedScopeHookNamesByPath: new Map(),
     providerSummariesByPath: new Map(),
     scopeHookProviderNamesByPath: new Map(),
@@ -99,8 +103,13 @@ type StaticBranchValue =
   | { kind: "unknown" }
   | { kind: "undefined" }
 
+type StaticExportValue =
+  | { kind: "expression"; expression: ts.Expression }
+  | { kind: "facts"; values: Map<string, StaticBranchValue> }
+  | { kind: "namespace"; exports: Map<string, StaticExportValue> }
+
 type GTSXFactorReference =
-  | { root: "props" | "scope"; path: string[] }
+  | { root: "props" | "scope" | "static"; path: string[] }
   | { root: "context"; providerName: string; path: string[] }
 
 type JSXBranchPredicate =
@@ -125,6 +134,7 @@ type JSXBranchAnalysisContext = {
   expressionAliases: Map<string, ts.Expression>
   factorBindings: Map<string, GTSXFactorReference>
   sourceFile: ts.SourceFile
+  staticValues: Map<string, StaticBranchValue>
 }
 
 type EntryCoordinate = {
@@ -773,6 +783,206 @@ function resolveImportedGTSXPath(
   return resolved
 }
 
+function resolveImportedStaticSourcePath(
+  entryPath: string,
+  cwd: string,
+  specifier: string,
+  cache?: GTSXAnalysisCache,
+): string | undefined {
+  const cacheKey = `${entryPath}\0${specifier}`
+  const cached = cache?.importedStaticSourcePathByKey.get(cacheKey)
+  if (cached !== undefined) return cached ?? undefined
+
+  const basePath = resolveImportBasePath(entryPath, cwd, specifier)
+  if (!basePath) {
+    cache?.importedStaticSourcePathByKey.set(cacheKey, null)
+    return undefined
+  }
+
+  const resolved = importedStaticSourcePathCandidates(basePath).find((candidate) => isFile(candidate))
+  cache?.importedStaticSourcePathByKey.set(cacheKey, resolved ?? null)
+  return resolved
+}
+
+function getExportedStaticValuesForFile(
+  sourceFile: ts.SourceFile,
+  filePath: string,
+  cwd: string,
+  cache?: GTSXAnalysisCache,
+  visited = new Set<string>(),
+): Map<string, StaticExportValue> {
+  const cached = cache?.exportedStaticValuesByPath.get(filePath)
+  if (cached) return cached
+  if (visited.has(filePath)) return new Map()
+  visited.add(filePath)
+
+  const exports = new Map<string, StaticExportValue>()
+  const localStaticValues = new Map<string, StaticExportValue>()
+
+  cache?.exportedStaticValuesByPath.set(filePath, exports)
+
+  bindImportedStaticValuesForFile(sourceFile, filePath, cwd, localStaticValues, cache, visited)
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement) || !isConstDeclarationList(statement.declarationList)) continue
+
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || !declaration.initializer) continue
+
+      const staticValue = staticExportValueForExpression(declaration.initializer, localStaticValues)
+      if (!staticValue) continue
+
+      localStaticValues.set(declaration.name.text, staticValue)
+      if (hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
+        exports.set(declaration.name.text, staticValue)
+      }
+    }
+  }
+
+  for (const statement of sourceFile.statements) {
+    if (ts.isExportAssignment(statement)) {
+      const staticValue = staticExportValueForExpression(statement.expression, localStaticValues)
+      if (staticValue) exports.set("default", staticValue)
+      continue
+    }
+
+    if (!ts.isExportDeclaration(statement)) continue
+
+    if (!statement.exportClause && statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)) {
+      for (const [exportName, staticValue] of getReExportedStaticValues(
+        filePath,
+        cwd,
+        statement.moduleSpecifier.text,
+        cache,
+        visited,
+      )) {
+        if (exportName !== "default" && !exports.has(exportName)) exports.set(exportName, staticValue)
+      }
+      continue
+    }
+
+    if (statement.exportClause && ts.isNamespaceExport(statement.exportClause) && statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)) {
+      exports.set(statement.exportClause.name.text, {
+        kind: "namespace",
+        exports: getReExportedStaticValues(filePath, cwd, statement.moduleSpecifier.text, cache, visited),
+      })
+      continue
+    }
+
+    if (!statement.exportClause || !ts.isNamedExports(statement.exportClause)) continue
+
+    const targetExports =
+      statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)
+        ? getReExportedStaticValues(filePath, cwd, statement.moduleSpecifier.text, cache, visited)
+        : localStaticValues
+
+    for (const element of statement.exportClause.elements) {
+      const localName = element.propertyName?.text ?? element.name.text
+      const expression = targetExports.get(localName)
+      if (expression) exports.set(element.name.text, expression)
+    }
+  }
+
+  visited.delete(filePath)
+  return exports
+}
+
+function bindImportedStaticValuesForFile(
+  sourceFile: ts.SourceFile,
+  filePath: string,
+  cwd: string,
+  localStaticValues: Map<string, StaticExportValue>,
+  cache: GTSXAnalysisCache | undefined,
+  visited: Set<string>,
+) {
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || !statement.importClause || !ts.isStringLiteral(statement.moduleSpecifier)) continue
+
+    const targetExports = getReExportedStaticValues(filePath, cwd, statement.moduleSpecifier.text, cache, visited)
+    if (targetExports.size === 0) continue
+
+    const importClause = statement.importClause
+    if (importClause.name) {
+      const defaultValue = targetExports.get("default")
+      if (defaultValue) localStaticValues.set(importClause.name.text, defaultValue)
+    }
+
+    const namedBindings = importClause.namedBindings
+    if (!namedBindings) continue
+
+    if (ts.isNamedImports(namedBindings)) {
+      for (const element of namedBindings.elements) {
+        const importedName = element.propertyName?.text ?? element.name.text
+        const staticValue = targetExports.get(importedName)
+        if (staticValue) localStaticValues.set(element.name.text, staticValue)
+      }
+      continue
+    }
+
+    localStaticValues.set(namedBindings.name.text, { kind: "namespace", exports: targetExports })
+  }
+}
+
+function staticExportValueForExpression(
+  expression: ts.Expression,
+  localStaticValues: Map<string, StaticExportValue>,
+): StaticExportValue | undefined {
+  const value = unwrapExpression(expression)
+  if (ts.isIdentifier(value)) return localStaticValues.get(value.text)
+
+  const context = staticExportMaterializationContext(value.getSourceFile(), localStaticValues)
+  if (!readStaticBranchValue(value) && !isStaticSpreadLiteral(value, context)) return undefined
+
+  const values = new Map<string, StaticBranchValue>()
+  flattenStaticObjectExpression(value, "$", values, context)
+  return { kind: "facts", values: relativeStaticFacts("$", values) }
+}
+
+function staticExportMaterializationContext(
+  sourceFile: ts.SourceFile,
+  localStaticValues: Map<string, StaticExportValue>,
+): JSXBranchAnalysisContext {
+  const context: JSXBranchAnalysisContext = {
+    expressionAliases: new Map(),
+    factorBindings: new Map(),
+    sourceFile,
+    staticValues: new Map(),
+  }
+
+  for (const [name, value] of localStaticValues) {
+    bindStaticExportValueAtPath([name], value, context, name)
+  }
+
+  return context
+}
+
+function relativeStaticFacts(rootPrefix: string, values: Map<string, StaticBranchValue>): Map<string, StaticBranchValue> {
+  const facts = new Map<string, StaticBranchValue>()
+  const childPrefix = `${rootPrefix}.`
+  for (const [key, value] of values) {
+    if (key === rootPrefix) {
+      facts.set("", value)
+    } else if (key.startsWith(childPrefix)) {
+      facts.set(key.slice(childPrefix.length), value)
+    }
+  }
+  return facts
+}
+
+function getReExportedStaticValues(
+  filePath: string,
+  cwd: string,
+  specifier: string,
+  cache: GTSXAnalysisCache | undefined,
+  visited: Set<string>,
+): Map<string, StaticExportValue> {
+  const targetPath = resolveImportedStaticSourcePath(filePath, cwd, specifier, cache)
+  if (!targetPath) return new Map()
+
+  const targetSource = sourceFileForAbsolutePath(targetPath, cache)
+  return targetSource ? getExportedStaticValuesForFile(targetSource, targetPath, cwd, cache, visited) : new Map()
+}
+
 function resolveImportedGTSXPathFromBase(
   basePath: string,
   cwd: string,
@@ -830,6 +1040,25 @@ function importedGTSXPathCandidates(basePath: string): string[] {
     extensionTypeCandidate,
     join(basePath, "index.g.tsx"),
     join(basePath, "index.g.ts"),
+  ]
+
+  return [...new Set(candidates.filter((candidate): candidate is string => Boolean(candidate)))]
+}
+
+function importedStaticSourcePathCandidates(basePath: string): string[] {
+  const hasKnownExtension = /\.(?:tsx|ts|jsx|js)$/.test(basePath)
+  const candidates = [
+    hasKnownExtension ? basePath : undefined,
+    !hasKnownExtension ? `${basePath}.ts` : undefined,
+    !hasKnownExtension ? `${basePath}.tsx` : undefined,
+    !hasKnownExtension ? `${basePath}.js` : undefined,
+    !hasKnownExtension ? `${basePath}.jsx` : undefined,
+    !hasKnownExtension ? `${basePath}.g.tsx` : undefined,
+    !hasKnownExtension ? `${basePath}.g.ts` : undefined,
+    join(basePath, "index.ts"),
+    join(basePath, "index.tsx"),
+    join(basePath, "index.js"),
+    join(basePath, "index.jsx"),
   ]
 
   return [...new Set(candidates.filter((candidate): candidate is string => Boolean(candidate)))]
@@ -990,11 +1219,11 @@ function validateJSXTreeFrameReachability(
   const component = getFunctionLikeDeclaration(sourceFile, componentName)
   if (!component?.body) return
 
-  const branchContext = createJSXBranchAnalysisContext(sourceFile, component, scopeHookNames)
+  const branchContext = createJSXBranchAnalysisContext(sourceFile, component, scopeHookNames, context)
   const defaultValues = defaultStaticValuesForFunctionLike(component)
   const frameFacts = staticFrames.map((frame) => ({
     ...frame,
-    values: new Map([...defaultValues, ...frame.values]),
+    values: new Map([...branchContext.staticValues, ...defaultValues, ...frame.values]),
   }))
   const dependencies = reachableJSXDependenciesForComponent(sourceFile, componentName, branchContext, context)
   const reported = new Set<string>()
@@ -1086,7 +1315,7 @@ function providerProjectionWarningsForComponent(
   if (!component?.body) return []
 
   const warnings: { providerName: string; tagName: string; target: ComponentDependencyTarget }[] = []
-  const branchContext = createJSXBranchAnalysisContext(sourceFile, component, scopeHookNames)
+  const branchContext = createJSXBranchAnalysisContext(sourceFile, component, scopeHookNames, context)
   const helperFunctions = getTopLevelFunctionLikeBodiesForPath(sourceFile, context.entryPath, context.cache)
   const importBindings = componentDependencyBindingsForFile(sourceFile, context.entryPath, context)
   const visitedHelpers = new Set<string>([componentName])
@@ -1230,13 +1459,17 @@ function createJSXBranchAnalysisContext(
   sourceFile: ts.SourceFile,
   component: ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction,
   scopeHookNames: Set<string>,
+  analysisContext: NonGTSXHookAnalysisContext,
 ): JSXBranchAnalysisContext {
   const context: JSXBranchAnalysisContext = {
     expressionAliases: new Map(),
     factorBindings: new Map(),
     sourceFile,
+    staticValues: new Map(),
   }
 
+  bindImportedStaticConstDeclarations(sourceFile, analysisContext.entryPath, analysisContext.cwd, context, analysisContext.cache)
+  bindTopLevelStaticConstDeclarations(sourceFile, context)
   bindFunctionParameters(component, context)
 
   if (component.body && ts.isBlock(component.body)) {
@@ -1246,6 +1479,55 @@ function createJSXBranchAnalysisContext(
   }
 
   return context
+}
+
+function bindTopLevelStaticConstDeclarations(sourceFile: ts.SourceFile, context: JSXBranchAnalysisContext) {
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement) || !isConstDeclarationList(statement.declarationList)) continue
+    bindStaticConstDeclarations(statement.declarationList, context, (name) => [name])
+  }
+}
+
+function bindImportedStaticConstDeclarations(
+  sourceFile: ts.SourceFile,
+  filePath: string,
+  cwd: string,
+  context: JSXBranchAnalysisContext,
+  cache?: GTSXAnalysisCache,
+) {
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || !statement.importClause || !ts.isStringLiteral(statement.moduleSpecifier)) continue
+
+    const targetPath = resolveImportedStaticSourcePath(filePath, cwd, statement.moduleSpecifier.text, cache)
+    if (!targetPath) continue
+
+    const targetSource = sourceFileForAbsolutePath(targetPath, cache)
+    if (!targetSource) continue
+
+    const targetExports = getExportedStaticValuesForFile(targetSource, targetPath, cwd, cache)
+    if (targetExports.size === 0) continue
+
+    const importClause = statement.importClause
+    if (importClause.name) {
+      bindImportedStaticExpression(importClause.name.text, targetExports.get("default"), context)
+    }
+
+    const namedBindings = importClause.namedBindings
+    if (!namedBindings) continue
+
+    if (ts.isNamedImports(namedBindings)) {
+      for (const element of namedBindings.elements) {
+        const importedName = element.propertyName?.text ?? element.name.text
+        bindImportedStaticExpression(element.name.text, targetExports.get(importedName), context)
+      }
+      continue
+    }
+
+    for (const [exportName, staticValue] of targetExports) {
+      bindStaticExportValueAtPath([namedBindings.name.text, exportName], staticValue, context)
+    }
+    context.factorBindings.set(namedBindings.name.text, { root: "static", path: [namedBindings.name.text] })
+  }
 }
 
 function bindFunctionParameters(
@@ -1293,10 +1575,118 @@ function bindTopLevelBranchVariableStatement(
       continue
     }
 
+    if (isConstDeclarationList(statement.declarationList) && bindStaticConstDeclaration(declaration, context, (name) => [
+      `local:${declaration.name.getStart(context.sourceFile)}:${name}`,
+    ])) {
+      continue
+    }
+
     if (ts.isIdentifier(declaration.name) && !expressionContainsJSX(initializer)) {
       context.expressionAliases.set(declaration.name.text, initializer)
     }
   }
+}
+
+function bindStaticConstDeclarations(
+  declarationList: ts.VariableDeclarationList,
+  context: JSXBranchAnalysisContext,
+  staticPathForName: (name: string) => string[],
+) {
+  for (const declaration of declarationList.declarations) {
+    bindStaticConstDeclaration(declaration, context, staticPathForName)
+  }
+}
+
+function bindStaticConstDeclaration(
+  declaration: ts.VariableDeclaration,
+  context: JSXBranchAnalysisContext,
+  staticPathForName: (name: string) => string[],
+): boolean {
+  if (!declaration.initializer) return false
+
+  const initializer = unwrapExpression(declaration.initializer)
+  const rootReference = factorReferenceForExpression(initializer, context)
+  if (rootReference) {
+    if (ts.isIdentifier(declaration.name)) {
+      context.factorBindings.set(declaration.name.text, rootReference)
+      return true
+    }
+
+    if (ts.isObjectBindingPattern(declaration.name)) {
+      bindObjectBindingPattern(declaration.name, rootReference, context)
+      return true
+    }
+
+    return false
+  }
+
+  if (!ts.isIdentifier(declaration.name)) return false
+  return bindStaticExpressionAtPath(staticPathForName(declaration.name.text), initializer, context, declaration.name.text)
+}
+
+function bindImportedStaticExpression(
+  localName: string,
+  staticValue: StaticExportValue | undefined,
+  context: JSXBranchAnalysisContext,
+): boolean {
+  return bindStaticExportValueAtPath([localName], staticValue, context, localName)
+}
+
+function bindStaticExportValueAtPath(
+  staticPath: string[],
+  staticValue: StaticExportValue | undefined,
+  context: JSXBranchAnalysisContext,
+  bindingName?: string,
+): boolean {
+  if (!staticValue) return false
+
+  const reference: GTSXFactorReference = { root: "static", path: staticPath }
+  if (bindingName) context.factorBindings.set(bindingName, reference)
+
+  if (staticValue.kind === "expression") {
+    return bindStaticExpressionAtPath(staticPath, staticValue.expression, context, bindingName)
+  }
+
+  if (staticValue.kind === "facts") {
+    let bound = false
+    const prefix = factorReferenceKey(reference)
+    for (const [suffix, value] of staticValue.values) {
+      writeStaticBranchValue(context.staticValues, suffix ? `${prefix}.${suffix}` : prefix, value, "override")
+      bound = true
+    }
+    return bound
+  }
+
+  let bound = false
+  context.staticValues.set(factorReferenceKey(reference), { kind: "object" })
+  for (const [exportName, childValue] of staticValue.exports) {
+    bound = bindStaticExportValueAtPath([...staticPath, exportName], childValue, context) || bound
+  }
+  return bound
+}
+
+function bindStaticExpressionAtPath(
+  staticPath: string[],
+  expression: ts.Expression | undefined,
+  context: JSXBranchAnalysisContext,
+  bindingName?: string,
+): boolean {
+  if (!expression) return false
+
+  const initializer = unwrapExpression(expression)
+  if (!readStaticBranchValue(initializer) && !isStaticSpreadLiteral(initializer, context)) return false
+
+  const reference: GTSXFactorReference = {
+    root: "static",
+    path: staticPath,
+  }
+  if (bindingName) context.factorBindings.set(bindingName, reference)
+  flattenStaticObjectExpression(initializer, factorReferenceKey(reference), context.staticValues, context)
+  return true
+}
+
+function isConstDeclarationList(declarationList: ts.VariableDeclarationList): boolean {
+  return (declarationList.flags & ts.NodeFlags.Const) !== 0
 }
 
 function bindObjectBindingPattern(
@@ -1329,6 +1719,7 @@ function cloneJSXBranchAnalysisContext(context: JSXBranchAnalysisContext): JSXBr
     expressionAliases: new Map(context.expressionAliases),
     factorBindings: new Map(context.factorBindings),
     sourceFile: context.sourceFile,
+    staticValues: new Map(context.staticValues),
   }
 }
 
@@ -2947,34 +3338,50 @@ function flattenProviderStaticValues(expression: ts.Expression, values: Map<stri
   }
 }
 
-function flattenStaticObjectExpression(expression: ts.Expression, prefix: string, values: Map<string, StaticBranchValue>) {
+function flattenStaticObjectExpression(
+  expression: ts.Expression,
+  prefix: string,
+  values: Map<string, StaticBranchValue>,
+  context?: JSXBranchAnalysisContext,
+  writeMode: "merge" | "override" = "override",
+) {
   const value = unwrapExpression(expression)
   const staticValue = readStaticBranchValue(value)
   if (staticValue) {
-    setStaticBranchValue(values, prefix, staticValue)
-    if (staticValue.kind === "array") setStaticBranchValue(values, `${prefix}.length`, { kind: "number", value: staticValue.length })
-    if (staticValue.kind === "string") setStaticBranchValue(values, `${prefix}.length`, { kind: "number", value: staticValue.value.length })
+    writeStaticBranchValue(values, prefix, staticValue, writeMode)
+    if (staticValue.kind === "array") writeStaticBranchValue(values, `${prefix}.length`, { kind: "number", value: staticValue.length }, writeMode)
+    if (staticValue.kind === "string") writeStaticBranchValue(values, `${prefix}.length`, { kind: "number", value: staticValue.value.length }, writeMode)
   }
 
   if (ts.isArrayLiteralExpression(value)) {
+    const spreadLength = staticArrayLiteralLength(value, context)
+    if (!staticValue && spreadLength !== undefined) {
+      writeStaticBranchValue(values, prefix, { kind: "array", length: spreadLength }, writeMode)
+      writeStaticBranchValue(values, `${prefix}.length`, { kind: "number", value: spreadLength }, writeMode)
+    }
+
     for (const element of value.elements) {
       if (ts.isSpreadElement(element)) {
-        setStaticBranchValue(values, `${prefix}.number`, { kind: "unknown" })
+        if (!context || !copyStaticArraySpreadValues(element.expression, `${prefix}.number`, values, context)) {
+          setStaticBranchValue(values, `${prefix}.number`, { kind: "unknown" })
+        }
         continue
       }
-      flattenStaticObjectExpression(element, `${prefix}.number`, values)
+      flattenStaticObjectExpression(element, `${prefix}.number`, values, context, "merge")
     }
     return
   }
 
   if (!ts.isObjectLiteralExpression(value)) {
-    if (!staticValue) setStaticBranchValue(values, prefix, { kind: "unknown" })
+    if (!staticValue) writeStaticBranchValue(values, prefix, { kind: "unknown" }, writeMode)
     return
   }
 
   for (const property of value.properties) {
     if (ts.isSpreadAssignment(property)) {
-      setStaticBranchValue(values, prefix, { kind: "unknown" })
+      if (!context || !copyStaticSpreadValues(property.expression, prefix, values, context, writeMode)) {
+        writeStaticBranchValue(values, prefix, { kind: "unknown" }, writeMode)
+      }
       continue
     }
 
@@ -2983,8 +3390,100 @@ function flattenStaticObjectExpression(expression: ts.Expression, prefix: string
     const propertyName = getStaticPropertyName(property.name)
     if (!propertyName) continue
 
-    flattenStaticObjectExpression(property.initializer, `${prefix}.${propertyName}`, values)
+    flattenStaticObjectExpression(property.initializer, `${prefix}.${propertyName}`, values, context, writeMode)
   }
+}
+
+function isStaticSpreadLiteral(expression: ts.Expression, context: JSXBranchAnalysisContext): boolean {
+  const value = unwrapExpression(expression)
+  if (ts.isArrayLiteralExpression(value)) {
+    return value.elements.every((element) => {
+      if (ts.isSpreadElement(element)) return Boolean(staticSpreadPrefixForExpression(element.expression, context))
+      return Boolean(readStaticBranchValue(element) || isStaticSpreadLiteral(element, context))
+    })
+  }
+
+  if (!ts.isObjectLiteralExpression(value)) return false
+
+  return value.properties.every((property) => {
+    if (ts.isSpreadAssignment(property)) return Boolean(staticSpreadPrefixForExpression(property.expression, context))
+    if (!ts.isPropertyAssignment(property)) return true
+    return Boolean(readStaticBranchValue(property.initializer) || isStaticSpreadLiteral(property.initializer, context))
+  })
+}
+
+function copyStaticSpreadValues(
+  expression: ts.Expression,
+  targetPrefix: string,
+  values: Map<string, StaticBranchValue>,
+  context: JSXBranchAnalysisContext,
+  writeMode: "merge" | "override",
+): boolean {
+  const sourcePrefix = staticSpreadPrefixForExpression(expression, context)
+  if (!sourcePrefix) return false
+
+  const sourceValue = context.staticValues.get(sourcePrefix)
+  if (sourceValue) writeStaticBranchValue(values, targetPrefix, sourceValue, writeMode)
+
+  const childPrefix = `${sourcePrefix}.`
+  let copied = Boolean(sourceValue)
+  for (const [key, value] of context.staticValues) {
+    if (!key.startsWith(childPrefix)) continue
+    const suffix = key.slice(childPrefix.length)
+    writeStaticBranchValue(values, `${targetPrefix}.${suffix}`, value, writeMode)
+    copied = true
+  }
+
+  return copied
+}
+
+function copyStaticArraySpreadValues(
+  expression: ts.Expression,
+  targetElementPrefix: string,
+  values: Map<string, StaticBranchValue>,
+  context: JSXBranchAnalysisContext,
+): boolean {
+  const sourcePrefix = staticSpreadPrefixForExpression(expression, context)
+  if (!sourcePrefix) return false
+
+  const sourceElementPrefix = `${sourcePrefix}.number`
+  const sourceValue = context.staticValues.get(sourceElementPrefix)
+  if (sourceValue) setStaticBranchValue(values, targetElementPrefix, sourceValue)
+
+  const childPrefix = `${sourceElementPrefix}.`
+  let copied = Boolean(sourceValue)
+  for (const [key, value] of context.staticValues) {
+    if (!key.startsWith(childPrefix)) continue
+    const suffix = key.slice(childPrefix.length)
+    setStaticBranchValue(values, `${targetElementPrefix}.${suffix}`, value)
+    copied = true
+  }
+
+  return copied
+}
+
+function staticArrayLiteralLength(value: ts.ArrayLiteralExpression, context: JSXBranchAnalysisContext | undefined): number | undefined {
+  let length = 0
+  for (const element of value.elements) {
+    if (!ts.isSpreadElement(element)) {
+      length += 1
+      continue
+    }
+
+    if (!context) return undefined
+    const sourcePrefix = staticSpreadPrefixForExpression(element.expression, context)
+    if (!sourcePrefix) return undefined
+    const sourceLength = context.staticValues.get(`${sourcePrefix}.length`)
+    if (sourceLength?.kind !== "number") return undefined
+    length += sourceLength.value
+  }
+
+  return length
+}
+
+function staticSpreadPrefixForExpression(expression: ts.Expression, context: JSXBranchAnalysisContext): string | undefined {
+  const reference = factorReferenceForExpression(expression, context)
+  return reference?.root === "static" ? factorReferenceKey(reference) : undefined
 }
 
 function setStaticBranchValue(values: Map<string, StaticBranchValue>, key: string, value: StaticBranchValue) {
@@ -2996,6 +3495,20 @@ function setStaticBranchValue(values: Map<string, StaticBranchValue>, key: strin
 
   if (sameStaticBranchValue(existing, value)) return
   values.set(key, { kind: "oneOf", values: [...staticBranchValueOptions(existing), value] })
+}
+
+function writeStaticBranchValue(
+  values: Map<string, StaticBranchValue>,
+  key: string,
+  value: StaticBranchValue,
+  mode: "merge" | "override",
+) {
+  if (mode === "override") {
+    values.set(key, value)
+    return
+  }
+
+  setStaticBranchValue(values, key, value)
 }
 
 function staticBranchValueOptions(value: StaticBranchValue): StaticBranchValue[] {

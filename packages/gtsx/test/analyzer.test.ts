@@ -241,6 +241,22 @@ describe("GTSX analyzer", () => {
     expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByContext" }).diagnostics).toEqual([])
     expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByMapItem" }).diagnostics).toEqual([])
     expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByMapItemNegation" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByStaticConstMap" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByStaticConstMapItem" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByStaticConstBoolean" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByStaticConstObject" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByStaticConstComparison" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByLocalStaticConst" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByStaticConstWithoutConstAssertion" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByStaticConstObjectSpread" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByStaticConstArraySpread" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByLocalStaticSpread" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByImportedStaticConst" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByNamespaceImportedStaticConst" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByBarrelImportedStaticConst" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByStarAndAliasImportedStaticConst" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByNamespaceReExportedStaticConst" }).diagnostics).toEqual([])
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByImportedStaticSpread" }).diagnostics).toEqual([])
     expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredByRenderProp" }).diagnostics).toEqual([])
     expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#CoveredBySlot" }).diagnostics).toEqual([])
 
@@ -248,6 +264,15 @@ describe("GTSX analyzer", () => {
       expect.objectContaining({ code: "uncovered-jsx-branch", stage: "contract-extraction" }),
     )
     expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#UncoveredByMapItem" }).diagnostics).toContainEqual(
+      expect.objectContaining({ code: "uncovered-jsx-branch", stage: "contract-extraction" }),
+    )
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#UncoveredByStaticConstMapItem" }).diagnostics).toContainEqual(
+      expect.objectContaining({ code: "uncovered-jsx-branch", stage: "contract-extraction" }),
+    )
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#UncoveredByStaticConstObject" }).diagnostics).toContainEqual(
+      expect.objectContaining({ code: "uncovered-jsx-branch", stage: "contract-extraction" }),
+    )
+    expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#UncoveredByStaticConstObjectSpreadOverride" }).diagnostics).toContainEqual(
       expect.objectContaining({ code: "uncovered-jsx-branch", stage: "contract-extraction" }),
     )
     expect(analyzeEntry({ cwd: jsxControlFlowRoot, entry: "src/Branches.g.tsx#OpaqueByHelper" }).diagnostics).toContainEqual(
