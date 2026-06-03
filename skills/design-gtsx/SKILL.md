@@ -49,8 +49,8 @@ Do not rely on a stronger prompt to produce a better design. Treat the user's pr
 2. **Intent expansion**: convert the request into a compact private brief: goal, audience, core job, product surface, content model, interaction weight, constraints, and taste.
 3. **Direction gate**: ask one clarifying question only when the missing choice changes the product direction. Otherwise make a visible assumption and proceed.
 4. **Happy-path selection**: choose the one moment that best communicates the feature's value. Design exploration is not exhaustive frame coverage.
-5. **Design reference pass**: for substantive visual work, read [`DESIGN_REFERENCE.md`](./DESIGN_REFERENCE.md) and apply the relevant surface rules. Use it as a web design quality reference, not as a substitute for product context.
-6. **Layout plan**: decide the information hierarchy, primary action, secondary actions, data density, and visual system before writing TSX.
+5. **Design reference pass**: for substantive visual work, read [`DESIGN_REFERENCE.md`](./DESIGN_REFERENCE.md), choose a concrete visual direction, and apply the relevant surface rules. Use it as a web design quality reference, not as a substitute for product context.
+6. **Visual/layout plan**: decide the visual anchor, aesthetic family, information hierarchy, primary action, secondary actions, data density, and visual system before writing TSX.
 7. **Frame implementation**: create or update a named `project.root/gtsx/design/*.g.tsx` frame with credible content and stable dimensions.
 8. **Critique/refine**: review the frame against hierarchy, clarity, rhythm, density, accessibility, affordance, and domain fit. If it looks generic or unfinished, revise before hand-off.
 9. **Iteration**: if the user says "adjust here/there", preserve the current direction and edit the relevant frame unless they ask for a variant.

@@ -22,6 +22,7 @@ Use this method before writing TSX:
 
 - Read the product context before styling.
 - Convert vague prompts into an explicit design read.
+- Choose a concrete visual anchor and aesthetic family.
 - Tune concrete design dials before drawing.
 - Apply the relevant surface preset and component rules.
 - Use the pre-flight check before delivery.
@@ -54,6 +55,121 @@ Read these signals first:
 - **Risk**: money, privacy, moderation, safety, account settings, irreversible work, compliance, brand trust, conversion ambiguity.
 
 Ask one question only when the missing answer changes the product direction. Otherwise make a visible assumption and proceed.
+
+## Visual Direction
+
+Before layout, define the visible design direction. A design direction is not a mood word. It must name what the user will actually see.
+
+Required direction fields:
+
+- **Visual anchor**: the concrete thing that carries the composition, such as a product object, real content item, screenshot-like component, media thumbnail, map, avatar cluster, document, chart, message thread, pricing object, or workspace canvas.
+- **Aesthetic family**: one of the families below, or a project-specific family inferred from existing design.
+- **Type strategy**: compact system UI, editorial display, technical mono pairing, friendly rounded sans, or brand type.
+- **Color/material strategy**: neutral utility, high-contrast editorial, tinted surfaces, tactile consumer color, technical dark, paper/content, or brand-led palette.
+- **One memorable move**: one useful visual decision that a reviewer can point to, such as an oversized real object preview, a strong split, a pinned action rail, an expressive media crop, a shaped feed rhythm, a calm document canvas, or a dense but readable comparison block.
+
+If these fields cannot be named, the frame is not ready to implement.
+
+### Aesthetic Families
+
+Choose one family as the primary direction. Mix only when the existing product system already mixes them with a clear rule.
+
+#### Native Product Polish
+
+Use for settings, account, forms, standard SaaS, mobile utilities, and mature app surfaces.
+
+- Visual moves: crisp top bars, clear grouping, restrained surfaces, high-quality empty/loading/error states, strong focus rings, consistent controls.
+- Type: system UI or existing app font, medium weight contrast, tabular numbers when needed.
+- Color/material: neutral surfaces, one brand accent, semantic state colors.
+- Avoid: dramatic hero type, abstract gradients, cinematic layout, decorative glass.
+
+#### Editorial Product Web
+
+Use for product pages, portfolios, docs-adjacent pages, launch pages, and content-heavy surfaces.
+
+- Visual moves: strong typographic hierarchy, deliberate margins, media-led sections, asymmetric but readable grids, confident captions.
+- Type: display sans or tasteful brand type with readable body text.
+- Color/material: high-contrast neutral base, one accent, paper/content surfaces, restrained image treatments.
+- Avoid: random decorative metadata, fake issue labels, tiny uppercase labels on every section.
+
+#### Technical Instrument
+
+Use for developer tools, analytics, monitoring, operations, finance, admin, and command surfaces.
+
+- Visual moves: dense information zones, aligned metrics, clear status hierarchy, keyboard/command affordances, real table/chart structure.
+- Type: system sans plus mono for numbers/code, tabular figures.
+- Color/material: dark or light neutral system, semantic states, sparse separators.
+- Avoid: fake precision, ornamental data cards, glowing status dots, huge whitespace that slows scanning.
+
+#### Social Warmth
+
+Use for chat, creator tools, community, feeds, gifting, lightweight collaboration, and casual mobile screens.
+
+- Visual moves: readable conversations, tactile composer, avatars/media, compact emotional objects, soft but clear status.
+- Type: friendly sans or native system UI, generous line height for message text.
+- Color/material: soft surfaces, one warm or brand accent, restrained semantic colors.
+- Avoid: over-cute copy in transactional moments, random per-item colors, weak contrast, cramped touch targets.
+
+#### Consumer Tactile
+
+Use for commerce, lifestyle products, booking, checkout previews, wellness, food, travel, and product storytelling.
+
+- Visual moves: real product/media anchor, tactile cards, purchase/booking object clarity, price/state/action grouping.
+- Type: brand-led sans or display face, readable body and pricing.
+- Color/material: brand palette, tactile surfaces, product-relevant imagery.
+- Avoid: generic beige luxury, stock decoration, fake trust claims, hidden purchase actions.
+
+#### Brand Launch / Campaign
+
+Use for public marketing pages, launches, campaign pages, and high-concept product storytelling.
+
+- Visual moves: first-viewport object signal, bold media composition, clear CTA path, varied section rhythm, memorable brand moment.
+- Type: display system matched to brand, short copy, strong contrast.
+- Color/material: brand-led palette and media strategy.
+- Avoid: abstract blobs as the main visual, centered hero by default, three equal feature cards, vague value props.
+
+## Composition Patterns
+
+Use these patterns as starting points. They are concrete layout recipes, not visual requirements.
+
+### Product GUI
+
+- **Object-first detail**: top context bar, large primary object/content area, side metadata/actions, sticky primary action near the decision point.
+- **Triage queue**: compact list with status/action columns, batch toolbar, filters close to the list, one highlighted urgent item.
+- **Workspace shell**: global navigation, local toolbar, large canvas/content area, inspector rail, command/action surface.
+- **Chat/composer**: sticky context header, message stream with event objects, stable bottom composer, clear send/attachment/gift states.
+- **Feed with rhythm**: filter row, one featured or pinned item, repeated items with varied weight only when status/content differs.
+- **Comparison block**: aligned values, meaningful grouping, sparse dividers, explicit selected/recommended state.
+
+### Public Web
+
+- **Object-led hero**: first viewport shows the product, place, person, or content object clearly; copy and CTA support it.
+- **Editorial split**: large type on one side, real media/content on the other, strong but readable alignment.
+- **Proof after promise**: value statement first, then logos/testimonials/case data in a separate section.
+- **Narrative stack**: sections alternate purpose, such as problem, object, proof, detail, pricing, CTA. Do not repeat the same layout family.
+- **Media cadence**: every major section has either a real visual, strong typographic moment, or useful component preview.
+
+## Anti-Abstractness Rules
+
+Different is not enough. A frame that only uses abstraction is usually weaker than a conventional but concrete interface.
+
+Avoid these unless the brief explicitly asks for abstract art direction:
+
+- Large decorative geometric shapes that do not represent product content, brand assets, state, or navigation.
+- Abstract gradient backgrounds used as the primary visual.
+- Floating panels with cryptic labels and no real object, data, or task.
+- Pseudo-scientific diagrams, fake nodes, fake maps, fake signal lines, or fake dashboards that do not correspond to product behavior.
+- Misaligned layouts where the only memorable move is that things are off-grid.
+- Decorative typography fragments that do not help the user understand or act.
+- Visual effects that make the frame distinctive in a screenshot but not better as an interface.
+
+Prefer concrete anchors:
+
+- Realistic product/content objects.
+- Actual UI states and useful controls.
+- Media or screenshots generated for the section.
+- Domain-specific records, messages, charts, documents, thumbnails, maps, or objects.
+- A single strong layout move attached to real content.
 
 ## Design Dials
 
@@ -173,6 +289,20 @@ When no system exists, define a compact local system inside the frame:
 - A compact type scale.
 - A spacing rhythm.
 
+### Beauty Mechanics
+
+A frame should have visible craft, not only rule compliance.
+
+- **Focal point**: each first viewport needs one dominant object, text block, or work area. If everything has equal weight, the frame looks unfinished.
+- **Rhythm**: repeat spacing and component anatomy, then break the rhythm once for emphasis.
+- **Contrast**: use size, weight, color, density, or material contrast. Do not rely on color alone.
+- **Proportion**: avoid equal columns everywhere. Use ratios such as 5/7, 4/8, 3/9, wide/narrow, dense/open.
+- **Depth**: use depth only for real layers: modal, drawer, sticky bar, selected item, preview, or active object.
+- **Material**: surfaces should feel intentional: flat utility, paper, glass, tinted panel, media crop, canvas, or technical grid. Do not mix materials without a rule.
+- **Edges**: align major edges. Intentional asymmetry still needs clear alignment relationships.
+- **Whitespace**: make whitespace frame content. Do not use whitespace as filler when the screen needs density.
+- **Copy shape**: short labels and concrete verbs improve visual quality because they create cleaner components.
+
 ### One Visual Grammar
 
 Do not mix unrelated visual languages:
@@ -201,6 +331,8 @@ Avoid these patterns unless they are justified by the product context.
 - **Decorative glass**: blur/frosted panels that reduce legibility without explaining layering.
 - **Random gradients**: background treatments unrelated to brand, state, or hierarchy.
 - **Generic social filler**: generic names, generic avatars, generic comments, generic "just now" metadata.
+- **Hollow abstraction**: distinctive shapes, gradients, or diagrams with no concrete product/content anchor.
+- **Over-designed emptiness**: sparse layouts where the content model is too thin to judge the interface.
 
 ## Layout Rules
 
@@ -376,6 +508,8 @@ Avoid:
 Run this before delivery. If an item fails, revise the frame.
 
 - [ ] Design read is clear enough to explain the visual direction.
+- [ ] Visual anchor is concrete and visible in the frame.
+- [ ] Aesthetic family, type strategy, color/material strategy, and one memorable move are chosen before TSX.
 - [ ] Surface kind and primary job are obvious within two seconds.
 - [ ] Dials match the surface. No GUI density forced into a public storytelling page; no marketing-page composition forced into operational UI.
 - [ ] Existing tokens/components/icons are reused where available.
@@ -399,6 +533,8 @@ Run this before delivery. If an item fails, revise the frame.
 - [ ] Sample data is realistic and domain-specific.
 - [ ] Numbers and statuses are not fake-precise decoration.
 - [ ] Visual assets are product-relevant, not stock decoration.
+- [ ] No hollow abstraction: decorative shapes/effects are tied to content, state, brand, or navigation.
+- [ ] Frame has a focal point, rhythm, contrast, proportion, and intentional material treatment.
 - [ ] Motion, if implied, communicates feedback, continuity, attention, or spatial relation.
 - [ ] Contrast is readable for body, metadata, buttons, badges, placeholders, and disabled states.
 - [ ] The frame would still look intentional after real data replaces sample data.
