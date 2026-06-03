@@ -35,7 +35,7 @@ Because every state is declared and type-checked, your agent can also verify its
 Paste this into your AI agent:
 
 ```
-Install gtsx in this project. Fetch and install these Agent Skills from
+Install or upgrade gtsx in this project. Fetch and refresh these Agent Skills from
 https://github.com/tuoxiansp/gtsx:
 
 - skills/setup-gtsx
@@ -43,7 +43,8 @@ https://github.com/tuoxiansp/gtsx:
 - skills/refactor-to-gtsx
 - skills/design-gtsx
 
-After installing them, run the newly installed `setup-gtsx` skill in this project.
+If any of these skills are already installed, do not assume they are current.
+After installing or refreshing them, ask me whether to run the `setup-gtsx` skill in this project now.
 ```
 
 The agent detects your project (Vite / Next.js), installs packages, wires Studio, and verifies everything works. ~2 minutes.

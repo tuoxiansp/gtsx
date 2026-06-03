@@ -22,7 +22,7 @@ This file is the router. Read the detection profile first, then enter exactly on
 - If the project has no gtsx packages, `gtsx.config.ts`, adapter wrapper, or `/gtsx` route/browser entry, run first-time setup.
 - If any existing gtsx package, config, adapter wrapper, route, or browser entry is present, run upgrade/ensure mode first.
 - In upgrade/ensure mode:
-  - upgrade `@gtsx/core`, `@gtsx/studio`, and the selected adapter package to compatible current versions;
+  - treat `@gtsx/core`, `@gtsx/studio`, and the selected adapter package as one compatibility group; align them to compatible current npm versions and update the lockfile;
   - run an upgrade compatibility audit before deciding glue code is still valid;
   - preserve existing `gtsx.config.ts`, route files, framework config wrappers, browser entry branches, Studio URLs, preview URLs, and `.gtsx/preview-entries.ts` import patterns unless the audit shows a package-version contract change requires a minimal migration;
   - create the conventional design directory at `project.root/gtsx/design` if it is missing;
