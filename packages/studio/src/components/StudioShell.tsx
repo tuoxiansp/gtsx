@@ -23,6 +23,7 @@ import {
   selectStudioComponent,
   studioWorkspaceWithProviderVariantFilters,
   type StudioCanvasTransform,
+  type StudioCanvasUrlScope,
   type StudioComponentSelectionOptions,
   type StudioPreviewFrameState,
   type StudioPreviewTarget,
@@ -105,13 +106,14 @@ const studioCanvasUrlCommitDelayMilliseconds = 120
 const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
 
 function useStudioShellScope(props: StudioShellLoadedProps, view: StudioShellView): StudioShellScope {
+  const canvasUrlScope = studioCanvasUrlScopeForView(view)
   const initialUrlParams = React.useMemo(
     () => initialStudioUrlSearchParams(props.selection, props.urlSearch),
     [props.selection, props.urlSearch],
   )
   const initialUrlState = React.useMemo(
-    () => createStudioWorkspaceStateFromUrl(props.manifest, initialUrlParams),
-    [initialUrlParams, props.manifest],
+    () => createStudioWorkspaceStateFromUrl(props.manifest, initialUrlParams, { canvasScope: canvasUrlScope }),
+    [canvasUrlScope, initialUrlParams, props.manifest],
   )
   const debugPreviewPool = React.useMemo(() => isStudioPreviewPoolDebugEnabled(initialUrlParams), [initialUrlParams])
   const debugPreviewQueue = React.useMemo(() => isStudioPreviewQueueDebugEnabled(initialUrlParams), [initialUrlParams])
@@ -121,7 +123,7 @@ function useStudioShellScope(props: StudioShellLoadedProps, view: StudioShellVie
     [initialUrlParams, props.previewRenderQueue],
   )
   const [selection, setSelection] = React.useState(initialUrlState.selection)
-  const canvasUrlState = useStudioCanvasUrlState(initialUrlState.canvas)
+  const canvasUrlState = useStudioCanvasUrlState(initialUrlState.canvas, canvasUrlScope)
   const [urlWarning, setUrlWarning] = React.useState(initialUrlState.warning)
   const [workspace, setWorkspace] = React.useState(initialUrlState.workspace)
   const filteredWorkspace = React.useMemo(() => studioWorkspaceWithProviderVariantFilters(workspace), [workspace])
@@ -228,7 +230,10 @@ function useStudioShellScope(props: StudioShellLoadedProps, view: StudioShellVie
 
   React.useEffect(() => {
     const handlePopState = () => {
-      const restored = createStudioWorkspaceStateFromUrl(props.manifest, new URLSearchParams(window.location.search))
+      const restoredView = studioShellViewFromLocation()
+      const restored = createStudioWorkspaceStateFromUrl(props.manifest, new URLSearchParams(window.location.search), {
+        canvasScope: studioCanvasUrlScopeForView(restoredView),
+      })
       canvasUrlState.restoreCanvasFromUrl(restored.canvas)
       setSelection(restored.selection)
       setUrlWarning(restored.warning)
@@ -237,15 +242,28 @@ function useStudioShellScope(props: StudioShellLoadedProps, view: StudioShellVie
 
     window.addEventListener("popstate", handlePopState)
     return () => window.removeEventListener("popstate", handlePopState)
-  }, [canvasUrlState, props.manifest])
+  }, [canvasUrlState.restoreCanvasFromUrl, props.manifest])
+
+  useStudioLayoutEffect(() => {
+    if (typeof window === "undefined") return
+
+    canvasUrlState.flushPendingCanvasUrlCommit()
+    const restored = createStudioWorkspaceStateFromUrl(props.manifest, new URLSearchParams(window.location.search), {
+      canvasScope: canvasUrlScope,
+    })
+    canvasUrlState.restoreCanvasFromUrl(restored.canvas)
+  }, [canvasUrlScope, canvasUrlState.flushPendingCanvasUrlCommit, canvasUrlState.restoreCanvasFromUrl, props.manifest])
 
   const commitWorkspace = React.useCallback((updater: (current: StudioWorkspaceState) => StudioWorkspaceState) => {
     setWorkspace((current) => {
       const next = updater(current)
-      pushStudioWorkspaceUrlState(selectionRef.current, next, { canvas: canvasUrlState.liveCanvasRef.current })
+      pushStudioWorkspaceUrlState(selectionRef.current, next, {
+        canvas: canvasUrlState.liveCanvasRef.current,
+        canvasScope: canvasUrlScope,
+      })
       return next
     })
-  }, [canvasUrlState.liveCanvasRef])
+  }, [canvasUrlScope, canvasUrlState.liveCanvasRef])
 
   const handlePreviewFrameMount = React.useCallback((sessionId: string, frame: HTMLIFrameElement | null, state?: StudioPreviewIframeMountState) => {
     if (frame) {
@@ -282,6 +300,7 @@ function useStudioShellScope(props: StudioShellLoadedProps, view: StudioShellVie
       setWorkspace(nextUrlState.workspace)
       pushStudioWorkspaceUrlState(nextUrlState.selection, nextUrlState.workspace, {
         canvas: canvasUrlState.liveCanvasRef.current,
+        canvasScope: canvasUrlScope,
       })
     },
     onChangeViewportPreset(component, preset) {
@@ -310,15 +329,16 @@ function useStudioShellScope(props: StudioShellLoadedProps, view: StudioShellVie
 
 type StudioCanvasUrlState = {
   commitLiveCanvasChange: (canvas: StudioCanvasTransform) => void
+  flushPendingCanvasUrlCommit: () => void
   liveCanvasRef: React.MutableRefObject<StudioCanvasTransform>
   restoreCanvasFromUrl: (canvas: StudioCanvasTransform) => void
   restoredCanvas: StudioCanvasTransform
 }
 
-function useStudioCanvasUrlState(initialCanvas: StudioCanvasTransform): StudioCanvasUrlState {
+function useStudioCanvasUrlState(initialCanvas: StudioCanvasTransform, canvasUrlScope: StudioCanvasUrlScope): StudioCanvasUrlState {
   const [restoredCanvas, setRestoredCanvas] = React.useState(initialCanvas)
   const liveCanvasRef = React.useRef(restoredCanvas)
-  const pendingCanvasUrlCommit = React.useRef<StudioCanvasTransform | null>(null)
+  const pendingCanvasUrlCommit = React.useRef<{ canvas: StudioCanvasTransform; canvasScope: StudioCanvasUrlScope } | null>(null)
   const pendingCanvasUrlCommitTimer = React.useRef(0)
 
   const clearPendingCanvasUrlCommit = React.useCallback(() => {
@@ -329,26 +349,31 @@ function useStudioCanvasUrlState(initialCanvas: StudioCanvasTransform): StudioCa
     }
   }, [])
 
-  const flushCanvasUrlCommit = React.useCallback(() => {
+  const flushPendingCanvasUrlCommit = React.useCallback(() => {
+    if (pendingCanvasUrlCommitTimer.current) {
+      window.clearTimeout(pendingCanvasUrlCommitTimer.current)
+      pendingCanvasUrlCommitTimer.current = 0
+    }
+
     pendingCanvasUrlCommitTimer.current = 0
     const nextCanvas = pendingCanvasUrlCommit.current
     if (!nextCanvas) return
 
     pendingCanvasUrlCommit.current = null
-    replaceStudioCanvasUrlState(nextCanvas)
+    replaceStudioCanvasUrlState(nextCanvas.canvas, { canvasScope: nextCanvas.canvasScope })
   }, [])
 
   const commitLiveCanvasChange = React.useCallback(
     (nextCanvas: StudioCanvasTransform) => {
       liveCanvasRef.current = nextCanvas
-      pendingCanvasUrlCommit.current = nextCanvas
+      pendingCanvasUrlCommit.current = { canvas: nextCanvas, canvasScope: canvasUrlScope }
       if (pendingCanvasUrlCommitTimer.current) window.clearTimeout(pendingCanvasUrlCommitTimer.current)
       pendingCanvasUrlCommitTimer.current = window.setTimeout(
-        flushCanvasUrlCommit,
+        flushPendingCanvasUrlCommit,
         studioCanvasUrlCommitDelayMilliseconds,
       )
     },
-    [flushCanvasUrlCommit],
+    [canvasUrlScope, flushPendingCanvasUrlCommit],
   )
 
   const restoreCanvasFromUrl = React.useCallback(
@@ -367,11 +392,12 @@ function useStudioCanvasUrlState(initialCanvas: StudioCanvasTransform): StudioCa
   return React.useMemo(
     () => ({
       commitLiveCanvasChange,
+      flushPendingCanvasUrlCommit,
       liveCanvasRef,
       restoreCanvasFromUrl,
       restoredCanvas,
     }),
-    [commitLiveCanvasChange, restoreCanvasFromUrl, restoredCanvas],
+    [commitLiveCanvasChange, flushPendingCanvasUrlCommit, restoreCanvasFromUrl, restoredCanvas],
   )
 }
 
@@ -705,6 +731,10 @@ function studioShellViewFromSearch(search: string | undefined): StudioShellView 
 function studioShellViewFromHash(hash: string): StudioShellView {
   const route = hash.startsWith("#") ? hash.slice(1) : hash
   return route === "/design" || route === "design" ? "design" : "components"
+}
+
+function studioCanvasUrlScopeForView(view: StudioShellView): StudioCanvasUrlScope {
+  return view === "design" ? "design" : "components"
 }
 
 function StudioShellModeTabs(props: {

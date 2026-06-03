@@ -33,6 +33,7 @@ import {
   createStudioWorkspaceState,
   createStudioWorkspaceUrlSearchParams,
   currentStudioDesignPreviewTargets,
+  defaultStudioCanvasTransform,
   defaultStudioPreviewRenderQueueMaximumConcurrentRenderTasksDuringCanvasMovement,
   defaultStudioPreviewRenderQueueMinimumVisibleRenderTasksDuringCanvasMovement,
   isGPreviewProtocolMessage,
@@ -119,6 +120,7 @@ import { studioCanvasScreenStableChromeHostStyle } from "../src/studio-canvas-sc
 const fixtureRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
 const examplesRoot = join(import.meta.dirname, "../../../examples")
 const studioRoot = join(import.meta.dirname, "..")
+const tsProjectScopeRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/ts-project-scope")
 
 type CreateStudioManifestOptions = NonNullable<Parameters<typeof createStudioManifest>[1]>
 
@@ -256,6 +258,25 @@ describe("GTSX Studio shell", () => {
 
     expect(rootStudioManifestComponents(manifest).map((component) => component.coordinate)).toEqual(expectedRootCoordinates)
     expect(cardCoordinates(renderToStaticMarkup(<StudioShell manifest={manifest} />))).toEqual(expectedRootCoordinates)
+  })
+
+  it("keeps design convention files out of the components workspace", () => {
+    const manifest = buildStudioManifest({ cwd: tsProjectScopeRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const expectedRootCoordinates = ["src/Included.g.tsx#default"]
+
+    expect(manifest.files.map((file) => file.path)).toContain("src/gtsx/design/Sketch.g.tsx")
+    expect(rootStudioManifestComponents(manifest).map((component) => component.coordinate)).toEqual(expectedRootCoordinates)
+    expect(cardCoordinates(renderToStaticMarkup(<StudioShell manifest={manifest} />))).toEqual(expectedRootCoordinates)
+    expect(
+      createStudioWorkspaceState(manifest, "component:src/gtsx/design/Sketch.g.tsx#default").columns[0]?.components.map(
+        (component) => component.coordinate,
+      ),
+    ).toEqual(expectedRootCoordinates)
+    expect(
+      createStudioWorkspaceState(manifest, "file:src/gtsx/design/Sketch.g.tsx").columns[0]?.components.map(
+        (component) => component.coordinate,
+      ),
+    ).toEqual(expectedRootCoordinates)
   })
 
   it("virtualizes canvas card shells instead of rendering every root component", () => {
@@ -4681,6 +4702,39 @@ describe("GTSX Studio shell", () => {
     })
   })
 
+  it("keeps components and design canvas URL state separate", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const workspace = createStudioWorkspaceState(manifest, "file:src/MultiExport.g.tsx")
+    const params = createStudioWorkspaceUrlSearchParams(
+      "file:src/MultiExport.g.tsx",
+      workspace,
+      {
+        x: 321.1234,
+        y: -45.6789,
+        scale: 0.8754,
+      },
+      { canvasScope: "design" },
+    )
+    const serialized = params.toString()
+
+    expect(serialized).toContain("designCanvasX=321.123")
+    expect(serialized).toContain("designCanvasY=-45.679")
+    expect(serialized).toContain("designCanvasScale=0.875")
+    expect(serialized).not.toContain("canvasX=")
+    expect(createStudioCanvasTransformFromUrl(params)).toEqual(defaultStudioCanvasTransform())
+    expect(createStudioCanvasTransformFromUrl(params, "design")).toEqual({
+      x: 321.123,
+      y: -45.679,
+      scale: 0.875,
+    })
+    expect(createStudioWorkspaceStateFromUrl(manifest, params).canvas).toEqual(defaultStudioCanvasTransform())
+    expect(createStudioWorkspaceStateFromUrl(manifest, params, { canvasScope: "design" }).canvas).toEqual({
+      x: 321.123,
+      y: -45.679,
+      scale: 0.875,
+    })
+  })
+
   it("renders the initial canvas transform restored from URL params", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
     const html = renderToStaticMarkup(
@@ -4691,6 +4745,34 @@ describe("GTSX Studio shell", () => {
     )
 
     expect(html).toContain("transform:translate(120px, -30px) scale(1.25)")
+  })
+
+  it("renders the initial design canvas transform restored from design URL params", () => {
+    const manifest = buildStudioManifest({
+      cwd: fixtureRoot,
+      projectRoot: "src",
+      design: {
+        frames: [
+          {
+            id: "src/UserCard.g.tsx#default:ready",
+            entry: "src/UserCard.g.tsx#default",
+            filePath: "src/UserCard.g.tsx",
+            title: "UserCard",
+            exportName: "default",
+            frameName: "ready",
+          },
+        ],
+      },
+    })
+    const html = renderToStaticMarkup(
+      <StudioShell
+        manifest={manifest}
+        urlSearch="view=design&canvasX=120&canvasY=-30&canvasScale=1.25&designCanvasX=340&designCanvasY=-80&designCanvasScale=0.75"
+      />,
+    )
+
+    expect(html).toContain("transform:translate(340px, -80px) scale(0.75)")
+    expect(html).not.toContain("transform:translate(120px, -30px) scale(1.25)")
   })
 
   it("replaces the current URL for canvas-only changes instead of pushing history", () => {
@@ -4723,6 +4805,40 @@ describe("GTSX Studio shell", () => {
       { gtsxStudio: true },
       "",
       "/gtsx/studio?selection=file%3Asrc%2FMultiExport.g.tsx&canvasX=120&canvasY=-30&canvasScale=1.25",
+    )
+  })
+
+  it("replaces only the active canvas URL params and preserves the view route", () => {
+    const pushState = vi.fn()
+    const replaceState = vi.fn()
+    const originalWindow = Reflect.get(globalThis, "window") as Window | undefined
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        history: { pushState, replaceState },
+        location: {
+          hash: "#/design",
+          pathname: "/gtsx/studio",
+          search: "?selection=file%3Asrc%2FMultiExport.g.tsx&canvasX=10&canvasY=20&canvasScale=1.1&designCanvasX=30&designCanvasY=40&designCanvasScale=0.9",
+        },
+      },
+    })
+
+    try {
+      replaceStudioCanvasUrlState({ x: 120, y: -30, scale: 1.25 }, { canvasScope: "design" })
+    } finally {
+      if (originalWindow === undefined) {
+        Reflect.deleteProperty(globalThis, "window")
+      } else {
+        Object.defineProperty(globalThis, "window", { configurable: true, value: originalWindow })
+      }
+    }
+
+    expect(pushState).not.toHaveBeenCalled()
+    expect(replaceState).toHaveBeenCalledWith(
+      { gtsxStudio: true },
+      "",
+      "/gtsx/studio?selection=file%3Asrc%2FMultiExport.g.tsx&canvasX=10&canvasY=20&canvasScale=1.1&designCanvasX=120&designCanvasY=-30&designCanvasScale=1.25#/design",
     )
   })
 

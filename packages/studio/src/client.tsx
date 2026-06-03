@@ -49,6 +49,8 @@ export type StudioCanvasTransform = {
   scale: number
 }
 
+export type StudioCanvasUrlScope = "components" | "design"
+
 export type StudioCanvasScreenRect = {
   bottom: number
   left: number
@@ -384,7 +386,7 @@ export function studioManifestProviderVariantAxes(
 ): StudioProviderVariantAxis[] {
   const variantsByProvider = new Map<string, string[]>()
 
-  for (const component of manifest.files.flatMap((file) => file.components)) {
+  for (const component of studioComponentWorkspaceManifestComponents(manifest)) {
     for (const [providerName, provider] of Object.entries(component.providers)) {
       if (!provider.variants || provider.variants.length < 2) continue
       variantsByProvider.set(providerName, uniqueStrings([...(variantsByProvider.get(providerName) ?? []), ...provider.variants]))
@@ -640,12 +642,13 @@ export function createStudioWorkspaceUrlSearchParams(
   selection: string | undefined,
   workspace: StudioWorkspaceState,
   canvas?: StudioCanvasTransform,
+  options: { canvasScope?: StudioCanvasUrlScope } = {},
 ): URLSearchParams {
   const params = new URLSearchParams()
   if (selection && selection !== studioRootSelectionId) params.set("selection", selection)
   const canvasViewportPreset = canvasViewportPresetForWorkspace(workspace)
   if (canvasViewportPreset !== "tablet") params.set("canvasViewport", canvasViewportPreset)
-  setStudioCanvasTransformUrlParams(params, canvas)
+  setStudioCanvasTransformUrlParams(params, canvas, options.canvasScope)
 
   for (const coordinate of workspace.selectedCoordinatePath) {
     params.append("path", coordinate)
@@ -694,9 +697,10 @@ function appendStudioProviderVariantPathUrlParams(
 export function createStudioWorkspaceStateFromUrl(
   manifest: StudioManifest,
   params: URLSearchParams,
+  options: { canvasScope?: StudioCanvasUrlScope } = {},
 ): StudioWorkspaceUrlState {
   const selection = params.get("selection") ?? undefined
-  const canvas = createStudioCanvasTransformFromUrl(params)
+  const canvas = createStudioCanvasTransformFromUrl(params, options.canvasScope)
   const resolvedSelection = resolveStudioSelection(manifest, selection)
   const rawPath = params.getAll("path")
   const selectedCoordinatePath = rawPath.filter((coordinate) => Boolean(findManifestComponent(manifest, coordinate)))
@@ -937,7 +941,7 @@ function directChildComponentsForCoordinate(
   coordinate: string,
 ): StudioManifestComponent[] {
   const componentsByCoordinate = new Map(
-    manifest.files.flatMap((file) => file.components).map((component) => [component.coordinate, component] as const),
+    studioComponentWorkspaceManifestComponents(manifest).map((component) => [component.coordinate, component] as const),
   )
   const seen = new Set<string>()
   const components: StudioManifestComponent[] = []
@@ -1043,23 +1047,31 @@ export function initialStudioUrlSearchParams(selection: string | undefined, urlS
   return params
 }
 
-export function createStudioCanvasTransformFromUrl(params: URLSearchParams): StudioCanvasTransform {
+export function createStudioCanvasTransformFromUrl(
+  params: URLSearchParams,
+  canvasScope: StudioCanvasUrlScope = "components",
+): StudioCanvasTransform {
   const fallback = defaultStudioCanvasTransform()
+  const names = studioCanvasTransformUrlParamNames(canvasScope)
   return {
-    x: numberUrlParam(params, "canvasX", fallback.x),
-    y: numberUrlParam(params, "canvasY", fallback.y),
-    scale: clamp(numberUrlParam(params, "canvasScale", fallback.scale), studioCanvasMinScale, studioCanvasMaxScale),
+    x: numberUrlParam(params, names.x, fallback.x),
+    y: numberUrlParam(params, names.y, fallback.y),
+    scale: clamp(numberUrlParam(params, names.scale, fallback.scale), studioCanvasMinScale, studioCanvasMaxScale),
   }
 }
 
-export function replaceStudioCanvasUrlState(canvas: StudioCanvasTransform) {
+export function replaceStudioCanvasUrlState(
+  canvas: StudioCanvasTransform,
+  options: { canvasScope?: StudioCanvasUrlScope } = {},
+) {
   if (typeof window === "undefined") return
 
   const params = new URLSearchParams(window.location.search)
-  setStudioCanvasTransformUrlParams(params, canvas)
+  setStudioCanvasTransformUrlParams(params, canvas, options.canvasScope)
   const search = params.toString()
-  const nextUrl = `${window.location.pathname}${search ? `?${search}` : ""}`
-  const currentUrl = `${window.location.pathname}${window.location.search}`
+  const hash = window.location.hash ?? ""
+  const nextUrl = `${window.location.pathname}${search ? `?${search}` : ""}${hash}`
+  const currentUrl = `${window.location.pathname}${window.location.search}${hash}`
   if (nextUrl !== currentUrl) {
     window.history.replaceState({ gtsxStudio: true }, "", nextUrl)
   }
@@ -1068,16 +1080,21 @@ export function replaceStudioCanvasUrlState(canvas: StudioCanvasTransform) {
 export function pushStudioWorkspaceUrlState(
   selection: string | undefined,
   workspace: StudioWorkspaceState,
-  options: { canvas?: StudioCanvasTransform } = {},
+  options: { canvas?: StudioCanvasTransform; canvasScope?: StudioCanvasUrlScope } = {},
 ) {
   if (typeof window === "undefined") return
 
-  const canvas = options.canvas ?? createStudioCanvasTransformFromUrl(new URLSearchParams(window.location.search))
-  const params = createStudioWorkspaceUrlSearchParams(selection, workspace, canvas)
-  preserveStudioDebugUrlParams(params, new URLSearchParams(window.location.search))
+  const sourceParams = new URLSearchParams(window.location.search)
+  const canvasScope = options.canvasScope ?? "components"
+  const canvas = options.canvas ?? createStudioCanvasTransformFromUrl(sourceParams, canvasScope)
+  const params = createStudioWorkspaceUrlSearchParams(selection, workspace, canvas, { canvasScope })
+  preserveOtherStudioCanvasTransformUrlParams(params, sourceParams, canvasScope)
+  preserveStudioViewUrlParams(params, sourceParams)
+  preserveStudioDebugUrlParams(params, sourceParams)
   const search = params.toString()
-  const nextUrl = `${window.location.pathname}${search ? `?${search}` : ""}`
-  const currentUrl = `${window.location.pathname}${window.location.search}`
+  const hash = window.location.hash ?? ""
+  const nextUrl = `${window.location.pathname}${search ? `?${search}` : ""}${hash}`
+  const currentUrl = `${window.location.pathname}${window.location.search}${hash}`
   if (nextUrl !== currentUrl) {
     window.history.pushState({ gtsxStudio: true }, "", nextUrl)
   }
@@ -1184,6 +1201,27 @@ function preserveStudioDebugUrlParams(target: URLSearchParams, source: URLSearch
   }
 }
 
+function preserveStudioViewUrlParams(target: URLSearchParams, source: URLSearchParams) {
+  target.delete("view")
+  for (const value of source.getAll("view")) target.append("view", value)
+}
+
+function preserveOtherStudioCanvasTransformUrlParams(
+  target: URLSearchParams,
+  source: URLSearchParams,
+  activeScope: StudioCanvasUrlScope,
+) {
+  for (const scope of studioCanvasUrlScopes) {
+    if (scope === activeScope) continue
+
+    const names = studioCanvasTransformUrlParamNames(scope)
+    for (const name of [names.x, names.y, names.scale]) {
+      target.delete(name)
+      for (const value of source.getAll(name)) target.append(name, value)
+    }
+  }
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
@@ -1203,17 +1241,39 @@ function formatProviderVariantSelection(selection: string | string[]): string {
 
 export const studioCanvasMinScale = 0.325
 const studioCanvasMaxScale = 2.5
+const studioCanvasUrlScopes = ["components", "design"] as const
 
-function setStudioCanvasTransformUrlParams(params: URLSearchParams, canvas: StudioCanvasTransform | undefined) {
-  params.delete("canvasX")
-  params.delete("canvasY")
-  params.delete("canvasScale")
+function setStudioCanvasTransformUrlParams(
+  params: URLSearchParams,
+  canvas: StudioCanvasTransform | undefined,
+  canvasScope: StudioCanvasUrlScope = "components",
+) {
+  const names = studioCanvasTransformUrlParamNames(canvasScope)
+  params.delete(names.x)
+  params.delete(names.y)
+  params.delete(names.scale)
   if (!canvas) return
 
   const fallback = defaultStudioCanvasTransform()
-  if (canvas.x !== fallback.x) params.set("canvasX", formatStudioCanvasNumber(canvas.x))
-  if (canvas.y !== fallback.y) params.set("canvasY", formatStudioCanvasNumber(canvas.y))
-  if (canvas.scale !== fallback.scale) params.set("canvasScale", formatStudioCanvasNumber(canvas.scale))
+  if (canvas.x !== fallback.x) params.set(names.x, formatStudioCanvasNumber(canvas.x))
+  if (canvas.y !== fallback.y) params.set(names.y, formatStudioCanvasNumber(canvas.y))
+  if (canvas.scale !== fallback.scale) params.set(names.scale, formatStudioCanvasNumber(canvas.scale))
+}
+
+function studioCanvasTransformUrlParamNames(canvasScope: StudioCanvasUrlScope): { scale: string; x: string; y: string } {
+  if (canvasScope === "design") {
+    return {
+      x: "designCanvasX",
+      y: "designCanvasY",
+      scale: "designCanvasScale",
+    }
+  }
+
+  return {
+    x: "canvasX",
+    y: "canvasY",
+    scale: "canvasScale",
+  }
 }
 
 function numberUrlParam(params: URLSearchParams, name: string, fallback: number): number {
@@ -1776,22 +1836,49 @@ export function resolveStudioSelection(
 
   if (selection?.startsWith("component:")) {
     const coordinate = selection.slice("component:".length)
-    const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === coordinate)
+    const component = studioComponentWorkspaceManifestComponents(manifest).find((candidate) => candidate.coordinate === coordinate)
     if (component) return { id: selection, components: [component] }
   }
 
   if (selection?.startsWith("file:")) {
     const filePath = selection.slice("file:".length)
     const file = manifest.files.find((candidate) => candidate.path === filePath)
-    if (file) return { id: selection, components: file.components }
+    const components = file ? studioComponentWorkspaceFileComponents(manifest, file) : []
+    if (components.length > 0) return { id: selection, components }
   }
 
   return { id: studioRootSelectionId, components: rootStudioManifestComponents(manifest) }
 }
 
 export function rootStudioManifestComponents(manifest: StudioManifest): StudioManifestComponent[] {
-  const components = manifest.files.flatMap((file) => file.components)
+  const components = studioComponentWorkspaceManifestComponents(manifest)
   const childCoordinates = new Set(components.flatMap((component) => component.dependencies ?? []))
   const roots = components.filter((component) => !childCoordinates.has(component.coordinate))
   return roots.length > 0 ? roots : components
+}
+
+function studioComponentWorkspaceManifestComponents(manifest: StudioManifest): StudioManifestComponent[] {
+  const designCoordinates = studioDesignComponentCoordinates(manifest)
+  return manifest.files.flatMap((file) => studioComponentWorkspaceFileComponents(manifest, file, designCoordinates))
+}
+
+function studioComponentWorkspaceFileComponents(
+  manifest: StudioManifest,
+  file: StudioManifest["files"][number],
+  designCoordinates = studioDesignComponentCoordinates(manifest),
+): StudioManifestComponent[] {
+  return file.components.filter((component) => !isStudioDesignComponent(component, designCoordinates))
+}
+
+function studioDesignComponentCoordinates(manifest: StudioManifest): Set<string> {
+  return new Set((manifest.design?.frames ?? []).map((frame) => frame.entry))
+}
+
+function isStudioDesignComponent(component: StudioManifestComponent, designCoordinates: ReadonlySet<string>): boolean {
+  return designCoordinates.has(component.coordinate) || isStudioDesignFilePath(component.filePath)
+}
+
+function isStudioDesignFilePath(filePath: string): boolean {
+  const normalized = filePath.replaceAll("\\", "/")
+  return normalized.startsWith("gtsx/design/") || normalized.includes("/gtsx/design/")
 }
