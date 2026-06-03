@@ -1,8 +1,6 @@
 # gtsx Design
 
-Understand why gtsx is safe to adopt and trivial to remove.
-
-This document is for the engineer who is evaluating gtsx — whether for a new project or an existing one. It explains the mental model, proves safety, and shows the exit path.
+How gtsx works — the architecture, the sidecar model, and what it does and doesn't touch in your project.
 
 For the type-level contract and branch coverage rules, see [Static Contract](./gtsx-static-contract.md). For the design workspace, see [Design Workspace](./gtsx-design-workspace.md).
 
@@ -14,7 +12,7 @@ For the type-level contract and branch coverage rules, see [Static Contract](./g
 gtsx = your TSX + a small protocol
 ```
 
-A `.g.tsx` file is a real TypeScript React component. Your compiler reads it. Your bundler reads it. Your tests run it. If gtsx vanished tomorrow, you would still have working TSX.
+A `.g.tsx` file is a real TypeScript React component. Your compiler reads it. Your bundler reads it. Your tests run it.
 
 The protocol adds three things. All optional. All additive:
 
@@ -111,19 +109,21 @@ For Next.js App Router, this means inherited layouts matter. A `/gtsx` page cann
 
 ## Guarantees
 
-**Your production code is unchanged.** Cases are inert static data. The preview runtime is separate code loaded only by Studio. No production path reads cases. No bundle ships them.
+The sidecar model means gtsx has a small, well-defined surface area:
 
-**Your build stays yours.** Adapters plug into your existing pipeline. There is no parallel bundler, no second dev server, no configuration to keep in sync.
+**Production code.** Cases are inert static data. The preview runtime is separate code loaded only by Studio. No production path reads cases. No bundle ships them.
 
-**Your data layer is untouched.** gtsx has no opinions about fetching, caching, stores, or providers. The seam lets you swap state at preview time without changing how production works.
+**Build pipeline.** Adapters plug into your existing pipeline. No parallel bundler, no second dev server, no configuration to keep in sync.
 
-**Your router is untouched.** Studio mounts at `/gtsx/studio`. Preview at `/gtsx`. You add these routes; you can remove them.
+**Data layer.** gtsx has no opinions about fetching, caching, stores, or providers. The seam swaps state at preview time without changing how production works.
 
-**Your file structure is untouched.** Put files wherever you already put them.
+**Router.** Studio mounts at `/gtsx/studio`. Preview at `/gtsx`. Two routes, added and removed in one step.
 
-## Easy Exit
+**File structure.** Put files wherever you already put them.
 
-If you decide gtsx is not for you, removal is mechanical and gradual. No proprietary format, no data migration, no schema to unwind.
+## Exit Path
+
+Removal is mechanical and gradual:
 
 1. Remove `Component.cases`. Components still work — they are ordinary TSX with an ignored static property.
 2. Replace `useScope()` with the underlying real hook. Components still work, behaving exactly as before.

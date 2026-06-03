@@ -1,20 +1,38 @@
 # gtsx
 
-**Make your React UI knowable — to you and to your agents.**
+**Design, build, and review React UI — with your AI agent.**
 
-Every component declares its visual states. Studio renders them. The CLI checks and screenshots them. Agents read them as typed data.
+gtsx is a GUI development workflow for the AI era. Your agent designs screens, builds components, and declares every visual state — typed and verifiable. You describe what you want, open `/gtsx/studio`, and see the full picture. Design, build, and review — one workflow, one URL.
 
-> **TODO — Hero image goes here.**
->
-> A Studio screenshot showing a grid of 8–12 real components, each with
-> multiple state thumbnails side by side (loading / ready / error / empty),
-> so the eye reads "everything, all visible at once" within 2 seconds.
-> Light theme, ~1200px wide. An animated GIF cycling through cases beats
-> a static frame.
+![Studio — every component, every state, one screen](docs/images/studio-components.jpeg)
 
-## Install
+## Design
 
-Give this to an AI coding agent inside your project:
+Explore directions before writing production code. Tell your agent "design a checkout flow" or "try three layouts for the settings page." It drafts visual frames in Studio's design workspace — you see them side by side, give feedback, iterate until the direction is right.
+
+No mockup tool. No handoff. Design and production live in the same workspace.
+
+![Studio design workspace](docs/images/studio-design.jpeg)
+
+## Build
+
+Describe what you want: "Build a user card with loading, error, and ready states." Your agent writes the component and declares every visual state in the same file — typed and verifiable. It handles the patterns through installed skills. You stay at the level of intent.
+
+Building an admin panel with different views for admins, regular users, and anonymous visitors? Your agent models those as variant states. Pages that look different when data is empty vs. populated? Declared and visible — without manually switching accounts or seeding databases.
+
+## Review
+
+Open `/gtsx/studio`. Every component in your project, every visual state — rendered on one screen. Toggle filters to see how your UI responds across contexts: admin vs. regular user, signed-in vs. anonymous, empty vs. loaded.
+
+No navigating your app. No clicking through flows. No test data. One URL.
+
+![Toggle USERSIGN to anonymous — every component responds](docs/images/studio-variant-filter.jpeg)
+
+Because every state is declared and type-checked, your agent can also verify its own work — catching visual drift before you even open Studio.
+
+## Get Started — One Prompt
+
+Paste this into your AI agent:
 
 ```
 Install gtsx in this project. Fetch and install these Agent Skills from
@@ -28,40 +46,39 @@ https://github.com/tuoxiansp/gtsx:
 After installing them, run the newly installed `setup-gtsx` skill in this project.
 ```
 
-The agent detects your TypeScript project and Host (Next.js or Vite), installs the right packages, wires `/gtsx/studio`, and verifies everything works.
+The agent detects your project (Vite / Next.js), installs packages, wires Studio, and verifies everything works. ~2 minutes.
 
-You will not touch a config file.
+Already have components? Tell your agent to run the `refactor-to-gtsx` skill — it converts your existing codebase.
 
-## Why gtsx
+## Under the Hood
 
-**You cannot see your own UI.**
+A gtsx component is a normal React file (`.g.tsx`) with one static object appended:
 
-Your React codebase has hundreds of visual states — loading, error, empty, overflow, permission-denied, RTL, dark mode — and no place to actually view them. Code review only sees diffs. Designers only see Figma. Every "what does this look like?" question costs a dev server, a click trail, and ten minutes.
+```tsx
+import type { GCases } from "@gtsx/core"
 
-This was painful before. With agents writing UI at machine speed, it is now untenable. New states ship unseen. Existing states regress silently. The agent editing your `Button` has no idea what `Button` is supposed to look like in its eight different states.
+type BadgeProps = {
+  tone: "neutral" | "warning"
+  label: string
+}
 
-gtsx gives you back the map.
+export default function Badge(props: BadgeProps) {
+  return <span data-tone={props.tone}>{props.label}</span>
+}
 
-## What Changes
+Badge.cases = {
+  neutral: { props: { tone: "neutral", label: "Ready" } },
+  warning: { props: { tone: "warning", label: "Needs review" } },
+} satisfies GCases<BadgeProps>
+```
 
-Before: you ask "what does this look like in error state?" — start dev server, navigate, click, wait, find the state, screenshot, repeat for every component.
+That `.cases` object is the entire footprint — inert data that never runs in production and never appears in your bundle. Your agent writes it. The type checker keeps it in sync.
 
-After: you open Studio. Every component, every visual state, already rendered on one screen. Your agent sees the same thing you do. When it edits a component, it knows what all eight states are supposed to look like — because they are declared, checked, and visible.
+No config files. No separate build step. Nothing to maintain.
 
-The workflow:
+### Leave Anytime
 
-- **You tell the agent to build a component.** It writes the UI and declares the visual states alongside it.
-- **You open Studio.** Loading, error, empty, ready — all rendered, no navigation required.
-- **The agent refactors something.** If the visual states drift from the component's actual props, the build breaks before anything ships.
-- **You want to design a new screen.** You describe it. The agent drafts it as a design frame. You see it in Studio immediately.
-
-What makes this work:
-
-- **A complete map of your UI.** Studio enumerates every component and every visual state in your TypeScript project. Stop guessing what exists.
-- **Visual state as a typed contract.** Refactors fail the build the moment cases drift from props.
-- **Preview without mocking.** Loading, error, empty, and edge states render without writing a single fetch mock.
-- **AI-readable.** Agents enumerate, render, and diff every visual state without running your app.
-- **No parallel build.** Plugs into your Next.js or Vite toolchain — no separate stories directory, no config to keep in sync.
+Rename `.g.tsx` → `.tsx`, delete `.cases`, remove the Studio route. Plain React. No lock-in.
 
 ## Docs
 
@@ -73,7 +90,7 @@ What makes this work:
 
 **Understanding gtsx:**
 
-- [Design](docs/gtsx-design.md) — architecture, sidecar model, safety guarantees, and easy exit
+- [Design](docs/gtsx-design.md) — architecture, sidecar model, and guarantees
 - [Static Contract](docs/gtsx-static-contract.md) — the type-level contract, JSX branch coverage, and provider variant model
 
 **For AI agents:**
