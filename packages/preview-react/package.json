@@ -1,6 +1,6 @@
 {
   "name": "@gtsx/preview-react",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "React preview runtime for GTSX component frames.",
   "license": "MIT",
   "type": "module",
