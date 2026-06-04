@@ -2,7 +2,8 @@ import { defineGTSXConfig } from "@gtsx/core"
 
 export default defineGTSXConfig({
   project: {
-    root: "src/frames",
+    sourceRoot: "src/frames",
+    entryRoot: "app/gtsx",
     namespace: "gtsx-examples",
   },
   routes: {

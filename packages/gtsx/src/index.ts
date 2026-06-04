@@ -1,8 +1,12 @@
 export { defineGTSXConfig } from "./define-config.js"
 export {
-  DEFAULT_GTSX_PROJECT_ROOT,
+  DEFAULT_GTSX_ENTRY_ROOT,
+  DEFAULT_GTSX_SOURCE_ROOT,
   DEFAULT_GTSX_ROUTES,
   DEFAULT_STUDIO_MANIFEST_CACHE_TTL_MS,
+  gtsxDesignRootFromEntryRoot,
+  normalizeGTSXPath,
+  requireGTSXEntryRoot,
   resolveGTSXConfig,
 } from "./config-model.js"
 export type {

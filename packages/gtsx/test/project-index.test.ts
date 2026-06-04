@@ -1,3 +1,5 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
@@ -10,7 +12,7 @@ const examplesRoot = join(import.meta.dirname, "../../../examples")
 
 describe("GTSX project index", () => {
   it("describes the selected GTSX project without Studio route or preview concerns", () => {
-    const index = buildGTSXProjectIndex({ cwd: fixtureRoot, projectRoot: "src/corpus" })
+    const index = buildGTSXProjectIndex({ cwd: fixtureRoot, sourceRoot: "src/corpus" })
 
     expect(index).toEqual({
       version: 1,
@@ -71,10 +73,37 @@ describe("GTSX project index", () => {
     })
 
     expect(index.files.map((file) => file.path)).toEqual([
+      "src/app/gtsx/design/Sketch.g.tsx",
       "src/Child.g.tsx",
-      "src/gtsx/design/Sketch.g.tsx",
       "src/Included.g.tsx",
     ])
+  })
+
+  it("can include route design roots outside the selected source root", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "gtsx-route-design-index-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      mkdirSync(join(cwd, "app/gtsx/design"), { recursive: true })
+      writeFileSync(
+        join(cwd, "src/Card.g.tsx"),
+        ["export default function Card() { return null }", "Card.frames = { ready: { props: {} } }", ""].join("\n"),
+      )
+      writeFileSync(
+        join(cwd, "app/gtsx/design/Sketch.g.tsx"),
+        ["export default function Sketch() { return null }", "Sketch.frames = { live: { props: {} } }", ""].join("\n"),
+      )
+
+      const index = buildGTSXProjectIndex({
+        additionalRoots: ["app/gtsx/design"],
+        cwd,
+        sourceRoot: "src",
+      })
+
+      expect(index.files.map((file) => file.path)).toEqual(["app/gtsx/design/Sketch.g.tsx", "src/Card.g.tsx"])
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
   })
 
   it("records static GTSX component dependencies from TypeScript path aliases", () => {
@@ -90,7 +119,7 @@ describe("GTSX project index", () => {
   })
 
   it("records static GTSX component dependencies from JSX imports", () => {
-    const index = buildGTSXProjectIndex({ cwd: examplesRoot, projectRoot: "src/frames" })
+    const index = buildGTSXProjectIndex({ cwd: examplesRoot, sourceRoot: "src/frames" })
     const dashboard = index.files
       .flatMap((file) => file.components)
       .find((component) => component.coordinate === "src/frames/stateful/DashboardShell.g.tsx#default")
@@ -99,7 +128,7 @@ describe("GTSX project index", () => {
   })
 
   it("records static GTSX component dependencies through local JSX aliases", () => {
-    const index = buildGTSXProjectIndex({ cwd: fixtureRoot, projectRoot: "src" })
+    const index = buildGTSXProjectIndex({ cwd: fixtureRoot, sourceRoot: "src" })
     const aliasImportedDependency = index.files
       .flatMap((file) => file.components)
       .find((component) => component.coordinate === "src/AliasImportedDependency.g.tsx#default")
@@ -108,7 +137,7 @@ describe("GTSX project index", () => {
   })
 
   it("indexes local functions exported from a list when they declare frames", () => {
-    const index = buildGTSXProjectIndex({ cwd: fixtureRoot, projectRoot: "src" })
+    const index = buildGTSXProjectIndex({ cwd: fixtureRoot, sourceRoot: "src" })
     const exportList = index.files.find((file) => file.path === "src/ExportList.g.tsx")
 
     expect(exportList?.components.map((component) => component.coordinate)).toEqual([
@@ -119,9 +148,9 @@ describe("GTSX project index", () => {
 
   it("can reuse a project index briefly for high-frequency Studio route reads", () => {
     const buildProjectIndex = createCachedGTSXProjectIndexBuilder({ ttlMs: 60_000 })
-    const first = buildProjectIndex({ cwd: fixtureRoot, projectRoot: "src/corpus" })
-    const second = buildProjectIndex({ cwd: fixtureRoot, projectRoot: "src/corpus" })
-    const differentScope = buildProjectIndex({ cwd: fixtureRoot, projectRoot: "src" })
+    const first = buildProjectIndex({ cwd: fixtureRoot, sourceRoot: "src/corpus" })
+    const second = buildProjectIndex({ cwd: fixtureRoot, sourceRoot: "src/corpus" })
+    const differentScope = buildProjectIndex({ cwd: fixtureRoot, sourceRoot: "src" })
 
     expect(second).toBe(first)
     expect(differentScope).not.toBe(first)
@@ -130,8 +159,8 @@ describe("GTSX project index", () => {
   it("shares the cached project index across provider instances", () => {
     const firstProvider = createCachedGTSXProjectIndexBuilder({ ttlMs: 60_000 })
     const secondProvider = createCachedGTSXProjectIndexBuilder({ ttlMs: 60_000 })
-    const first = firstProvider({ cwd: fixtureRoot, projectRoot: "src/corpus" })
-    const second = secondProvider({ cwd: fixtureRoot, projectRoot: "src/corpus" })
+    const first = firstProvider({ cwd: fixtureRoot, sourceRoot: "src/corpus" })
+    const second = secondProvider({ cwd: fixtureRoot, sourceRoot: "src/corpus" })
 
     expect(second).toBe(first)
   })

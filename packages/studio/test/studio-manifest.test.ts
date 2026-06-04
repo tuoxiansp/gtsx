@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { describe, expect, it } from "vitest"
 
 import { buildGTSXProjectIndex } from "@gtsx/core/project-index"
-import { createStudioManifest, studioUrlSearchFromSearchParams } from "../src/index.js"
+import { createStudioManifest, createStudioManifestFromGTSXConfig, studioUrlSearchFromSearchParams } from "../src/index.js"
 import { createStudioManifestProvider, discoverStudioDesignManifest } from "../src/manifest-server.js"
 
 const fixtureRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
@@ -12,32 +12,16 @@ const tsProjectScopeRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/t
 const repositoryRoot = resolve(import.meta.dirname, "../../..")
 const packageRoot = join(repositoryRoot, "packages/studio")
 const examplesRoot = join(repositoryRoot, "examples")
-const playgroundProjects = [
-  {
-    root: join(repositoryRoot, "playground/tanstack-start-root-provider-error"),
-    projectRoot: "src/routes",
-    coordinates: ["src/routes/__root.g.tsx#default"],
-  },
-  {
-    root: join(repositoryRoot, "playground/next-app-router-init-structure"),
-    projectRoot: "components",
-    coordinates: ["components/AppShell.g.tsx#default"],
-  },
-  {
-    root: join(repositoryRoot, "playground/vite-react-ts-tanstack-router"),
-    projectRoot: "src/routes",
-    coordinates: ["src/routes/AppRoute.g.tsx#default"],
-  },
-]
 
 type CreateStudioManifestOptions = NonNullable<Parameters<typeof createStudioManifest>[1]>
 
 function buildStudioManifest(
-  options: { cwd: string; projectRoot?: string; tsconfigPath?: string } & CreateStudioManifestOptions,
+  options: { additionalRoots?: string[]; cwd: string; sourceRoot?: string; tsconfigPath?: string } & CreateStudioManifestOptions,
 ) {
   const projectIndex = buildGTSXProjectIndex({
+    additionalRoots: options.additionalRoots,
     cwd: options.cwd,
-    projectRoot: options.projectRoot,
+    sourceRoot: options.sourceRoot,
     tsconfigPath: options.tsconfigPath,
   })
   return createStudioManifest(projectIndex, {
@@ -60,7 +44,7 @@ describe("GTSX Studio manifest", () => {
   it("returns stable static JSON for a project surface", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
-      projectRoot: "src/corpus",
+      sourceRoot: "src/corpus",
       preview: { urlTemplate: "https://preview.test/gtsx?entry={entry}&frame={frame}&port={port}" },
     })
 
@@ -126,7 +110,7 @@ describe("GTSX Studio manifest", () => {
   })
 
   it("assembles Studio route and grouping concerns from a GTSX project index", () => {
-    const projectIndex = buildGTSXProjectIndex({ cwd: fixtureRoot, projectRoot: "src/corpus" })
+    const projectIndex = buildGTSXProjectIndex({ cwd: fixtureRoot, sourceRoot: "src/corpus" })
 
     const manifest = createStudioManifest(projectIndex, {
       preview: {
@@ -156,7 +140,7 @@ describe("GTSX Studio manifest", () => {
   it("carries a configured cache namespace into the browser manifest", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
-      projectRoot: "src/corpus",
+      sourceRoot: "src/corpus",
       cache: { namespace: "fixture-project" },
     })
 
@@ -168,7 +152,8 @@ describe("GTSX Studio manifest", () => {
       cwd: fixtureRoot,
       config: {
         project: {
-          root: "src/corpus",
+          sourceRoot: "src/corpus",
+          entryRoot: "app/gtsx",
           namespace: "fixture-project",
         },
         routes: {
@@ -199,13 +184,13 @@ describe("GTSX Studio manifest", () => {
     expect(manifest.files.map((file) => file.path)).toEqual(["src/corpus/Badge.g.tsx", "src/corpus/StatusPanel.g.tsx"])
   })
 
-  it("discovers local design frames under the configured project root", () => {
+  it("discovers local design frames under the configured route entry", () => {
     const cwd = mkdtempSync(join(tmpdir(), "gtsx-studio-design-"))
 
     try {
-      mkdirSync(join(cwd, "components/gtsx/design/nested"), { recursive: true })
+      mkdirSync(join(cwd, "components/app/gtsx/design/nested"), { recursive: true })
       writeFileSync(
-        join(cwd, "components/gtsx/design/alpha.g.tsx"),
+        join(cwd, "components/app/gtsx/design/alpha.g.tsx"),
         [
           "export function AlphaDesign() { return null }",
           "AlphaDesign.frames = {",
@@ -215,50 +200,124 @@ describe("GTSX Studio manifest", () => {
           "",
         ].join("\n"),
       )
-      writeFileSync(join(cwd, "components/gtsx/design/current-design.tsx"), "export function CurrentDesign() { return null }\n")
-      writeFileSync(join(cwd, "components/gtsx/design/missing.g.tsx"), "export default function MissingDesign() { return null }\n")
+      writeFileSync(join(cwd, "components/app/gtsx/design/current-design.tsx"), "export function CurrentDesign() { return null }\n")
+      writeFileSync(join(cwd, "components/app/gtsx/design/missing.g.tsx"), "export default function MissingDesign() { return null }\n")
       writeFileSync(
-        join(cwd, "components/gtsx/design/nested/beta.g.tsx"),
+        join(cwd, "components/app/gtsx/design/nested/beta.g.tsx"),
         ["export function BetaDesign() { return null }", "BetaDesign.frames = { live: { props: {} } }", ""].join("\n"),
       )
-      const projectIndex = buildGTSXProjectIndex({ cwd, projectRoot: "components" })
+      const projectIndex = buildGTSXProjectIndex({ cwd, sourceRoot: "components" })
 
-      expect(discoverStudioDesignManifest(projectIndex, "components")).toEqual({
+      expect(discoverStudioDesignManifest(projectIndex, "components/app/gtsx")).toEqual({
         frames: [
           {
-            id: "components/gtsx/design/alpha.g.tsx#AlphaDesign:live",
-            entry: "components/gtsx/design/alpha.g.tsx#AlphaDesign",
-            filePath: "components/gtsx/design/alpha.g.tsx",
+            id: "components/app/gtsx/design/alpha.g.tsx#AlphaDesign:live",
+            entry: "components/app/gtsx/design/alpha.g.tsx#AlphaDesign",
+            filePath: "components/app/gtsx/design/alpha.g.tsx",
             title: "AlphaDesign",
             exportName: "AlphaDesign",
             frameName: "live",
           },
           {
-            id: "components/gtsx/design/alpha.g.tsx#AlphaDesign:dense",
-            entry: "components/gtsx/design/alpha.g.tsx#AlphaDesign",
-            filePath: "components/gtsx/design/alpha.g.tsx",
+            id: "components/app/gtsx/design/alpha.g.tsx#AlphaDesign:dense",
+            entry: "components/app/gtsx/design/alpha.g.tsx#AlphaDesign",
+            filePath: "components/app/gtsx/design/alpha.g.tsx",
             title: "AlphaDesign",
             exportName: "AlphaDesign",
             frameName: "dense",
           },
           {
-            id: "components/gtsx/design/missing.g.tsx#default:missing-frames",
-            entry: "components/gtsx/design/missing.g.tsx#default",
-            filePath: "components/gtsx/design/missing.g.tsx",
+            id: "components/app/gtsx/design/missing.g.tsx#default:missing-frames",
+            entry: "components/app/gtsx/design/missing.g.tsx#default",
+            filePath: "components/app/gtsx/design/missing.g.tsx",
             title: "MissingDesign",
             exportName: "default",
             frameName: "missing-frames",
           },
           {
-            id: "components/gtsx/design/nested/beta.g.tsx#BetaDesign:live",
-            entry: "components/gtsx/design/nested/beta.g.tsx#BetaDesign",
-            filePath: "components/gtsx/design/nested/beta.g.tsx",
+            id: "components/app/gtsx/design/nested/beta.g.tsx#BetaDesign:live",
+            entry: "components/app/gtsx/design/nested/beta.g.tsx#BetaDesign",
+            filePath: "components/app/gtsx/design/nested/beta.g.tsx",
             title: "BetaDesign",
             exportName: "BetaDesign",
             frameName: "live",
           },
         ],
       })
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("discovers route design frames outside the component workspace", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "gtsx-studio-route-design-"))
+
+    try {
+      mkdirSync(join(cwd, "src/components"), { recursive: true })
+      mkdirSync(join(cwd, "src/app/gtsx/design"), { recursive: true })
+      writeFileSync(
+        join(cwd, "src/app/gtsx/design/checkout-flow.g.tsx"),
+        ["export default function CheckoutFlow() { return null }", "CheckoutFlow.frames = { live: { props: {} } }", ""].join("\n"),
+      )
+      writeFileSync(
+        join(cwd, "src/components/Card.g.tsx"),
+        ["export default function Card() { return null }", "Card.frames = { ready: { props: {} } }", ""].join("\n"),
+      )
+      const manifest = buildStudioManifest({
+        additionalRoots: ["src/app/gtsx/design"],
+        cwd,
+        design: discoverStudioDesignManifest(
+          buildGTSXProjectIndex({
+            additionalRoots: ["src/app/gtsx/design"],
+            cwd,
+            sourceRoot: "src",
+          }),
+          "src/app/gtsx",
+        ),
+        sourceRoot: "src",
+      })
+
+      expect(manifest.design?.frames).toEqual([
+        {
+          id: "src/app/gtsx/design/checkout-flow.g.tsx#default:live",
+          entry: "src/app/gtsx/design/checkout-flow.g.tsx#default",
+          filePath: "src/app/gtsx/design/checkout-flow.g.tsx",
+          title: "CheckoutFlow",
+          exportName: "default",
+          frameName: "live",
+        },
+      ])
+      expect(manifest.files.map((file) => file.path)).toEqual(["src/app/gtsx/design/checkout-flow.g.tsx", "src/components/Card.g.tsx"])
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("adds route design frames when creating a manifest from gtsx config", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "gtsx-studio-route-design-config-"))
+
+    try {
+      mkdirSync(join(cwd, "src/components"), { recursive: true })
+      mkdirSync(join(cwd, "src/app/gtsx/design"), { recursive: true })
+      writeFileSync(
+        join(cwd, "src/app/gtsx/design/checkout-flow.g.tsx"),
+        ["export default function CheckoutFlow() { return null }", "CheckoutFlow.frames = { live: { props: {} } }", ""].join("\n"),
+      )
+      writeFileSync(
+        join(cwd, "src/components/Card.g.tsx"),
+        ["export default function Card() { return null }", "Card.frames = { ready: { props: {} } }", ""].join("\n"),
+      )
+      const projectIndex = buildGTSXProjectIndex({
+        additionalRoots: ["src/app/gtsx/design"],
+        cwd,
+        sourceRoot: "src",
+      })
+      const manifest = createStudioManifestFromGTSXConfig(projectIndex, {
+        project: { sourceRoot: "src", entryRoot: "src/app/gtsx" },
+        preview: {},
+      })
+
+      expect(manifest.design?.frames.map((frame) => frame.id)).toEqual(["src/app/gtsx/design/checkout-flow.g.tsx#default:live"])
     } finally {
       rmSync(cwd, { force: true, recursive: true })
     }
@@ -281,8 +340,8 @@ describe("GTSX Studio manifest", () => {
     })
 
     expect(manifest.files.map((file) => file.path)).toEqual([
+      "src/app/gtsx/design/Sketch.g.tsx",
       "src/Child.g.tsx",
-      "src/gtsx/design/Sketch.g.tsx",
       "src/Included.g.tsx",
     ])
   })
@@ -291,14 +350,14 @@ describe("GTSX Studio manifest", () => {
     const manifest = buildStudioManifest({ cwd: tsProjectScopeRoot })
 
     expect(manifest.files.map((file) => file.path)).toEqual([
+      "src/app/gtsx/design/Sketch.g.tsx",
       "src/Child.g.tsx",
-      "src/gtsx/design/Sketch.g.tsx",
       "src/Included.g.tsx",
     ])
   })
 
   it("lists multiple component exports from one file", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const multiExportFile = manifest.files.find((file) => file.path === "src/MultiExport.g.tsx")
 
     expect(multiExportFile?.components.map((component) => component.coordinate)).toEqual([
@@ -313,7 +372,7 @@ describe("GTSX Studio manifest", () => {
   })
 
   it("preserves analyzer diagnostics on invalid component entries", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const dynamicFramesFile = manifest.files.find((file) => file.path === "src/DynamicFrames.g.tsx")
 
     expect(dynamicFramesFile?.components).toHaveLength(1)
@@ -335,7 +394,7 @@ describe("GTSX Studio manifest", () => {
   })
 
   it("does not list exported GTSX providers as component exports", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const userCardFile = manifest.files.find((file) => file.path === "src/UserCard.g.tsx")
 
     expect(userCardFile?.components.map((component) => component.coordinate)).toEqual(["src/UserCard.g.tsx#default"])
@@ -349,7 +408,7 @@ describe("GTSX Studio manifest", () => {
   })
 
   it("does not include runtime props, scope, provider values, DOM rects, or child trees", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const serialized = JSON.stringify(manifest)
     const manifestKeys = manifestJsonKeys(manifest)
 
@@ -363,7 +422,7 @@ describe("GTSX Studio manifest", () => {
   it("returns configured preview URL templates for repository examples", () => {
     const manifest = buildStudioManifest({
       cwd: examplesRoot,
-      projectRoot: "src/frames",
+      sourceRoot: "src/frames",
       preview: {
         urlTemplate: "http://localhost:{port}/gtsx?entry={entry}&frame={frame}{gframe}",
         allUrlTemplate: "http://localhost:{port}/gtsx?entry={entry}{gframe}",
@@ -382,15 +441,6 @@ describe("GTSX Studio manifest", () => {
       "src/frames/stateful/UserCard.g.tsx",
       "src/frames/ui/NotificationCenter.g.tsx",
     ])
-  })
-
-  it.each(playgroundProjects)("returns static manifests for playground fixture projects", (project) => {
-    const manifest = buildStudioManifest({ cwd: project.root, projectRoot: project.projectRoot })
-
-    expect(manifest.files.flatMap((file) => file.components.map((component) => component.coordinate))).toEqual(
-      project.coordinates,
-    )
-    expect(manifest.diagnostics).toEqual([])
   })
 
   it("exposes server-safe manifest and browser Studio entrypoints", () => {

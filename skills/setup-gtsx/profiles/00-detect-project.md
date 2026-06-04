@@ -66,7 +66,7 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 - Preserve existing route files, config wrappers, browser-entry branches, URL conventions, preview commands, and local customizations.
 - Change glue only when typecheck, adapter exports/types, package examples/docs, generated-file errors, or runtime verification show that a version migration is required.
 - If the adapter package or wrapper must change, preserve the existing wrapper composition order and explain the change.
-- Ensure the conventional design directory exists at `project.root/gtsx/design`.
+- Ensure `gtsx.config.ts` records `project.entryRoot`, then ensure `${project.entryRoot}/design` exists.
 - Verify the integration and report which existing glue files were intentionally left unchanged.
 
 ## Common Configuration Rules
@@ -74,9 +74,10 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 - Always install `@gtsx/core` and `@gtsx/studio`.
 - Install `@gtsx/adapter-vite-react` only for Vite-compatible client-only hosts.
 - Install `@gtsx/adapter-next-react` only for Next.js App Router.
-- Put selected root, optional tsconfig, stable cache namespace, routes, and preview commands in `gtsx.config.ts`.
+- Put selected root, selected local GTSX entry root, optional tsconfig, stable cache namespace, routes, and preview commands in `gtsx.config.ts`.
 - Use the package name or repo slug as `project.namespace`, not a file hash.
-- Choose `project.root: "src"` when TypeScript source lives under `src`; choose `project.root: "."` for root-level `app`, `pages`, `components`, or `lib`.
+- Choose `project.sourceRoot: "src"` when TypeScript source lives under `src`; choose `project.sourceRoot: "."` for root-level `app`, `pages`, `components`, or `lib`.
+- Choose `project.entryRoot` as the filesystem directory that owns the local `/gtsx` entry: usually `app/gtsx`, or `src/app/gtsx` when the route tree lives under `src/app`. For client-only hosts without filesystem routes, still create and record this logical entry root during setup.
 - Generate `preview.serve` for the detected package manager and host. Do not hard-code `pnpm` in npm/yarn/bun projects.
 - Keep `preview.studioUrl`, `preview.url`, and `preview.allUrl` on the same host bound by `preview.serve`; when serving on `127.0.0.1`, use `127.0.0.1` in URLs instead of `localhost`.
 
@@ -87,7 +88,7 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 3. Start the host dev server.
 4. Open `/gtsx/studio`.
 5. Open `/gtsx/studio#/design`.
-6. Confirm the manifest contains TypeScript Program `.g.tsx` entries, including design frames from `project.root/gtsx/design` when present. A setup-only project may legitimately have zero entries; Studio should show its empty state.
+6. Confirm the manifest contains TypeScript Program `.g.tsx` entries, including design frames from `${project.entryRoot}/design` when present. A setup-only project may legitimately have zero entries; Studio should show its empty state.
 7. If at least one `.g.tsx` entry exists, open one `/gtsx?...` preview URL.
 8. Confirm no `Missing entry`, `Unknown gtsx entry`, or `Unknown GTSX frame` errors.
 9. Run `gtsx capture` when configured.

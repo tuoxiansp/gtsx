@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { readdirSync, readFileSync } from "node:fs"
+import { readdirSync, readFileSync, type Dirent } from "node:fs"
 import { dirname, join, relative, resolve, sep } from "node:path"
 import ts from "typescript"
 
@@ -33,8 +33,9 @@ export type GTSXProjectIndex = {
 }
 
 export type BuildGTSXProjectIndexOptions = {
+  additionalRoots?: string[]
   cwd: string
-  projectRoot?: string
+  sourceRoot?: string
   tsconfigPath?: string
 }
 
@@ -80,10 +81,10 @@ type GlobalProjectIndexCache = typeof globalThis & {
 }
 
 export function buildGTSXProjectIndex(options: BuildGTSXProjectIndexOptions): GTSXProjectIndex {
-  const projectRoot = options.projectRoot ?? "."
+  const sourceRoot = options.sourceRoot ?? "."
   const selectedTSConfigPath = options.tsconfigPath ?? findNearestTSConfig(options.cwd)
   const moduleResolution = createProjectModuleResolution(options.cwd, selectedTSConfigPath)
-  const fileContexts = discoverGTSXFiles(options.cwd, projectRoot, selectedTSConfigPath).map((filePath) =>
+  const fileContexts = discoverGTSXFiles(options.cwd, sourceRoot, selectedTSConfigPath, options.additionalRoots).map((filePath) =>
     buildProjectIndexFileContext(options.cwd, filePath),
   )
   const fileContextsByFilePath = new Map(fileContexts.map((context) => [context.filePath, context] as const))
@@ -142,7 +143,8 @@ function buildProjectIndexFileContext(cwd: string, filePath: string): ProjectInd
 function projectIndexCacheKey(options: BuildGTSXProjectIndexOptions): string {
   return JSON.stringify({
     cwd: resolve(options.cwd),
-    projectRoot: options.projectRoot ?? ".",
+    additionalRoots: options.additionalRoots?.map((root) => normalizeDiscoveryRoot(root)).sort(),
+    sourceRoot: options.sourceRoot ?? ".",
     tsconfigPath: options.tsconfigPath ? resolve(options.cwd, options.tsconfigPath) : undefined,
   })
 }
@@ -210,20 +212,37 @@ function buildProjectIndexComponent(
   }
 }
 
-function discoverGTSXFiles(cwd: string, projectRoot: string, tsconfigPath?: string): string[] {
+function discoverGTSXFiles(cwd: string, sourceRoot: string, tsconfigPath?: string, additionalRoots: string[] = []): string[] {
   const selectedTSConfigPath = tsconfigPath ?? findNearestTSConfig(cwd)
+  const files = new Set<string>()
+
   if (selectedTSConfigPath) {
-    return discoverGTSXProgramFiles({ cwd, root: projectRoot, tsconfigPath: selectedTSConfigPath })
+    for (const filePath of discoverGTSXProgramFiles({ cwd, root: sourceRoot, tsconfigPath: selectedTSConfigPath })) {
+      files.add(filePath)
+    }
+  } else {
+    collectGTSXFiles(resolve(cwd, sourceRoot), files, cwd)
   }
 
-  const root = resolve(cwd, projectRoot)
-  const files: string[] = []
+  for (const root of additionalRoots) {
+    collectGTSXFiles(resolve(cwd, root), files, cwd)
+  }
 
+  return [...files].sort((left, right) => left.localeCompare(right))
+}
+
+function collectGTSXFiles(root: string, files: Set<string>, cwd: string) {
   walk(root)
-  return files.map((entryPath) => relative(cwd, entryPath).split(sep).join("/")).sort((left, right) => left.localeCompare(right))
 
   function walk(directory: string) {
-    for (const dirent of readdirSync(directory, { withFileTypes: true })) {
+    let dirents: Dirent[]
+    try {
+      dirents = readdirSync(directory, { withFileTypes: true })
+    } catch {
+      return
+    }
+
+    for (const dirent of dirents) {
       if (dirent.isDirectory()) {
         if (!IGNORED_DISCOVERY_DIRS.has(dirent.name)) {
           walk(join(directory, dirent.name))
@@ -232,10 +251,14 @@ function discoverGTSXFiles(cwd: string, projectRoot: string, tsconfigPath?: stri
       }
 
       if (dirent.isFile() && dirent.name.endsWith(".g.tsx")) {
-        files.push(join(directory, dirent.name))
+        files.add(relative(cwd, join(directory, dirent.name)).split(sep).join("/"))
       }
     }
   }
+}
+
+function normalizeDiscoveryRoot(root: string): string {
+  return root.replaceAll("\\", "/").replace(/\/+$/, "") || "."
 }
 
 function hashSourceText(sourceText: string): string {

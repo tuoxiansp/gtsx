@@ -1875,10 +1875,5 @@ function studioDesignComponentCoordinates(manifest: StudioManifest): Set<string>
 }
 
 function isStudioDesignComponent(component: StudioManifestComponent, designCoordinates: ReadonlySet<string>): boolean {
-  return designCoordinates.has(component.coordinate) || isStudioDesignFilePath(component.filePath)
-}
-
-function isStudioDesignFilePath(filePath: string): boolean {
-  const normalized = filePath.replaceAll("\\", "/")
-  return normalized.startsWith("gtsx/design/") || normalized.includes("/gtsx/design/")
+  return designCoordinates.has(component.coordinate)
 }

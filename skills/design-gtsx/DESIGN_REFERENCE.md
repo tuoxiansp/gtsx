@@ -198,12 +198,19 @@ LLMs default to clichés. Override these defaults proactively. Each rule has a c
 * **ANTI-CENTER BIAS:** Centered Hero / H1 sections are avoided when `DESIGN_VARIANCE > 4`. Force "Split Screen" (50/50), "Left-aligned content / right-aligned asset", "Asymmetric white-space", or scroll-pinned structures.
 * **Override:** centered hero is OK for editorial / manifesto / launch-announcement briefs where the message itself is the design.
 
-### 4.4 Materiality, Shadows, Cards
-* Use cards ONLY when elevation communicates real hierarchy. Otherwise group with `border-t`, `divide-y`, or negative space.
-* **CONTAINMENT MINIMALISM (mandatory):** Before adding a card, panel, border, tinted box, or shadow, ask whether spacing, alignment, type scale, or a single divider can create the same hierarchy. Default to unboxed layout. Add a container only when it clarifies ownership, separates an interactive region, or protects a repeated item from blending into its neighbors.
-* **FRAME BUDGET (mandatory):** A viewport should not show a stack of framed surfaces unless the product domain is literally a dense dashboard. Aim for one dominant framed surface per viewport, plus lightweight dividers where needed. If the design has card-inside-card, panel-inside-section, or more than three bordered boxes competing at once, simplify the composition before polishing.
+### 4.4 Materiality, Boundaries, Cards
+* **DEFAULT UNBOXED COMPOSITION (mandatory):** Cards, panels, borders, tinted boxes, and shadows are not the default layout unit. Start with spacing, alignment, type scale, imagery, rhythm, or a single divider. Add a surface only when it carries semantic or interaction weight.
+* **BOUNDARY GATE (mandatory):** Before adding any framed surface, at least one answer must be "yes":
+  - **Domain:** is this a dashboard, form, selectable list, ecommerce SKU, settings surface, admin workflow, or dense product UI?
+  - **Task:** is the user scanning or comparing many similar items, rather than reading one story, section, or paragraph?
+  - **Interaction:** does this region need click, drag, select, edit, focus, hover, or expanded state? If yes, the boundary may be a full-row hover state or arrow affordance, not necessarily a card.
+  - **Density:** does `VISUAL_DENSITY` require scan structure? High-density cockpit layouts usually need 1px dividers, table rows, or grouped bands, not piles of rounded cards.
+  - **Metaphor:** is the container the object itself (ticket, note, receipt, message bubble, product tile, document, media item)?
+  - **Design system:** does the chosen official component system require this surface pattern?
+* **LIGHTEST SUFFICIENT BOUNDARY (mandatory):** If the boundary gate passes, do not jump straight to cards. Choose the weakest treatment that solves the problem, in this order: whitespace grouping -> alignment / grid rhythm -> single divider -> row hover / focus state -> subtle tinted surface -> bordered panel -> elevated card. Large rounded or elevated cards are reserved for true object boundaries, repeated comparable items, or deliberate physical metaphors.
+* **FRAME BUDGET (mandatory):** A viewport should not show a stack of framed surfaces unless the product domain is literally a dense dashboard. Aim for at most 1-2 dominant framed surfaces per viewport, plus lightweight dividers where needed. If the design has card-inside-card, panel-inside-section, or more than three bordered boxes competing at once, simplify the composition before polishing.
 * **EMPTY FRAME BAN:** Do not create boxes just to make sparse content look "designed." Sparse content should be handled with stronger typography, deliberate whitespace, an image, or a clearer visual anchor. A bordered rectangle around one line of text is usually a sign the content model is too weak.
-* When a shadow is used, tint it to the background hue. No pure-black drop shadows on light backgrounds.
+* **SHADOW DISCIPLINE:** Use elevation only when it communicates hierarchy, state, or material layering. When a shadow is used, tint it to the background hue. No pure-black drop shadows on light backgrounds.
 * For `VISUAL_DENSITY > 7`: generic card containers are banned. Data metrics breathe in plain layout.
 * **SHAPE CONSISTENCY LOCK (mandatory):** Pick ONE corner-radius scale for the page and stick to it. Options: all-sharp (radius 0), all-soft (radius 12-16px), all-pill (full radius for interactive). Mixed systems are allowed only when there is a documented rule (e.g. "buttons are full-pill, cards are 16px, inputs are 8px") and that rule is followed everywhere. Round buttons in a square layout, or square cards on a pill-button page, is broken design.
 
@@ -915,6 +922,7 @@ Run this matrix before outputting code. This is the last filter.
 - [ ] **Page Theme Lock**: ONE theme (light, dark, or auto) for the whole page. No section flips to inverted mode mid-page (Section 4.11)?
 - [ ] **Color Consistency Lock**: one accent color used identically across all sections (Section 4.2)?
 - [ ] **Shape Consistency Lock**: one corner-radius system applied consistently (Section 4.4)?
+- [ ] **Boundary Gate**: every card/panel/box passes Section 4.4, uses the lightest sufficient boundary, and avoids card-inside-card?
 - [ ] **Button Contrast Check**: every CTA text is readable against its background (no white-on-white, WCAG AA 4.5:1)?
 - [ ] **CTA Button Wrap**: no CTA label wraps to 2+ lines at desktop?
 - [ ] **Form Contrast Check**: form inputs, placeholders, focus rings, labels all pass WCAG AA against the section background?

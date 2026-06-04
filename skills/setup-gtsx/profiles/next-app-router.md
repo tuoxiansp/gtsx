@@ -15,14 +15,16 @@ Do not install `@gtsx/preview-react` directly.
 ## Configuration
 
 - Wrap config with `gtsxNextReact` from `@gtsx/adapter-next-react`.
-- Pass the project `gtsx.config.ts` to `gtsxNextReact({ config: gtsxConfig })`.
-- The adapter generates `.gtsx/preview-entries.ts` and wires webpack/Turbopack. Do not add a custom `.g.tsx` Turbopack loader in app code; preview instrumentation is applied only to adapter-generated preview imports.
-- Design frames live by convention in `project.root/gtsx/design`; do not add a separate config key for this.
-- During setup, create the empty `project.root/gtsx/design` directory when the project root exists. Do not add placeholder frames; the first `design-gtsx` request writes the first `.g.tsx` frame.
+- Use `gtsxNextReact()` without statically importing `gtsx.config.ts` from `next.config.*`; the adapter loads `gtsx.config.ts` only when preview entries are enabled.
+- `.g.tsx` files are production React components. Do not move normal app imports away from `.g.tsx`; isolate only Studio, preview routes, generated preview entries, and config loading from production.
+- The Next preview/studio integration is development-only by default. It must not mutate production `next build`, production server startup, Docker standalone output, or read/write `.gtsx` at production runtime unless the project explicitly opts in with `gtsxNextReact({ enabled: true, ... })`.
+- The adapter generates `.gtsx/preview-entries.ts` and wires webpack/Turbopack for preview imports when preview entries are enabled. Do not add a custom `.g.tsx` Turbopack loader in app code.
+- Record the local GTSX route entry directory in `project.entryRoot`. Design frames live in `${project.entryRoot}/design`; do not add a `designRoot` config key.
+- During setup, create the empty `${project.entryRoot}/design` directory. Do not add placeholder frames; the first `design-gtsx` request writes the first `.g.tsx` frame.
 - In upgrade/ensure mode, do not rewrite `next.config.*`, `gtsx.config.ts`, or `app/gtsx/*` if they already exist and pass verification; only update packages and add missing design-directory support.
 - After package upgrades, rerun Next.js typecheck/dev verification. If adapter exports, route helper signatures, generated `.gtsx/preview-entries.ts`, or manifest generation changed, migrate only the affected glue while preserving existing route isolation and config-wrapper composition.
-- Preserve existing Next.js config wrappers. If the project exports `withMDX(nextConfig)`, `withContentlayer(nextConfig)`, `createNextIntlPlugin(...)(nextConfig)`, or another wrapper, apply `gtsxNextReact({ config: gtsxConfig })` around the existing composed config.
-- Use `project.root: "."` for root-level `app`, `components`, or `lib`; use `src` only when the app source lives under `src`.
+- Preserve existing Next.js config wrappers. If the project exports `withMDX(nextConfig)`, `withContentlayer(nextConfig)`, `createNextIntlPlugin(...)(nextConfig)`, or another wrapper, apply `gtsxNextReact()` around the existing composed config without statically importing `gtsx.config.ts`.
+- Use `project.sourceRoot: "."` for root-level `app`, `components`, or `lib`; use `src` only when the app source lives under `src`.
 - Be careful with package-manager argument separators: npm needs `npm run dev -- --hostname 127.0.0.1 --port {port}` while pnpm should use `pnpm dev --hostname 127.0.0.1 --port {port}`.
 
 `next.config.ts`:
@@ -31,11 +33,9 @@ Do not install `@gtsx/preview-react` directly.
 import { gtsxNextReact } from "@gtsx/adapter-next-react"
 import type { NextConfig } from "next"
 
-import gtsxConfig from "./gtsx.config"
-
 const nextConfig: NextConfig = {}
 
-export default gtsxNextReact({ config: gtsxConfig })(nextConfig)
+export default gtsxNextReact()(nextConfig)
 ```
 
 `gtsx.config.ts`:
@@ -45,7 +45,8 @@ import { defineGTSXConfig } from "@gtsx/core"
 
 export default defineGTSXConfig({
   project: {
-    root: ".",
+    sourceRoot: ".",
+    entryRoot: "app/gtsx",
     namespace: "my-project",
   },
   routes: {
@@ -123,22 +124,21 @@ export { GTSXNextPreviewClient as GTSXPreviewClient } from "@gtsx/adapter-next-r
 `app/gtsx/page.tsx`:
 
 ```tsx
-import {
-  createGTSXNextPreviewSsrScripts,
-  readGTSXNextPreviewProps,
-} from "@gtsx/adapter-next-react/preview-route"
+import { notFound } from "next/navigation"
 import Script from "next/script"
 
-// Import visual CSS/setup that is not already provided by the layout wrapping /gtsx.
-// Examples: import "../style-registry.css"; import "../theme.css"
-import { GTSXPreviewClient } from "./preview-client"
-
 type GTSXPreviewPageProps = {
-  searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
 export default async function GTSXPreviewPage(props: GTSXPreviewPageProps) {
+  if (process.env.NODE_ENV === "production") notFound()
+
   const searchParams = await props.searchParams
+  const [{ createGTSXNextPreviewSsrScripts, readGTSXNextPreviewProps }, { GTSXPreviewClient }] = await Promise.all([
+    import("@gtsx/adapter-next-react/preview-route"),
+    import("./preview-client"),
+  ])
   const previewProps = readGTSXNextPreviewProps(searchParams)
 
   return (
@@ -167,17 +167,21 @@ export const getStudioManifest = createStudioManifestProvider()
 `app/gtsx/studio/page.tsx`:
 
 ```tsx
-import { StudioShell } from "@gtsx/studio/client"
-import { studioUrlSearchFromSearchParams } from "@gtsx/studio/manifest"
-
-import { getStudioManifest } from "./studio-manifest"
+import { notFound } from "next/navigation"
 
 type GTSXStudioPageProps = {
-  searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
 export default async function GTSXStudioPage(props: GTSXStudioPageProps) {
+  if (process.env.NODE_ENV === "production") notFound()
+
   const searchParams = await props.searchParams
+  const [{ StudioShell }, { studioUrlSearchFromSearchParams }, { getStudioManifest }] = await Promise.all([
+    import("@gtsx/studio/client"),
+    import("@gtsx/studio/manifest"),
+    import("./studio-manifest"),
+  ])
 
   return (
     <StudioShell
@@ -191,9 +195,10 @@ export default async function GTSXStudioPage(props: GTSXStudioPageProps) {
 `app/gtsx/studio/manifest/route.ts`:
 
 ```ts
-import { getStudioManifest } from "../studio-manifest"
+export async function GET() {
+  if (process.env.NODE_ENV === "production") return new Response(null, { status: 404 })
 
-export function GET() {
+  const { getStudioManifest } = await import("../studio-manifest")
   return Response.json(getStudioManifest())
 }
 ```

@@ -447,7 +447,7 @@ function resolveGTSXEntryCoordinates(cwd: string, entry: string, tsconfigPath?: 
 }
 
 function discoverGTSXEntryCoordinates(cwd: string, targetDirectory: string, tsconfigPath?: string): EntryResolution {
-  const index = buildGTSXProjectIndex({ cwd, projectRoot: targetDirectory, tsconfigPath })
+  const index = buildGTSXProjectIndex({ cwd, sourceRoot: targetDirectory, tsconfigPath })
   return {
     entries: index.files.flatMap((file) => file.components.map((component) => component.coordinate)),
     diagnostics: index.files.filter((file) => file.components.length === 0).flatMap((file) => file.diagnostics),
@@ -456,10 +456,10 @@ function discoverGTSXEntryCoordinates(cwd: string, targetDirectory: string, tsco
 
 function discoverGTSXFileEntryCoordinates(cwd: string, entry: string, tsconfigPath?: string): EntryResolution {
   const file = normalizeProjectPath(entryFile(entry))
-  const projectRoot = dirname(file)
+  const sourceRoot = dirname(file)
   const index = buildGTSXProjectIndex({
     cwd,
-    projectRoot: projectRoot === "." ? "." : projectRoot,
+    sourceRoot: sourceRoot === "." ? "." : sourceRoot,
     tsconfigPath,
   })
   const indexedFile = index.files.find((candidate) => candidate.path === file)

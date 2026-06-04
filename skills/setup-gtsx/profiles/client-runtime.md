@@ -4,10 +4,10 @@ Use this profile when the host has one browser-owned entry and browser-owned rou
 
 ## Contract
 
-1. Add `gtsx.config.ts` with `project.root`, optional `project.tsconfig`, routes, and preview commands.
+1. Add `gtsx.config.ts` with `project.sourceRoot`, `project.entryRoot`, optional `project.tsconfig`, routes, and preview commands.
 2. Add a bundler transform so every `.g.tsx` file runs through the gtsx React transform.
 3. Expose the project index and resolved config to the browser entry.
-4. Create the empty `project.root/gtsx/design` directory by convention. Do not add a design config key or placeholder frames.
+4. Create the empty `${project.entryRoot}/design` directory. Do not add a `designRoot` config key or placeholder frames.
 5. In the browser entry, branch only on gtsx routes:
    - `/gtsx/studio` renders Studio.
    - `/gtsx` renders preview.

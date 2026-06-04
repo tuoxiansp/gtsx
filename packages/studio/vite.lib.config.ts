@@ -9,7 +9,7 @@ const root = dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   plugins: [
-    gtsxViteReact({ root, projectRoot: "src" }),
+    gtsxViteReact({ root, sourceRoot: "src" }),
     react(),
     preserveClientEntrypointDirective(),
   ],

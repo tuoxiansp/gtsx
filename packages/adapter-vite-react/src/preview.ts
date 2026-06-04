@@ -25,13 +25,14 @@ export type GTSXVitePreviewEntryModules = Record<string, () => Promise<GTSXPrevi
 
 export function createGTSXVitePreviewComponentLoader(
   modules: GTSXVitePreviewEntryModules,
-  options: { projectRoot?: string } = {},
+  options: { sourceRoot?: string } = {},
 ): (entry: string) => Promise<GTSXPreviewComponent | undefined> {
-  const projectRoot = normalizeProjectRoot(options.projectRoot ?? "src")
+  const sourceRoot = normalizeSourceRoot(options.sourceRoot ?? "src")
+  const modulesByEntryFile = normalizeVitePreviewEntryModules(modules, sourceRoot)
 
   return async (entry: string) => {
     const { file, exportName } = parseGTSXPreviewEntry(entry)
-    const loader = modules[toModuleKey(file, projectRoot)]
+    const loader = modulesByEntryFile[file] ?? modules[toModuleKey(file, sourceRoot)]
     if (!loader) return undefined
 
     const moduleValue = await loader()
@@ -40,12 +41,59 @@ export function createGTSXVitePreviewComponentLoader(
   }
 }
 
-function normalizeProjectRoot(projectRoot: string): string {
-  return projectRoot.replace(/^\.\//, "").replace(/\/$/, "")
+function normalizeSourceRoot(sourceRoot: string): string {
+  return sourceRoot.replace(/^\.\//, "").replace(/\/$/, "")
 }
 
-function toModuleKey(entryFile: string, projectRoot: string): string {
-  const prefix = projectRoot === "." ? "" : `${projectRoot}/`
+function normalizeVitePreviewEntryModules(
+  modules: GTSXVitePreviewEntryModules,
+  sourceRoot: string,
+): GTSXVitePreviewEntryModules {
+  const normalized: GTSXVitePreviewEntryModules = {}
+  for (const [key, loader] of Object.entries(modules)) {
+    for (const entryFile of entryFilesFromModuleKey(key, sourceRoot)) {
+      normalized[entryFile] = loader
+    }
+  }
+  return normalized
+}
+
+function toModuleKey(entryFile: string, sourceRoot: string): string {
+  const prefix = sourceRoot === "." ? "" : `${sourceRoot}/`
   const localPath = prefix && entryFile.startsWith(prefix) ? entryFile.slice(prefix.length) : entryFile
   return localPath.startsWith("./") || localPath.startsWith("../") ? localPath : `./${localPath}`
+}
+
+function entryFilesFromModuleKey(moduleKey: string, sourceRoot: string): string[] {
+  const normalizedModuleKey = moduleKey.replaceAll("\\", "/")
+  const localPath = normalizedModuleKey.replace(/^\.\//, "").replace(/^\//, "")
+  const candidates = new Set<string>()
+
+  candidates.add(normalizePath(localPath))
+
+  const rootRelativePath = localPath.replace(/^(\.\.\/)+/, "")
+  candidates.add(normalizePath(rootRelativePath))
+
+  if (localPath.startsWith("../")) {
+    candidates.add(normalizePath(`${sourceRoot}/${localPath}`))
+  } else if (sourceRoot === "." || localPath.startsWith(`${sourceRoot}/`)) {
+    candidates.add(normalizePath(localPath))
+  } else {
+    candidates.add(normalizePath(`${sourceRoot}/${localPath}`))
+  }
+
+  return [...candidates]
+}
+
+function normalizePath(path: string): string {
+  const segments: string[] = []
+  for (const segment of path.split("/")) {
+    if (!segment || segment === ".") continue
+    if (segment === "..") {
+      segments.pop()
+      continue
+    }
+    segments.push(segment)
+  }
+  return segments.join("/")
 }

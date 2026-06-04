@@ -11,8 +11,9 @@ export type GTSXConfig = {
 }
 
 export type GTSXProjectConfig = {
+  entryRoot?: string
   namespace?: string
-  root?: string
+  sourceRoot?: string
   tsconfig?: string
 }
 
@@ -29,7 +30,7 @@ export type GTSXStudioConfig = {
 }
 
 export type ResolvedGTSXConfig = {
-  project: Required<Pick<GTSXProjectConfig, "root">> & Pick<GTSXProjectConfig, "namespace" | "tsconfig">
+  project: Required<Pick<GTSXProjectConfig, "sourceRoot">> & Pick<GTSXProjectConfig, "entryRoot" | "namespace" | "tsconfig">
   preview: GTSXConfig["preview"]
   routes: GTSXRouteConfig
   studio: Required<GTSXStudioConfig>

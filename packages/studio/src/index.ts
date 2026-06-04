@@ -1,4 +1,10 @@
-export { createStudioManifest, createStudioManifestFromGTSXConfig, studioUrlSearchFromSearchParams } from "./manifest"
+export {
+  createStudioManifest,
+  createStudioManifestFromGTSXConfig,
+  discoverStudioDesignManifest,
+  studioDesignRoots,
+  studioUrlSearchFromSearchParams,
+} from "./manifest"
 export type {
   CreateStudioManifestOptions,
   StudioRouteSearchParams,

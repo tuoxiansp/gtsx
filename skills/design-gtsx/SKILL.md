@@ -1,6 +1,6 @@
 ---
 name: design-gtsx
-description: Create and iterate product design drafts inside a gtsx project using local project.root/gtsx/design frames and Studio's design workspace. Use when the user asks for design exploration, UI drafts, visual prototypes, making a product surface look good, or adjusting an existing gtsx design board.
+description: Create and iterate product design drafts inside a gtsx project using local project.entryRoot/design frames and Studio's design workspace. Use when the user asks for design exploration, UI drafts, visual prototypes, making a product surface look good, or adjusting an existing gtsx design board.
 ---
 
 # Design gtsx
@@ -12,18 +12,19 @@ Use this skill when the user wants an AI-assisted product/UI design pass inside 
 The user talks to the local agent. The agent edits local files. Studio renders the board.
 
 1. User asks for a design draft, visual direction, or design adjustment.
-2. Agent reads `gtsx.config.ts` and writes or edits one or more `project.root/gtsx/design/*.g.tsx` files.
+2. Agent reads `gtsx.config.ts` and writes or edits one or more `project.entryRoot/design/*.g.tsx` files.
 3. User opens `/gtsx/studio#/design`.
 4. Each design file appears as a draggable frame. Frame positions are stored in browser `localStorage`.
 
 ## File Contract
 
-- Put design drafts in `project.root/gtsx/design/<FrameName>.g.tsx`, where `project.root` comes from `gtsx.config.ts` and defaults to `src`.
+- Put design drafts in `project.entryRoot/design/<FrameName>.g.tsx`, where `project.entryRoot` comes from `gtsx.config.ts`.
 - Each frame is one default-exported React component with one happy-path frame named `live`.
 - Prefer self-contained files. Do not split a design frame into sibling helper files unless the target adapter is known to resolve them in preview.
 - Multiple alternatives are separate files, not multiple frames.
 - Do not write screenshots, serialized DOM, runtime state, or generated layout positions into the repo.
-- Treat `.gtsx/` as generated adapter output that may be ignored, but never ignore `project.root/gtsx/design/`.
+- Treat `.gtsx/preview-entries.ts` and other adapter outputs as generated. Do not put design drafts under `.gtsx/`.
+- If `project.entryRoot` is missing, setup is incomplete; use `setup-gtsx` before writing design frames.
 
 Minimal frame:
 
@@ -51,7 +52,7 @@ Do not rely on a stronger prompt to produce a better design. Treat the user's pr
 4. **Happy-path selection**: choose the one moment that best communicates the feature's value. Design exploration is not exhaustive frame coverage.
 5. **Design reference pass**: for substantive visual work, read [`DESIGN_REFERENCE.md`](./DESIGN_REFERENCE.md), choose a concrete visual direction, and apply the relevant surface rules. Use it as a web design quality reference, not as a substitute for product context.
 6. **Visual/layout plan**: decide the visual anchor, aesthetic family, information hierarchy, primary action, secondary actions, data density, and visual system before writing TSX.
-7. **Frame implementation**: create or update a named `project.root/gtsx/design/*.g.tsx` frame with credible content and stable dimensions.
+7. **Frame implementation**: create or update a named `project.entryRoot/design/*.g.tsx` frame with credible content and stable dimensions.
 8. **Critique/refine**: review the frame against hierarchy, clarity, rhythm, density, accessibility, affordance, and domain fit. If it looks generic or unfinished, revise before hand-off.
 9. **Iteration**: if the user says "adjust here/there", preserve the current direction and edit the relevant frame unless they ask for a variant.
 
@@ -119,17 +120,17 @@ Open:
 
 ```txt
 /gtsx/studio#/design
-/gtsx?entry=src%2Fgtsx%2Fdesign%2F<FrameName>.g.tsx%23default&frame=live&chrome=0
+/gtsx?entry=app%2Fgtsx%2Fdesign%2F<FrameName>.g.tsx%23default&frame=live&chrome=0
 ```
 
-Also run the project typecheck when available. Replace `src` in the direct frame URL with the configured `project.root` when it differs. Design frames are expected to live under `gtsx.config.ts` `project.root`, so they should be inside the gtsx project scope by convention.
+Also run the project typecheck when available. Replace `app%2Fgtsx` with the URL-encoded `project.entryRoot` when it differs.
 
 ## When Setup Is Missing
 
 If `/gtsx/studio#/design` does not show frames:
 
-- Confirm the project is using a gtsx adapter version that includes `project.root/gtsx/design/**/*.g.tsx` in preview entries.
-- Restart the dev server so generated preview entry maps refresh.
+- Confirm `project.entryRoot` is present in `gtsx.config.ts` and the project is using a gtsx adapter version that includes `project.entryRoot/design/**/*.g.tsx` in preview entries.
+- Reload Studio after generated preview entry maps refresh.
 - If the project consumes `@gtsx/studio` from built `dist`, rebuild `@gtsx/studio` after source changes.
 
 If the project is not gtsx-enabled, use `setup-gtsx` first.

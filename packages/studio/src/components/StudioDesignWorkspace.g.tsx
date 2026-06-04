@@ -343,7 +343,7 @@ function StudioDesignWorkspaceView(props: StudioDesignWorkspaceProps) {
                   }}
                 >
                   <strong style={{ color: studioColors.text, fontSize: 12, fontWeight: 600 }}>No design frames</strong>
-                  <span>&lt;project.root&gt;/gtsx/design/*.g.tsx</span>
+                  <span>project.entryRoot/design/*.g.tsx</span>
                 </section>
               )}
             </div>
@@ -528,17 +528,17 @@ StudioDesignWorkspace.frames = {
         design: {
           frames: [
             {
-              id: "src/gtsx/design/DesignHost.g.tsx#default:live",
-              entry: "src/gtsx/design/DesignHost.g.tsx#default",
-              filePath: "src/gtsx/design/DesignHost.g.tsx",
+              id: "app/gtsx/design/DesignHost.g.tsx#default:live",
+              entry: "app/gtsx/design/DesignHost.g.tsx#default",
+              filePath: "app/gtsx/design/DesignHost.g.tsx",
               title: "DesignHost",
               exportName: "default",
               frameName: "live",
             },
             {
-              id: "src/gtsx/design/DesignHost.g.tsx#default:loaded",
-              entry: "src/gtsx/design/DesignHost.g.tsx#default",
-              filePath: "src/gtsx/design/DesignHost.g.tsx",
+              id: "app/gtsx/design/DesignHost.g.tsx#default:loaded",
+              entry: "app/gtsx/design/DesignHost.g.tsx#default",
+              filePath: "app/gtsx/design/DesignHost.g.tsx",
               title: "DesignHost",
               exportName: "default",
               frameName: "loaded",
@@ -556,12 +556,12 @@ StudioDesignWorkspace.frames = {
         },
         files: [
           {
-            path: "src/gtsx/design/DesignHost.g.tsx",
-            groupId: "file:src/gtsx/design/DesignHost.g.tsx",
+            path: "app/gtsx/design/DesignHost.g.tsx",
+            groupId: "file:app/gtsx/design/DesignHost.g.tsx",
             components: [
               {
-                coordinate: "src/gtsx/design/DesignHost.g.tsx#default",
-                filePath: "src/gtsx/design/DesignHost.g.tsx",
+                coordinate: "app/gtsx/design/DesignHost.g.tsx#default",
+                filePath: "app/gtsx/design/DesignHost.g.tsx",
                 exportName: "default",
                 componentName: "DesignHost",
                 mode: "pure",

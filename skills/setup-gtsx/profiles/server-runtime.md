@@ -4,12 +4,12 @@ Use this profile when the host owns server routes, server rendering, static rout
 
 ## Contract
 
-1. Add `gtsx.config.ts` with selected TypeScript scope and server dev command.
+1. Add `gtsx.config.ts` with selected TypeScript scope, `project.entryRoot`, and server dev command.
 2. Add the framework/bundler transform hook for `.g.tsx`.
 3. Add `/gtsx/studio/manifest` and return the manifest from `createStudioManifestProvider`.
 4. Add `/gtsx/studio` and render `StudioShell` from `@gtsx/studio/client`.
 5. Add `/gtsx` and delegate route parsing, SSR bootstrap scripts, and preview loading to a framework adapter.
-6. Create the empty `project.root/gtsx/design` directory by convention. Do not add a design config key or placeholder frames.
+6. Create the empty `${project.entryRoot}/design` directory. Do not add a `designRoot` config key or placeholder frames.
 7. Preserve all existing framework config wrappers and production routes.
 8. In upgrade/ensure mode, do not rewrite existing config, adapter wrappers, route files, or preview helpers if they already pass verification; after package upgrades, migrate only glue proven incompatible by typecheck, adapter contracts, or runtime verification.
 9. Verify project typecheck, `gtsx check`, `/gtsx/studio/manifest`, `/gtsx/studio`, one `/gtsx?...` preview URL, and an existing app route.

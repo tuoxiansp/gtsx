@@ -1,5 +1,8 @@
 import { existsSync, readFileSync, rmSync, statSync } from "node:fs"
+import { spawn } from "node:child_process"
 import { join, resolve } from "node:path"
+import { setTimeout as delay } from "node:timers/promises"
+import { chromium } from "playwright"
 import { describe, expect, it } from "vitest"
 
 import { runCLI } from "../src/cli.js"
@@ -72,4 +75,56 @@ describe("examples Vite host", () => {
     expect(readFileSync(childOverrideSnapshot).subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
     expect(statSync(childOverrideSnapshot).size).toBeGreaterThan(1_000)
   }, 60_000)
+
+  it("serves Studio and preview routes from the examples Vite host", async () => {
+    const port = "4322"
+    const server = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port", port, "--strictPort"], {
+      cwd: examplesRoot,
+      stdio: "ignore",
+    })
+
+    try {
+      await fetchTextWhenReady(`http://127.0.0.1:${port}/gtsx/studio`)
+
+      const browser = await chromium.launch()
+      try {
+        const page = await browser.newPage()
+        await page.goto(`http://127.0.0.1:${port}/gtsx/studio`)
+        await page
+          .locator('[data-gtsx-card-coordinate="src/frames/language/PrimitiveProps.g.tsx#default"]')
+          .waitFor({ timeout: 10_000 })
+        await page
+          .locator('[data-gtsx-card-coordinate="src/frames/stateful/DashboardShell.g.tsx#default"]')
+          .waitFor({ timeout: 10_000 })
+
+        const entry = encodeURIComponent("src/frames/language/PrimitiveProps.g.tsx#default")
+        await page.goto(`http://127.0.0.1:${port}/gtsx?entry=${entry}&frame=positiveActive&chrome=0`)
+        await page.getByText("Active language fixture").waitFor({ timeout: 10_000 })
+        expect(await page.getByText("42 events").count()).toBeGreaterThan(0)
+      } finally {
+        await browser.close()
+      }
+    } finally {
+      server.kill()
+    }
+  }, 60_000)
 })
+
+async function fetchTextWhenReady(url: string): Promise<string> {
+  const deadline = Date.now() + 30_000
+  let lastError: unknown
+
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url)
+      if (response.ok) return response.text()
+      lastError = new Error(`Unexpected ${response.status} from ${url}: ${await response.text()}`)
+    } catch (error) {
+      lastError = error
+    }
+
+    await delay(500)
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(`Timed out waiting for ${url}`)
+}

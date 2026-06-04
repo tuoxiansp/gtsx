@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, watch, writeFileSync, type Dirent, type FSWatcher } from "node:fs"
 import { createRequire } from "node:module"
 import { dirname, relative, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
-import { resolveGTSXConfig } from "@gtsx/core/config-model"
+import { loadGTSXConfig, resolveGTSXConfig } from "@gtsx/core/config"
+import { gtsxDesignRootFromEntryRoot, normalizeGTSXPath } from "@gtsx/core/config-model"
 import type { GTSXConfig } from "@gtsx/core"
 
 type WebpackRule = {
@@ -15,6 +16,7 @@ type WebpackConfig = {
   module?: {
     rules?: WebpackRule[]
   }
+  plugins?: unknown[]
   resolve?: {
     alias?: Record<string, string>
     [key: string]: unknown
@@ -39,30 +41,52 @@ type NextConfigLike = {
 
 type GTSXNextReactOptions = {
   config?: GTSXConfig
+  enabled?: boolean
   previewEntries?: false | GTSXNextPreviewEntriesOptions
-  projectRoot?: string
+  sourceRoot?: string
   root?: string
 }
 
 type GTSXNextPreviewEntriesOptions = {
+  entryRoot?: string
   moduleId?: string
   outputFile?: string
-  projectRoot?: string
+  sourceRoot?: string
 }
 
 type ResolvedGTSXNextPreviewEntriesOptions = {
+  entryRoot: string
   moduleId: string
   outputPath: string
-  projectRoot: string
+  sourceRoot: string
 }
 
 const defaultPreviewEntriesModuleId = "@gtsx/adapter-next-react/preview-entries"
 const defaultPreviewEntriesOutputFile = ".gtsx/preview-entries.ts"
 const ignoredPreviewEntryDirs = new Set(["node_modules", "dist", ".next", ".git", ".gtsx"])
+const previewEntriesPluginName = "GTSXNextPreviewEntriesPlugin"
+const previewEntriesWatcherDebounceMs = 50
+const globalPreviewEntryWatcherSymbol = Symbol.for("gtsx.next.preview-entry.watchers")
 const previewImportQuery = "gtsx-preview"
 
-export function gtsxNextReact(options: GTSXNextReactOptions = {}) {
+type GlobalPreviewEntryWatcher = typeof globalThis & {
+  [globalPreviewEntryWatcherSymbol]?: Map<string, { close(): void }>
+}
+
+export function gtsxNextReact(
+  options: GTSXNextReactOptions = {},
+): <Config extends NextConfigLike>(nextConfig?: Config) => Config & NextConfigLike {
   const root = options.root ?? process.cwd()
+  const previewEntriesEnabled = options.enabled ?? process.env.NODE_ENV !== "production"
+
+  if (!previewEntriesEnabled) {
+    return function withGTSXNextReactPreviewEntriesDisabled<Config extends NextConfigLike>(
+      nextConfig: Config = {} as Config,
+    ): Config & NextConfigLike {
+      return nextConfig as Config & NextConfigLike
+    }
+  }
+
   const loaderPath = resolve(dirname(fileURLToPath(import.meta.url)), "../loader.cjs")
   const transformPath = resolveGTSXReactTransform(root)
   const previewEntries = resolvePreviewEntriesOptions(root, options)
@@ -70,6 +94,7 @@ export function gtsxNextReact(options: GTSXNextReactOptions = {}) {
   return function withGTSXNextReact<Config extends NextConfigLike>(nextConfig: Config = {} as Config): Config & NextConfigLike {
     const userWebpack = nextConfig.webpack
     writeGTSXNextPreviewEntries(root, previewEntries)
+    startGTSXNextPreviewEntriesWatcher(root, previewEntries)
 
     return {
       ...nextConfig,
@@ -83,6 +108,7 @@ export function gtsxNextReact(options: GTSXNextReactOptions = {}) {
           ...(resolvedConfig.resolve.alias ?? {}),
           ...(previewEntries ? { [previewEntries.moduleId]: previewEntries.outputPath } : {}),
         }
+        installGTSXNextPreviewEntriesPlugin(resolvedConfig, root, previewEntries)
         resolvedConfig.module.rules.unshift({
           test: /\.g\.tsx$/,
           enforce: "pre",
@@ -147,18 +173,36 @@ function resolvePreviewEntriesOptions(
   if (options.previewEntries === false) return undefined
 
   const previewEntries = typeof options.previewEntries === "object" ? options.previewEntries : {}
-  const resolvedConfig = options.config ? resolveGTSXConfig(options.config) : undefined
+  const resolvedConfig = resolveNextGTSXConfig(root, options.config)
+  const entryRoot = previewEntries.entryRoot ?? resolvedConfig?.project.entryRoot
+  if (!entryRoot) {
+    throw new Error(
+      "Missing project.entryRoot in gtsx.config.ts. Run setup-gtsx again so the local /gtsx entry directory is recorded.",
+    )
+  }
+
   return {
+    entryRoot: normalizeGTSXPath(entryRoot),
     moduleId: previewEntries.moduleId ?? defaultPreviewEntriesModuleId,
     outputPath: resolve(root, previewEntries.outputFile ?? defaultPreviewEntriesOutputFile),
-    projectRoot: previewEntries.projectRoot ?? options.projectRoot ?? resolvedConfig?.project.root ?? "src",
+    sourceRoot: previewEntries.sourceRoot ?? options.sourceRoot ?? resolvedConfig?.project.sourceRoot ?? "src",
   }
+}
+
+function resolveNextGTSXConfig(root: string, config: GTSXConfig | undefined) {
+  if (config) return resolveGTSXConfig(config)
+
+  const loaded = loadGTSXConfig(root)
+  if (loaded.config) return resolveGTSXConfig(loaded.config)
+
+  const message = loaded.diagnostics.map((diagnostic) => diagnostic.message).filter(Boolean).join("\n")
+  throw new Error(message || "Missing gtsx.config.ts for Next adapter.")
 }
 
 function writeGTSXNextPreviewEntries(root: string, options: ResolvedGTSXNextPreviewEntriesOptions | undefined) {
   if (!options || !existsSync(root)) return
 
-  const files = discoverGTSXPreviewFiles(root, options.projectRoot)
+  const files = discoverGTSXPreviewFiles(root, options)
   const code = createGTSXNextPreviewEntriesModule(root, options.outputPath, files)
   const current = readFileIfExists(options.outputPath)
   if (current === code) return
@@ -167,15 +211,17 @@ function writeGTSXNextPreviewEntries(root: string, options: ResolvedGTSXNextPrev
   writeFileSync(options.outputPath, code)
 }
 
-function discoverGTSXPreviewFiles(root: string, projectRoot: string): string[] {
-  const files: string[] = []
+function discoverGTSXPreviewFiles(root: string, options: ResolvedGTSXNextPreviewEntriesOptions): string[] {
+  const files = new Set<string>()
 
-  collectGTSXPreviewFiles(resolve(root, projectRoot), files)
+  for (const previewRoot of gtsxNextPreviewEntryRoots(options)) {
+    collectGTSXPreviewFiles(resolve(root, previewRoot), files, root)
+  }
 
-  return files.map((filePath) => relative(root, filePath).split(sep).join("/")).sort((left, right) => left.localeCompare(right))
+  return [...files].sort((left, right) => left.localeCompare(right))
 }
 
-function collectGTSXPreviewFiles(directory: string, files: string[]) {
+function collectGTSXPreviewFiles(directory: string, files: Set<string>, root: string) {
   if (!existsSync(directory)) return
 
   walk(directory)
@@ -190,9 +236,150 @@ function collectGTSXPreviewFiles(directory: string, files: string[]) {
       }
 
       if (dirent.isFile() && dirent.name.endsWith(".g.tsx")) {
-        files.push(resolve(currentDirectory, dirent.name))
+        files.add(relative(root, resolve(currentDirectory, dirent.name)).split(sep).join("/"))
       }
     }
+  }
+}
+
+function gtsxNextPreviewEntryRoots(options: ResolvedGTSXNextPreviewEntriesOptions): string[] {
+  return [...new Set([options.sourceRoot, gtsxDesignRootFromEntryRoot(options.entryRoot)])]
+}
+
+function gtsxNextPreviewEntryWatchRoots(options: ResolvedGTSXNextPreviewEntriesOptions): string[] {
+  return [...new Set([options.sourceRoot, options.entryRoot, gtsxDesignRootFromEntryRoot(options.entryRoot)])]
+}
+
+class GTSXNextPreviewEntriesPlugin {
+  constructor(
+    private readonly root: string,
+    private readonly options: ResolvedGTSXNextPreviewEntriesOptions | undefined,
+  ) {}
+
+  apply(compiler: {
+    hooks?: {
+      afterCompile?: { tap(name: string, handler: (compilation: any) => void): void }
+      beforeRun?: { tap(name: string, handler: () => void): void }
+      watchRun?: { tap(name: string, handler: () => void): void }
+    }
+  }) {
+    compiler.hooks?.beforeRun?.tap(previewEntriesPluginName, () => writeGTSXNextPreviewEntries(this.root, this.options))
+    compiler.hooks?.watchRun?.tap(previewEntriesPluginName, () => writeGTSXNextPreviewEntries(this.root, this.options))
+    compiler.hooks?.afterCompile?.tap(previewEntriesPluginName, (compilation: any) => {
+      if (!this.options) return
+
+      for (const watchRoot of gtsxNextPreviewEntryWatchRoots(this.options)) {
+        const absoluteWatchRoot = resolve(this.root, watchRoot)
+        if (existsSync(absoluteWatchRoot)) {
+          compilation.contextDependencies?.add(absoluteWatchRoot)
+        }
+      }
+
+      if (existsSync(this.options.outputPath)) {
+        compilation.fileDependencies?.add(this.options.outputPath)
+      }
+    })
+  }
+}
+
+function installGTSXNextPreviewEntriesPlugin(
+  config: WebpackConfig,
+  root: string,
+  options: ResolvedGTSXNextPreviewEntriesOptions | undefined,
+) {
+  if (!options) return
+
+  config.plugins ??= []
+  if (config.plugins.some((plugin) => plugin instanceof GTSXNextPreviewEntriesPlugin)) return
+  config.plugins.push(new GTSXNextPreviewEntriesPlugin(root, options))
+}
+
+function startGTSXNextPreviewEntriesWatcher(root: string, options: ResolvedGTSXNextPreviewEntriesOptions | undefined) {
+  if (!options || process.env.NODE_ENV === "production" || process.env.NODE_ENV === "test") return
+
+  const key = JSON.stringify({ entryRoot: options.entryRoot, outputPath: options.outputPath, sourceRoot: options.sourceRoot, root })
+  const watchers = globalPreviewEntryWatchers()
+  if (watchers.has(key)) return
+
+  ensureGTSXDesignDirectory(root, options)
+  writeGTSXNextPreviewEntries(root, options)
+  const watcher = watchGTSXNextPreviewEntryRoots(root, options)
+  watchers.set(key, watcher)
+}
+
+function globalPreviewEntryWatchers(): Map<string, { close(): void }> {
+  const globalWatchers = globalThis as GlobalPreviewEntryWatcher
+  globalWatchers[globalPreviewEntryWatcherSymbol] ??= new Map()
+  return globalWatchers[globalPreviewEntryWatcherSymbol]
+}
+
+function watchGTSXNextPreviewEntryRoots(root: string, options: ResolvedGTSXNextPreviewEntriesOptions): { close(): void } {
+  let pending: ReturnType<typeof setTimeout> | undefined
+  const directoryWatchers = new Map<string, FSWatcher>()
+
+  const scheduleWrite = () => {
+    if (pending) clearTimeout(pending)
+    pending = setTimeout(() => {
+      pending = undefined
+      writeGTSXNextPreviewEntries(root, options)
+    }, previewEntriesWatcherDebounceMs)
+    pending.unref?.()
+  }
+
+  const watchDirectory = (directory: string) => {
+    if (directoryWatchers.has(directory)) return
+
+    let dirents: Dirent[]
+    try {
+      dirents = readdirSync(directory, { withFileTypes: true })
+    } catch {
+      return
+    }
+
+    let watcher: FSWatcher
+    try {
+      watcher = watch(directory, (eventType, filename) => {
+        const changedPath = typeof filename === "string" ? resolve(directory, filename) : directory
+        const changedStat = statOrUndefined(changedPath)
+
+        if (changedStat?.isDirectory()) {
+          watchDirectoryTree(changedPath)
+        }
+
+        if (!filename || changedPath.endsWith(".g.tsx") || changedStat?.isDirectory() || eventType === "rename") {
+          scheduleWrite()
+        }
+      })
+    } catch {
+      return
+    }
+    watcher.unref?.()
+    directoryWatchers.set(directory, watcher)
+
+    for (const dirent of dirents) {
+      if (dirent.isDirectory() && !ignoredPreviewEntryDirs.has(dirent.name)) {
+        watchDirectoryTree(resolve(directory, dirent.name))
+      }
+    }
+  }
+
+  const watchDirectoryTree = (directory: string, options: { allowIgnoredRoot?: boolean } = {}) => {
+    if (!options.allowIgnoredRoot && ignoredPreviewEntryDirs.has(directory.split(sep).at(-1) ?? "")) return
+    watchDirectory(directory)
+  }
+
+  for (const watchRoot of gtsxNextPreviewEntryWatchRoots(options)) {
+    watchDirectoryTree(resolve(root, watchRoot), { allowIgnoredRoot: true })
+  }
+
+  return {
+    close() {
+      if (pending) clearTimeout(pending)
+      for (const watcher of directoryWatchers.values()) {
+        watcher.close()
+      }
+      directoryWatchers.clear()
+    },
   }
 }
 
@@ -247,4 +434,16 @@ function readFileIfExists(path: string): string | undefined {
   } catch {
     return undefined
   }
+}
+
+function statOrUndefined(path: string) {
+  try {
+    return statSync(path)
+  } catch {
+    return undefined
+  }
+}
+
+function ensureGTSXDesignDirectory(root: string, options: ResolvedGTSXNextPreviewEntriesOptions) {
+  mkdirSync(resolve(root, gtsxDesignRootFromEntryRoot(options.entryRoot)), { recursive: true })
 }

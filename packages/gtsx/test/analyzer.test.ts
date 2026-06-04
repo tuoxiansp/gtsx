@@ -340,7 +340,7 @@ describe("GTSX analyzer", () => {
     })
 
     expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain("GTSX pure entry: src/gtsx/design/Sketch.g.tsx")
+    expect(result.stdout).toContain("GTSX pure entry: src/app/gtsx/design/Sketch.g.tsx")
     expect(result.stdout).toContain("- live")
   })
 })

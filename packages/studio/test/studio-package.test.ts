@@ -9,7 +9,7 @@ import { createStudioManifest } from "../src/index.js"
 const repositoryRoot = resolve(import.meta.dirname, "../../..")
 const studioRoot = join(repositoryRoot, "packages/studio")
 
-function buildStudioManifest(options: { cwd: string; projectRoot?: string }) {
+function buildStudioManifest(options: { cwd: string; sourceRoot?: string }) {
   return createStudioManifest(buildGTSXProjectIndex(options))
 }
 
@@ -56,7 +56,7 @@ describe("Studio package", () => {
   })
 
   it("builds a Studio manifest for its own UI frames", () => {
-    const manifest = buildStudioManifest({ cwd: studioRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: studioRoot, sourceRoot: "src" })
 
     expect(manifest.preview).toEqual({
       urlTemplate: "/gtsx?entry={entry}&frame={frame}{gframe}",

@@ -6,9 +6,9 @@ import {
 } from "@gtsx/adapter-vite-react/preview"
 import gtsxConfig from "virtual:gtsx/config"
 
-const modules = import.meta.glob<GTSXPreviewModule>("./frames/**/*.g.tsx")
+const modules = import.meta.glob<GTSXPreviewModule>(["./frames/**/*.g.tsx", "/app/gtsx/design/**/*.g.tsx"])
 const loadExamplePreviewComponent = createGTSXVitePreviewComponentLoader(modules, {
-  projectRoot: gtsxConfig.project.root,
+  sourceRoot: gtsxConfig.project.sourceRoot,
 })
 
 export function GTSXPreviewApp() {

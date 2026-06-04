@@ -1,4 +1,4 @@
-import { resolveGTSXConfig } from "@gtsx/core/config-model"
+import { gtsxDesignRootFromEntryRoot, requireGTSXEntryRoot, resolveGTSXConfig } from "@gtsx/core/config-model"
 import type { GTSXConfig, GTSXDiagnostic } from "@gtsx/core"
 import type { GTSXProjectIndex, GTSXProjectIndexComponent } from "@gtsx/core/project-index"
 
@@ -112,14 +112,42 @@ export function createStudioManifestFromGTSXConfig(
   options: Pick<CreateStudioManifestOptions, "design" | "diagnostics"> = {},
 ): StudioManifest {
   const resolved = resolveGTSXConfig(config)
+  const entryRoot = requireGTSXEntryRoot(resolved)
 
   return createStudioManifest(projectIndex, {
     ...(resolved.project.namespace ? { cache: { namespace: resolved.project.namespace } } : {}),
-    design: options.design,
+    design: options.design ?? discoverStudioDesignManifest(projectIndex, entryRoot),
     diagnostics: options.diagnostics,
     preview: previewConfigFromRoutes(resolved.routes),
     routes: resolved.routes,
   })
+}
+
+export function discoverStudioDesignManifest(projectIndex: GTSXProjectIndex, entryRoot: string): StudioDesignManifest {
+  const designPathPrefix = studioDesignPathPrefix(entryRoot)
+  const frames = projectIndex.files.flatMap((file) => {
+    if (!file.path.startsWith(designPathPrefix)) return []
+
+    return file.components.flatMap((component) => {
+      const componentFrames = component.frames.length > 0 ? component.frames : [{ name: "missing-frames" }]
+      return componentFrames.map((frame) => {
+        return {
+          id: `${component.coordinate}:${frame.name}`,
+          entry: component.coordinate,
+          filePath: component.filePath,
+          title: component.componentName,
+          exportName: component.exportName,
+          frameName: frame.name,
+        }
+      })
+    })
+  })
+
+  return { frames }
+}
+
+export function studioDesignRoots(entryRoot: string): string[] {
+  return [gtsxDesignRootFromEntryRoot(entryRoot)]
 }
 
 export type StudioRouteSearchParams = Record<string, string | string[] | undefined> | URLSearchParams | undefined
@@ -143,4 +171,8 @@ function previewConfigFromRoutes(routes: StudioManifestRouteConfig): StudioManif
     urlTemplate: `${routes.preview}?entry={entry}&frame={frame}{gframe}`,
     allUrlTemplate: `${routes.preview}?entry={entry}{gframe}`,
   }
+}
+
+function studioDesignPathPrefix(entryRoot: string): string {
+  return `${gtsxDesignRootFromEntryRoot(entryRoot)}/`
 }

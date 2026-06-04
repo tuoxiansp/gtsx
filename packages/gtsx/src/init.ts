@@ -69,7 +69,8 @@ function configTemplate(): string {
 
 export default defineGTSXConfig({
   project: {
-    root: "src",
+    sourceRoot: "src",
+    entryRoot: "app/gtsx",
     namespace: "my-project",
   },
   routes: {
@@ -99,8 +100,8 @@ function instructionsTemplate(): string {
 - Configure \`preview.serve\` to start this project's normal dev server.
 - Configure \`preview.url\` to point at this project's GTSX preview route.
 - Configure \`preview.allUrl\` to render all frames for one entry as a contact sheet.
-- Configure \`project.root\`, \`project.namespace\`, and \`routes\` as the single source of truth for Studio routes.
-- Put design exploration frames in \`project.root/gtsx/design\`; this path is a convention, not a separate config field.
+- Configure \`project.sourceRoot\`, \`project.entryRoot\`, \`project.namespace\`, and \`routes\` as the single source of truth for Studio routes.
+- Put design exploration frames in \`project.entryRoot/design\`.
 - Do not put secrets, credentials, tokens, or customer data in GTSX frames.
 `
 }

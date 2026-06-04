@@ -1,8 +1,11 @@
 import { loadGTSXConfig, resolveGTSXConfig } from "@gtsx/core/config"
+import { requireGTSXEntryRoot } from "@gtsx/core/config-model"
 import type { GTSXConfig } from "@gtsx/core"
-import { createCachedGTSXProjectIndexBuilder, type GTSXProjectIndex } from "@gtsx/core/project-index"
+import { createCachedGTSXProjectIndexBuilder } from "@gtsx/core/project-index"
 
-import { createStudioManifestFromGTSXConfig, type StudioDesignManifest, type StudioManifest } from "./manifest"
+import { createStudioManifestFromGTSXConfig, studioDesignRoots, type StudioManifest } from "./manifest"
+
+export { discoverStudioDesignManifest, studioDesignRoots } from "./manifest"
 
 export type CreateStudioManifestProviderOptions = {
   config?: GTSXConfig
@@ -13,44 +16,21 @@ export function createStudioManifestProvider(options: CreateStudioManifestProvid
   const cwd = options.cwd ?? "."
   const config = options.config ?? loadRequiredGTSXConfig(cwd)
   const resolved = resolveGTSXConfig(config)
+  const entryRoot = requireGTSXEntryRoot(resolved)
   const buildProjectIndex = createCachedGTSXProjectIndexBuilder({
     ttlMs: resolved.studio.manifestCacheTtlMs,
   })
 
   return () => {
     const projectIndex = buildProjectIndex({
-        cwd,
-        projectRoot: resolved.project.root,
-        tsconfigPath: resolved.project.tsconfig,
-      })
-
-    return createStudioManifestFromGTSXConfig(projectIndex, config, {
-      design: discoverStudioDesignManifest(projectIndex, resolved.project.root),
+      additionalRoots: studioDesignRoots(entryRoot),
+      cwd,
+      sourceRoot: resolved.project.sourceRoot,
+      tsconfigPath: resolved.project.tsconfig,
     })
+
+    return createStudioManifestFromGTSXConfig(projectIndex, config)
   }
-}
-
-export function discoverStudioDesignManifest(projectIndex: GTSXProjectIndex, projectRoot = "src"): StudioDesignManifest {
-  const designPathPrefix = studioDesignPathPrefix(projectRoot)
-  const frames = projectIndex.files.flatMap((file) => {
-    if (!file.path.startsWith(designPathPrefix)) return []
-
-    return file.components.flatMap((component) => {
-      const componentFrames = component.frames.length > 0 ? component.frames : [{ name: "missing-frames" }]
-      return componentFrames.map((frame) => {
-        return {
-          id: `${component.coordinate}:${frame.name}`,
-          entry: component.coordinate,
-          filePath: component.filePath,
-          title: component.componentName,
-          exportName: component.exportName,
-          frameName: frame.name,
-        }
-      })
-    })
-  })
-
-  return { frames }
 }
 
 function loadRequiredGTSXConfig(cwd: string): GTSXConfig {
@@ -59,10 +39,4 @@ function loadRequiredGTSXConfig(cwd: string): GTSXConfig {
 
   const message = result.diagnostics.map((diagnostic) => diagnostic.message).join("\n")
   throw new Error(message || "Missing gtsx.config.ts.")
-}
-
-function studioDesignPathPrefix(projectRoot: string): string {
-  const root = projectRoot.replaceAll("\\", "/").replace(/\/+$/, "")
-  if (!root || root === ".") return "gtsx/design/"
-  return `${root}/gtsx/design/`
 }

@@ -23,13 +23,13 @@ The difference:
 ## How It Works
 
 1. You describe what you want to a local agent.
-2. The agent writes or edits a `.g.tsx` frame in `project.root/gtsx/design/`.
+2. The agent writes or edits a `.g.tsx` frame in `project.entryRoot/design/`.
 3. You open `/gtsx/studio#/design`.
 4. Each file appears as a draggable frame on a canvas. Positions are stored in your browser's `localStorage` — nothing is written to the repo.
 
 ## Frame Contract
 
-- Location: `project.root/gtsx/design/<FrameName>.g.tsx` (where `project.root` comes from `gtsx.config.ts`, defaults to `src`).
+- Location: `project.entryRoot/design/<FrameName>.g.tsx`, where `project.entryRoot` is the local `/gtsx` entry directory recorded by setup.
 - One default-exported React component per file.
 - One frame named `live`.
 - Multiple alternatives = multiple files, not multiple frames.
@@ -63,10 +63,10 @@ The design board:
 A single frame directly:
 
 ```
-/gtsx?entry=src%2Fgtsx%2Fdesign%2FCheckoutFlow.g.tsx%23default&frame=live&chrome=0
+/gtsx?entry=app%2Fgtsx%2Fdesign%2FCheckoutFlow.g.tsx%23default&frame=live&chrome=0
 ```
 
-Replace `src` with your configured `project.root` if it differs.
+Replace `app%2Fgtsx` with the URL-encoded `project.entryRoot` if setup chose a different entry root, such as `src%2Fapp%2Fgtsx`.
 
 ## The Agent's Design Loop
 
@@ -83,6 +83,6 @@ You see the result in Studio and react: "adjust this", "try a different approach
 
 ## When It Doesn't Work
 
-- **Frames don't appear in Studio?** Restart the dev server so generated preview entries refresh.
+- **Frames don't appear in Studio?** Confirm `project.entryRoot` is set in `gtsx.config.ts`, then make sure the adapter-generated preview entries have refreshed and reload Studio.
 - **Resolution errors?** Keep frames self-contained. If a sibling helper file can't be resolved in preview, inline the dependency.
 - **Project not gtsx-enabled?** Run `setup-gtsx` first.

@@ -16,7 +16,8 @@ describe("gtsx config", () => {
 
 export default defineGTSXConfig({
   project: {
-    root: "components",
+    sourceRoot: "components",
+    entryRoot: "app/gtsx",
     namespace: "demo-app",
     tsconfig: "tsconfig.app.json",
   },
@@ -40,7 +41,8 @@ export default defineGTSXConfig({
       expect(result.diagnostics).toEqual([])
       expect(result.config?.project?.namespace).toBe("demo-app")
       expect(resolveGTSXConfig(result.config!).project).toEqual({
-        root: "components",
+        sourceRoot: "components",
+        entryRoot: "app/gtsx",
         namespace: "demo-app",
         tsconfig: "tsconfig.app.json",
       })
@@ -55,14 +57,15 @@ export default defineGTSXConfig({
     }
   })
 
-  it("defaults project root, routes, and Studio cache ttl", () => {
+  it("defaults source root, routes, and Studio cache ttl", () => {
     const resolved = resolveGTSXConfig({
       preview: {
         serve: "pnpm dev --port {port}",
       },
     })
 
-    expect(resolved.project.root).toBe("src")
+    expect(resolved.project.sourceRoot).toBe("src")
+    expect(resolved.project.entryRoot).toBeUndefined()
     expect(resolved.routes.preview).toBe("/gtsx")
     expect(resolved.routes.studio).toBe("/gtsx/studio")
     expect(resolved.routes.manifest).toBe("/gtsx/studio/manifest")

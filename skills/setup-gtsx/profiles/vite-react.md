@@ -15,10 +15,12 @@ Do not install `@gtsx/preview-react` directly.
 ## Configuration
 
 - Configure `gtsxViteReact` from `@gtsx/adapter-vite-react`.
-- Pass the project `gtsx.config.ts` to `gtsxViteReact({ config: gtsxConfig })`.
+- Use `gtsxViteReact()` without statically importing `gtsx.config.ts` from `vite.config.*`; the adapter keeps the `.g.tsx` component transform active for both dev and build, and loads `gtsx.config.ts` only when dev-only virtual GTSX modules are loaded.
+- `.g.tsx` files are production React components. Do not move normal app imports away from `.g.tsx`; isolate only Studio, preview routes, `virtual:gtsx/*`, and generated preview registries from production bundles.
+- Production `vite build` must not require `gtsx.config.ts`, resolve `virtual:gtsx/*`, include Studio/preview route code, expose a usable `/gtsx` experience, or read/write GTSX-generated preview files.
 - If the root `tsconfig.json` is a references container, set `project.tsconfig` to the app config that includes React files, usually `tsconfig.app.json`.
-- Design frames live by convention in `project.root/gtsx/design`; do not add a separate config key for this.
-- During setup, create the empty `project.root/gtsx/design` directory when the project root exists. Do not add placeholder frames; the first `design-gtsx` request writes the first `.g.tsx` frame.
+- Record the local GTSX entry directory in `project.entryRoot`. Design frames live in `${project.entryRoot}/design`; do not add a `designRoot` config key.
+- During setup, create the empty `${project.entryRoot}/design` directory. Do not add placeholder frames; the first `design-gtsx` request writes the first `.g.tsx` frame.
 - In upgrade/ensure mode, do not rewrite `vite.config.*`, `gtsx.config.ts`, browser-entry branches, or `src/preview.tsx` if they already exist and pass verification; only update packages and add missing design-directory support.
 - After package upgrades, rerun Vite typecheck/dev verification. If adapter exports, virtual modules, preview loader signatures, or manifest generation changed, migrate only the affected glue while preserving the existing app render path.
 - Preserve the existing application render path. Only `/gtsx` renders the preview app and only `/gtsx/studio` renders Studio.
@@ -30,10 +32,8 @@ import { gtsxViteReact } from "@gtsx/adapter-vite-react"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
-import gtsxConfig from "./gtsx.config"
-
 export default defineConfig({
-  plugins: [gtsxViteReact({ config: gtsxConfig }), react()],
+  plugins: [gtsxViteReact(), react()],
 })
 ```
 
@@ -44,7 +44,8 @@ import { defineGTSXConfig } from "@gtsx/core"
 
 export default defineGTSXConfig({
   project: {
-    root: "src",
+    sourceRoot: "src",
+    entryRoot: "app/gtsx",
     namespace: "my-project",
   },
   routes: {
@@ -81,25 +82,35 @@ The preview branch must load those visual pieces too. Keep the preview shell sta
 
 ```tsx
 import { createRoot } from "react-dom/client"
-import { StudioShell, createStudioManifestFromGTSXConfig } from "@gtsx/studio"
-import gtsxConfig from "virtual:gtsx/config"
-import projectIndex from "virtual:gtsx/project-index"
 
 import App from "./App"
-import { GTSXPreviewApp } from "./preview"
 import "./index.css"
 
-const studioManifest = createStudioManifestFromGTSXConfig(projectIndex, gtsxConfig)
-const app =
-  window.location.pathname === "/gtsx/studio" ? (
-    <StudioShell manifest={studioManifest} />
-  ) : window.location.pathname === "/gtsx" ? (
-    <GTSXPreviewApp />
-  ) : (
-    <App />
-  )
+const root = createRoot(document.getElementById("root")!)
 
-createRoot(document.getElementById("root")!).render(app)
+void renderApp()
+
+async function renderApp() {
+  if (import.meta.env.DEV && window.location.pathname === "/gtsx/studio") {
+    const [{ StudioShell, createStudioManifestFromGTSXConfig }, { default: gtsxConfig }, { default: projectIndex }] =
+      await Promise.all([
+        import("@gtsx/studio"),
+        import("virtual:gtsx/config"),
+        import("virtual:gtsx/project-index"),
+      ])
+
+    root.render(<StudioShell manifest={createStudioManifestFromGTSXConfig(projectIndex, gtsxConfig)} />)
+    return
+  }
+
+  if (import.meta.env.DEV && window.location.pathname === "/gtsx") {
+    const { GTSXPreviewApp } = await import("./preview")
+    root.render(<GTSXPreviewApp />)
+    return
+  }
+
+  root.render(<App />)
+}
 ```
 
 `src/preview.tsx`:
@@ -113,9 +124,9 @@ import {
 } from "@gtsx/adapter-vite-react/preview"
 import gtsxConfig from "virtual:gtsx/config"
 
-const modules = import.meta.glob<GTSXPreviewModule>("./**/*.g.tsx")
+const modules = import.meta.glob<GTSXPreviewModule>(["./**/*.g.tsx", "/app/gtsx/design/**/*.g.tsx"])
 const loadPreviewComponent = createGTSXVitePreviewComponentLoader(modules, {
-  projectRoot: gtsxConfig.project.root,
+  sourceRoot: gtsxConfig.project.sourceRoot,
 })
 
 export function GTSXPreviewApp() {
@@ -124,6 +135,8 @@ export function GTSXPreviewApp() {
   return <GTSXVitePreviewClient {...params} loadComponent={loadPreviewComponent} />
 }
 ```
+
+If setup selected `project.entryRoot: "src/app/gtsx"`, write the static glob as `"/src/app/gtsx/design/**/*.g.tsx"` instead. Do not include multiple candidate design globs.
 
 `src/vite-env.d.ts`:
 

@@ -1,6 +1,3 @@
 packages:
   - "packages/*"
-  - "playground/*"
-  # Local-only test app; keep its dependencies out of the root lockfile.
-  - "!playground/yuckuolie"
   - "examples"

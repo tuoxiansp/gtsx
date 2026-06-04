@@ -9,6 +9,7 @@ import {
   StudioWorkspaceView,
   type StudioManifestComponent,
   createStudioManifest,
+  discoverStudioDesignManifest,
   applyStudioCardSelectionAction,
   applyStudioPreviewMessage,
   applyStudioPreviewMessageToFrameStates,
@@ -125,11 +126,11 @@ const tsProjectScopeRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/t
 type CreateStudioManifestOptions = NonNullable<Parameters<typeof createStudioManifest>[1]>
 
 function buildStudioManifest(
-  options: { cwd: string; projectRoot?: string; tsconfigPath?: string } & CreateStudioManifestOptions,
+  options: { cwd: string; sourceRoot?: string; tsconfigPath?: string } & CreateStudioManifestOptions,
 ) {
   const projectIndex = buildGTSXProjectIndex({
     cwd: options.cwd,
-    projectRoot: options.projectRoot,
+    sourceRoot: options.sourceRoot,
     tsconfigPath: options.tsconfigPath,
   })
   return createStudioManifest(projectIndex, {
@@ -228,7 +229,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("renders every exported component from the selected file group in the first column", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="file:src/MultiExport.g.tsx" />)
 
     expect(cardCoordinates(html)).toEqual(["src/MultiExport.g.tsx#NamedBadge", "src/MultiExport.g.tsx#default"])
@@ -237,7 +238,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("renders only the selected component in the first column", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const html = renderToStaticMarkup(
       <StudioShell manifest={manifest} selection="component:src/MultiExport.g.tsx#NamedBadge" />,
     )
@@ -246,7 +247,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("renders root components in the first column by default", () => {
-    const manifest = buildStudioManifest({ cwd: examplesRoot, projectRoot: "src/frames", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: examplesRoot, sourceRoot: "src/frames", routes: { preview: "/gtsx" } })
     const expectedRootCoordinates = [
       "src/frames/language/PrimitiveProps.g.tsx#default",
       "src/frames/stateful/DashboardShell.g.tsx#default",
@@ -261,19 +262,23 @@ describe("GTSX Studio shell", () => {
   })
 
   it("keeps design convention files out of the components workspace", () => {
-    const manifest = buildStudioManifest({ cwd: tsProjectScopeRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const projectIndex = buildGTSXProjectIndex({ cwd: tsProjectScopeRoot, sourceRoot: "src" })
+    const manifest = createStudioManifest(projectIndex, {
+      design: discoverStudioDesignManifest(projectIndex, "src/app/gtsx"),
+      routes: { preview: "/gtsx" },
+    })
     const expectedRootCoordinates = ["src/Included.g.tsx#default"]
 
-    expect(manifest.files.map((file) => file.path)).toContain("src/gtsx/design/Sketch.g.tsx")
+    expect(manifest.files.map((file) => file.path)).toContain("src/app/gtsx/design/Sketch.g.tsx")
     expect(rootStudioManifestComponents(manifest).map((component) => component.coordinate)).toEqual(expectedRootCoordinates)
     expect(cardCoordinates(renderToStaticMarkup(<StudioShell manifest={manifest} />))).toEqual(expectedRootCoordinates)
     expect(
-      createStudioWorkspaceState(manifest, "component:src/gtsx/design/Sketch.g.tsx#default").columns[0]?.components.map(
+      createStudioWorkspaceState(manifest, "component:src/app/gtsx/design/Sketch.g.tsx#default").columns[0]?.components.map(
         (component) => component.coordinate,
       ),
     ).toEqual(expectedRootCoordinates)
     expect(
-      createStudioWorkspaceState(manifest, "file:src/gtsx/design/Sketch.g.tsx").columns[0]?.components.map(
+      createStudioWorkspaceState(manifest, "file:src/app/gtsx/design/Sketch.g.tsx").columns[0]?.components.map(
         (component) => component.coordinate,
       ),
     ).toEqual(expectedRootCoordinates)
@@ -398,7 +403,7 @@ describe("GTSX Studio shell", () => {
   it("keeps cache-namespaced Studio card layout in server HTML before browser cache hydration", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
-      projectRoot: "src",
+      sourceRoot: "src",
       routes: { preview: "/gtsx" },
       cache: { namespace: "fixture-project" },
     })
@@ -409,7 +414,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("names the Studio package's outer visual root as Studio", () => {
-    const manifest = buildStudioManifest({ cwd: studioRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: studioRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const roots = rootStudioManifestComponents(manifest)
 
     expect(roots.map((component) => component.componentName)).toContain("Studio")
@@ -417,7 +422,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("renders the canvas without the component index sidebar", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="file:src/MultiExport.g.tsx" />)
 
     expect(html).not.toContain("GTSX component index")
@@ -428,7 +433,7 @@ describe("GTSX Studio shell", () => {
   it("renders design frames as auto-packed component cards with the shared preview pool", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
-      projectRoot: "src",
+      sourceRoot: "src",
       routes: { preview: "/gtsx" },
       design: {
         frames: [
@@ -472,7 +477,7 @@ describe("GTSX Studio shell", () => {
   it("derives design preview targets from design component cards", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
-      projectRoot: "src",
+      sourceRoot: "src",
       routes: { preview: "/gtsx" },
       design: {
         frames: [
@@ -498,7 +503,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("renders the canvas without top chrome or redundant card metadata", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="file:src/MultiExport.g.tsx" />)
 
     expect(html).not.toContain("Drag to pan")
@@ -521,7 +526,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("keeps screen-stable chrome variables out of the React canvas surface render", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const workspace = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
     const html = renderToStaticMarkup(
       <StudioWorkspaceView
@@ -538,7 +543,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("renders card title and frame labels as screen-stable canvas chrome", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -562,7 +567,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("contains trackpad browser gestures inside the canvas viewport", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="component:src/UserCard.g.tsx#default" />)
 
     expect(html).toContain('data-gtsx-canvas-viewport="true"')
@@ -853,7 +858,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("uses the fixed preview scale for every component card in the canvas", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const state = createStudioWorkspaceState(manifest, "file:src/MultiExport.g.tsx")
     const html = renderToStaticMarkup(
       <StudioWorkspaceView
@@ -1042,7 +1047,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("uses normalized rendered component bounds as the component selection target", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
     const html = renderToStaticMarkup(
       <StudioWorkspaceView
@@ -1075,7 +1080,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("clips component hit targets to the preview viewport", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -1109,7 +1114,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("highlights the selected component frame collection as one target", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -1147,7 +1152,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("does not render component-local provider variant controls on cards", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -1169,7 +1174,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("dims provider variant mismatches while keeping every frame visible", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -1287,7 +1292,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("uses an empty measured boundary instead of a full viewport fallback for ready empty components", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -1345,7 +1350,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("does not enter card selected state from sidebar or drilldown state alone", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const state = selectStudioComponent(
       createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
       manifest,
@@ -1413,7 +1418,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("restores the initial Studio workspace from URL search params", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const html = renderToStaticMarkup(
       <StudioShell
         manifest={manifest}
@@ -1431,7 +1436,7 @@ describe("GTSX Studio shell", () => {
   it("renders lazy preview placeholders from component coordinates and first statically enumerable frames", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
-      projectRoot: "src",
+      sourceRoot: "src",
       routes: { preview: "/gtsx" },
     })
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="file:src/MultiExport.g.tsx" />)
@@ -2781,7 +2786,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("creates stable pooled iframe URLs and render targets for preview slots", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
 
     expect(createStudioPreviewPoolUrl(manifest)).toBe("/gtsx?chrome=0&pool=1")
     expect(
@@ -2834,7 +2839,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("uses cached preview geometry for component frame previews", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -2869,7 +2874,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("invalidates preview cache keys when the component source hash changes", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -2879,7 +2884,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("derives geometry cache keys for every manifest frame and canvas viewport", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const expectedKeys = manifest.files.flatMap((file) =>
       file.components.flatMap((component) =>
         component.frames.flatMap((frame) =>
@@ -3035,7 +3040,7 @@ describe("GTSX Studio shell", () => {
   it("uses a project namespace for the browser preview geometry cache", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
-      projectRoot: "src",
+      sourceRoot: "src",
       routes: { preview: "/gtsx" },
       cache: { namespace: "test-cache-namespace" },
     })
@@ -3044,7 +3049,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("derives a stable fallback namespace from the Studio manifest shape", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const namespace = studioPreviewIndexedDBNamespace(manifest)
     const renamedManifest = {
       ...manifest,
@@ -3058,7 +3063,7 @@ describe("GTSX Studio shell", () => {
   it("uses tablet viewport sizing by default", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
-      projectRoot: "src",
+      sourceRoot: "src",
       routes: { preview: "/gtsx" },
     })
     const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
@@ -3083,7 +3088,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("uses fixed viewport presets instead of content-height sizing", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const workspace = changeStudioViewportPreset(
       createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
       "src/UserCard.g.tsx#default",
@@ -3112,7 +3117,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("applies the floating viewport preset to every canvas component", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const workspace = {
       ...createStudioWorkspaceState(manifest, "file:src/MultiExport.g.tsx"),
       canvasViewportPreset: "phone" as const,
@@ -3128,7 +3133,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("separates preview sessions by non-tablet viewport preset", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -3249,7 +3254,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("can disable the Studio preview iframe pool from debug URL params", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
 
     expect(renderToStaticMarkup(<StudioShell manifest={manifest} urlSearch="debug=pool" />)).toContain(
       'data-gtsx-preview-iframe-pool="true"',
@@ -3263,7 +3268,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("stores viewport as a single canvas-level preset across drilldown columns", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const parentState = selectStudioComponent(
       createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
       manifest,
@@ -3296,7 +3301,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("restores canvas viewport when the sidebar changes selection", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const restored = createStudioWorkspaceStateFromUrl(
       manifest,
       new URLSearchParams("selection=component%3Asrc%2FMultiExport.g.tsx%23NamedBadge&canvasViewport=phone"),
@@ -3310,7 +3315,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("uses component bounds height instead of viewport position for canvas card layout", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
 
     const html = renderToStaticMarkup(
@@ -3372,7 +3377,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("renders a card-level error for invalid preview targets", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const dynamicFramesFile = manifest.files.find((file) => file.path === "src/DynamicFrames.g.tsx")
     if (!dynamicFramesFile) throw new Error("Missing DynamicFrames fixture")
 
@@ -3387,7 +3392,7 @@ describe("GTSX Studio shell", () => {
   it("isolates iframe render failures to one card with reproduction details", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
-      projectRoot: "src",
+      sourceRoot: "src",
       routes: { preview: "/gtsx" },
     })
     const state = createStudioWorkspaceState(manifest, "file:src/MultiExport.g.tsx")
@@ -3868,7 +3873,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("creates a child column from the selected component boundary tree", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
 
     const nextState = selectStudioComponent(state, manifest, "src/UserCard.g.tsx#default", [
@@ -3892,7 +3897,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("creates a child column from static dependencies even when they are absent from the current render tree", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const coordinate = "src/ImportedHookDependency.g.tsx#default"
     const state = createStudioWorkspaceState(manifest, `component:${coordinate}`)
 
@@ -3912,7 +3917,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("creates drilldown from all frame trees without storing a highlighted frame", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const coordinate = "src/UserCard.g.tsx#default"
     const state = changeStudioComponentFrame(createStudioWorkspaceState(manifest, `component:${coordinate}`), coordinate, "ready")
 
@@ -3938,7 +3943,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("does not create an empty drilldown column for components without GTSX children", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
 
     const nextState = selectStudioComponent(state, manifest, "src/UserCard.g.tsx#default", [
@@ -3954,7 +3959,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("discards columns to the right when selecting from an earlier column", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const state = createStudioWorkspaceState(manifest, "file:src/MultiExport.g.tsx")
     const stateWithChildColumn = selectStudioComponent(state, manifest, "src/MultiExport.g.tsx#NamedBadge", [
       {
@@ -3979,7 +3984,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("selects duplicate drilldown coordinates by their clicked column instance", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const parentCoordinate = "src/UserCard.g.tsx#default"
     const branchCoordinate = "src/MultiExport.g.tsx#default"
     const sharedCoordinate = "src/MultiExport.g.tsx#NamedBadge"
@@ -4018,7 +4023,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("renders workspace drilldown columns", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const state = selectStudioComponent(
       createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
       manifest,
@@ -4047,7 +4052,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("changes drilldown enter identity with the selected column path", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
     const baseWorkspace = createStudioWorkspaceState(manifest)
@@ -4078,7 +4083,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("uses the first statically enumerable frame by default", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const component = manifest.files
       .flatMap((file) => file.components)
       .find((candidate) => candidate.coordinate === "src/MultiExport.g.tsx#default")
@@ -4088,7 +4093,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("derives Studio environment variant axes from annotated provider frames", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const component = manifest.files
       .flatMap((file) => file.components)
       .find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
@@ -4280,7 +4285,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("keeps all frames visible while root and component variants change match state", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const coordinate = "src/UserCard.g.tsx#default"
     const rooted = changeStudioRootProviderVariant(createStudioWorkspaceState(manifest, `component:${coordinate}`), "ThemeProvider", "light")
     const overridden = changeStudioComponentProviderVariant(rooted, [coordinate], "ThemeProvider", "dark")
@@ -4323,7 +4328,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("projects provider variant selection into preview frame overrides", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const workspace = changeStudioRootProviderVariant(
       createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
       "ThemeProvider",
@@ -4341,7 +4346,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("keeps components with no matching frame for a selected provider variant renderable", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const component = manifest.files
       .flatMap((file) => file.components)
       .find((candidate) => candidate.coordinate === "src/MissingProviderVariant.g.tsx#default")
@@ -4360,7 +4365,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("stores selected frames per component coordinate and clears deeper columns", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const state = selectStudioComponent(
       createStudioWorkspaceState(manifest, "component:src/Badge.g.tsx#default"),
       manifest,
@@ -4384,7 +4389,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("keeps drilldown columns when changing the highlighted component frame", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const state = selectStudioComponent(
       createStudioWorkspaceState(manifest, "component:src/Badge.g.tsx#default"),
       manifest,
@@ -4412,7 +4417,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("renders the selected frame in the component iframe URL", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const state = changeStudioComponentFrame(
       createStudioWorkspaceState(manifest, "component:src/Badge.g.tsx#default"),
       "src/Badge.g.tsx#default",
@@ -4428,7 +4433,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("keeps ancestor preview URLs stable when selected child frames change", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
     const parentState = selectStudioComponent(
       createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
       manifest,
@@ -4466,7 +4471,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("renders floating viewport controls without the Inspector panel", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
 
     const html = renderToStaticMarkup(<StudioWorkspaceView manifest={manifest} workspace={state} />)
@@ -4478,7 +4483,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("does not render runtime instance Inspector UI", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const parentTree = [
       {
         id: "parent",
@@ -4526,7 +4531,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("targets the parent preview session when requesting values for a selected child instance", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const parentState = selectStudioComponent(
       createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
       manifest,
@@ -4553,7 +4558,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("does not render runtime values in the removed Inspector panel", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const parentTree = [
       {
         id: "parent",
@@ -4609,7 +4614,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("round-trips restorable workspace state through URL params without runtime values", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const workspace = selectStudioRuntimeInstance(
       {
         canvasViewportPreset: "phone",
@@ -4677,7 +4682,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("round-trips canvas drag and zoom state through URL params", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const workspace = createStudioWorkspaceState(manifest, "file:src/MultiExport.g.tsx")
     const params = createStudioWorkspaceUrlSearchParams("file:src/MultiExport.g.tsx", workspace, {
       x: 123.4567,
@@ -4703,7 +4708,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("keeps components and design canvas URL state separate", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const workspace = createStudioWorkspaceState(manifest, "file:src/MultiExport.g.tsx")
     const params = createStudioWorkspaceUrlSearchParams(
       "file:src/MultiExport.g.tsx",
@@ -4736,7 +4741,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("renders the initial canvas transform restored from URL params", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const html = renderToStaticMarkup(
       <StudioShell
         manifest={manifest}
@@ -4750,7 +4755,7 @@ describe("GTSX Studio shell", () => {
   it("renders the initial design canvas transform restored from design URL params", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
-      projectRoot: "src",
+      sourceRoot: "src",
       design: {
         frames: [
           {
@@ -4843,7 +4848,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("restores previous and next workspace states from browser history URL entries", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const previousParams = new URLSearchParams(
       "selection=component%3Asrc%2FUserCard.g.tsx%23default&path=src%2FUserCard.g.tsx%23default&frame=src%2FUserCard.g.tsx%23default%3Aloading",
     )
@@ -4870,7 +4875,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("degrades invalid URL state to the nearest valid selection with a visible warning", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, projectRoot: "src" })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const restored = createStudioWorkspaceStateFromUrl(
       manifest,
       new URLSearchParams(

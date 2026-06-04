@@ -4,7 +4,6 @@ dist/
 *.log
 gtsx-command-log.jsonl
 .gtsx-artifacts/
-playground/**/.next/
-playground/**/next-env.d.ts
+playground/
 snapshots/**/*.png
 !snapshots/examples/**/*.png
