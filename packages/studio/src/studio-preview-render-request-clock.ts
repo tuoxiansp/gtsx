@@ -20,9 +20,15 @@ export type StudioPreviewRenderRequestClock = {
   dispose: () => void
   flushRenderRequest: (canvas?: StudioCanvasTransform, options?: StudioPreviewRenderSchedulerRunOptions) => void
   requestBufferedRender: (canvas?: StudioCanvasTransform) => void
-  requestCanvasMovementRender: (canvas?: StudioCanvasTransform) => void
+  requestCanvasMovementRender: (canvas?: StudioCanvasTransform, options?: StudioPreviewRenderRequestClockOptions) => void
   requestRenderAfterPreviewCompletion: () => void
 }
+
+export type StudioPreviewRenderRequestClockOptions = {
+  timing?: StudioPreviewRenderRequestTiming
+}
+
+export type StudioPreviewRenderRequestTiming = "immediate" | "microtask"
 
 export type StudioPreviewRenderRequestClockScheduler = {
   cancelAnimationFrame: (id: number) => void
@@ -46,6 +52,9 @@ export function createStudioPreviewRenderRequestClock(input: {
   let idleTimeout = 0
   let lastCanvasMovementAt: number | undefined
   let lastCanvasRunAt: number | undefined
+  let disposed = false
+  let deferredCanvasMovement: StudioCanvasTransform | undefined
+  let deferredCanvasMovementScheduled = false
   let scheduledRunPolicy: StudioPreviewRenderRequestPolicy | null = null
 
   const clearTimeoutByName = (name: "active" | "bufferRenderDelay" | "canvasThrottle" | "idle") => {
@@ -207,10 +216,31 @@ export function createStudioPreviewRenderRequestClock(input: {
     }, Math.max(0, renderThrottleMilliseconds - elapsed))
   }
 
+  const runDeferredCanvasMovementRender = () => {
+    deferredCanvasMovementScheduled = false
+    const nextCanvas = deferredCanvasMovement ?? input.getCanvas()
+    deferredCanvasMovement = undefined
+    if (disposed) return
+
+    throttleCanvasMovementRender(nextCanvas)
+    debounceFullRenderAfterCanvasMovement()
+  }
+
+  const deferCanvasMovementRender = (canvas: StudioCanvasTransform) => {
+    deferredCanvasMovement = canvas
+    if (deferredCanvasMovementScheduled) return
+
+    deferredCanvasMovementScheduled = true
+    queueStudioPreviewRenderMicrotask(runDeferredCanvasMovementRender)
+  }
+
   return {
     dispose() {
+      disposed = true
       if (scheduler && animationFrame) scheduler.cancelAnimationFrame(animationFrame)
       animationFrame = 0
+      deferredCanvasMovement = undefined
+      deferredCanvasMovementScheduled = false
       scheduledRunPolicy = null
       clearTimeoutByName("active")
       clearTimeoutByName("bufferRenderDelay")
@@ -227,8 +257,13 @@ export function createStudioPreviewRenderRequestClock(input: {
     requestBufferedRender() {
       requestVisibleThenBufferedRender()
     },
-    requestCanvasMovementRender(canvas = input.getCanvas()) {
+    requestCanvasMovementRender(canvas = input.getCanvas(), options: StudioPreviewRenderRequestClockOptions = {}) {
       lastCanvasMovementAt = studioPreviewRenderRequestClockNow(scheduler)
+      if (options.timing === "microtask") {
+        deferCanvasMovementRender(canvas)
+        return
+      }
+
       throttleCanvasMovementRender(canvas)
       debounceFullRenderAfterCanvasMovement()
     },
@@ -236,6 +271,15 @@ export function createStudioPreviewRenderRequestClock(input: {
       requestRenderForCurrentMovementState()
     },
   }
+}
+
+function queueStudioPreviewRenderMicrotask(callback: () => void) {
+  if (typeof queueMicrotask === "function") {
+    queueMicrotask(callback)
+    return
+  }
+
+  Promise.resolve().then(callback)
 }
 
 function studioCanvasPreviewRenderMovementIsActive(

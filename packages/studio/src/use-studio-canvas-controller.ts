@@ -37,7 +37,7 @@ export type StudioCanvasController = {
   canvasRef: MutableRef<StudioCanvasTransform>
   canvasSurfaceElement: HTMLDivElement | null
   canvasViewportElement: HTMLDivElement | null
-  moveCanvas: (updater: (current: StudioCanvasTransform) => StudioCanvasTransform) => void
+  moveCanvas: (updater: (current: StudioCanvasTransform) => StudioCanvasTransform, options?: StudioCanvasMoveOptions) => void
   onCanvasPointerCancel: React.PointerEventHandler<HTMLDivElement>
   onCanvasPointerDown: React.PointerEventHandler<HTMLDivElement>
   onCanvasPointerMove: React.PointerEventHandler<HTMLDivElement>
@@ -46,13 +46,17 @@ export type StudioCanvasController = {
   setCanvasViewportElement: (element: HTMLDivElement | null) => void
 }
 
+export type StudioCanvasMoveOptions = {
+  renderTiming?: "immediate" | "microtask"
+}
+
 const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
 const studioCanvasFreshPointerWheelZoomFocalPointMilliseconds = 1_500
 
 export function useStudioCanvasController(input: {
   canvas?: StudioCanvasTransform
   onCanvasChange?: (canvas: StudioCanvasTransform) => void
-  onCanvasMove: (canvas: StudioCanvasTransform) => void
+  onCanvasMove: (canvas: StudioCanvasTransform, options?: StudioCanvasMoveOptions) => void
   onCanvasPanEnd: () => void
   shouldHandleWheelTarget: (target: EventTarget | null) => boolean
 }): StudioCanvasController {
@@ -83,13 +87,13 @@ export function useStudioCanvasController(input: {
   }, [])
 
   const moveCanvas = React.useCallback(
-    (updater: (current: StudioCanvasTransform) => StudioCanvasTransform) => {
+    (updater: (current: StudioCanvasTransform) => StudioCanvasTransform, options: StudioCanvasMoveOptions = {}) => {
       const nextCanvas = updater(canvasRef.current)
       if (sameStudioCanvasTransform(canvasRef.current, nextCanvas)) return
 
       canvasRef.current = nextCanvas
       writeCanvasTransform(nextCanvas)
-      onCanvasMoveRef.current(nextCanvas)
+      onCanvasMoveRef.current(nextCanvas, options)
 
       if (onCanvasChangeRef.current) {
         onCanvasChangeRef.current(nextCanvas)
@@ -122,7 +126,7 @@ export function useStudioCanvasController(input: {
     if (sameStudioCanvasTransform(canvasRef.current, canvas)) return
     canvasRef.current = canvas
     writeCanvasTransform(canvas)
-    onCanvasMoveRef.current(canvas)
+    onCanvasMoveRef.current(canvas, { renderTiming: "microtask" })
   }, [canvas, writeCanvasTransform])
 
   const setCanvasSurfaceElement = React.useCallback(

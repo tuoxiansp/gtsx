@@ -49,6 +49,7 @@ import {
   type StudioPreviewRenderObservationSnapshot,
   type StudioPreviewRenderQueueDebugObservationInput,
 } from "../studio-preview-render-observation"
+import type { StudioPreviewRenderRequestClockOptions } from "../studio-preview-render-request-clock"
 import {
   layoutNeutralDrilldownColumnEnterIdentity,
   preserveStudioCanvasViewportAnchor,
@@ -190,7 +191,9 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   const onChangeCanvasViewportPresetRef = React.useRef(props.onChangeCanvasViewportPreset)
   const onChangeViewportPresetRef = React.useRef(props.onChangeViewportPreset)
   const previewRenderQueueRef = React.useRef(props.previewRenderQueue)
-  const requestCanvasPreviewRenderRef = React.useRef<(nextCanvas: StudioCanvasTransform) => void>(() => {})
+  const requestCanvasPreviewRenderRef = React.useRef<
+    (nextCanvas: StudioCanvasTransform, options?: StudioPreviewRenderRequestClockOptions) => void
+  >(() => {})
   const selectedCardPathKeyRef = React.useRef(selectedCardPathKey)
   const workspaceRef = React.useRef(props.workspace)
   canvasViewportPresetRef.current = canvasViewportPreset
@@ -205,8 +208,8 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   const canvasController = useStudioCanvasController({
     canvas: props.canvas,
     onCanvasChange: props.onChangeCanvas,
-    onCanvasMove(nextCanvas) {
-      requestCanvasPreviewRenderRef.current(nextCanvas)
+    onCanvasMove(nextCanvas, options) {
+      requestCanvasPreviewRenderRef.current(nextCanvas, { timing: options?.renderTiming })
     },
     onCanvasPanEnd() {
       flushPreviewRenderRef.current(undefined, { includeBuffer: true })
@@ -384,7 +387,7 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     })
 
     pending.remainingAttempts -= 1
-    if (nextCanvas !== currentCanvas) canvasController.moveCanvas(() => nextCanvas)
+    if (nextCanvas !== currentCanvas) canvasController.moveCanvas(() => nextCanvas, { renderTiming: "microtask" })
     if (pending.remainingAttempts <= 0) {
       pendingViewportPresetAnchorRef.current = undefined
       setViewportPresetAnchorPathKey(undefined)

@@ -2194,6 +2194,38 @@ describe("GTSX Studio shell", () => {
     clock.dispose()
   })
 
+  it("can defer lifecycle-originated canvas movement render requests to a microtask", async () => {
+    const scheduler = createFakeStudioPreviewRenderRequestClockScheduler()
+    const firstCanvas = { x: 0, y: 0, scale: 1 }
+    const latestCanvas = { x: 24, y: 16, scale: 1 }
+    const requests: Array<{ canvas: typeof firstCanvas; renderBudget: string; renderScope: string }> = []
+    const clock = createStudioPreviewRenderRequestClock({
+      getCanvas: () => latestCanvas,
+      getRenderQueueOptions: () => ({
+        activeRenderTimeoutMilliseconds: 5_000,
+        renderThrottleMilliseconds: 100,
+      }),
+      runRenderRequest: (nextCanvas, requestPolicy) => {
+        requests.push({ canvas: nextCanvas, ...requestPolicy })
+        return true
+      },
+      scheduler,
+    })
+
+    clock.requestCanvasMovementRender(firstCanvas, { timing: "microtask" })
+    clock.requestCanvasMovementRender(latestCanvas, { timing: "microtask" })
+
+    expect(requests).toEqual([])
+
+    await Promise.resolve()
+
+    expect(requests).toEqual([
+      { canvas: latestCanvas, renderBudget: "canvas-movement", renderScope: "buffer" },
+    ])
+
+    clock.dispose()
+  })
+
   it("keeps idle visible and buffer render requests behind the movement delays", () => {
     const scheduler = createFakeStudioPreviewRenderRequestClockScheduler()
     const canvas = { x: 0, y: 0, scale: 1 }

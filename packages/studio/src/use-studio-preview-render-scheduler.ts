@@ -21,7 +21,10 @@ import {
   type StudioPreviewRenderQueueRunOptions,
 } from "./preview-render-queue"
 import type { StudioPreviewRenderSessionStore } from "./preview-render-session-store"
-import { createStudioPreviewRenderRequestClock } from "./studio-preview-render-request-clock"
+import {
+  createStudioPreviewRenderRequestClock,
+  type StudioPreviewRenderRequestClockOptions,
+} from "./studio-preview-render-request-clock"
 import {
   createStudioPreviewRenderCompletionSource,
   type StudioPreviewRenderCompletionSource,
@@ -41,7 +44,7 @@ type MutableRef<T> = {
 
 export type StudioPreviewRenderScheduler = {
   flushPreviewRender: (nextCanvas?: StudioCanvasTransform, options?: StudioPreviewRenderSchedulerRunOptions) => void
-  requestCanvasPreviewRender: (nextCanvas?: StudioCanvasTransform) => void
+  requestCanvasPreviewRender: (nextCanvas?: StudioCanvasTransform, options?: StudioPreviewRenderRequestClockOptions) => void
   requestPreviewRender: (nextCanvas?: StudioCanvasTransform) => void
 }
 
@@ -190,8 +193,8 @@ export function useStudioPreviewRenderScheduler(input: {
   )
 
   const requestCanvasPreviewRender = React.useCallback(
-    (nextCanvas: StudioCanvasTransform = input.canvasRef.current) => {
-      renderRequestClock.requestCanvasMovementRender(nextCanvas)
+    (nextCanvas: StudioCanvasTransform = input.canvasRef.current, options: StudioPreviewRenderRequestClockOptions = {}) => {
+      renderRequestClock.requestCanvasMovementRender(nextCanvas, options)
     },
     [input.canvasRef, renderRequestClock],
   )
