@@ -8,8 +8,9 @@ Validate these outcomes:
 
 - Before setup runs, the project contains `.agents/skills/setup-runelight` and no other Runelight project-level skills.
 - Setup installs/wires the needed Runelight packages, config wrapper, and route files.
-- Setup installs or refreshes only the React companion skills needed for this project: `authoring-runelight-react`, `refactor-to-runelight-react`, and `design-runelight`.
-- Setup does not install `authoring-runelight-vue`, `refactor-to-runelight-vue`, `refactor-to-runelight`, or the deprecated unsplit `authoring-runelight`.
+- Setup installs or refreshes only the React companion skills needed for this project: `authoring-runelight-react`, `refactor-to-runelight-react`, and `design-runelight-react`.
+- Setup does not install `authoring-runelight-vue`, `refactor-to-runelight-vue`, `design-runelight-vue`, or the deprecated unsplit `authoring-runelight`, `refactor-to-runelight`, and `design-runelight`.
+- The installed `design-runelight-react/DESIGN_REFERENCE.md` is an aesthetic reference only; it does not contain framework/package installation instructions such as `npm install`, `npx`, or design-stack defaults unrelated to the target project.
 - The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
 - Studio route files call `@runelight/adapter-next-react/studio-route` helpers and do not import React Studio source from `@runelight/studio/client`.
 - The Next config wrapper uses `runelightNextReact()` and does not statically import `runelight.config.ts`.
