@@ -77,7 +77,7 @@ That `.frames` object is the component-level footprint - inert data that never r
 
 Protocol types and helpers use the `G` prefix, such as `GFrames`, `createGScopeHook`, and `createGProvider`.
 
-No preview wrappers in your components. No separate app shell to maintain. The Studio route is a sidecar that can be removed cleanly.
+No preview wrappers in your components. No separate app shell to maintain. `@runelight/studio` ships as a prebuilt local Studio app, and the framework adapter serves it from your existing dev server at `/runelight/studio`.
 
 ### Leave Anytime
 
@@ -105,4 +105,4 @@ Rename `.g.tsx` → `.tsx`, delete `.frames`, remove the Studio route. Plain Rea
 
 pnpm workspace. `pnpm install && pnpm build && pnpm test && pnpm typecheck`.
 
-Packages: `@runelight/core` (protocol, CLI), `@runelight/studio` (shell, manifests), `@runelight/adapter-vite-react` (Vite adapter), and `@runelight/adapter-next-react` (Next.js adapter). Repository examples live in [`examples/`](examples/); agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).
+Packages: `@runelight/core` (protocol, CLI), `@runelight/studio` (prebuilt Studio app and manifests), `@runelight/adapter-vite-react` (Vite adapter), and `@runelight/adapter-next-react` (Next.js adapter). Repository examples live in [`examples/`](examples/); agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).

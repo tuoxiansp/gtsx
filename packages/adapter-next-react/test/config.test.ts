@@ -12,6 +12,11 @@ import {
   readRunelightNextPreviewProps,
   shouldInstallRunelightNextPreviewSsrScripts,
 } from "../src/preview-route.js"
+import {
+  createRunelightNextStudioAssetResponse,
+  createRunelightNextStudioManifestResponse,
+  createRunelightNextStudioResponse,
+} from "../src/studio-route.js"
 
 const require = createRequire(import.meta.url)
 const runelightConfig = {
@@ -55,6 +60,61 @@ describe("runelight Next React adapter", () => {
     } finally {
       rmSync(root, { force: true, recursive: true })
     }
+  })
+
+  it("serves prebuilt Studio HTML, assets, and manifest through App Router route helpers", async () => {
+    const root = mkdtempSync(join(tmpdir(), "runelight-next-studio-route-"))
+    const studioAppDirectory = join(root, "studio-app")
+
+    try {
+      mkdirSync(join(root, "src/components"), { recursive: true })
+      mkdirSync(join(studioAppDirectory, "assets"), { recursive: true })
+      writeFileSync(
+        join(root, "src/components/Card.g.tsx"),
+        ["export default function Card() { return null }", "Card.frames = { ready: { props: {} } }", ""].join("\n"),
+      )
+      writeFileSync(
+        join(studioAppDirectory, "index.html"),
+        '<!doctype html><div id="root"></div><script type="module" src="/runelight/studio/assets/studio.js"></script>',
+      )
+      writeFileSync(join(studioAppDirectory, "assets/studio.js"), "window.__runelightStudio = true")
+
+      const htmlResponse = await createRunelightNextStudioResponse({ enabled: true, studioAppDirectory })
+      const assetResponse = await createRunelightNextStudioAssetResponse(["studio.js"], {
+        enabled: true,
+        studioAppDirectory,
+      })
+      const manifestResponse = await createRunelightNextStudioManifestResponse({
+        config: runelightConfig,
+        cwd: root,
+        enabled: true,
+      })
+      const manifest = await manifestResponse.json()
+
+      expect(htmlResponse.status).toBe(200)
+      expect(htmlResponse.headers.get("content-type")).toContain("text/html")
+      await expect(htmlResponse.text()).resolves.toContain("/runelight/studio/assets/studio.js")
+      expect(assetResponse.status).toBe(200)
+      expect(assetResponse.headers.get("content-type")).toContain("text/javascript")
+      await expect(assetResponse.text()).resolves.toBe("window.__runelightStudio = true")
+      expect(manifestResponse.status).toBe(200)
+      expect(manifest.routes).toMatchObject({
+        preview: "/runelight",
+        studio: "/runelight/studio",
+        manifest: "/runelight/studio/manifest",
+      })
+      expect(manifest.files.map((file: { path: string }) => file.path)).toEqual(["src/components/Card.g.tsx"])
+    } finally {
+      rmSync(root, { force: true, recursive: true })
+    }
+  })
+
+  it("keeps Studio route helpers disabled in production by default", async () => {
+    await withNodeEnv("production", async () => {
+      const response = await createRunelightNextStudioResponse()
+
+      expect(response.status).toBe(404)
+    })
   })
 
   it("can explicitly enable production preview entries for projects that want to ship Runelight routes", () => {

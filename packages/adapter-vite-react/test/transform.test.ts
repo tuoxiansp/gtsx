@@ -73,6 +73,51 @@ Card.frames = {
     })
   })
 
+  it("serves the prebuilt Studio app, assets, and manifest from the Vite dev server", async () => {
+    const root = mkdtempSync(join(tmpdir(), "runelight-vite-studio-host-"))
+    const studioAppDirectory = join(root, "studio-app")
+
+    try {
+      mkdirSync(join(root, "src/components"), { recursive: true })
+      mkdirSync(join(studioAppDirectory, "assets"), { recursive: true })
+      writeFileSync(
+        join(root, "src/components/Card.g.tsx"),
+        ["export default function Card() { return null }", "Card.frames = { ready: { props: {} } }", ""].join("\n"),
+      )
+      writeFileSync(
+        join(studioAppDirectory, "index.html"),
+        '<!doctype html><div id="root"></div><script type="module" src="/runelight/studio/assets/studio.js"></script>',
+      )
+      writeFileSync(join(studioAppDirectory, "assets/studio.js"), "window.__runelightStudio = true")
+
+      const plugin = runelightViteReact({ config: runelightConfig, root, studioAppDirectory })
+      plugin.configResolved({ root })
+      const server = createViteMiddlewareHarness()
+      plugin.configureServer(server)
+
+      const htmlResponse = await server.request("/runelight/studio")
+      const assetResponse = await server.request("/runelight/studio/assets/studio.js")
+      const manifestResponse = await server.request("/runelight/studio/manifest")
+      const manifest = JSON.parse(manifestResponse.body)
+
+      expect(htmlResponse).toMatchObject({ statusCode: 200 })
+      expect(htmlResponse.headers["content-type"]).toContain("text/html")
+      expect(htmlResponse.body).toContain("/runelight/studio/assets/studio.js")
+      expect(assetResponse).toMatchObject({ statusCode: 200, body: "window.__runelightStudio = true" })
+      expect(assetResponse.headers["content-type"]).toContain("text/javascript")
+      expect(manifestResponse).toMatchObject({ statusCode: 200 })
+      expect(manifestResponse.headers["content-type"]).toContain("application/json")
+      expect(manifest.routes).toMatchObject({
+        preview: "/runelight",
+        studio: "/runelight/studio",
+        manifest: "/runelight/studio/manifest",
+      })
+      expect(manifest.files.map((file: { path: string }) => file.path)).toEqual(["src/components/Card.g.tsx"])
+    } finally {
+      rmSync(root, { force: true, recursive: true })
+    }
+  })
+
   it("loads a low-level Runelight project index through a virtual module", () => {
     const fixtureRoot = resolve(import.meta.dirname, "../../core/test/fixtures/check-project")
     const plugin = runelightViteReact({ config: runelightConfig, root: fixtureRoot })
@@ -417,3 +462,63 @@ export default defineRunelightConfig({
     }
   })
 })
+
+type ViteMiddlewareResponse = {
+  body: string
+  headers: Record<string, string>
+  statusCode: number
+}
+
+function createViteMiddlewareHarness() {
+  type Middleware = (request: { method?: string; url?: string }, response: unknown, next: () => void) => void
+  const middlewares: Middleware[] = []
+
+  return {
+    middlewares: {
+      use(handler: Middleware) {
+        middlewares.push(handler)
+      },
+    },
+    watcher: {
+      add() {},
+    },
+    async request(url: string): Promise<ViteMiddlewareResponse> {
+      let index = 0
+      const response: ViteMiddlewareResponse = {
+        body: "",
+        headers: {},
+        statusCode: 404,
+      }
+      await new Promise<void>((resolveRequest) => {
+        const writableResponse = {
+          get statusCode() {
+            return response.statusCode
+          },
+          set statusCode(nextStatusCode: number) {
+            response.statusCode = nextStatusCode
+          },
+          setHeader(name: string, value: string) {
+            response.headers[name.toLowerCase()] = value
+          },
+          end(body = "") {
+            response.body = String(body)
+            resolveRequest()
+          },
+        }
+        const next = () => {
+          const middleware = middlewares[index++]
+          if (!middleware) {
+            resolveRequest()
+            return
+          }
+
+          middleware({ method: "GET", url }, writableResponse, next)
+        }
+
+        next()
+      })
+
+      return response
+    },
+  }
+}

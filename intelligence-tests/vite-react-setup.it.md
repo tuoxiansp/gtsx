@@ -10,7 +10,8 @@ Validate these outcomes:
 - `runelight.config.ts` records `project.sourceRoot` and `project.entryRoot`.
 - `${project.entryRoot}/design` exists after setup or dev-server startup.
 - Vite is configured with `runelightViteReact()` and does not statically import `runelight.config.ts` from `vite.config.*`.
-- Runelight browser-entry branches are guarded by `import.meta.env.DEV` and use dynamic imports for Studio, preview, and `virtual:runelight/*`.
+- The browser entry handles only the `/runelight` preview branch; Studio is served by the Vite adapter as a prebuilt app from the same dev server.
+- Runelight browser-entry branches are guarded by `import.meta.env.DEV` and use dynamic imports for preview and `virtual:runelight/*`.
 - The preview loader uses `project.sourceRoot` and a static `import.meta.glob` for `${project.entryRoot}/design/**/*.g.tsx`.
 - The original app route still renders.
 - `/runelight/studio` renders Studio and shows discovered component frames.
@@ -22,6 +23,6 @@ Validate these outcomes:
 - Setup does not rely on multiple guessed design globs.
 - A production `vite build` succeeds when `runelight.config.ts` is missing from the production build context.
 - The production app can import and render a normal `.g.tsx` component.
-- The production output still renders the original app route and does not require `virtual:runelight/*`, bundle Studio/preview route code, expose a usable `/runelight` experience, or write `.runelight`/Runelight-generated preview registry files.
+- The production output still renders the original app route and does not require `virtual:runelight/*`, bundle preview route code, expose a usable `/runelight` experience, or write `.runelight`/Runelight-generated preview registry files.
 
 Clean up the temporary project, temporary design frame, and generated artifacts created only for this test.

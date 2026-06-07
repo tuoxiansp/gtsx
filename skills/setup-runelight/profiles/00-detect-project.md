@@ -21,7 +21,7 @@ Every successful integration needs:
 2. React transform for `.g.tsx` component boundaries.
 3. Project index / manifest built from the selected scope.
 4. Preview route that maps `entry`, `frame`, and `frameOverride` search params to the preview client.
-5. Studio route that renders `StudioShell` with the manifest.
+5. Studio route that serves the prebuilt `@runelight/studio` app and manifest.
 6. Stable `preview.serve`, `preview.url`, `preview.allUrl`, and optional `preview.studioUrl` commands for verification and capture.
 
 ## Supported Project Scope
@@ -57,7 +57,7 @@ Before selecting write actions, check whether the project is already integrated:
 - Runelight packages in dependencies or devDependencies.
 - `runelight.config.ts` or an equivalent local Runelight config import.
 - Adapter wrappers in `vite.config.*`, `next.config.*`, or another framework config.
-- Existing `/runelight`, `/runelight/studio`, or `/runelight/studio/manifest` route files or browser-entry branches.
+- Existing `/runelight`, `/runelight/studio`, `/runelight/studio/assets/*`, or `/runelight/studio/manifest` route files or browser-entry branches.
 - Existing `.runelight/preview-entries.ts` imports or adapter-generated output.
 
 If any of these are present, classify the task as upgrade/ensure mode unless the user explicitly asked for a full reinstall. In upgrade/ensure mode:

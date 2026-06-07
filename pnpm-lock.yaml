@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@runelight/studio':
+        specifier: workspace:*
+        version: link:packages/studio
       '@types/node':
         specifier: ^25.9.1
         version: 25.9.1
@@ -63,6 +66,9 @@ importers:
       '@runelight/preview-react':
         specifier: workspace:*
         version: link:../preview-react
+      '@runelight/studio':
+        specifier: workspace:*
+        version: link:../studio
       next:
         specifier: '>=13'
         version: 16.2.4(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -78,6 +84,9 @@ importers:
       '@runelight/preview-react':
         specifier: workspace:*
         version: link:../preview-react
+      '@runelight/studio':
+        specifier: workspace:*
+        version: link:../studio
       react:
         specifier: '>=18'
         version: 19.2.6
@@ -140,9 +149,6 @@ importers:
 
   packages/studio:
     devDependencies:
-      '@runelight/adapter-vite-react':
-        specifier: workspace:*
-        version: link:../adapter-vite-react
       '@runelight/core':
         specifier: workspace:*
         version: link:../core

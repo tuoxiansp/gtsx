@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process"
+import { existsSync, readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 
 import { describe, expect, it } from "vitest"
@@ -5,6 +7,7 @@ import { describe, expect, it } from "vitest"
 import { buildRunelightProjectIndex } from "@runelight/core/project-index"
 import { runCLI } from "../../core/src/cli.js"
 import { createStudioManifest } from "../src/index.js"
+import { resolveRunelightStudioAppAssetPath } from "../src/static-app.js"
 
 const repositoryRoot = resolve(import.meta.dirname, "../../..")
 const studioRoot = join(repositoryRoot, "packages/studio")
@@ -14,6 +17,18 @@ function buildStudioManifest(options: { cwd: string; sourceRoot?: string }) {
 }
 
 describe("Studio package", () => {
+  it("builds a precompiled Studio app that can fetch the project manifest", () => {
+    execFileSync("pnpm", ["build:app"], { cwd: studioRoot, stdio: "pipe" })
+
+    const htmlPath = resolveRunelightStudioAppAssetPath("index.html")
+    const html = readFileSync(htmlPath, "utf8")
+
+    expect(existsSync(htmlPath)).toBe(true)
+    expect(html).toContain("<div id=\"root\"></div>")
+    expect(html).toContain("/assets/")
+    expect(html).not.toContain("virtual:runelight")
+  })
+
   it("is checkable as a normal Runelight project", async () => {
     const check = await runCLI(["check", "src"], {
       cwd: studioRoot,

@@ -46,6 +46,7 @@
   "peerDependencies": {
     "react": ">=18",
     "vite": ">=5",
-    "@runelight/core": "workspace:*"
+    "@runelight/core": "workspace:*",
+    "@runelight/studio": "workspace:*"
   }
 }

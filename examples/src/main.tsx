@@ -1,12 +1,17 @@
 import { createRoot } from "react-dom/client"
-import { StudioShell, createStudioManifestFromRunelightConfig } from "@runelight/studio"
-import runelightConfig from "virtual:runelight/config"
-import projectIndex from "virtual:runelight/project-index"
 
-import { RunelightPreviewApp } from "./preview"
 import "./styles.css"
 
-const studioManifest = createStudioManifestFromRunelightConfig(projectIndex, runelightConfig)
-const app = window.location.pathname === "/runelight/studio" ? <StudioShell manifest={studioManifest} /> : <RunelightPreviewApp />
+const root = createRoot(document.getElementById("root")!)
 
-createRoot(document.getElementById("root")!).render(app)
+void renderApp()
+
+async function renderApp() {
+  if (import.meta.env.DEV && window.location.pathname === "/runelight") {
+    const { RunelightPreviewApp } = await import("./preview")
+    root.render(<RunelightPreviewApp />)
+    return
+  }
+
+  root.render(<div />)
+}

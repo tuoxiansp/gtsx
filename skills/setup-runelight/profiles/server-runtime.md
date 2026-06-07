@@ -7,7 +7,7 @@ Use this profile when the host owns server routes, server rendering, static rout
 1. Add `runelight.config.ts` with selected TypeScript scope, `project.entryRoot`, and server dev command.
 2. Add the framework/bundler transform hook for `.g.tsx`.
 3. Add `/runelight/studio/manifest` and return the manifest from `createStudioManifestProvider`.
-4. Add `/runelight/studio` and render `StudioShell` from `@runelight/studio/client`.
+4. Add `/runelight/studio` and `/runelight/studio/assets/*` by serving the prebuilt app from `@runelight/studio/static-app`.
 5. Add `/runelight` and delegate route parsing, SSR bootstrap scripts, and preview loading to a framework adapter.
 6. Create the empty `${project.entryRoot}/design` directory. Do not add a `designRoot` config key or placeholder frames.
 7. Preserve all existing framework config wrappers and production routes.

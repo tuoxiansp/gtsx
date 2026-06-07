@@ -7,6 +7,7 @@ Use a fresh/minimal project, or make a temporary copy of another project and rem
 Validate these outcomes:
 
 - Setup installs/wires the needed Runelight packages, config wrapper, and route files.
+- Studio route files call `@runelight/adapter-next-react/studio-route` helpers and do not import React Studio source from `@runelight/studio/client`.
 - The Next config wrapper uses `runelightNextReact()` and does not statically import `runelight.config.ts`.
 - `runelight.config.ts` records `project.sourceRoot` and `project.entryRoot`.
 - `${project.entryRoot}/design` exists after setup or dev-server startup.

@@ -16,7 +16,8 @@ Do not install `@runelight/preview-react` directly.
 
 - Wrap config with `runelightNextReact` from `@runelight/adapter-next-react`.
 - Use `runelightNextReact()` without statically importing `runelight.config.ts` from `next.config.*`; the adapter loads `runelight.config.ts` only when preview entries are enabled.
-- `.g.tsx` files are production React components. Do not move normal app imports away from `.g.tsx`; isolate only Studio, preview routes, generated preview entries, and config loading from production.
+- `.g.tsx` files are production React components. Do not move normal app imports away from `.g.tsx`; isolate only preview routes, generated preview entries, Studio route helpers, and config loading from production.
+- `@runelight/studio` ships a prebuilt Studio app. Next route files should call `@runelight/adapter-next-react/studio-route` helpers instead of importing `@runelight/studio/client`.
 - The Next preview/studio integration is development-only by default. It must not mutate production `next build`, production server startup, Docker standalone output, or read/write `.runelight` at production runtime unless the project explicitly opts in with `runelightNextReact({ enabled: true, ... })`.
 - The adapter generates `.runelight/preview-entries.ts` and wires webpack/Turbopack for preview imports when preview entries are enabled. Do not add a custom `.g.tsx` Turbopack loader in app code.
 - Record the local Runelight route entry directory in `project.entryRoot`. Design frames live in `${project.entryRoot}/design`; do not add a `designRoot` config key.
@@ -91,7 +92,9 @@ app/layout.tsx              # minimal document shell only
 app/(app)/layout.tsx        # production shell and app behavior
 app/(app)/page.tsx          # normal app routes
 app/runelight/page.tsx           # Runelight preview, outside the production shell
-app/runelight/studio/page.tsx    # Runelight Studio, outside the production shell
+app/runelight/studio/route.ts    # prebuilt Runelight Studio HTML
+app/runelight/studio/assets/[...asset]/route.ts
+app/runelight/studio/manifest/route.ts
 ```
 
 When applying that remediation:
@@ -156,50 +159,44 @@ export default async function RunelightPreviewPage(props: RunelightPreviewPagePr
 
 Replace the `contents` wrapper with the project's static visual shell when needed, for example a style/base-color class wrapper. Do not use a production provider component just to get those classes if that provider runs hooks.
 
-`app/runelight/studio/studio-manifest.ts`:
+`app/runelight/studio/route.ts`:
 
 ```ts
-import { createStudioManifestProvider } from "@runelight/studio/manifest-server"
+import { createRunelightNextStudioResponse } from "@runelight/adapter-next-react/studio-route"
 
-export const getStudioManifest = createStudioManifestProvider()
+export const dynamic = "force-dynamic"
+
+export async function GET() {
+  return createRunelightNextStudioResponse()
+}
 ```
 
-`app/runelight/studio/page.tsx`:
+`app/runelight/studio/assets/[...asset]/route.ts`:
 
-```tsx
-import { notFound } from "next/navigation"
+```ts
+import { createRunelightNextStudioAssetResponse } from "@runelight/adapter-next-react/studio-route"
 
-type RunelightStudioPageProps = {
-  searchParams?: Promise<Record<string, string | string[] | undefined>>
+type RunelightStudioAssetRouteProps = {
+  params: Promise<{ asset: string[] }> | { asset: string[] }
 }
 
-export default async function RunelightStudioPage(props: RunelightStudioPageProps) {
-  if (process.env.NODE_ENV === "production") notFound()
+export const dynamic = "force-dynamic"
 
-  const searchParams = await props.searchParams
-  const [{ StudioShell }, { studioUrlSearchFromSearchParams }, { getStudioManifest }] = await Promise.all([
-    import("@runelight/studio/client"),
-    import("@runelight/studio/manifest"),
-    import("./studio-manifest"),
-  ])
-
-  return (
-    <StudioShell
-      manifest={getStudioManifest()}
-      urlSearch={studioUrlSearchFromSearchParams(searchParams)}
-    />
-  )
+export async function GET(_request: Request, props: RunelightStudioAssetRouteProps) {
+  const params = await props.params
+  return createRunelightNextStudioAssetResponse(params.asset)
 }
 ```
 
 `app/runelight/studio/manifest/route.ts`:
 
 ```ts
-export async function GET() {
-  if (process.env.NODE_ENV === "production") return new Response(null, { status: 404 })
+import { createRunelightNextStudioManifestResponse } from "@runelight/adapter-next-react/studio-route"
 
-  const { getStudioManifest } = await import("../studio-manifest")
-  return Response.json(getStudioManifest())
+export const dynamic = "force-dynamic"
+
+export async function GET() {
+  return createRunelightNextStudioManifestResponse()
 }
 ```
 

@@ -49,6 +49,11 @@
       "import": "./dist/preview-route.js",
       "default": "./dist/preview-route.js"
     },
+    "./studio-route": {
+      "types": "./dist/studio-route.d.ts",
+      "import": "./dist/studio-route.js",
+      "default": "./dist/studio-route.js"
+    },
     "./loader": "./loader.cjs"
   },
   "files": [
@@ -67,6 +72,7 @@
   "peerDependencies": {
     "next": ">=13",
     "react": ">=18",
-    "@runelight/core": "workspace:*"
+    "@runelight/core": "workspace:*",
+    "@runelight/studio": "workspace:*"
   }
 }

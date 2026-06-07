@@ -467,6 +467,11 @@ describe("Runelight Studio manifest", () => {
         import: "./dist/manifest-server.js",
         default: "./dist/manifest-server.js",
       },
+      "./static-app": {
+        types: "./dist/static-app.d.ts",
+        import: "./dist/static-app.js",
+        default: "./dist/static-app.js",
+      },
     })
     expect(packageJson.private).toBeUndefined()
     expect(packageJson.files).toEqual(["dist"])

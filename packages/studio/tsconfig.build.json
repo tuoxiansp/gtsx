@@ -10,5 +10,5 @@
     "paths": {}
   },
   "include": ["src"],
-  "exclude": ["src/main.tsx", "src/preview.tsx", "src/vite-env.d.ts"]
+  "exclude": ["src/preview.tsx", "src/vite-env.d.ts"]
 }

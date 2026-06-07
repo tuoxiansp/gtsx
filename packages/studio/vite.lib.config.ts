@@ -1,7 +1,7 @@
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { runelightViteReact } from "@runelight/adapter-vite-react"
+import { runelightViteReact } from "../adapter-vite-react/src/index"
 import react from "@vitejs/plugin-react"
 import { defineConfig, normalizePath, type Plugin } from "vite"
 
@@ -21,6 +21,7 @@ export default defineConfig({
         client: resolve(root, "src/client-entry.ts"),
         manifest: resolve(root, "src/manifest.ts"),
         "manifest-server": resolve(root, "src/manifest-server.ts"),
+        "static-app": resolve(root, "src/static-app.ts"),
       },
       formats: ["es"],
       fileName: (_format, entryName) => `${entryName}.js`,
@@ -33,6 +34,7 @@ export default defineConfig({
         "@runelight/core/project-index",
         "node:fs",
         "node:path",
+        "node:url",
         "react",
         "react-dom",
         "react-dom/client",

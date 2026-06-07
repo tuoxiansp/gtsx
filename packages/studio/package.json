@@ -42,6 +42,11 @@
       "types": "./dist/manifest-server.d.ts",
       "import": "./dist/manifest-server.js",
       "default": "./dist/manifest-server.js"
+    },
+    "./static-app": {
+      "types": "./dist/static-app.d.ts",
+      "import": "./dist/static-app.js",
+      "default": "./dist/static-app.js"
     }
   },
   "files": [
@@ -49,7 +54,7 @@
   ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build --config vite.lib.config.ts && tsc -p tsconfig.build.json",
+    "build": "vite build --config vite.lib.config.ts && tsc -p tsconfig.build.json && pnpm build:app",
     "build:app": "vite build",
     "runelight:check": "runelight check src",
     "runelight:serve": "runelight serve",
@@ -62,7 +67,6 @@
     "@runelight/core": "workspace:*"
   },
   "devDependencies": {
-    "@runelight/adapter-vite-react": "workspace:*",
     "@runelight/preview-react": "workspace:*",
     "@vitejs/plugin-react": "^5.1.2",
     "react": "^19.2.6",
