@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { runelightViteVue } from "../src/index.js"
 import { createRunelightViteVuePreviewComponentLoader } from "../src/preview.js"
 
 describe("Vite Vue preview loader", () => {
@@ -13,5 +14,26 @@ describe("Vite Vue preview loader", () => {
     )
 
     await expect(loader("src/UserCard.g.vue#default")).resolves.toBe(component)
+  })
+
+  it("transforms preview SFC modules through the adapter-owned runtime export", () => {
+    const plugin = runelightViteVue({ root: "/repo" })
+    const result = plugin.transform(
+      [
+        "<template>",
+        "  <section>{{ status }}</section>",
+        "</template>",
+        "<script setup lang=\"ts\">",
+        "const status = useRemoteStatus()",
+        "</script>",
+        "<g:frames>",
+        "export default { ready: { scope: { status: 'ready' } } }",
+        "</g:frames>",
+      ].join("\n"),
+      "/repo/src/UserCard.g.vue?runelight-vue-preview",
+    )
+
+    expect(result?.code).toContain('import { useRunelightVueFrame } from "@runelight/adapter-vite-vue/preview"')
+    expect(result?.code).not.toContain('import { useRunelightVueFrame } from "@runelight/preview-vue"')
   })
 })

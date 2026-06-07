@@ -7,6 +7,7 @@ export const RUNELIGHT_VUE_PREVIEW_QUERY = "runelight-vue-preview"
 export type RunelightVueTransformInput = {
   code: string
   filePath: string
+  previewRuntimeImport?: string
 }
 
 export type RunelightVueTransformResult = {
@@ -31,12 +32,18 @@ export function transformRunelightVuePreviewModule(input: RunelightVueTransformI
   if (!isRunelightVueComponentFile(filePath)) return null
 
   return {
-    code: transformRunelightVuePreviewSfc(input.code, filePath),
+    code: transformRunelightVuePreviewSfc(input.code, filePath, {
+      previewRuntimeImport: input.previewRuntimeImport,
+    }),
     filePath,
   }
 }
 
-export function transformRunelightVuePreviewSfc(code: string, filePath: string): string {
+export function transformRunelightVuePreviewSfc(
+  code: string,
+  filePath: string,
+  options: { previewRuntimeImport?: string } = {},
+): string {
   const parts = parseVueSfcParts(code)
   const frames = extractVueFrames(code, filePath)
   const frameObjectCode = frames.frameObjectCode || "{}"
@@ -44,6 +51,7 @@ export function transformRunelightVuePreviewSfc(code: string, filePath: string):
   const preservedScriptSetup = preserveScriptSetupScope(parts.scriptSetup?.content ?? "", identifiers)
   const scriptSetupLang = readSfcBlockLang(parts.scriptSetup) ?? "ts"
   const template = parts.template?.content ?? ""
+  const previewRuntimeImport = options.previewRuntimeImport ?? "@runelight/preview-vue"
 
   return [
     `<script lang="ts">`,
@@ -52,7 +60,7 @@ export function transformRunelightVuePreviewSfc(code: string, filePath: string):
     `</script>`,
     `<script setup lang="${escapeAttribute(scriptSetupLang)}">`,
     `import { computed } from "vue"`,
-    `import { useRunelightVueFrame } from "@runelight/preview-vue"`,
+    `import { useRunelightVueFrame } from ${JSON.stringify(previewRuntimeImport)}`,
     preservedScriptSetup,
     `const __runelightVueFrame = useRunelightVueFrame()`,
     `const __runelightVueProps = computed(() => __runelightVueFrame.value.props ?? {})`,

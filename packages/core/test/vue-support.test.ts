@@ -88,4 +88,25 @@ describe("Runelight Vue support", () => {
     expect(transformed).toContain("<style scoped>")
     expect(transformed).toContain(".card { color: red; }")
   })
+
+  it("can generate a preview SFC through an adapter-owned runtime import", () => {
+    const transformed = transformRunelightVuePreviewSfc(
+      [
+        "<template>",
+        "  <section>{{ status }}</section>",
+        "</template>",
+        "<script setup lang=\"ts\">",
+        "const status = useRemoteStatus()",
+        "</script>",
+        "<g:frames>",
+        "export default { ready: { scope: { status: 'ready' } } }",
+        "</g:frames>",
+      ].join("\n"),
+      "src/UserCard.g.vue",
+      { previewRuntimeImport: "@runelight/adapter-vite-vue/preview" },
+    )
+
+    expect(transformed).toContain("import { useRunelightVueFrame } from \"@runelight/adapter-vite-vue/preview\"")
+    expect(transformed).not.toContain("import { useRunelightVueFrame } from \"@runelight/preview-vue\"")
+  })
 })

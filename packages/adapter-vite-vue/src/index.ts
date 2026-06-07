@@ -166,6 +166,7 @@ export function runelightViteVue(options: RunelightViteVueOptions = {}) {
       const transformed = transformRunelightVuePreviewModule({
         code,
         filePath: id,
+        previewRuntimeImport: "@runelight/adapter-vite-vue/preview",
       })
 
       return transformed ? { code: transformed.code, map: null } : null

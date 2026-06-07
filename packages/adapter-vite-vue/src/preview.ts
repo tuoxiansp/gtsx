@@ -3,6 +3,7 @@ export {
   isRunelightVuePreviewComponent,
   parseRunelightVuePreviewEntry,
   readRunelightVuePreviewRouteParams,
+  useRunelightVueFrame,
 } from "@runelight/preview-vue"
 
 import {
