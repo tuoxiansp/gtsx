@@ -2,11 +2,15 @@
 
 Set up Runelight in a clean supported Next.js App Router project and verify the resulting user experience.
 
-Use a fresh/minimal project, or make a temporary copy of another project and remove any existing Runelight integration before setup. Do not treat an already-initialized project as proof that setup works.
+Use a fresh/minimal project, or make a temporary copy of another project and remove any existing Runelight integration before setup. Do not treat an already-initialized project as proof that setup works. Exercise the README installer flow: install or refresh only `skills/setup-runelight` from this checkout into the target project at `.agents/skills/setup-runelight`, then run that project-level setup skill.
 
 Validate these outcomes:
 
+- Before setup runs, the project contains `.agents/skills/setup-runelight` and no other Runelight project-level skills.
 - Setup installs/wires the needed Runelight packages, config wrapper, and route files.
+- Setup installs or refreshes only the React companion skills needed for this project: `authoring-runelight-react`, `refactor-to-runelight`, and `design-runelight`.
+- Setup does not install `authoring-runelight-vue` or the deprecated unsplit `authoring-runelight`.
+- The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
 - Studio route files call `@runelight/adapter-next-react/studio-route` helpers and do not import React Studio source from `@runelight/studio/client`.
 - The Next config wrapper uses `runelightNextReact()` and does not statically import `runelight.config.ts`.
 - `runelight.config.ts` records `project.sourceRoot` and `project.entryRoot`.
@@ -26,5 +30,6 @@ Validate these outcomes:
 - The original app route returns normally in production, while `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest` are not usable production surfaces unless the project explicitly opts in to production Runelight.
 - No `.runelight/preview-entries.ts` is required or written during production build or production startup.
 - In a small focused check, explicitly opting the Next adapter into production preview/studio entries makes the project owner responsible for providing config and generated paths.
+- The test does not write Runelight companion skills into the user's global skills directory. If global Runelight skills already exist, do not treat them as proof of success; inspect project-local `.agents/skills`.
 
 Clean up the temporary project, temporary design frame, and generated artifacts created only for this test.
