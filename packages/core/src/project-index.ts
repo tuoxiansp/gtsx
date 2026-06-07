@@ -5,6 +5,7 @@ import ts from "typescript"
 
 import { analyzeEntry, createRunelightAnalysisCache, type RunelightAnalysisResult, type RunelightDiagnostic } from "./analyzer.js"
 import { discoverRunelightProgramFiles, findNearestTSConfig } from "./project-scope.js"
+import { isRunelightVueComponentFile, vueComponentNameFromFilePath } from "./vue-analyzer.js"
 
 export type RunelightProjectIndexComponent = {
   coordinate: string
@@ -52,7 +53,7 @@ type ExportedComponent = {
 type ProjectIndexFileContext = {
   filePath: string
   sourceHash: string
-  sourceFile: ts.SourceFile
+  sourceFile?: ts.SourceFile
   exportedComponents: ExportedComponent[]
 }
 
@@ -89,7 +90,11 @@ export function buildRunelightProjectIndex(options: BuildRunelightProjectIndexOp
   )
   const fileContextsByFilePath = new Map(fileContexts.map((context) => [context.filePath, context] as const))
   const analysisCache = createRunelightAnalysisCache(
-    new Map(fileContexts.map((context) => [resolve(options.cwd, context.filePath), context.sourceFile] as const)),
+    new Map(
+      fileContexts.flatMap((context) =>
+        context.sourceFile ? ([[resolve(options.cwd, context.filePath), context.sourceFile]] as const) : [],
+      ),
+    ),
   )
   const exportedComponentsByFilePath = new Map(
     fileContexts.map((context) => [context.filePath, context.exportedComponents] as const),
@@ -131,6 +136,20 @@ function globalProjectIndexCache(): Map<string, ProjectIndexCacheEntry> {
 
 function buildProjectIndexFileContext(cwd: string, filePath: string): ProjectIndexFileContext {
   const sourceText = readFileSync(resolve(cwd, filePath), "utf8")
+  if (isRunelightVueComponentFile(filePath)) {
+    return {
+      filePath,
+      sourceHash: hashSourceText(sourceText),
+      exportedComponents: [
+        {
+          exportName: "default",
+          componentName: vueComponentNameFromFilePath(filePath),
+          localName: "default",
+        },
+      ],
+    }
+  }
+
   const sourceFile = ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   return {
     filePath,
@@ -163,12 +182,12 @@ function buildProjectIndexFile(
       context.filePath,
       context.sourceHash,
       component,
-      dependencyCoordinatesForComponent(context, component, exportedComponentsByFilePath, fileContextsByFilePath, moduleResolution),
+      dependencyCoordinatesForComponentIfAvailable(context, component, exportedComponentsByFilePath, fileContextsByFilePath, moduleResolution),
       analysisCache,
     ),
   )
   const fileDiagnostics: RunelightDiagnostic[] =
-    context.exportedComponents.length === 0
+    context.sourceFile && context.exportedComponents.length === 0
       ? [
           {
             stage: "contract-extraction",
@@ -185,6 +204,23 @@ function buildProjectIndexFile(
     components,
     diagnostics: [...fileDiagnostics, ...components.flatMap((component) => component.diagnostics)],
   }
+}
+
+function dependencyCoordinatesForComponentIfAvailable(
+  context: ProjectIndexFileContext,
+  component: ExportedComponent,
+  exportedComponentsByFilePath: Map<string, ExportedComponent[]>,
+  fileContextsByFilePath: Map<string, ProjectIndexFileContext>,
+  moduleResolution: ProjectModuleResolution,
+): string[] {
+  if (!context.sourceFile) return []
+  return dependencyCoordinatesForComponent(
+    context as ProjectIndexFileContext & { sourceFile: ts.SourceFile },
+    component,
+    exportedComponentsByFilePath,
+    fileContextsByFilePath,
+    moduleResolution,
+  )
 }
 
 function buildProjectIndexComponent(
@@ -220,6 +256,7 @@ function discoverRunelightFiles(cwd: string, sourceRoot: string, tsconfigPath?: 
     for (const filePath of discoverRunelightProgramFiles({ cwd, root: sourceRoot, tsconfigPath: selectedTSConfigPath })) {
       files.add(filePath)
     }
+    collectRunelightVueFiles(resolve(cwd, sourceRoot), files, cwd)
   } else {
     collectRunelightFiles(resolve(cwd, sourceRoot), files, cwd)
   }
@@ -250,11 +287,41 @@ function collectRunelightFiles(root: string, files: Set<string>, cwd: string) {
         continue
       }
 
-      if (dirent.isFile() && dirent.name.endsWith(".g.tsx")) {
+      if (dirent.isFile() && isRunelightProjectFileName(dirent.name)) {
         files.add(relative(cwd, join(directory, dirent.name)).split(sep).join("/"))
       }
     }
   }
+}
+
+function collectRunelightVueFiles(root: string, files: Set<string>, cwd: string) {
+  walk(root)
+
+  function walk(directory: string) {
+    let dirents: Dirent[]
+    try {
+      dirents = readdirSync(directory, { withFileTypes: true })
+    } catch {
+      return
+    }
+
+    for (const dirent of dirents) {
+      if (dirent.isDirectory()) {
+        if (!IGNORED_DISCOVERY_DIRS.has(dirent.name)) {
+          walk(join(directory, dirent.name))
+        }
+        continue
+      }
+
+      if (dirent.isFile() && dirent.name.endsWith(".g.vue")) {
+        files.add(relative(cwd, join(directory, dirent.name)).split(sep).join("/"))
+      }
+    }
+  }
+}
+
+function isRunelightProjectFileName(fileName: string): boolean {
+  return fileName.endsWith(".g.tsx") || fileName.endsWith(".g.vue")
 }
 
 function normalizeDiscoveryRoot(root: string): string {
@@ -357,7 +424,7 @@ function readFrameTargetNames(sourceFile: ts.SourceFile): Set<string> {
 }
 
 function dependencyCoordinatesForComponent(
-  context: ProjectIndexFileContext,
+  context: ProjectIndexFileContext & { sourceFile: ts.SourceFile },
   component: ExportedComponent,
   exportedComponentsByFilePath: Map<string, ExportedComponent[]>,
   fileContextsByFilePath: Map<string, ProjectIndexFileContext>,

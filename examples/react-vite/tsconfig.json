@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "types": ["vite/client"],
+    "paths": {
+      "@runelight/adapter-vite-react": ["../../packages/adapter-vite-react/src/index.ts"],
+      "@runelight/adapter-vite-react/preview": ["../../packages/adapter-vite-react/src/preview.ts"],
+      "@runelight/preview-react": ["../../packages/preview-react/src/index.tsx"],
+      "@runelight/core": ["../../packages/core/src/index.ts"],
+      "@runelight/core/config": ["../../packages/core/src/config.ts"],
+      "@runelight/core/config-model": ["../../packages/core/src/config-model.ts"],
+      "@runelight/core/react-transform": ["../../packages/core/src/react-transform.ts"]
+    }
+  },
+  "include": ["src", "vite.config.ts", "runelight.config.ts"]
+}

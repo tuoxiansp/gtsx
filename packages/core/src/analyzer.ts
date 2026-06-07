@@ -2,6 +2,8 @@ import { existsSync, readFileSync, statSync } from "node:fs"
 import { dirname, join, relative, resolve, sep } from "node:path"
 import ts from "typescript"
 
+import { analyzeVueEntry, isRunelightVueComponentFile } from "./vue-analyzer.js"
+
 export type RunelightDiagnosticStage =
   | "contract-extraction"
   | "typescript"
@@ -171,6 +173,10 @@ type NonRunelightHookAnalysisContext = {
 
 export function analyzeEntry(options: AnalyzeEntryOptions): RunelightAnalysisResult {
   const entryCoordinate = parseEntryCoordinate(options.entry)
+  if (isRunelightVueComponentFile(entryCoordinate.file)) {
+    return analyzeVueEntry(options)
+  }
+
   const entryPath = resolve(options.cwd, entryCoordinate.file)
   const diagnostics: RunelightDiagnostic[] = []
 

@@ -81,7 +81,7 @@ function loadCommonJSConfig(configPath: string): RunelightConfig {
 }
 
 function requireRunelightConfigDependency(specifier: string): unknown {
-  if (specifier === "@runelight/core") return { defineRunelightConfig }
+  if (specifier === "@runelight/core" || specifier === "@runelight/core/define-config") return { defineRunelightConfig }
   throw new Error(`Unsupported config import: ${specifier}`)
 }
 

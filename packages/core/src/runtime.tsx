@@ -1,7 +1,7 @@
 import React from "react"
 import { createContainer } from "react-tracked"
 
-import type { GRuntimeValuesSnapshot } from "./preview-protocol.js"
+import type { GBoundaryRect, GBoundaryTreeNode, GRuntimeValuesSnapshot } from "./preview-protocol.js"
 import { serializeGRuntimeValue } from "./runtime-values.js"
 import type {
   AnyGProvider,
@@ -42,19 +42,7 @@ type FlatBoundaryNode = {
   rect?: GBoundaryRect
 }
 
-export type GBoundaryRect = {
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
-export type GBoundaryTreeNode = {
-  id: string
-  coordinate: string
-  rect?: GBoundaryRect
-  children: GBoundaryTreeNode[]
-}
+export type { GBoundaryRect, GBoundaryTreeNode } from "./preview-protocol.js"
 
 export type GBoundaryCollector = {
   reset(): void

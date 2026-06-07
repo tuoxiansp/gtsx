@@ -23,17 +23,17 @@ describe("runelight CLI", () => {
     })
 
     expect(result, `${result.stdout}\n${result.stderr}`).toMatchObject({ status: 0 })
-    expect(result.stdout).toContain("runelight check [-p <tsconfig-or-dir>] <entry.g.tsx[#export]|dir>")
+    expect(result.stdout).toContain("runelight check [-p <tsconfig-or-dir>] <entry.g.tsx|entry.g.vue[#export]|dir>")
   })
 
   it("prints help for the public command surface", async () => {
     const result = await runCLI(["--help"], { cwd: process.cwd(), stdout: "", stderr: "" })
 
     expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain("runelight check [-p <tsconfig-or-dir>] <entry.g.tsx[#export]|dir>")
+    expect(result.stdout).toContain("runelight check [-p <tsconfig-or-dir>] <entry.g.tsx|entry.g.vue[#export]|dir>")
     expect(result.stdout).toContain("runelight serve [-p <tsconfig-or-dir>] [--port <port>]")
-    expect(result.stdout).toContain("--frame-override <entry.g.tsx#export:frame>")
-    expect(result.stdout).toContain("runelight capture [-p <tsconfig-or-dir>] <entry.g.tsx[#export]|dir>")
+    expect(result.stdout).toContain("--frame-override <entry#export:frame>")
+    expect(result.stdout).toContain("runelight capture [-p <tsconfig-or-dir>] <entry.g.tsx|entry.g.vue[#export]|dir>")
   })
 
   it("serves the project Studio URL without requiring a component entry", async () => {

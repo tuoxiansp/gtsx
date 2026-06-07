@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest"
 import { runCLI } from "../src/cli.js"
 
 const repositoryRoot = resolve(import.meta.dirname, "../../..")
-const examplesRoot = join(repositoryRoot, "examples")
+const examplesRoot = join(repositoryRoot, "examples/react-vite")
 const snapshotsRoot = join(repositoryRoot, "snapshots/examples")
 
 describe("examples Vite host", () => {
@@ -28,7 +28,7 @@ describe("examples Vite host", () => {
 
     rmSync(snapshotsRoot, { recursive: true, force: true })
     const capture = await runCLI(
-      ["capture", "src/frames", "--all", "--port", "4320", "--out", "../snapshots/examples"],
+      ["capture", "src/frames", "--all", "--port", "4320", "--out", "../../snapshots/examples"],
       {
         cwd: examplesRoot,
         stdout: "",
@@ -60,7 +60,7 @@ describe("examples Vite host", () => {
         "--port",
         "4321",
         "--out",
-        "../snapshots/examples/dashboard-expanded.png",
+        "../../snapshots/examples/dashboard-expanded.png",
       ],
       {
         cwd: examplesRoot,

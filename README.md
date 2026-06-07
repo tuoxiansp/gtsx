@@ -105,4 +105,4 @@ Rename `.g.tsx` → `.tsx`, delete `.frames`, remove the Studio route. Plain Rea
 
 pnpm workspace. `pnpm install && pnpm build && pnpm test && pnpm typecheck`.
 
-Packages: `@runelight/core` (protocol, CLI), `@runelight/studio` (prebuilt Studio app and manifests), `@runelight/adapter-vite-react` (Vite adapter), and `@runelight/adapter-next-react` (Next.js adapter). Repository examples live in [`examples/`](examples/); agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).
+Packages: `@runelight/core` (protocol, CLI), `@runelight/studio` (prebuilt Studio app and manifests), `@runelight/adapter-vite-react` (Vite React adapter), `@runelight/adapter-next-react` (Next.js adapter), and `@runelight/adapter-vite-vue` (Vite Vue adapter). Repository examples live under [`examples/`](examples/), including `react-vite` and `vue-vite`; agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).

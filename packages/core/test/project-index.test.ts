@@ -8,7 +8,7 @@ import { buildRunelightProjectIndex, createCachedRunelightProjectIndexBuilder } 
 
 const fixtureRoot = join(import.meta.dirname, "fixtures/check-project")
 const tsProjectScopeRoot = join(import.meta.dirname, "fixtures/ts-project-scope")
-const examplesRoot = join(import.meta.dirname, "../../../examples")
+const examplesRoot = join(import.meta.dirname, "../../../examples/react-vite")
 
 describe("Runelight project index", () => {
   it("describes the selected Runelight project without Studio route or preview concerns", () => {

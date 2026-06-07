@@ -1,5 +1,5 @@
-import { existsSync, statSync } from "node:fs"
-import { dirname, relative, resolve, sep } from "node:path"
+import { existsSync, readdirSync, statSync, type Dirent } from "node:fs"
+import { dirname, join, relative, resolve, sep } from "node:path"
 import ts from "typescript"
 
 export type DiscoverRunelightProgramFilesOptions = {
@@ -25,7 +25,36 @@ export function discoverRunelightProgramFiles(options: DiscoverRunelightProgramF
     }
   }
 
+  collectRunelightVueFiles(root, files, options.cwd, runelightInternalRoot)
+
   return [...files].sort((left, right) => left.localeCompare(right))
+}
+
+function collectRunelightVueFiles(root: string, files: Set<string>, cwd: string, ignoredRoot: string) {
+  walk(root)
+
+  function walk(directory: string) {
+    let dirents: Dirent[]
+    try {
+      dirents = readdirSync(directory, { withFileTypes: true })
+    } catch {
+      return
+    }
+
+    for (const dirent of dirents) {
+      const childPath = join(directory, dirent.name)
+      if (dirent.isDirectory()) {
+        if (!new Set(["node_modules", "dist", ".vite", ".next", ".git", ".runelight"]).has(dirent.name)) {
+          walk(childPath)
+        }
+        continue
+      }
+
+      if (dirent.isFile() && childPath.endsWith(".g.vue") && !isPathInside(ignoredRoot, childPath)) {
+        files.add(relative(cwd, childPath).split(sep).join("/"))
+      }
+    }
+  }
 }
 
 export function findNearestTSConfig(cwd: string): string | undefined {

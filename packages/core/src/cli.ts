@@ -41,9 +41,9 @@ const HELP = `runelight
 
 Usage:
   runelight init [--dry-run]
-  runelight check [-p <tsconfig-or-dir>] <entry.g.tsx[#export]|dir> [--json]
+  runelight check [-p <tsconfig-or-dir>] <entry.g.tsx|entry.g.vue[#export]|dir> [--json]
   runelight serve [-p <tsconfig-or-dir>] [--port <port>]
-  runelight capture [-p <tsconfig-or-dir>] <entry.g.tsx[#export]|dir> [--frame <name>|--all] [--frame-override <entry.g.tsx#export:frame>] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
+  runelight capture [-p <tsconfig-or-dir>] <entry.g.tsx|entry.g.vue[#export]|dir> [--frame <name>|--all] [--frame-override <entry#export:frame>] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
   runelight strip [--check]
   runelight diagnose
 `
@@ -551,7 +551,7 @@ function nonEmptyDiagnostics(diagnostics: RunelightDiagnostic[], target: string)
     {
       stage: "contract-extraction",
       code: "no-entries-found",
-      message: `No .g.tsx entries found under ${target}.`,
+      message: `No .g.tsx or .g.vue entries found under ${target}.`,
       file: target,
     },
   ]
@@ -586,7 +586,7 @@ function outForDirectoryContactSheet(out: string, entry: string): string {
 function outputPathForEntry(entry: string): string {
   const coordinate = parseEntryCoordinate(entry)
   const suffix = coordinate.exportName === "default" ? ".png" : `.${sanitizeFilePathSegment(coordinate.exportName)}.png`
-  return coordinate.file.replace(/\.g\.tsx$/, suffix)
+  return coordinate.file.replace(/\.g\.(?:tsx|vue)$/, suffix)
 }
 
 function parseEntryCoordinate(entry: string): { file: string; exportName: string } {

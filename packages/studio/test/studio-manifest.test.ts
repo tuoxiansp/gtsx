@@ -11,7 +11,7 @@ const fixtureRoot = join(import.meta.dirname, "../../core/test/fixtures/check-pr
 const tsProjectScopeRoot = join(import.meta.dirname, "../../core/test/fixtures/ts-project-scope")
 const repositoryRoot = resolve(import.meta.dirname, "../../..")
 const packageRoot = join(repositoryRoot, "packages/studio")
-const examplesRoot = join(repositoryRoot, "examples")
+const examplesRoot = join(repositoryRoot, "examples/react-vite")
 
 type CreateStudioManifestOptions = NonNullable<Parameters<typeof createStudioManifest>[1]>
 

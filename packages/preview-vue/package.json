@@ -1,0 +1,49 @@
+{
+  "name": "@runelight/preview-vue",
+  "version": "0.0.6",
+  "description": "Vue preview runtime for Runelight component frames.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuoxiansp/runelight.git",
+    "directory": "packages/preview-vue"
+  },
+  "bugs": {
+    "url": "https://github.com/tuoxiansp/runelight/issues"
+  },
+  "homepage": "https://github.com/tuoxiansp/runelight#readme",
+  "keywords": [
+    "runelight",
+    "vue",
+    "preview",
+    "component-preview"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "vue": ">=3",
+    "@runelight/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7",
+    "vue": "^3.5.25"
+  }
+}

@@ -120,7 +120,7 @@ import {
 import { studioCanvasScreenStableChromeHostStyle } from "../src/studio-canvas-screen-stable-chrome.js"
 
 const fixtureRoot = join(import.meta.dirname, "../../core/test/fixtures/check-project")
-const examplesRoot = join(import.meta.dirname, "../../../examples")
+const examplesRoot = join(import.meta.dirname, "../../../examples/react-vite")
 const studioRoot = join(import.meta.dirname, "..")
 const tsProjectScopeRoot = join(import.meta.dirname, "../../core/test/fixtures/ts-project-scope")
 

@@ -1,4 +1,3 @@
-import type { GBoundaryTreeNode } from "./runtime.js"
 import type { GSerializedRuntimeValue } from "./runtime-values.js"
 
 export const G_PREVIEW_PROTOCOL_VERSION = 1
@@ -54,6 +53,20 @@ export type GPreviewErrorMessage = GPreviewProtocolBase & {
     message: string
     stack?: string
   }
+}
+
+export type GBoundaryRect = {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export type GBoundaryTreeNode = {
+  id: string
+  coordinate: string
+  rect?: GBoundaryRect
+  children: GBoundaryTreeNode[]
 }
 
 export type GRuntimeValuesSnapshot = {

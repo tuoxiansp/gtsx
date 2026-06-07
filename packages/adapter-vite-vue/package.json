@@ -1,0 +1,57 @@
+{
+  "name": "@runelight/adapter-vite-vue",
+  "version": "0.0.6",
+  "description": "Vite Vue adapter for Runelight component preview integration.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuoxiansp/runelight.git",
+    "directory": "packages/adapter-vite-vue"
+  },
+  "bugs": {
+    "url": "https://github.com/tuoxiansp/runelight/issues"
+  },
+  "homepage": "https://github.com/tuoxiansp/runelight#readme",
+  "keywords": [
+    "runelight",
+    "vite",
+    "vue",
+    "component-preview"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./preview": {
+      "types": "./dist/preview.d.ts",
+      "import": "./dist/preview.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@runelight/preview-vue": "workspace:*"
+  },
+  "peerDependencies": {
+    "vue": ">=3",
+    "vite": ">=5",
+    "@runelight/core": "workspace:*",
+    "@runelight/studio": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7",
+    "vue": "^3.5.25"
+  }
+}

@@ -1,11 +1,11 @@
 {
-  "name": "@runelight/examples",
+  "name": "@runelight/examples-react-vite",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "runelight:check": "runelight check src/frames",
-    "runelight:capture": "runelight capture src/frames --all --out ../snapshots/examples",
+    "runelight:capture": "runelight capture src/frames --all --out ../../snapshots/examples",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

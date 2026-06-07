@@ -44,6 +44,16 @@
       "import": "./dist/config-model.js",
       "default": "./dist/config-model.js"
     },
+    "./config-types": {
+      "types": "./dist/config-types.d.ts",
+      "import": "./dist/config-types.js",
+      "default": "./dist/config-types.js"
+    },
+    "./define-config": {
+      "types": "./dist/define-config.d.ts",
+      "import": "./dist/define-config.js",
+      "default": "./dist/define-config.js"
+    },
     "./preview-protocol": {
       "types": "./dist/preview-protocol.d.ts",
       "import": "./dist/preview-protocol.js",
@@ -53,6 +63,16 @@
       "types": "./dist/react-transform.d.ts",
       "import": "./dist/react-transform.js",
       "default": "./dist/react-transform.js"
+    },
+    "./vue-analyzer": {
+      "types": "./dist/vue-analyzer.d.ts",
+      "import": "./dist/vue-analyzer.js",
+      "default": "./dist/vue-analyzer.js"
+    },
+    "./vue-transform": {
+      "types": "./dist/vue-transform.d.ts",
+      "import": "./dist/vue-transform.js",
+      "default": "./dist/vue-transform.js"
     }
   },
   "files": [
@@ -65,6 +85,11 @@
   },
   "peerDependencies": {
     "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   },
   "dependencies": {
     "playwright": "^1.60.0",

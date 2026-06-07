@@ -9,18 +9,18 @@ For the type-level contract and branch coverage rules, see [Static Contract](./r
 ## The Formula
 
 ```
-Runelight = your TSX + the .g protocol + Studio
+Runelight = your UI source + the .g protocol + Studio
 ```
 
-A `.g.tsx` file is a real TypeScript React component. Your compiler reads it. Your bundler reads it. Your tests run it.
+A `.g.tsx` file is a real TypeScript React component. A `.g.vue` file is a real Vue SFC with a Runelight `<g:frames>` custom block. Your compiler reads it. Your bundler reads it. Your tests run it.
 
 The [`.g` protocol](./g-protocol.md) is Runelight's technical layer for modeling UI states close to source code. React/TSX uses the `.g.tsx` file format. Future Vue or Svelte integrations can grow their own `.g.*` formats without changing the Runelight brand.
 
 The protocol adds three things. All optional. All additive:
 
-1. **A naming convention.** The `.g.tsx` extension marks React/TSX files that participate in the `.g` protocol.
-2. **A static export.** `Component.frames` declares the component's visual states.
-3. **Two seam helpers.** `createGScopeHook` lets you preview stateful components. `createGProvider` lets you preview context-dependent components.
+1. **A naming convention.** The `.g.tsx` extension marks React/TSX files; `.g.vue` marks Vue SFC files.
+2. **A static export.** React uses `Component.frames`; Vue uses a `<g:frames>` block with `export default { ... }`.
+3. **Seam helpers or frame scope.** React uses `createGScopeHook` and `createGProvider`. Vue preview can inject frame `props` and `scope` directly into the SFC template.
 
 Protocol types and helpers use the `G` prefix: `GFrames`, `GProviderFrame`, `createGScopeHook`, `createGProvider`, and `useGContext`.
 
