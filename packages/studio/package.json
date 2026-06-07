@@ -1,6 +1,6 @@
 {
   "name": "@runelight/studio",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Studio UI for browsing and previewing Runelight component frames.",
   "license": "MIT",
   "type": "module",
