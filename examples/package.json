@@ -1,21 +1,21 @@
 {
-  "name": "@gtsx/examples",
+  "name": "@runelight/examples",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "gtsx:check": "gtsx check src/frames",
-    "gtsx:capture": "gtsx capture src/frames --all --out ../snapshots/examples",
+    "runelight:check": "runelight check src/frames",
+    "runelight:capture": "runelight capture src/frames --all --out ../snapshots/examples",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@gtsx/adapter-vite-react": "workspace:*",
-    "@gtsx/studio": "workspace:*",
+    "@runelight/adapter-vite-react": "workspace:*",
+    "@runelight/studio": "workspace:*",
     "@vitejs/plugin-react": "^5.1.2",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "vite": "^8.0.14",
-    "@gtsx/core": "workspace:*"
+    "@runelight/core": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^6.0.3"

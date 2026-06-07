@@ -1,6 +1,6 @@
 export {
   createStudioManifest,
-  createStudioManifestFromGTSXConfig,
+  createStudioManifestFromRunelightConfig,
   discoverStudioDesignManifest,
   studioDesignRoots,
   studioUrlSearchFromSearchParams,

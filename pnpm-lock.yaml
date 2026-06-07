@@ -29,13 +29,13 @@ importers:
 
   examples:
     dependencies:
-      '@gtsx/adapter-vite-react':
+      '@runelight/adapter-vite-react':
         specifier: workspace:*
         version: link:../packages/adapter-vite-react
-      '@gtsx/core':
+      '@runelight/core':
         specifier: workspace:*
-        version: link:../packages/gtsx
-      '@gtsx/studio':
+        version: link:../packages/core
+      '@runelight/studio':
         specifier: workspace:*
         version: link:../packages/studio
       '@vitejs/plugin-react':
@@ -57,10 +57,10 @@ importers:
 
   packages/adapter-next-react:
     dependencies:
-      '@gtsx/core':
+      '@runelight/core':
         specifier: workspace:*
-        version: link:../gtsx
-      '@gtsx/preview-react':
+        version: link:../core
+      '@runelight/preview-react':
         specifier: workspace:*
         version: link:../preview-react
       next:
@@ -72,10 +72,10 @@ importers:
 
   packages/adapter-vite-react:
     dependencies:
-      '@gtsx/core':
+      '@runelight/core':
         specifier: workspace:*
-        version: link:../gtsx
-      '@gtsx/preview-react':
+        version: link:../core
+      '@runelight/preview-react':
         specifier: workspace:*
         version: link:../preview-react
       react:
@@ -85,7 +85,7 @@ importers:
         specifier: '>=5'
         version: 8.0.14(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.3)
 
-  packages/gtsx:
+  packages/core:
     dependencies:
       playwright:
         specifier: ^1.60.0
@@ -115,9 +115,9 @@ importers:
 
   packages/preview-react:
     dependencies:
-      '@gtsx/core':
+      '@runelight/core':
         specifier: workspace:*
-        version: link:../gtsx
+        version: link:../core
     devDependencies:
       '@types/react':
         specifier: ^19.2.15
@@ -140,13 +140,13 @@ importers:
 
   packages/studio:
     devDependencies:
-      '@gtsx/adapter-vite-react':
+      '@runelight/adapter-vite-react':
         specifier: workspace:*
         version: link:../adapter-vite-react
-      '@gtsx/core':
+      '@runelight/core':
         specifier: workspace:*
-        version: link:../gtsx
-      '@gtsx/preview-react':
+        version: link:../core
+      '@runelight/preview-react':
         specifier: workspace:*
         version: link:../preview-react
       '@vitejs/plugin-react':

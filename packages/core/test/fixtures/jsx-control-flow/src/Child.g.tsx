@@ -1,0 +1,9 @@
+import type { GFrames } from "@runelight/core"
+
+export default function Child() {
+  return <span>Child</span>
+}
+
+Child.frames = {
+  ready: { props: {} },
+} satisfies GFrames<Record<string, never>>

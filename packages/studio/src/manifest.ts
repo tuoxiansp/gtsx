@@ -1,6 +1,6 @@
-import { gtsxDesignRootFromEntryRoot, requireGTSXEntryRoot, resolveGTSXConfig } from "@gtsx/core/config-model"
-import type { GTSXConfig, GTSXDiagnostic } from "@gtsx/core"
-import type { GTSXProjectIndex, GTSXProjectIndexComponent } from "@gtsx/core/project-index"
+import { runelightDesignRootFromEntryRoot, requireRunelightEntryRoot, resolveRunelightConfig } from "@runelight/core/config-model"
+import type { RunelightConfig, RunelightDiagnostic } from "@runelight/core"
+import type { RunelightProjectIndex, RunelightProjectIndexComponent } from "@runelight/core/project-index"
 
 export type StudioManifestRouteConfig = {
   preview: string
@@ -19,11 +19,11 @@ export type StudioManifestComponent = {
   sourceHash?: string
   exportName: string
   componentName: string
-  mode: GTSXProjectIndexComponent["mode"]
-  frames: GTSXProjectIndexComponent["frames"]
-  providers: GTSXProjectIndexComponent["providers"]
-  dependencies?: GTSXProjectIndexComponent["dependencies"]
-  diagnostics: GTSXDiagnostic[]
+  mode: RunelightProjectIndexComponent["mode"]
+  frames: RunelightProjectIndexComponent["frames"]
+  providers: RunelightProjectIndexComponent["providers"]
+  dependencies?: RunelightProjectIndexComponent["dependencies"]
+  diagnostics: RunelightDiagnostic[]
 }
 
 export type StudioManifestFile = {
@@ -31,7 +31,7 @@ export type StudioManifestFile = {
   sourceHash?: string
   groupId: string
   components: StudioManifestComponent[]
-  diagnostics: GTSXDiagnostic[]
+  diagnostics: RunelightDiagnostic[]
 }
 
 export type StudioDesignFrameEntry = {
@@ -54,7 +54,7 @@ export type StudioManifest = {
   routes: StudioManifestRouteConfig
   preview: StudioManifestPreviewConfig
   files: StudioManifestFile[]
-  diagnostics: GTSXDiagnostic[]
+  diagnostics: RunelightDiagnostic[]
 }
 
 export type CreateStudioManifestOptions = {
@@ -62,30 +62,30 @@ export type CreateStudioManifestOptions = {
   preview?: Partial<StudioManifestPreviewConfig>
   cache?: Partial<StudioManifestCacheConfig>
   design?: StudioDesignManifest
-  diagnostics?: GTSXDiagnostic[]
+  diagnostics?: RunelightDiagnostic[]
 }
 
 export type StudioManifestCacheConfig = {
   namespace?: string
 }
 
-type ProjectIndexFileWithSourceHash = GTSXProjectIndex["files"][number] & {
+type ProjectIndexFileWithSourceHash = RunelightProjectIndex["files"][number] & {
   sourceHash?: string
-  components: Array<GTSXProjectIndexComponent & { sourceHash?: string }>
+  components: Array<RunelightProjectIndexComponent & { sourceHash?: string }>
 }
 
 const DEFAULT_ROUTES: StudioManifestRouteConfig = {
-  preview: "/gtsx",
-  studio: "/gtsx/studio",
-  manifest: "/gtsx/studio/manifest",
+  preview: "/runelight",
+  studio: "/runelight/studio",
+  manifest: "/runelight/studio/manifest",
 }
 
 const DEFAULT_PREVIEW: StudioManifestPreviewConfig = {
-  urlTemplate: "/gtsx?entry={entry}&frame={frame}{gframe}",
-  allUrlTemplate: "/gtsx?entry={entry}{gframe}",
+  urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
+  allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
 }
 
-export function createStudioManifest(projectIndex: GTSXProjectIndex, options: CreateStudioManifestOptions = {}): StudioManifest {
+export function createStudioManifest(projectIndex: RunelightProjectIndex, options: CreateStudioManifestOptions = {}): StudioManifest {
   return {
     version: 1,
     ...(options.cache ? { cache: options.cache } : {}),
@@ -106,13 +106,13 @@ export function createStudioManifest(projectIndex: GTSXProjectIndex, options: Cr
   }
 }
 
-export function createStudioManifestFromGTSXConfig(
-  projectIndex: GTSXProjectIndex,
-  config: GTSXConfig,
+export function createStudioManifestFromRunelightConfig(
+  projectIndex: RunelightProjectIndex,
+  config: RunelightConfig,
   options: Pick<CreateStudioManifestOptions, "design" | "diagnostics"> = {},
 ): StudioManifest {
-  const resolved = resolveGTSXConfig(config)
-  const entryRoot = requireGTSXEntryRoot(resolved)
+  const resolved = resolveRunelightConfig(config)
+  const entryRoot = requireRunelightEntryRoot(resolved)
 
   return createStudioManifest(projectIndex, {
     ...(resolved.project.namespace ? { cache: { namespace: resolved.project.namespace } } : {}),
@@ -123,7 +123,7 @@ export function createStudioManifestFromGTSXConfig(
   })
 }
 
-export function discoverStudioDesignManifest(projectIndex: GTSXProjectIndex, entryRoot: string): StudioDesignManifest {
+export function discoverStudioDesignManifest(projectIndex: RunelightProjectIndex, entryRoot: string): StudioDesignManifest {
   const designPathPrefix = studioDesignPathPrefix(entryRoot)
   const frames = projectIndex.files.flatMap((file) => {
     if (!file.path.startsWith(designPathPrefix)) return []
@@ -147,7 +147,7 @@ export function discoverStudioDesignManifest(projectIndex: GTSXProjectIndex, ent
 }
 
 export function studioDesignRoots(entryRoot: string): string[] {
-  return [gtsxDesignRootFromEntryRoot(entryRoot)]
+  return [runelightDesignRootFromEntryRoot(entryRoot)]
 }
 
 export type StudioRouteSearchParams = Record<string, string | string[] | undefined> | URLSearchParams | undefined
@@ -168,11 +168,11 @@ export function studioUrlSearchFromSearchParams(searchParams: StudioRouteSearchP
 
 function previewConfigFromRoutes(routes: StudioManifestRouteConfig): StudioManifestPreviewConfig {
   return {
-    urlTemplate: `${routes.preview}?entry={entry}&frame={frame}{gframe}`,
-    allUrlTemplate: `${routes.preview}?entry={entry}{gframe}`,
+    urlTemplate: `${routes.preview}?entry={entry}&frame={frame}{frameOverrides}`,
+    allUrlTemplate: `${routes.preview}?entry={entry}{frameOverrides}`,
   }
 }
 
 function studioDesignPathPrefix(entryRoot: string): string {
-  return `${gtsxDesignRootFromEntryRoot(entryRoot)}/`
+  return `${runelightDesignRootFromEntryRoot(entryRoot)}/`
 }

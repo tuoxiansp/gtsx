@@ -1,4 +1,4 @@
-import type { GFrames } from "@gtsx/core"
+import type { GFrames } from "@runelight/core"
 
 import { studioPreviewCacheKey, type StudioPreviewCacheEntry } from "../client"
 import type { StudioManifest, StudioManifestFile } from "../manifest"
@@ -114,13 +114,13 @@ FileGroupLink.frames = {
       manifest: {
         version: 1,
         routes: {
-          preview: "/gtsx",
-          studio: "/gtsx/studio",
-          manifest: "/gtsx/studio/manifest",
+          preview: "/runelight",
+          studio: "/runelight/studio",
+          manifest: "/runelight/studio/manifest",
         },
         preview: {
-          urlTemplate: "/gtsx?entry={entry}&frame={frame}{gframe}",
-          allUrlTemplate: "/gtsx?entry={entry}{gframe}",
+          urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
+          allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
         },
         files: [],
         diagnostics: [],

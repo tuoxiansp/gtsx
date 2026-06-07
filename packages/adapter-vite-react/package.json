@@ -1,20 +1,20 @@
 {
-  "name": "@gtsx/adapter-vite-react",
+  "name": "@runelight/adapter-vite-react",
   "version": "0.0.6",
-  "description": "Vite React adapter for GTSX component preview integration.",
+  "description": "Vite React adapter for Runelight component preview integration.",
   "license": "MIT",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tuoxiansp/gtsx.git",
+    "url": "git+https://github.com/tuoxiansp/runelight.git",
     "directory": "packages/adapter-vite-react"
   },
   "bugs": {
-    "url": "https://github.com/tuoxiansp/gtsx/issues"
+    "url": "https://github.com/tuoxiansp/runelight/issues"
   },
-  "homepage": "https://github.com/tuoxiansp/gtsx#readme",
+  "homepage": "https://github.com/tuoxiansp/runelight#readme",
   "keywords": [
-    "gtsx",
+    "runelight",
     "vite",
     "react",
     "component-preview"
@@ -41,11 +41,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@gtsx/preview-react": "workspace:*"
+    "@runelight/preview-react": "workspace:*"
   },
   "peerDependencies": {
     "react": ">=18",
     "vite": ">=5",
-    "@gtsx/core": "workspace:*"
+    "@runelight/core": "workspace:*"
   }
 }

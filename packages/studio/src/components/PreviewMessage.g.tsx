@@ -1,4 +1,4 @@
-import type { GFrames } from "@gtsx/core"
+import type { GFrames } from "@runelight/core"
 
 export type PreviewMessageProps = {
   detail: string
@@ -8,7 +8,7 @@ export type PreviewMessageProps = {
 export default function PreviewMessage(props: PreviewMessageProps) {
   return (
     <main
-      data-gtsx-preview-message
+      data-runelight-preview-message
       style={{
         color: "#172033",
         fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",

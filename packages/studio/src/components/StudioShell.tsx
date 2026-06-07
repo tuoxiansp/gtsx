@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import type { GPreviewProtocolMessage } from "@gtsx/core"
+import type { GPreviewProtocolMessage } from "@runelight/core"
 
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import {
@@ -408,7 +408,7 @@ export default function StudioShell(props: StudioShellProps) {
 }
 
 function StudioShellManifestLoader(props: StudioShellDeferredProps) {
-  const manifestUrl = props.manifestUrl ?? "/gtsx/studio/manifest"
+  const manifestUrl = props.manifestUrl ?? "/runelight/studio/manifest"
   const initialUrlParams = React.useMemo(
     () => initialStudioUrlSearchParams(props.selection, props.urlSearch),
     [props.selection, props.urlSearch],
@@ -477,7 +477,7 @@ function StudioShellLoadingFrame(props: {
 }) {
   return (
     <main
-      data-gtsx-studio-shell-loading="true"
+      data-runelight-studio-shell-loading="true"
       style={{
         ...studioShellStyle(),
         alignItems: "center",
@@ -488,7 +488,7 @@ function StudioShellLoadingFrame(props: {
       }}
     >
       <style>
-        {`@keyframes gtsx-studio-loading-bar {
+        {`@keyframes runelight-studio-loading-bar {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(260%); }
 }`}
@@ -527,9 +527,9 @@ function StudioShellLoadingFrame(props: {
           }}
         >
           <span
-            data-gtsx-studio-shell-progress-bar="true"
+            data-runelight-studio-shell-progress-bar="true"
             style={{
-              animation: props.error ? undefined : "gtsx-studio-loading-bar 1.15s ease-in-out infinite",
+              animation: props.error ? undefined : "runelight-studio-loading-bar 1.15s ease-in-out infinite",
               background: props.error ? studioColors.error : studioColors.accent,
               borderRadius: studioRadii.pill,
               display: "block",
@@ -578,7 +578,7 @@ function StudioShellPreviewPoolPrewarmer(props: {
   return (
     <iframe
       aria-hidden="true"
-      data-gtsx-studio-preview-pool-prewarmer="true"
+      data-runelight-studio-preview-pool-prewarmer="true"
       ref={frameRef}
       src={poolUrl}
       style={{
@@ -599,7 +599,7 @@ function isStudioShellPreviewPoolReadyMessage(value: unknown): boolean {
   return (
     typeof value === "object" &&
     value !== null &&
-    (value as { type?: unknown }).type === "gtsx:pool-ready" &&
+    (value as { type?: unknown }).type === "runelight:pool-ready" &&
     (value as { protocolVersion?: unknown }).protocolVersion === 1
   )
 }
@@ -744,7 +744,7 @@ function StudioShellModeTabs(props: {
   return (
     <nav
       aria-label="Studio view"
-      data-gtsx-studio-mode-tabs="true"
+      data-runelight-studio-mode-tabs="true"
       style={{
         alignItems: "center",
         background: "rgba(30,30,30,0.88)",
@@ -840,10 +840,10 @@ function dispatchStudioPreviewTiming(
   message: GPreviewProtocolMessage,
   mountedAt: number | undefined,
 ) {
-  if (message.type !== "gtsx:ready" && message.type !== "gtsx:error") return
+  if (message.type !== "runelight:ready" && message.type !== "runelight:error") return
 
   window.dispatchEvent(
-    new CustomEvent("gtsx:preview-timing", {
+    new CustomEvent("runelight:preview-timing", {
       detail: {
         cacheKey: target.cacheKey,
         sessionId: message.sessionId,

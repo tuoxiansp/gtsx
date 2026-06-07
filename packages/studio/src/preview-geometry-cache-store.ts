@@ -1,6 +1,6 @@
 "use client"
 
-import type { GPreviewProtocolMessage } from "@gtsx/core"
+import type { GPreviewProtocolMessage } from "@runelight/core"
 
 import type { StudioManifest, StudioManifestComponent } from "./manifest"
 import {

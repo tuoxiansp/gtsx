@@ -1,9 +1,9 @@
 node_modules/
 dist/
-.gtsx/
+.runelight/
 *.log
-gtsx-command-log.jsonl
-.gtsx-artifacts/
+*command-log.jsonl
+.runelight-artifacts/
 playground/
 snapshots/**/*.png
 !snapshots/examples/**/*.png

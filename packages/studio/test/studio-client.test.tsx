@@ -1,7 +1,7 @@
 import { join } from "node:path"
-import type { GBoundaryTreeNode } from "@gtsx/core"
+import type { GBoundaryTreeNode } from "@runelight/core"
 import { renderToStaticMarkup } from "react-dom/server"
-import { buildGTSXProjectIndex } from "@gtsx/core/project-index"
+import { buildRunelightProjectIndex } from "@runelight/core/project-index"
 import { describe, expect, it, vi } from "vitest"
 
 import {
@@ -86,6 +86,7 @@ import BufferedPreviewIframe from "../src/components/BufferedPreviewIframe.g.js"
 import {
   studioPreviewIframePoolDimOverlayPlacementForAnchor,
   selectStudioPreviewIframePoolEntryForBorrow,
+  studioPreviewIframePoolEntryCanUseDirectRenderEndpoint,
   studioPreviewIframeBorrowInputNeedsRender,
   studioPreviewIframeBorrowKey,
   studioPreviewIframePendingRenderPostKey,
@@ -118,17 +119,17 @@ import {
 } from "../src/preview-lazy-loading.js"
 import { studioCanvasScreenStableChromeHostStyle } from "../src/studio-canvas-screen-stable-chrome.js"
 
-const fixtureRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
+const fixtureRoot = join(import.meta.dirname, "../../core/test/fixtures/check-project")
 const examplesRoot = join(import.meta.dirname, "../../../examples")
 const studioRoot = join(import.meta.dirname, "..")
-const tsProjectScopeRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/ts-project-scope")
+const tsProjectScopeRoot = join(import.meta.dirname, "../../core/test/fixtures/ts-project-scope")
 
 type CreateStudioManifestOptions = NonNullable<Parameters<typeof createStudioManifest>[1]>
 
 function buildStudioManifest(
   options: { cwd: string; sourceRoot?: string; tsconfigPath?: string } & CreateStudioManifestOptions,
 ) {
-  const projectIndex = buildGTSXProjectIndex({
+  const projectIndex = buildRunelightProjectIndex({
     cwd: options.cwd,
     sourceRoot: options.sourceRoot,
     tsconfigPath: options.tsconfigPath,
@@ -194,11 +195,11 @@ function createFakeStudioPreviewRenderRequestClockScheduler(): StudioPreviewRend
   }
 }
 
-describe("GTSX Studio shell", () => {
-  it("renders preview route messages from a GTSX visual component", () => {
+describe("Runelight Studio shell", () => {
+  it("renders preview route messages from a Runelight visual component", () => {
     const html = renderToStaticMarkup(<PreviewMessage title="Missing entry" detail="Pass an entry query parameter." />)
 
-    expect(html).toContain('data-gtsx-preview-message="true"')
+    expect(html).toContain('data-runelight-preview-message="true"')
     expect(html).toContain("Missing entry")
     expect(html).toContain("Pass an entry query parameter.")
   })
@@ -223,7 +224,7 @@ describe("GTSX Studio shell", () => {
       />,
     )
 
-    expect(html).toContain('data-gtsx-preview-frame="ready"')
+    expect(html).toContain('data-runelight-preview-frame="ready"')
     expect(html).toContain("src/Example.g.tsx#default / ready")
     expect(html).toContain("Ready preview")
   })
@@ -247,7 +248,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("renders root components in the first column by default", () => {
-    const manifest = buildStudioManifest({ cwd: examplesRoot, sourceRoot: "src/frames", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: examplesRoot, sourceRoot: "src/frames", routes: { preview: "/runelight" } })
     const expectedRootCoordinates = [
       "src/frames/language/PrimitiveProps.g.tsx#default",
       "src/frames/stateful/DashboardShell.g.tsx#default",
@@ -262,23 +263,23 @@ describe("GTSX Studio shell", () => {
   })
 
   it("keeps design convention files out of the components workspace", () => {
-    const projectIndex = buildGTSXProjectIndex({ cwd: tsProjectScopeRoot, sourceRoot: "src" })
+    const projectIndex = buildRunelightProjectIndex({ cwd: tsProjectScopeRoot, sourceRoot: "src" })
     const manifest = createStudioManifest(projectIndex, {
-      design: discoverStudioDesignManifest(projectIndex, "src/app/gtsx"),
-      routes: { preview: "/gtsx" },
+      design: discoverStudioDesignManifest(projectIndex, "src/app/runelight"),
+      routes: { preview: "/runelight" },
     })
     const expectedRootCoordinates = ["src/Included.g.tsx#default"]
 
-    expect(manifest.files.map((file) => file.path)).toContain("src/app/gtsx/design/Sketch.g.tsx")
+    expect(manifest.files.map((file) => file.path)).toContain("src/app/runelight/design/Sketch.g.tsx")
     expect(rootStudioManifestComponents(manifest).map((component) => component.coordinate)).toEqual(expectedRootCoordinates)
     expect(cardCoordinates(renderToStaticMarkup(<StudioShell manifest={manifest} />))).toEqual(expectedRootCoordinates)
     expect(
-      createStudioWorkspaceState(manifest, "component:src/app/gtsx/design/Sketch.g.tsx#default").columns[0]?.components.map(
+      createStudioWorkspaceState(manifest, "component:src/app/runelight/design/Sketch.g.tsx#default").columns[0]?.components.map(
         (component) => component.coordinate,
       ),
     ).toEqual(expectedRootCoordinates)
     expect(
-      createStudioWorkspaceState(manifest, "file:src/app/gtsx/design/Sketch.g.tsx").columns[0]?.components.map(
+      createStudioWorkspaceState(manifest, "file:src/app/runelight/design/Sketch.g.tsx").columns[0]?.components.map(
         (component) => component.coordinate,
       ),
     ).toEqual(expectedRootCoordinates)
@@ -391,30 +392,30 @@ describe("GTSX Studio shell", () => {
   })
 
   it("can server-render Studio as a lightweight manifest loading shell", () => {
-    const html = renderToStaticMarkup(<StudioShell manifestUrl="/gtsx/studio/manifest" />)
+    const html = renderToStaticMarkup(<StudioShell manifestUrl="/runelight/studio/manifest" />)
 
-    expect(html).toContain('data-gtsx-studio-shell-loading="true"')
+    expect(html).toContain('data-runelight-studio-shell-loading="true"')
     expect(html).toContain('role="progressbar"')
     expect(html).toContain("Loading Studio")
-    expect(html).toContain("Reading /gtsx/studio/manifest")
-    expect(html).not.toContain("data-gtsx-card-coordinate")
+    expect(html).toContain("Reading /runelight/studio/manifest")
+    expect(html).not.toContain("data-runelight-card-coordinate")
   })
 
   it("keeps cache-namespaced Studio card layout in server HTML before browser cache hydration", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       sourceRoot: "src",
-      routes: { preview: "/gtsx" },
+      routes: { preview: "/runelight" },
       cache: { namespace: "fixture-project" },
     })
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="component:src/UserCard.g.tsx#default" />)
 
-    expect(html).toContain('data-gtsx-canvas-viewport="true"')
+    expect(html).toContain('data-runelight-canvas-viewport="true"')
     expect(cardCoordinates(html)).toEqual(["src/UserCard.g.tsx#default"])
   })
 
   it("names the Studio package's outer visual root as Studio", () => {
-    const manifest = buildStudioManifest({ cwd: studioRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: studioRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const roots = rootStudioManifestComponents(manifest)
 
     expect(roots.map((component) => component.componentName)).toContain("Studio")
@@ -422,19 +423,19 @@ describe("GTSX Studio shell", () => {
   })
 
   it("renders the canvas without the component index sidebar", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="file:src/MultiExport.g.tsx" />)
 
-    expect(html).not.toContain("GTSX component index")
-    expect(html).not.toContain("data-gtsx-sidebar-preview-coordinate")
-    expect(html).toContain('data-gtsx-viewport-preset="tablet"')
+    expect(html).not.toContain("Runelight component index")
+    expect(html).not.toContain("data-runelight-sidebar-preview-coordinate")
+    expect(html).toContain('data-runelight-viewport-preset="tablet"')
   })
 
   it("renders design frames as auto-packed component cards with the shared preview pool", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       sourceRoot: "src",
-      routes: { preview: "/gtsx" },
+      routes: { preview: "/runelight" },
       design: {
         frames: [
           {
@@ -461,24 +462,24 @@ describe("GTSX Studio shell", () => {
       <StudioShell manifest={manifest} urlSearch="view=design&rootEnv=ThemeProvider:dark&debug=pool" />,
     )
 
-    expect(html).toContain('data-gtsx-studio-design-workspace="true"')
-    expect(html).toContain('data-gtsx-studio-design-layout-width="1600"')
-    expect(html).toContain('data-gtsx-card-coordinate="src/UserCard.g.tsx#default"')
-    expect(html).toContain('data-gtsx-frame-tile="loading"')
-    expect(html).toContain('data-gtsx-frame-tile="ready"')
-    expect(html).toContain('data-gtsx-preview-iframe-pool="true"')
-    expect(html).toContain('data-gtsx-preview-iframe-pool-stats="true"')
+    expect(html).toContain('data-runelight-studio-design-workspace="true"')
+    expect(html).toContain('data-runelight-studio-design-layout-width="1600"')
+    expect(html).toContain('data-runelight-card-coordinate="src/UserCard.g.tsx#default"')
+    expect(html).toContain('data-runelight-frame-tile="loading"')
+    expect(html).toContain('data-runelight-frame-tile="ready"')
+    expect(html).toContain('data-runelight-preview-iframe-pool="true"')
+    expect(html).toContain('data-runelight-preview-iframe-pool-stats="true"')
     expect(html).not.toContain("design frames")
-    expect(html).not.toContain("data-gtsx-root-env-controls")
-    expect(html).not.toContain('data-gtsx-frame-provider-variant-state="mismatch"')
-    expect(html).not.toContain("data-gtsx-studio-design-frame-preview")
+    expect(html).not.toContain("data-runelight-root-env-controls")
+    expect(html).not.toContain('data-runelight-frame-provider-variant-state="mismatch"')
+    expect(html).not.toContain("data-runelight-studio-design-frame-preview")
   })
 
   it("derives design preview targets from design component cards", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       sourceRoot: "src",
-      routes: { preview: "/gtsx" },
+      routes: { preview: "/runelight" },
       design: {
         frames: [
           {
@@ -507,11 +508,11 @@ describe("GTSX Studio shell", () => {
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="file:src/MultiExport.g.tsx" />)
 
     expect(html).not.toContain("Drag to pan")
-    expect(html).not.toContain("data-gtsx-canvas-control")
+    expect(html).not.toContain("data-runelight-canvas-control")
     expect(html).not.toContain(">Root<")
     expect(html).not.toContain(">Level 2<")
     expect(html).not.toContain(">2 components<")
-    expect(html).toContain('data-gtsx-frame-tile="ready"')
+    expect(html).toContain('data-runelight-frame-tile="ready"')
     expect(html).toContain("height:100%")
     expect(html).toContain(">NamedBadge<")
     expect(html).toContain(">DefaultBadge<")
@@ -519,9 +520,9 @@ describe("GTSX Studio shell", () => {
 
   it("computes a clamped screen-stable chrome scale for the transformed canvas surface", () => {
     expect(studioCanvasScreenStableChromeHostStyle({ scale: 0.5 })).toMatchObject({
-      "--gtsx-studio-screen-stable-chrome-scale": "1.333",
-      "--gtsx-studio-screen-stable-chrome-border-width": "1.6px",
-      "--gtsx-studio-screen-stable-chrome-content-size": "75%",
+      "--runelight-studio-screen-stable-chrome-scale": "1.333",
+      "--runelight-studio-screen-stable-chrome-border-width": "1.6px",
+      "--runelight-studio-screen-stable-chrome-content-size": "75%",
     })
   })
 
@@ -537,13 +538,13 @@ describe("GTSX Studio shell", () => {
     )
 
     const surface = canvasSurfaceHtml(html)
-    expect(surface).not.toContain("--gtsx-studio-screen-stable-chrome-scale")
-    expect(surface).not.toContain("--gtsx-studio-screen-stable-chrome-border-width")
-    expect(surface).not.toContain("--gtsx-studio-screen-stable-chrome-content-size")
+    expect(surface).not.toContain("--runelight-studio-screen-stable-chrome-scale")
+    expect(surface).not.toContain("--runelight-studio-screen-stable-chrome-border-width")
+    expect(surface).not.toContain("--runelight-studio-screen-stable-chrome-content-size")
   })
 
   it("renders card title and frame labels as screen-stable canvas chrome", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -557,20 +558,20 @@ describe("GTSX Studio shell", () => {
       />,
     )
 
-    expect(html).toContain('data-gtsx-canvas-screen-stable-chrome="card-title"')
-    expect(html).toContain('data-gtsx-canvas-screen-stable-chrome="frame-label"')
+    expect(html).toContain('data-runelight-canvas-screen-stable-chrome="card-title"')
+    expect(html).toContain('data-runelight-canvas-screen-stable-chrome="frame-label"')
     expect(html).toContain("height:23px")
     expect(html).toContain("height:18px")
-    expect(html).toContain("transform:scale(var(--gtsx-studio-screen-stable-chrome-scale, 1)) translateY(-17px)")
-    expect(html).toContain("transform:scale(var(--gtsx-studio-screen-stable-chrome-scale, 1)) translateY(5px)")
-    expect(html).toContain("width:var(--gtsx-studio-screen-stable-chrome-content-size, 100%)")
+    expect(html).toContain("transform:scale(var(--runelight-studio-screen-stable-chrome-scale, 1)) translateY(-17px)")
+    expect(html).toContain("transform:scale(var(--runelight-studio-screen-stable-chrome-scale, 1)) translateY(5px)")
+    expect(html).toContain("width:var(--runelight-studio-screen-stable-chrome-content-size, 100%)")
   })
 
   it("contains trackpad browser gestures inside the canvas viewport", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="component:src/UserCard.g.tsx#default" />)
 
-    expect(html).toContain('data-gtsx-canvas-viewport="true"')
+    expect(html).toContain('data-runelight-canvas-viewport="true"')
     expect(html).toContain("rgba(255,255,255,0.12)")
     expect(html).toContain("touch-action:none")
     expect(html).toContain("overscroll-behavior:none")
@@ -858,7 +859,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("uses the fixed preview scale for every component card in the canvas", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const state = createStudioWorkspaceState(manifest, "file:src/MultiExport.g.tsx")
     const html = renderToStaticMarkup(
       <StudioWorkspaceView
@@ -1071,7 +1072,7 @@ describe("GTSX Studio shell", () => {
     )
 
     expect(cardSelectTargets(html)).toEqual(["src/UserCard.g.tsx#default"])
-    expect(cardHtml(html, "src/UserCard.g.tsx#default")).not.toContain('data-gtsx-card-select-target="card"')
+    expect(cardHtml(html, "src/UserCard.g.tsx#default")).not.toContain('data-runelight-card-select-target="card"')
     expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("left:0")
     expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("top:0")
     expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("width:100px")
@@ -1080,7 +1081,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("clips component hit targets to the preview viewport", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -1114,7 +1115,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("highlights the selected component frame collection as one target", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -1141,18 +1142,18 @@ describe("GTSX Studio shell", () => {
     )
 
     const selectedGrid = frameGridHtml(html, "src/UserCard.g.tsx#default")
-    expect(selectedGrid).toContain('data-gtsx-frame-grid-selected="true"')
+    expect(selectedGrid).toContain('data-runelight-frame-grid-selected="true"')
     expect(selectedGrid).not.toContain("outline:")
-    expect(html).toContain('data-gtsx-card-title-selected="true"')
+    expect(html).toContain('data-runelight-card-title-selected="true"')
     expect(html).toContain("color:#e68a7d")
     expect(selectedGrid).not.toContain("box-shadow")
     expect(selectedGrid).not.toContain("border-radius")
     expect(selectionOutlineCount(html)).toBe(0)
-    expect(html).not.toContain("data-gtsx-frame-tile-selected")
+    expect(html).not.toContain("data-runelight-frame-tile-selected")
   })
 
   it("does not render component-local provider variant controls on cards", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -1167,14 +1168,14 @@ describe("GTSX Studio shell", () => {
       />,
     )
 
-    expect(html).not.toContain("data-gtsx-env-controls")
-    expect(html).not.toContain("data-gtsx-env-axis")
-    expect(html).not.toContain("data-gtsx-env-variant")
-    expect(html).not.toContain("data-gtsx-frame-tile-selected")
+    expect(html).not.toContain("data-runelight-env-controls")
+    expect(html).not.toContain("data-runelight-env-axis")
+    expect(html).not.toContain("data-runelight-env-variant")
+    expect(html).not.toContain("data-runelight-frame-tile-selected")
   })
 
   it("dims provider variant mismatches while keeping every frame visible", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -1190,16 +1191,16 @@ describe("GTSX Studio shell", () => {
       />,
     )
 
-    expect(frameTileHtml(html, "ready")).toContain('data-gtsx-frame-tile="ready"')
-    expect(frameTileHtml(html, "ready")).toContain('data-gtsx-frame-provider-variant-state="match"')
-    expect(frameTileHtml(html, "loading")).toContain('data-gtsx-frame-tile="loading"')
-    expect(frameTileHtml(html, "loading")).toContain('data-gtsx-frame-provider-variant-state="mismatch"')
-    expect(html).toContain('data-gtsx-frame-provider-variant-border="loading"')
+    expect(frameTileHtml(html, "ready")).toContain('data-runelight-frame-tile="ready"')
+    expect(frameTileHtml(html, "ready")).toContain('data-runelight-frame-provider-variant-state="match"')
+    expect(frameTileHtml(html, "loading")).toContain('data-runelight-frame-tile="loading"')
+    expect(frameTileHtml(html, "loading")).toContain('data-runelight-frame-provider-variant-state="mismatch"')
+    expect(html).toContain('data-runelight-frame-provider-variant-border="loading"')
     expect(html).toContain("filter:grayscale(0.9)")
     expect(html).toContain("opacity:0.42")
-    expect(html).toContain("border:var(--gtsx-studio-screen-stable-chrome-border-width, 1.2px) dashed rgba(136,136,136,0.72)")
+    expect(html).toContain("border:var(--runelight-studio-screen-stable-chrome-border-width, 1.2px) dashed rgba(136,136,136,0.72)")
     expect(html).toContain("inset:-2px")
-    expect(html).not.toContain("data-gtsx-env-variant")
+    expect(html).not.toContain("data-runelight-env-variant")
   })
 
   it("renders dimmed preview stripes with the same radius as the mismatch border", () => {
@@ -1208,14 +1209,14 @@ describe("GTSX Studio shell", () => {
         dimmed
         size={{ height: 1024, width: 768 }}
         slot={{
-          previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=loading&chrome=0",
+          previewUrl: "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=loading&chrome=0",
           sessionId: "src/UserCard.g.tsx#default:loading",
           title: "UserCard loading preview",
         }}
       />,
     )
 
-    expect(html).toContain("data-gtsx-buffered-preview-dim-overlay")
+    expect(html).toContain("data-runelight-buffered-preview-dim-overlay")
     expect(html).toContain("repeating-linear-gradient")
     expect(html).toContain("border-radius:6px")
   })
@@ -1223,11 +1224,11 @@ describe("GTSX Studio shell", () => {
   it("rounds the dimmed preview clip so cropped stripes keep bottom corners", () => {
     const html = renderToStaticMarkup(
       <LazyPreviewFrame
-        data-gtsx-preview-session-id="src/Icon.g.tsx#default:ready@phone"
+        data-runelight-preview-session-id="src/Icon.g.tsx#default:ready@phone"
         boundaryRect={{ x: 0, y: 0, width: 96, height: 96 }}
         coordinate="src/Icon.g.tsx#default"
         dimmed
-        previewUrl="/gtsx?entry=src%2FIcon.g.tsx%23default&frame=ready&chrome=0"
+        previewUrl="/runelight?entry=src%2FIcon.g.tsx%23default&frame=ready&chrome=0"
         selectedBoundaryRect={{ x: 0, y: 0, width: 96, height: 96 }}
         shouldLoad
         size={{ width: 390, height: 844 }}
@@ -1244,10 +1245,10 @@ describe("GTSX Studio shell", () => {
   it("keeps preview rendering containment below selection overlays", () => {
     const html = renderToStaticMarkup(
       <LazyPreviewFrame
-        data-gtsx-preview-session-id="src/Icon.g.tsx#default:ready@phone"
+        data-runelight-preview-session-id="src/Icon.g.tsx#default:ready@phone"
         boundaryRect={{ x: 0, y: 0, width: 96, height: 96 }}
         coordinate="src/Icon.g.tsx#default"
-        previewUrl="/gtsx?entry=src%2FIcon.g.tsx%23default&frame=ready&chrome=0"
+        previewUrl="/runelight?entry=src%2FIcon.g.tsx%23default&frame=ready&chrome=0"
         selectedBoundaryRect={{ x: 0, y: 0, width: 96, height: 96 }}
         shouldLoad
         size={{ width: 390, height: 844 }}
@@ -1264,16 +1265,16 @@ describe("GTSX Studio shell", () => {
     expect(previewClipHtml(html)).not.toContain("contain-intrinsic-size")
     expect(previewClipHtml(html)).toContain("contain:layout paint style")
     expect(previewClipHtml(html)).toContain("overflow:hidden")
-    expect(selectionOutlineHtml(html)).toContain('data-gtsx-selection-outline="true"')
+    expect(selectionOutlineHtml(html)).toContain('data-runelight-selection-outline="true"')
   })
 
   it("keeps the preview frame layout and component bounds target aligned", () => {
     const html = renderToStaticMarkup(
       <LazyPreviewFrame
-        data-gtsx-preview-session-id="src/DataTable.g.tsx#default:ready@desktop"
+        data-runelight-preview-session-id="src/DataTable.g.tsx#default:ready@desktop"
         boundaryRect={{ x: 0, y: 0, width: 1280, height: 218 }}
         coordinate="src/DataTable.g.tsx#default"
-        previewUrl="/gtsx?entry=src%2FDataTable.g.tsx%23default&frame=ready&chrome=0"
+        previewUrl="/runelight?entry=src%2FDataTable.g.tsx%23default&frame=ready&chrome=0"
         selectedBoundaryRect={{ x: 0, y: 0, width: 1280, height: 218 }}
         shouldLoad
         size={{ width: 1280, height: 900 }}
@@ -1292,7 +1293,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("uses an empty measured boundary instead of a full viewport fallback for ready empty components", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -1326,7 +1327,7 @@ describe("GTSX Studio shell", () => {
   it("shows the per-frame render lifecycle in preview queue debug mode", () => {
     const html = renderToStaticMarkup(
       <LazyPreviewFrame
-        data-gtsx-preview-session-id="src/Icon.g.tsx#default:ready@phone"
+        data-runelight-preview-session-id="src/Icon.g.tsx#default:ready@phone"
         boundaryRect={{ x: 0, y: 0, width: 96, height: 96 }}
         coordinate="src/Icon.g.tsx#default"
         debugPreviewQueue
@@ -1334,7 +1335,7 @@ describe("GTSX Studio shell", () => {
           expectedSessionId: "src/Icon.g.tsx#default:ready",
           ready: false,
         }}
-        previewUrl="/gtsx?entry=src%2FIcon.g.tsx%23default&frame=ready&chrome=0"
+        previewUrl="/runelight?entry=src%2FIcon.g.tsx%23default&frame=ready&chrome=0"
         shouldLoad
         size={{ width: 390, height: 844 }}
         sessionId="src/Icon.g.tsx#default:ready"
@@ -1343,10 +1344,10 @@ describe("GTSX Studio shell", () => {
       />,
     )
 
-    expect(html).toContain('data-gtsx-preview-render-lifecycle="rendering"')
-    expect(html).toContain('data-gtsx-preview-render-queued="true"')
-    expect(html).toContain('data-gtsx-preview-render-visible="false"')
-    expect(html).toContain('data-gtsx-preview-render-iframe-origin="pending"')
+    expect(html).toContain('data-runelight-preview-render-lifecycle="rendering"')
+    expect(html).toContain('data-runelight-preview-render-queued="true"')
+    expect(html).toContain('data-runelight-preview-render-visible="false"')
+    expect(html).toContain('data-runelight-preview-render-iframe-origin="pending"')
   })
 
   it("does not enter card selected state from sidebar or drilldown state alone", () => {
@@ -1428,8 +1429,8 @@ describe("GTSX Studio shell", () => {
 
     expect(cardCoordinates(html)).toEqual(["src/UserCard.g.tsx#default"])
     expect(previewSources(html)).toEqual([
-      "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=loading&chrome=0&sessionId=src%2FUserCard.g.tsx%23default%3Aloading&static=1",
-      "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0&sessionId=src%2FUserCard.g.tsx%23default%3Aready&static=1",
+      "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=loading&chrome=0&sessionId=src%2FUserCard.g.tsx%23default%3Aloading&static=1",
+      "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0&sessionId=src%2FUserCard.g.tsx%23default%3Aready&static=1",
     ])
   })
 
@@ -1437,13 +1438,13 @@ describe("GTSX Studio shell", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       sourceRoot: "src",
-      routes: { preview: "/gtsx" },
+      routes: { preview: "/runelight" },
     })
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="file:src/MultiExport.g.tsx" />)
 
     expect(previewSources(html)).toEqual([
-      "/gtsx?entry=src%2FMultiExport.g.tsx%23NamedBadge&frame=ready&chrome=0&sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready&static=1",
-      "/gtsx?entry=src%2FMultiExport.g.tsx%23default&frame=defaultReady&chrome=0&sessionId=src%2FMultiExport.g.tsx%23default%3AdefaultReady&static=1",
+      "/runelight?entry=src%2FMultiExport.g.tsx%23NamedBadge&frame=ready&chrome=0&sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready&static=1",
+      "/runelight?entry=src%2FMultiExport.g.tsx%23default&frame=defaultReady&chrome=0&sessionId=src%2FMultiExport.g.tsx%23default%3AdefaultReady&static=1",
     ])
     expect(iframeSources(html)).toEqual([])
     expect(html).not.toContain("Preview will load when visible.")
@@ -2058,7 +2059,7 @@ describe("GTSX Studio shell", () => {
 
     now += 42
     expect(
-      observation.observePreviewTiming({ sessionId: "visible-b", type: "gtsx:ready" }).scrollResponse,
+      observation.observePreviewTiming({ sessionId: "visible-b", type: "runelight:ready" }).scrollResponse,
     ).toMatchObject({
       completedVisibleSessionCount: 1,
       firstVisibleCompletionMilliseconds: 42,
@@ -2079,10 +2080,10 @@ describe("GTSX Studio shell", () => {
       renderScope: "buffer",
     })
     now += 50
-    observation.observePreviewTiming({ sessionId: "a", type: "gtsx:ready" })
+    observation.observePreviewTiming({ sessionId: "a", type: "runelight:ready" })
     now += 50
 
-    expect(observation.observePreviewTiming({ sessionId: "b", type: "gtsx:error" }).fullRender).toMatchObject({
+    expect(observation.observePreviewTiming({ sessionId: "b", type: "runelight:error" }).fullRender).toMatchObject({
       completedSessionCount: 2,
       firstCompletionMilliseconds: 50,
       latestCompletionMilliseconds: 100,
@@ -2103,7 +2104,7 @@ describe("GTSX Studio shell", () => {
       renderScope: "buffer",
     })
     now += 25
-    observation.observePreviewTiming({ sessionId: "a", type: "gtsx:ready" })
+    observation.observePreviewTiming({ sessionId: "a", type: "runelight:ready" })
     now += 25
 
     expect(
@@ -2612,7 +2613,7 @@ describe("GTSX Studio shell", () => {
         message: {
           protocolVersion: 1,
           sessionId: "geometry-ready",
-          type: "gtsx:ready",
+          type: "runelight:ready",
         },
       },
     ], new Set(["geometry-ready"]))
@@ -2818,12 +2819,12 @@ describe("GTSX Studio shell", () => {
   })
 
   it("creates stable pooled iframe URLs and render targets for preview slots", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
 
-    expect(createStudioPreviewPoolUrl(manifest)).toBe("/gtsx?chrome=0&pool=1")
+    expect(createStudioPreviewPoolUrl(manifest)).toBe("/runelight?chrome=0&pool=1")
     expect(
       studioPreviewRenderTargetFromUrl(
-        "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0&sessionId=session-1&static=1&gframe=src%2FChild.g.tsx%23default%3Aopen",
+        "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0&sessionId=session-1&static=1&frameOverride=src%2FChild.g.tsx%23default%3Aopen",
         "fallback-session",
       ),
     ).toEqual({
@@ -2871,7 +2872,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("uses cached preview geometry for component frame previews", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -2901,12 +2902,12 @@ describe("GTSX Studio shell", () => {
 
     expect(previewFrameHtml(html, "src/UserCard.g.tsx#default:ready")).toContain("height:88px")
     expect(framePreviewFrameHtml(html, "ready")).not.toContain("height:1024px")
-    expect(html).toContain('data-gtsx-frame-grid-columns="2"')
-    expect(html).not.toContain("data-gtsx-frame-sidebar")
+    expect(html).toContain('data-runelight-frame-grid-columns="2"')
+    expect(html).not.toContain("data-runelight-frame-sidebar")
   })
 
   it("invalidates preview cache keys when the component source hash changes", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -2916,7 +2917,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("derives geometry cache keys for every manifest frame and canvas viewport", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const expectedKeys = manifest.files.flatMap((file) =>
       file.components.flatMap((component) =>
         component.frames.flatMap((frame) =>
@@ -2944,7 +2945,7 @@ describe("GTSX Studio shell", () => {
       {
         target: { cacheKey: "tablet\nhash\nsrc/UserCard.g.tsx#default\nready" },
         message: {
-          type: "gtsx:tree",
+          type: "runelight:tree",
           protocolVersion: 1,
           sessionId: "src/UserCard.g.tsx#default:ready",
           tree: [
@@ -3012,7 +3013,7 @@ describe("GTSX Studio shell", () => {
         {
           target: { cacheKey: "tablet\nhash\nsrc/UserCard.g.tsx#default\nready" },
           message: {
-            type: "gtsx:tree",
+            type: "runelight:tree",
             protocolVersion: 1,
             sessionId: "src/UserCard.g.tsx#default:ready",
             tree: [
@@ -3033,7 +3034,7 @@ describe("GTSX Studio shell", () => {
       {
         target: { cacheKey: "tablet\nhash\nsrc/UserCard.g.tsx#default\nready" },
         message: {
-          type: "gtsx:tree",
+          type: "runelight:tree",
           protocolVersion: 1,
           sessionId: "src/UserCard.g.tsx#default:ready",
           tree: [
@@ -3073,7 +3074,7 @@ describe("GTSX Studio shell", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       sourceRoot: "src",
-      routes: { preview: "/gtsx" },
+      routes: { preview: "/runelight" },
       cache: { namespace: "test-cache-namespace" },
     })
 
@@ -3081,7 +3082,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("derives a stable fallback namespace from the Studio manifest shape", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const namespace = studioPreviewIndexedDBNamespace(manifest)
     const renamedManifest = {
       ...manifest,
@@ -3096,7 +3097,7 @@ describe("GTSX Studio shell", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       sourceRoot: "src",
-      routes: { preview: "/gtsx" },
+      routes: { preview: "/runelight" },
     })
     const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
 
@@ -3114,13 +3115,13 @@ describe("GTSX Studio shell", () => {
       />,
     )
 
-    expect(html).toContain('data-gtsx-preview-session-id="src/UserCard.g.tsx#default:loading"')
+    expect(html).toContain('data-runelight-preview-session-id="src/UserCard.g.tsx#default:loading"')
     expect(previewFrameHtml(html, "src/UserCard.g.tsx#default:loading")).toContain("width:768px")
     expect(previewFrameHtml(html, "src/UserCard.g.tsx#default:loading")).toContain("height:1024px")
   })
 
   it("uses fixed viewport presets instead of content-height sizing", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const workspace = changeStudioViewportPreset(
       createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
       "src/UserCard.g.tsx#default",
@@ -3142,14 +3143,14 @@ describe("GTSX Studio shell", () => {
     )
 
     expect(html).toContain("Viewport")
-    expect(html).toContain('data-gtsx-viewport-preset="phone"')
+    expect(html).toContain('data-runelight-viewport-preset="phone"')
     expect(html).toContain("width:390px")
     expect(html).toContain("height:844px")
     expect(html).not.toContain("height:420px")
   })
 
   it("applies the floating viewport preset to every canvas component", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const workspace = {
       ...createStudioWorkspaceState(manifest, "file:src/MultiExport.g.tsx"),
       canvasViewportPreset: "phone" as const,
@@ -3286,21 +3287,21 @@ describe("GTSX Studio shell", () => {
   })
 
   it("can disable the Studio preview iframe pool from debug URL params", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
 
     expect(renderToStaticMarkup(<StudioShell manifest={manifest} urlSearch="debug=pool" />)).toContain(
-      'data-gtsx-preview-iframe-pool="true"',
+      'data-runelight-preview-iframe-pool="true"',
     )
     expect(renderToStaticMarkup(<StudioShell manifest={manifest} urlSearch="debug=pool" />)).toContain(
-      'data-gtsx-preview-iframe-pool-stats="true"',
+      'data-runelight-preview-iframe-pool-stats="true"',
     )
     expect(renderToStaticMarkup(<StudioShell manifest={manifest} urlSearch="debug=no-pool" />)).not.toContain(
-      'data-gtsx-preview-iframe-pool="true"',
+      'data-runelight-preview-iframe-pool="true"',
     )
   })
 
   it("stores viewport as a single canvas-level preset across drilldown columns", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const parentState = selectStudioComponent(
       createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
       manifest,
@@ -3347,7 +3348,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("uses component bounds height instead of viewport position for canvas card layout", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
 
     const html = renderToStaticMarkup(
@@ -3425,7 +3426,7 @@ describe("GTSX Studio shell", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       sourceRoot: "src",
-      routes: { preview: "/gtsx" },
+      routes: { preview: "/runelight" },
     })
     const state = createStudioWorkspaceState(manifest, "file:src/MultiExport.g.tsx")
 
@@ -3452,10 +3453,10 @@ describe("GTSX Studio shell", () => {
     expect(html).toContain("Cannot read properties of undefined")
     expect(html).toContain("TypeError: Cannot read properties of undefined")
     expect(html).toContain(
-      "/gtsx?entry=src%2FMultiExport.g.tsx%23NamedBadge&amp;frame=ready&amp;chrome=0&amp;sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready&amp;static=1",
+      "/runelight?entry=src%2FMultiExport.g.tsx%23NamedBadge&amp;frame=ready&amp;chrome=0&amp;sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready&amp;static=1",
     )
     expect(previewSources(html)).toContain(
-      "/gtsx?entry=src%2FMultiExport.g.tsx%23default&frame=defaultReady&chrome=0&sessionId=src%2FMultiExport.g.tsx%23default%3AdefaultReady&static=1",
+      "/runelight?entry=src%2FMultiExport.g.tsx%23default&frame=defaultReady&chrome=0&sessionId=src%2FMultiExport.g.tsx%23default%3AdefaultReady&static=1",
     )
   })
 
@@ -3466,7 +3467,7 @@ describe("GTSX Studio shell", () => {
         ready: false,
       },
       {
-        type: "gtsx:tree",
+        type: "runelight:tree",
         protocolVersion: 1,
         sessionId: "stale-session",
         tree: [
@@ -3485,7 +3486,7 @@ describe("GTSX Studio shell", () => {
     })
     expect(
       applyStudioPreviewMessage(state, {
-        type: "gtsx:ready",
+        type: "runelight:ready",
         protocolVersion: 1,
         sessionId: "current-session",
       }),
@@ -3501,11 +3502,11 @@ describe("GTSX Studio shell", () => {
         expectedSessionId: "current-session",
         ready: false,
         error: {
-          message: "Unknown GTSX entry: src/Transient.g.tsx#default",
+          message: "Unknown Runelight entry: src/Transient.g.tsx#default",
         },
       },
       {
-        type: "gtsx:ready",
+        type: "runelight:ready",
         protocolVersion: 1,
         sessionId: "current-session",
       },
@@ -3535,14 +3536,14 @@ describe("GTSX Studio shell", () => {
 
     expect(
       applyStudioPreviewMessage(state, {
-        type: "gtsx:ready",
+        type: "runelight:ready",
         protocolVersion: 1,
         sessionId: "current-session",
       }),
     ).toBe(state)
     expect(
       applyStudioPreviewMessage(state, {
-        type: "gtsx:resize",
+        type: "runelight:resize",
         protocolVersion: 1,
         sessionId: "current-session",
         size: { width: 390, height: 844 },
@@ -3550,7 +3551,7 @@ describe("GTSX Studio shell", () => {
     ).toBe(state)
     expect(
       applyStudioPreviewMessage(state, {
-        type: "gtsx:tree",
+        type: "runelight:tree",
         protocolVersion: 1,
         sessionId: "current-session",
         tree: [
@@ -3567,12 +3568,12 @@ describe("GTSX Studio shell", () => {
 
   it("flushes only new preview completion messages", () => {
     const readyMessage = {
-      type: "gtsx:ready",
+      type: "runelight:ready",
       protocolVersion: 1,
       sessionId: "current-session",
     } as const
     const treeMessage = {
-      type: "gtsx:tree",
+      type: "runelight:tree",
       protocolVersion: 1,
       sessionId: "current-session",
       tree: [] as GBoundaryTreeNode[],
@@ -3615,7 +3616,7 @@ describe("GTSX Studio shell", () => {
       applyStudioPreviewMessageToFrameStates(
         current,
         {
-          type: "gtsx:ready",
+          type: "runelight:ready",
           protocolVersion: 1,
           sessionId: "stale-session",
         },
@@ -3627,7 +3628,7 @@ describe("GTSX Studio shell", () => {
       applyStudioPreviewMessageToFrameStates(
         current,
         {
-          type: "gtsx:ready",
+          type: "runelight:ready",
           protocolVersion: 1,
           sessionId: "current-session",
         },
@@ -3650,7 +3651,7 @@ describe("GTSX Studio shell", () => {
       applyStudioPreviewMessageToFrameStates(
         ready,
         {
-          type: "gtsx:ready",
+          type: "runelight:ready",
           protocolVersion: 1,
           sessionId: "current-session",
         },
@@ -3660,16 +3661,16 @@ describe("GTSX Studio shell", () => {
   })
 
   it("keeps pooled iframe handshake messages out of session frame state", () => {
-    expect(isGPreviewProtocolMessage({ type: "gtsx:pool-ready", protocolVersion: 1 })).toBe(false)
-    expect(isGPreviewProtocolMessage({ type: "gtsx:ready", protocolVersion: 1, sessionId: "session-1" })).toBe(true)
-    expect(isGPreviewProtocolMessage({ type: "gtsx:ready", protocolVersion: 1 })).toBe(false)
+    expect(isGPreviewProtocolMessage({ type: "runelight:pool-ready", protocolVersion: 1 })).toBe(false)
+    expect(isGPreviewProtocolMessage({ type: "runelight:ready", protocolVersion: 1, sessionId: "session-1" })).toBe(true)
+    expect(isGPreviewProtocolMessage({ type: "runelight:ready", protocolVersion: 1 })).toBe(false)
   })
 
   it("keeps pooled iframe borrow identity stable across render target and size updates", () => {
     const input = {
       size: { width: 768, height: 1024 },
       slot: {
-        previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
+        previewUrl: "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
         sessionId: "src/UserCard.g.tsx#default:ready",
         title: "UserCard ready preview",
       },
@@ -3684,7 +3685,7 @@ describe("GTSX Studio shell", () => {
     expect(
       studioPreviewIframeBorrowKey({
         ...input,
-        slot: { ...input.slot, previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=error&chrome=0" },
+        slot: { ...input.slot, previewUrl: "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=error&chrome=0" },
       }),
     ).toBe(studioPreviewIframeBorrowKey(input))
     expect(
@@ -3699,7 +3700,7 @@ describe("GTSX Studio shell", () => {
     const input = {
       size: { width: 768, height: 1024 },
       slot: {
-        previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
+        previewUrl: "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
         sessionId: "src/UserCard.g.tsx#default:ready",
         title: "UserCard ready preview",
       },
@@ -3728,7 +3729,7 @@ describe("GTSX Studio shell", () => {
     expect(
       studioPreviewIframeBorrowInputNeedsRender(input, {
         ...input,
-        slot: { ...input.slot, previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=error&chrome=0" },
+        slot: { ...input.slot, previewUrl: "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=error&chrome=0" },
       }),
     ).toBe(true)
   })
@@ -3737,7 +3738,7 @@ describe("GTSX Studio shell", () => {
     const input = {
       size: { width: 768, height: 1024 },
       slot: {
-        previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
+        previewUrl: "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
         sessionId: "src/UserCard.g.tsx#default:ready",
         title: "UserCard ready preview",
       },
@@ -3754,14 +3755,30 @@ describe("GTSX Studio shell", () => {
         { lastPostedRenderKey: renderKey },
         studioPreviewIframePendingRenderPostKey({
           ...input,
-          slot: { ...input.slot, previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=error&chrome=0" },
+          slot: { ...input.slot, previewUrl: "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=error&chrome=0" },
         }),
       ),
     ).toBe(true)
   })
 
+  it("recognizes a same-origin pooled preview mailbox as a direct render endpoint", () => {
+    const frame = {
+      contentWindow: {
+        __runelightPreviewRenderTargetMailbox: {
+          render() {},
+        },
+      },
+    } as unknown as HTMLIFrameElement
+    const pendingFrame = {
+      contentWindow: {},
+    } as unknown as HTMLIFrameElement
+
+    expect(studioPreviewIframePoolEntryCanUseDirectRenderEndpoint({ frame })).toBe(true)
+    expect(studioPreviewIframePoolEntryCanUseDirectRenderEndpoint({ frame: pendingFrame })).toBe(false)
+  })
+
   it("borrows an idle iframe before creating another pooled iframe", () => {
-    const poolUrl = "/gtsx?chrome=0&pool=1"
+    const poolUrl = "/runelight?chrome=0&pool=1"
     const exact = {
       lastRenderedSessionId: "src/UserCard.g.tsx#default:ready",
       poolUrl,
@@ -3882,11 +3899,11 @@ describe("GTSX Studio shell", () => {
         ready: true,
       },
       {
-        type: "gtsx:values",
+        type: "runelight:values",
         protocolVersion: 1,
         sessionId: "current-session",
         values: {
-          boundaryId: "gtsx-boundary:1",
+          boundaryId: "runelight-boundary:1",
           props: { type: "object", constructorName: "Object", entries: [] },
           scope: { type: "undefined" },
           providerValues: [],
@@ -3895,8 +3912,8 @@ describe("GTSX Studio shell", () => {
     )
 
     expect(state.valuesByBoundaryId).toEqual({
-      "gtsx-boundary:1": {
-        boundaryId: "gtsx-boundary:1",
+      "runelight-boundary:1": {
+        boundaryId: "runelight-boundary:1",
         props: { type: "object", constructorName: "Object", entries: [] },
         scope: { type: "undefined" },
         providerValues: [],
@@ -3974,7 +3991,7 @@ describe("GTSX Studio shell", () => {
     expect(params.toString()).not.toContain("frame=")
   })
 
-  it("does not create an empty drilldown column for components without GTSX children", () => {
+  it("does not create an empty drilldown column for components without Runelight children", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
 
@@ -4073,13 +4090,13 @@ describe("GTSX Studio shell", () => {
 
     expect(columnCount(html)).toBe(2)
     expect(cardCoordinates(html)).toEqual(["src/UserCard.g.tsx#default", "src/MultiExport.g.tsx#NamedBadge"])
-    expect(html).toContain('data-gtsx-column-parent-coordinate="src/UserCard.g.tsx#default"')
-    expect(html).toContain("gtsx-studio-layout-neutral-drilldown-column-enter")
-    expect(html).toContain("gtsx-studio-layout-neutral-drilldown-chrome-enter")
-    expect(columnHtml(html, 1)).toContain('data-gtsx-drilldown-column-enter="true"')
-    expect(columnHtml(html, 1)).toContain("animation:gtsx-studio-layout-neutral-drilldown-column-enter")
+    expect(html).toContain('data-runelight-column-parent-coordinate="src/UserCard.g.tsx#default"')
+    expect(html).toContain("runelight-studio-layout-neutral-drilldown-column-enter")
+    expect(html).toContain("runelight-studio-layout-neutral-drilldown-chrome-enter")
+    expect(columnHtml(html, 1)).toContain('data-runelight-drilldown-column-enter="true"')
+    expect(columnHtml(html, 1)).toContain("animation:runelight-studio-layout-neutral-drilldown-column-enter")
     expect(columnHtml(html, 1)).not.toContain("transform:")
-    expect(html).not.toContain("gtsx-studio-drilldown-column-enter")
+    expect(html).not.toContain("runelight-studio-drilldown-column-enter")
     expect(html).not.toContain("translateX(-10px)")
   })
 
@@ -4308,8 +4325,8 @@ describe("GTSX Studio shell", () => {
     expect(studioPreviewFrameOverridesForProviderVariantContext({
       diagnostics: [],
       files: [{ components: [component], diagnostics: [], groupId: "src/UserPanel.g.tsx", path: "src/UserPanel.g.tsx" }],
-      preview: { urlTemplate: "/gtsx" },
-      routes: { manifest: "/gtsx/studio/manifest", preview: "/gtsx", studio: "/gtsx/studio" },
+      preview: { urlTemplate: "/runelight" },
+      routes: { manifest: "/runelight/studio/manifest", preview: "/runelight", studio: "/runelight/studio" },
       version: 1,
     }, {
       UserSignProvider: "anonymous",
@@ -4360,7 +4377,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("projects provider variant selection into preview frame overrides", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const workspace = changeStudioRootProviderVariant(
       createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
       "ThemeProvider",
@@ -4372,8 +4389,8 @@ describe("GTSX Studio shell", () => {
       { coordinate: "src/UserCard.g.tsx#default", frameName: "ready" },
     ])
     expect(previewSources(html)).toEqual([
-      "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=loading&chrome=0&sessionId=src%2FUserCard.g.tsx%23default%3Aloading&static=1&gframe=src%2FUserCard.g.tsx%23default%3Aready",
-      "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0&sessionId=src%2FUserCard.g.tsx%23default%3Aready&static=1&gframe=src%2FUserCard.g.tsx%23default%3Aready",
+      "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=loading&chrome=0&sessionId=src%2FUserCard.g.tsx%23default%3Aloading&static=1&frameOverride=src%2FUserCard.g.tsx%23default%3Aready",
+      "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0&sessionId=src%2FUserCard.g.tsx%23default%3Aready&static=1&frameOverride=src%2FUserCard.g.tsx%23default%3Aready",
     ])
   })
 
@@ -4449,7 +4466,7 @@ describe("GTSX Studio shell", () => {
   })
 
   it("renders the selected frame in the component iframe URL", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const state = changeStudioComponentFrame(
       createStudioWorkspaceState(manifest, "component:src/Badge.g.tsx#default"),
       "src/Badge.g.tsx#default",
@@ -4459,13 +4476,13 @@ describe("GTSX Studio shell", () => {
     const html = renderToStaticMarkup(<StudioWorkspaceView manifest={manifest} workspace={state} />)
 
     expect(previewSources(html)).toEqual([
-      "/gtsx?entry=src%2FBadge.g.tsx%23default&frame=neutral&chrome=0&sessionId=src%2FBadge.g.tsx%23default%3Aneutral&static=1",
-      "/gtsx?entry=src%2FBadge.g.tsx%23default&frame=warning&chrome=0&sessionId=src%2FBadge.g.tsx%23default%3Awarning&static=1",
+      "/runelight?entry=src%2FBadge.g.tsx%23default&frame=neutral&chrome=0&sessionId=src%2FBadge.g.tsx%23default%3Aneutral&static=1",
+      "/runelight?entry=src%2FBadge.g.tsx%23default&frame=warning&chrome=0&sessionId=src%2FBadge.g.tsx%23default%3Awarning&static=1",
     ])
   })
 
   it("keeps ancestor preview URLs stable when selected child frames change", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/gtsx" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
     const parentState = selectStudioComponent(
       createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
       manifest,
@@ -4489,13 +4506,13 @@ describe("GTSX Studio shell", () => {
 
     expect(sources[0]).toContain("entry=src%2FUserCard.g.tsx%23default")
     expect(sources[0]).toContain("frame=loading")
-    expect(sources[0]).not.toContain("gframe=")
+    expect(sources[0]).not.toContain("frameOverride=")
     expect(sources[0]).toContain("sessionId=src%2FUserCard.g.tsx%23default%3Aloading")
     expect(sources[1]).toContain("entry=src%2FUserCard.g.tsx%23default")
     expect(sources[1]).toContain("frame=ready")
-    expect(sources[1]).not.toContain("gframe=")
+    expect(sources[1]).not.toContain("frameOverride=")
     expect(sources[2]).toBe(
-      "/gtsx?entry=src%2FMultiExport.g.tsx%23NamedBadge&frame=ready&chrome=0&sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready&static=1",
+      "/runelight?entry=src%2FMultiExport.g.tsx%23NamedBadge&frame=ready&chrome=0&sessionId=src%2FMultiExport.g.tsx%23NamedBadge%3Aready&static=1",
     )
     expect(createStudioRuntimeValuesRequest(manifest, childState, "child")?.sessionId).toBe(
       "src/UserCard.g.tsx#default:loading",
@@ -4509,9 +4526,9 @@ describe("GTSX Studio shell", () => {
     const html = renderToStaticMarkup(<StudioWorkspaceView manifest={manifest} workspace={state} />)
 
     expect(html).not.toContain(">Inspector<")
-    expect(html).toContain('data-gtsx-floating-viewport-controls="true"')
+    expect(html).toContain('data-runelight-floating-viewport-controls="true"')
     expect(viewportControlNames(html)).toEqual(["phone", "tablet", "desktop"])
-    expect(html).toContain('data-gtsx-viewport-tab-highlight="true"')
+    expect(html).toContain('data-runelight-viewport-tab-highlight="true"')
   })
 
   it("does not render runtime instance Inspector UI", () => {
@@ -4581,7 +4598,7 @@ describe("GTSX Studio shell", () => {
     expect(createStudioRuntimeValuesRequest(manifest, childState, "child-1")).toEqual({
       sessionId: "src/UserCard.g.tsx#default:loading",
       message: {
-        type: "gtsx:request-values",
+        type: "runelight:request-values",
         protocolVersion: 1,
         sessionId: "src/UserCard.g.tsx#default:loading",
         boundaryId: "child-1",
@@ -4630,7 +4647,7 @@ describe("GTSX Studio shell", () => {
                   constructorName: "Object",
                   entries: [{ key: "expanded", value: { type: "boolean", value: true } }],
                 },
-                providerValues: [{ providerName: "ThemeGTSXProvider", value: { type: "string", value: "dark" } }],
+                providerValues: [{ providerName: "ThemeRunelightProvider", value: { type: "string", value: "dark" } }],
               },
             },
           },
@@ -4642,7 +4659,7 @@ describe("GTSX Studio shell", () => {
 
     expect(html).not.toContain(">Values<")
     expect(html).not.toContain("Agent inbox")
-    expect(html).not.toContain("ThemeGTSXProvider")
+    expect(html).not.toContain("ThemeRunelightProvider")
   })
 
   it("round-trips restorable workspace state through URL params without runtime values", () => {
@@ -4674,12 +4691,12 @@ describe("GTSX Studio shell", () => {
         selectedCoordinatePath: ["src/UserCard.g.tsx#default", "src/MultiExport.g.tsx#NamedBadge"],
         selectedProviderVariantsByPath: {},
         selectedRuntimeInstanceByCoordinate: {
-          "src/MultiExport.g.tsx#NamedBadge": "gtsx-boundary:1",
+          "src/MultiExport.g.tsx#NamedBadge": "runelight-boundary:1",
         },
         selectedViewportPresetByCoordinate: {},
       },
       "src/MultiExport.g.tsx#NamedBadge",
-      "gtsx-boundary:1",
+      "runelight-boundary:1",
     )
 
     const params = createStudioWorkspaceUrlSearchParams("component:src/UserCard.g.tsx#default", workspace)
@@ -4689,7 +4706,7 @@ describe("GTSX Studio shell", () => {
     expect(serialized).toContain("canvasViewport=phone")
     expect(serialized).toContain("path=src%2FUserCard.g.tsx%23default")
     expect(serialized).toContain("frame=src%2FUserCard.g.tsx%23default%3Aready")
-    expect(serialized).toContain("instance=src%2FMultiExport.g.tsx%23NamedBadge%3Agtsx-boundary%3A1")
+    expect(serialized).toContain("instance=src%2FMultiExport.g.tsx%23NamedBadge%3Arunelight-boundary%3A1")
     expect(serialized).not.toContain("Agent%20inbox")
     expect(serialized).not.toContain("props")
     expect(serialized).not.toContain("scope")
@@ -4709,7 +4726,7 @@ describe("GTSX Studio shell", () => {
       "src/MultiExport.g.tsx#NamedBadge": "ready",
     })
     expect(restored.workspace.selectedRuntimeInstanceByCoordinate).toEqual({
-      "src/MultiExport.g.tsx#NamedBadge": "gtsx-boundary:1",
+      "src/MultiExport.g.tsx#NamedBadge": "runelight-boundary:1",
     })
   })
 
@@ -4821,7 +4838,7 @@ describe("GTSX Studio shell", () => {
       value: {
         history: { pushState, replaceState },
         location: {
-          pathname: "/gtsx/studio",
+          pathname: "/runelight/studio",
           search: "?selection=file%3Asrc%2FMultiExport.g.tsx",
         },
       },
@@ -4839,9 +4856,9 @@ describe("GTSX Studio shell", () => {
 
     expect(pushState).not.toHaveBeenCalled()
     expect(replaceState).toHaveBeenCalledWith(
-      { gtsxStudio: true },
+      { runelightStudio: true },
       "",
-      "/gtsx/studio?selection=file%3Asrc%2FMultiExport.g.tsx&canvasX=120&canvasY=-30&canvasScale=1.25",
+      "/runelight/studio?selection=file%3Asrc%2FMultiExport.g.tsx&canvasX=120&canvasY=-30&canvasScale=1.25",
     )
   })
 
@@ -4855,7 +4872,7 @@ describe("GTSX Studio shell", () => {
         history: { pushState, replaceState },
         location: {
           hash: "#/design",
-          pathname: "/gtsx/studio",
+          pathname: "/runelight/studio",
           search: "?selection=file%3Asrc%2FMultiExport.g.tsx&canvasX=10&canvasY=20&canvasScale=1.1&designCanvasX=30&designCanvasY=40&designCanvasScale=0.9",
         },
       },
@@ -4873,9 +4890,9 @@ describe("GTSX Studio shell", () => {
 
     expect(pushState).not.toHaveBeenCalled()
     expect(replaceState).toHaveBeenCalledWith(
-      { gtsxStudio: true },
+      { runelightStudio: true },
       "",
-      "/gtsx/studio?selection=file%3Asrc%2FMultiExport.g.tsx&canvasX=10&canvasY=20&canvasScale=1.1&designCanvasX=120&designCanvasY=-30&designCanvasScale=1.25#/design",
+      "/runelight/studio?selection=file%3Asrc%2FMultiExport.g.tsx&canvasX=10&canvasY=20&canvasScale=1.1&designCanvasX=120&designCanvasY=-30&designCanvasScale=1.25#/design",
     )
   })
 
@@ -4885,7 +4902,7 @@ describe("GTSX Studio shell", () => {
       "selection=component%3Asrc%2FUserCard.g.tsx%23default&path=src%2FUserCard.g.tsx%23default&frame=src%2FUserCard.g.tsx%23default%3Aloading",
     )
     const nextParams = new URLSearchParams(
-      "selection=component%3Asrc%2FUserCard.g.tsx%23default&path=src%2FUserCard.g.tsx%23default&path=src%2FMultiExport.g.tsx%23NamedBadge&frame=src%2FUserCard.g.tsx%23default%3Aready&instance=src%2FMultiExport.g.tsx%23NamedBadge%3Agtsx-boundary%3A1",
+      "selection=component%3Asrc%2FUserCard.g.tsx%23default&path=src%2FUserCard.g.tsx%23default&path=src%2FMultiExport.g.tsx%23NamedBadge&frame=src%2FUserCard.g.tsx%23default%3Aready&instance=src%2FMultiExport.g.tsx%23NamedBadge%3Arunelight-boundary%3A1",
     )
 
     expect(createStudioWorkspaceStateFromUrl(manifest, previousParams).workspace).toMatchObject({
@@ -4901,7 +4918,7 @@ describe("GTSX Studio shell", () => {
         "src/UserCard.g.tsx#default": "ready",
       },
       selectedRuntimeInstanceByCoordinate: {
-        "src/MultiExport.g.tsx#NamedBadge": "gtsx-boundary:1",
+        "src/MultiExport.g.tsx#NamedBadge": "runelight-boundary:1",
       },
     })
   })
@@ -4911,7 +4928,7 @@ describe("GTSX Studio shell", () => {
     const restored = createStudioWorkspaceStateFromUrl(
       manifest,
       new URLSearchParams(
-        "selection=component%3Asrc%2FMissing.g.tsx%23default&path=src%2FUserCard.g.tsx%23default&path=src%2FMissingChild.g.tsx%23default&frame=src%2FUserCard.g.tsx%23default%3Amissing&instance=src%2FMissingChild.g.tsx%23default%3Agtsx-boundary%3A9",
+        "selection=component%3Asrc%2FMissing.g.tsx%23default&path=src%2FUserCard.g.tsx%23default&path=src%2FMissingChild.g.tsx%23default&frame=src%2FUserCard.g.tsx%23default%3Amissing&instance=src%2FMissingChild.g.tsx%23default%3Arunelight-boundary%3A9",
       ),
     )
 
@@ -4930,19 +4947,19 @@ describe("GTSX Studio shell", () => {
 })
 
 function cardCoordinates(html: string): string[] {
-  return [...html.matchAll(/data-gtsx-card-coordinate="([^"]+)"/g)].map((match) => match[1] ?? "")
+  return [...html.matchAll(/data-runelight-card-coordinate="([^"]+)"/g)].map((match) => match[1] ?? "")
 }
 
 function buildLargeStudioManifest(count: number) {
   return {
     version: 1,
     routes: {
-      preview: "/gtsx",
-      studio: "/gtsx/studio",
-      manifest: "/gtsx/studio/manifest",
+      preview: "/runelight",
+      studio: "/runelight/studio",
+      manifest: "/runelight/studio/manifest",
     },
     preview: {
-      urlTemplate: "/gtsx?entry={entry}&frame={frame}{gframe}",
+      urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
     },
     files: Array.from({ length: count }, (_, index) => {
       const paddedIndex = index.toString().padStart(3, "0")
@@ -5026,52 +5043,52 @@ function screenPointForCanvasPoint(transform: { x: number; y: number; scale: num
 }
 
 function cardSelectTargets(html: string): string[] {
-  return [...html.matchAll(/data-gtsx-card-select-coordinate="([^"]+)"[^>]+data-gtsx-card-select-target="component-bounds"/g)].map(
+  return [...html.matchAll(/data-runelight-card-select-coordinate="([^"]+)"[^>]+data-runelight-card-select-target="component-bounds"/g)].map(
     (match) => match[1] ?? "",
   )
 }
 
 function boundsHitTargetHtml(html: string): string {
-  return html.match(/<div[^>]+data-gtsx-card-select-coordinate="[^"]+"[^>]+data-gtsx-card-select-target="component-bounds"[^>]*>/)?.[0] ?? ""
+  return html.match(/<div[^>]+data-runelight-card-select-coordinate="[^"]+"[^>]+data-runelight-card-select-target="component-bounds"[^>]*>/)?.[0] ?? ""
 }
 
 function selectedCardCoordinates(html: string): string[] {
-  return [...html.matchAll(/<article[^>]+data-gtsx-card-coordinate="([^"]+)"[^>]+data-gtsx-card-selected="true"/g)].map(
+  return [...html.matchAll(/<article[^>]+data-runelight-card-coordinate="([^"]+)"[^>]+data-runelight-card-selected="true"/g)].map(
     (match) => match[1] ?? "",
   )
 }
 
 function selectionOutlineHtml(html: string): string {
-  return html.match(/<div[^>]+data-gtsx-selection-outline="true"[^>]*>/)?.[0] ?? ""
+  return html.match(/<div[^>]+data-runelight-selection-outline="true"[^>]*>/)?.[0] ?? ""
 }
 
 function selectionOutlineCount(html: string): number {
-  return [...html.matchAll(/data-gtsx-selection-outline="true"/g)].length
+  return [...html.matchAll(/data-runelight-selection-outline="true"/g)].length
 }
 
 function canvasSurfaceHtml(html: string): string {
-  return html.match(/<div[^>]+data-gtsx-canvas-surface="true"[^>]*>/)?.[0] ?? ""
+  return html.match(/<div[^>]+data-runelight-canvas-surface="true"[^>]*>/)?.[0] ?? ""
 }
 
 function frameGridHtml(html: string, coordinate: string): string {
-  return html.match(new RegExp(`<div[^>]+data-gtsx-frame-grid="${escapeRegExp(coordinate)}"[^>]*>`))?.[0] ?? ""
+  return html.match(new RegExp(`<div[^>]+data-runelight-frame-grid="${escapeRegExp(coordinate)}"[^>]*>`))?.[0] ?? ""
 }
 
 function frameGridPreviewScales(html: string): string[] {
-  return [...html.matchAll(/data-gtsx-frame-grid-preview-scale="([^"]+)"/g)].map((match) => match[1] ?? "")
+  return [...html.matchAll(/data-runelight-frame-grid-preview-scale="([^"]+)"/g)].map((match) => match[1] ?? "")
 }
 
 function previewClipHtml(html: string): string {
-  return html.match(/<div[^>]+data-gtsx-preview-clip="true"[^>]*>/)?.[0] ?? ""
+  return html.match(/<div[^>]+data-runelight-preview-clip="true"[^>]*>/)?.[0] ?? ""
 }
 
 function previewFrameTagHtml(html: string, sessionId: string): string {
-  return html.match(new RegExp(`<div[^>]+data-gtsx-preview-session-id="${escapeRegExp(sessionId)}"[^>]*>`))?.[0] ?? ""
+  return html.match(new RegExp(`<div[^>]+data-runelight-preview-session-id="${escapeRegExp(sessionId)}"[^>]*>`))?.[0] ?? ""
 }
 
 function cardHtml(html: string, coordinate: string): string {
   return (
-    html.match(new RegExp(`<article[^>]+data-gtsx-card-coordinate="${escapeRegExp(coordinate)}"[\\s\\S]*?</article>`))?.[0] ?? ""
+    html.match(new RegExp(`<article[^>]+data-runelight-card-coordinate="${escapeRegExp(coordinate)}"[\\s\\S]*?</article>`))?.[0] ?? ""
   )
 }
 
@@ -5081,7 +5098,7 @@ function escapeRegExp(value: string): string {
 
 function iframeSources(html: string): string[] {
   return [...html.matchAll(/<iframe[^>]+>/g)]
-    .filter((match) => !(match[0] ?? "").includes("data-gtsx-sidebar-preview-frame"))
+    .filter((match) => !(match[0] ?? "").includes("data-runelight-sidebar-preview-frame"))
     .flatMap((match) => {
       const source = match[0]?.match(/src="([^"]+)"/)?.[1]
       return source ? [source.replaceAll("&amp;", "&")] : []
@@ -5089,43 +5106,43 @@ function iframeSources(html: string): string[] {
 }
 
 function previewSources(html: string): string[] {
-  return [...html.matchAll(/data-gtsx-preview-src="([^"]+)"/g)].map((match) => (match[1] ?? "").replaceAll("&amp;", "&"))
+  return [...html.matchAll(/data-runelight-preview-src="([^"]+)"/g)].map((match) => (match[1] ?? "").replaceAll("&amp;", "&"))
 }
 
 function previewFrameHtml(html: string, sessionId: string): string {
-  return html.match(new RegExp(`<div[^>]+data-gtsx-preview-session-id="${escapeRegExp(sessionId)}"[\\s\\S]*?</div>`))?.[0] ?? ""
+  return html.match(new RegExp(`<div[^>]+data-runelight-preview-session-id="${escapeRegExp(sessionId)}"[\\s\\S]*?</div>`))?.[0] ?? ""
 }
 
 function framePreviewFrameHtml(html: string, frameName: string): string {
-  return html.match(new RegExp(`<div[^>]+data-gtsx-frame-preview-frame="${escapeRegExp(frameName)}"[^>]*>`))?.[0] ?? ""
+  return html.match(new RegExp(`<div[^>]+data-runelight-frame-preview-frame="${escapeRegExp(frameName)}"[^>]*>`))?.[0] ?? ""
 }
 
 function frameTileHtml(html: string, frameName: string): string {
-  return html.match(new RegExp(`<div[^>]+data-gtsx-frame-tile="${escapeRegExp(frameName)}"[^>]*>`))?.[0] ?? ""
+  return html.match(new RegExp(`<div[^>]+data-runelight-frame-tile="${escapeRegExp(frameName)}"[^>]*>`))?.[0] ?? ""
 }
 
 function canvasViewportPresets(html: string): string[] {
-  return [...html.matchAll(/<div[^>]+data-gtsx-preview-session-id="[^"]+"[^>]+data-gtsx-preview-src="[^"]+"[^>]+data-gtsx-viewport-preset="([^"]+)"/g)].map(
+  return [...html.matchAll(/<div[^>]+data-runelight-preview-session-id="[^"]+"[^>]+data-runelight-preview-src="[^"]+"[^>]+data-runelight-viewport-preset="([^"]+)"/g)].map(
     (match) => match[1] ?? "",
   )
 }
 
 function columnCount(html: string): number {
-  return [...html.matchAll(/data-gtsx-column-index="/g)].length
+  return [...html.matchAll(/data-runelight-column-index="/g)].length
 }
 
 function columnHtml(html: string, index: number): string {
-  return html.match(new RegExp(`<section[^>]+data-gtsx-column-index="${index}"[^>]*>`))?.[0] ?? ""
+  return html.match(new RegExp(`<section[^>]+data-runelight-column-index="${index}"[^>]*>`))?.[0] ?? ""
 }
 
 function frameControlNames(html: string): string[] {
-  return [...html.matchAll(/data-gtsx-frame-control="([^"]+)"/g)].map((match) => match[1] ?? "")
+  return [...html.matchAll(/data-runelight-frame-control="([^"]+)"/g)].map((match) => match[1] ?? "")
 }
 
 function viewportControlNames(html: string): string[] {
-  return [...html.matchAll(/data-gtsx-viewport-control="([^"]+)"/g)].map((match) => match[1] ?? "")
+  return [...html.matchAll(/data-runelight-viewport-control="([^"]+)"/g)].map((match) => match[1] ?? "")
 }
 
 function runtimeInstanceIds(html: string): string[] {
-  return [...html.matchAll(/data-gtsx-runtime-instance-id="([^"]+)"/g)].map((match) => match[1] ?? "")
+  return [...html.matchAll(/data-runelight-runtime-instance-id="([^"]+)"/g)].map((match) => match[1] ?? "")
 }

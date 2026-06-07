@@ -7,7 +7,7 @@ import {
   type GRuntimeValuesSnapshot,
   type GPreviewProtocolMessage,
   type GPreviewRequestValuesMessage,
-} from "@gtsx/core"
+} from "@runelight/core"
 import type { StudioManifest, StudioManifestComponent } from "./manifest"
 import { findStudioBoundaryNode, studioBoundaryRectForCoordinate } from "./boundary-tree"
 import { previewFrameLayoutWidth } from "./preview-frame-layout"
@@ -186,29 +186,29 @@ export function applyStudioPreviewMessage(
     return state
   }
 
-  if (message.type === "gtsx:ready") {
+  if (message.type === "runelight:ready") {
     if (state.ready && !state.error) return state
     const next = { ...state, ready: true }
     delete next.error
     return next
   }
 
-  if (message.type === "gtsx:tree") {
+  if (message.type === "runelight:tree") {
     if (sameBoundaryTree(state.tree, message.tree)) return state
     return { ...state, tree: message.tree }
   }
 
-  if (message.type === "gtsx:resize") {
+  if (message.type === "runelight:resize") {
     if (state.size?.width === message.size.width && state.size.height === message.size.height) return state
     return { ...state, size: message.size }
   }
 
-  if (message.type === "gtsx:error") {
+  if (message.type === "runelight:error") {
     if (state.error?.message === message.error.message && state.error.stack === message.error.stack) return state
     return { ...state, error: message.error }
   }
 
-  if (message.type === "gtsx:values") {
+  if (message.type === "runelight:values") {
     return {
       ...state,
       valuesByBoundaryId: {
@@ -1073,7 +1073,7 @@ export function replaceStudioCanvasUrlState(
   const nextUrl = `${window.location.pathname}${search ? `?${search}` : ""}${hash}`
   const currentUrl = `${window.location.pathname}${window.location.search}${hash}`
   if (nextUrl !== currentUrl) {
-    window.history.replaceState({ gtsxStudio: true }, "", nextUrl)
+    window.history.replaceState({ runelightStudio: true }, "", nextUrl)
   }
 }
 
@@ -1096,7 +1096,7 @@ export function pushStudioWorkspaceUrlState(
   const nextUrl = `${window.location.pathname}${search ? `?${search}` : ""}${hash}`
   const currentUrl = `${window.location.pathname}${window.location.search}${hash}`
   if (nextUrl !== currentUrl) {
-    window.history.pushState({ gtsxStudio: true }, "", nextUrl)
+    window.history.pushState({ runelightStudio: true }, "", nextUrl)
   }
 }
 
@@ -1662,7 +1662,7 @@ export function createStudioPreviewUrl(
   })
   if (options.static) params.set("static", "1")
   for (const override of options.frameOverrides ?? []) {
-    params.append("gframe", `${override.coordinate}:${override.frameName}`)
+    params.append("frameOverride", `${override.coordinate}:${override.frameName}`)
   }
   return `${manifest.routes.preview}?${params.toString()}`
 }
@@ -1672,8 +1672,8 @@ export function createStudioPreviewPoolUrl(manifest: StudioManifest): string {
 }
 
 export function studioPreviewRenderTargetFromUrl(previewUrl: string, fallbackSessionId: string): GPreviewRenderTarget {
-  const url = new URL(previewUrl, "http://gtsx.local")
-  const frameOverrides = url.searchParams.getAll("gframe").flatMap((value) => {
+  const url = new URL(previewUrl, "http://runelight.local")
+  const frameOverrides = url.searchParams.getAll("frameOverride").flatMap((value) => {
     const separatorIndex = value.lastIndexOf(":")
     return separatorIndex > 0 ? ([[value.slice(0, separatorIndex), value.slice(separatorIndex + 1)]] as [string, string][]) : []
   })
@@ -1816,13 +1816,13 @@ export function isGPreviewProtocolMessage(value: unknown): value is GPreviewProt
 
 function isGPreviewSessionMessageType(type: string): type is GPreviewProtocolMessage["type"] {
   return (
-    type === "gtsx:ready" ||
-    type === "gtsx:tree" ||
-    type === "gtsx:resize" ||
-    type === "gtsx:error" ||
-    type === "gtsx:request-values" ||
-    type === "gtsx:values" ||
-    type === "gtsx:render"
+    type === "runelight:ready" ||
+    type === "runelight:tree" ||
+    type === "runelight:resize" ||
+    type === "runelight:error" ||
+    type === "runelight:request-values" ||
+    type === "runelight:values" ||
+    type === "runelight:render"
   )
 }
 

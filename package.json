@@ -1,17 +1,17 @@
 {
-  "name": "gtsx-workspace",
+  "name": "runelight-workspace",
   "private": true,
   "description": "Preview and verify every React UI state with typed .g.tsx components.",
   "license": "MIT",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tuoxiansp/gtsx.git"
+    "url": "git+https://github.com/tuoxiansp/runelight.git"
   },
   "bugs": {
-    "url": "https://github.com/tuoxiansp/gtsx/issues"
+    "url": "https://github.com/tuoxiansp/runelight/issues"
   },
-  "homepage": "https://github.com/tuoxiansp/gtsx#readme",
+  "homepage": "https://github.com/tuoxiansp/runelight#readme",
   "packageManager": "pnpm@10.11.0",
   "scripts": {
     "build": "pnpm -r build",

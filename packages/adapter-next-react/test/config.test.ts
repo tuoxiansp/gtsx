@@ -4,20 +4,20 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT, gtsxPreviewSsrBootstrapScriptId } from "@gtsx/core/preview-protocol"
+import { RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT, runelightPreviewSsrBootstrapScriptId } from "@runelight/core/preview-protocol"
 
-import { gtsxNextReact } from "../src/index.js"
+import { runelightNextReact } from "../src/index.js"
 import {
-  createGTSXNextPreviewSsrScripts,
-  readGTSXNextPreviewProps,
-  shouldInstallGTSXNextPreviewSsrScripts,
+  createRunelightNextPreviewSsrScripts,
+  readRunelightNextPreviewProps,
+  shouldInstallRunelightNextPreviewSsrScripts,
 } from "../src/preview-route.js"
 
 const require = createRequire(import.meta.url)
-const gtsxConfig = {
+const runelightConfig = {
   project: {
     sourceRoot: "src",
-    entryRoot: "app/gtsx",
+    entryRoot: "app/runelight",
   },
   preview: {},
 }
@@ -36,9 +36,9 @@ function withNodeEnv<T>(nodeEnv: string, run: () => T): T {
   }
 }
 
-describe("gtsx Next React adapter", () => {
+describe("runelight Next React adapter", () => {
   it("does not enable production preview entries or write generated files by default", () => {
-    const root = mkdtempSync(join(tmpdir(), "gtsx-next-production-disabled-"))
+    const root = mkdtempSync(join(tmpdir(), "runelight-next-production-disabled-"))
     try {
       withNodeEnv("production", () => {
         const nextConfig = {
@@ -47,28 +47,28 @@ describe("gtsx Next React adapter", () => {
             return current
           },
         }
-        const config = gtsxNextReact({ root })(nextConfig)
+        const config = runelightNextReact({ root })(nextConfig)
 
         expect(config).toBe(nextConfig)
-        expect(existsSync(join(root, ".gtsx/preview-entries.ts"))).toBe(false)
+        expect(existsSync(join(root, ".runelight/preview-entries.ts"))).toBe(false)
       })
     } finally {
       rmSync(root, { force: true, recursive: true })
     }
   })
 
-  it("can explicitly enable production preview entries for projects that want to ship GTSX routes", () => {
+  it("can explicitly enable production preview entries for projects that want to ship Runelight routes", () => {
     withNodeEnv("production", () => {
-      const config = gtsxNextReact({ config: gtsxConfig, enabled: true, root: "/repo" })({})
+      const config = runelightNextReact({ config: runelightConfig, enabled: true, root: "/repo" })({})
 
       expect(config.webpack?.({}, {})?.module?.rules?.[0]?.use?.[0]?.loader).toContain("loader.cjs")
-      expect(config.turbopack?.resolveAlias?.["@gtsx/adapter-next-react/preview-entries"]).toBe("./.gtsx/preview-entries.ts")
+      expect(config.turbopack?.resolveAlias?.["@runelight/adapter-next-react/preview-entries"]).toBe("./.runelight/preview-entries.ts")
     })
   })
 
   it("adds webpack and turbopack rules for .g.tsx files", () => {
-    const withGTSX = gtsxNextReact({ config: gtsxConfig, root: "/repo" })
-    const config = withGTSX({
+    const withRunelight = runelightNextReact({ config: runelightConfig, root: "/repo" })
+    const config = withRunelight({
       allowedDevOrigins: ["127.0.0.1"],
     })
 
@@ -80,19 +80,19 @@ describe("gtsx Next React adapter", () => {
     expect(webpackRule?.enforce).toBe("pre")
     expect(webpackRule?.use?.[0]?.loader).toContain("loader.cjs")
     expect(webpackRule?.use?.[0]?.options).toEqual({
-      previewQuery: "gtsx-preview",
+      previewQuery: "runelight-preview",
       root: "/repo",
       transformPath: expect.stringContaining("react-transform.js"),
     })
-    expect(webpackConfig?.resolve?.alias?.["@gtsx/adapter-next-react/preview-entries"]).toBe(
-      "/repo/.gtsx/preview-entries.ts",
+    expect(webpackConfig?.resolve?.alias?.["@runelight/adapter-next-react/preview-entries"]).toBe(
+      "/repo/.runelight/preview-entries.ts",
     )
     expect(turboRule).toEqual({
       loaders: [
         {
           loader: expect.stringContaining("loader.cjs"),
           options: {
-            previewQuery: "gtsx-preview",
+            previewQuery: "runelight-preview",
             root: "/repo",
             transformPath: expect.stringContaining("react-transform.js"),
             transpilePreview: true,
@@ -100,12 +100,12 @@ describe("gtsx Next React adapter", () => {
         },
       ],
     })
-    expect(config.turbopack?.resolveAlias?.["@gtsx/adapter-next-react/preview-entries"]).toBe("./.gtsx/preview-entries.ts")
+    expect(config.turbopack?.resolveAlias?.["@runelight/adapter-next-react/preview-entries"]).toBe("./.runelight/preview-entries.ts")
   })
 
   it("preserves user webpack config and prepends existing turbopack rules", () => {
-    const withGTSX = gtsxNextReact({ config: gtsxConfig, root: "/repo" })
-    const config = withGTSX({
+    const withRunelight = runelightNextReact({ config: runelightConfig, root: "/repo" })
+    const config = withRunelight({
       webpack(current, _context) {
         current.module = { rules: [{ test: /other/ }] }
         return current
@@ -121,19 +121,19 @@ describe("gtsx Next React adapter", () => {
     const turboRule = config.turbopack?.rules?.["*.g.tsx"]
 
     expect(webpackConfig?.module?.rules).toHaveLength(2)
-    expect(webpackConfig?.resolve?.alias?.["@gtsx/adapter-next-react/preview-entries"]).toBe(
-      "/repo/.gtsx/preview-entries.ts",
+    expect(webpackConfig?.resolve?.alias?.["@runelight/adapter-next-react/preview-entries"]).toBe(
+      "/repo/.runelight/preview-entries.ts",
     )
     expect(webpackConfig?.module?.rules?.[0]?.use?.[0]?.loader).toContain("loader.cjs")
     expect(webpackConfig?.module?.rules?.[1]?.test?.test("other")).toBe(true)
     expect(Array.isArray(turboRule)).toBe(true)
-    expect(config.turbopack?.resolveAlias?.["@gtsx/adapter-next-react/preview-entries"]).toBe("./.gtsx/preview-entries.ts")
+    expect(config.turbopack?.resolveAlias?.["@runelight/adapter-next-react/preview-entries"]).toBe("./.runelight/preview-entries.ts")
     expect((turboRule as unknown[])[0]).toMatchObject({
       loaders: [
         {
           loader: expect.stringContaining("loader.cjs"),
           options: {
-            previewQuery: "gtsx-preview",
+            previewQuery: "runelight-preview",
             root: "/repo",
             transformPath: expect.stringContaining("react-transform.js"),
             transpilePreview: true,
@@ -145,15 +145,15 @@ describe("gtsx Next React adapter", () => {
   })
 
   it("preserves user aliases and supports a custom preview entries module id", () => {
-    const withGTSX = gtsxNextReact({
-      config: gtsxConfig,
+    const withRunelight = runelightNextReact({
+      config: runelightConfig,
       previewEntries: {
-        moduleId: "@app/gtsx-preview-entries",
-        outputFile: ".generated/gtsx-preview-entries.ts",
+        moduleId: "@app/runelight-preview-entries",
+        outputFile: ".generated/runelight-preview-entries.ts",
       },
       root: "/repo",
     })
-    const config = withGTSX({
+    const config = withRunelight({
       turbopack: {
         resolveAlias: {
           "@app/existing": "/repo/existing.ts",
@@ -173,31 +173,31 @@ describe("gtsx Next React adapter", () => {
 
     expect(webpackConfig?.resolve?.alias).toMatchObject({
       "@app/existing": "/repo/existing.ts",
-      "@app/gtsx-preview-entries": "/repo/.generated/gtsx-preview-entries.ts",
+      "@app/runelight-preview-entries": "/repo/.generated/runelight-preview-entries.ts",
     })
     expect(config.turbopack?.resolveAlias).toMatchObject({
       "@app/existing": "/repo/existing.ts",
-      "@app/gtsx-preview-entries": "./.generated/gtsx-preview-entries.ts",
+      "@app/runelight-preview-entries": "./.generated/runelight-preview-entries.ts",
     })
   })
 
   it("uses the configured source root for generated preview entries", () => {
-    const root = mkdtempSync(join(tmpdir(), "gtsx-next-config-root-"))
+    const root = mkdtempSync(join(tmpdir(), "runelight-next-config-root-"))
     try {
       mkdirSync(join(root, "components"), { recursive: true })
       mkdirSync(join(root, "src"), { recursive: true })
       writeFileSync(join(root, "components/AppShell.g.tsx"), "export default function AppShell() { return null }\n")
       writeFileSync(join(root, "src/Ignored.g.tsx"), "export default function Ignored() { return null }\n")
 
-      gtsxNextReact({
+      runelightNextReact({
         config: {
-          project: { sourceRoot: "components", entryRoot: "components/app/gtsx" },
+          project: { sourceRoot: "components", entryRoot: "components/app/runelight" },
           preview: {},
         },
         root,
       })({})
 
-      const output = readFileSync(join(root, ".gtsx/preview-entries.ts"), "utf8")
+      const output = readFileSync(join(root, ".runelight/preview-entries.ts"), "utf8")
       expect(output).toContain('"components/AppShell.g.tsx"')
       expect(output).not.toContain("src/Ignored.g.tsx")
     } finally {
@@ -205,28 +205,28 @@ describe("gtsx Next React adapter", () => {
     }
   })
 
-  it("loads gtsx.config.ts from the project root when config is omitted", () => {
-    const root = mkdtempSync(join(tmpdir(), "gtsx-next-root-config-"))
+  it("loads runelight.config.ts from the project root when config is omitted", () => {
+    const root = mkdtempSync(join(tmpdir(), "runelight-next-root-config-"))
     try {
       mkdirSync(join(root, "src/components"), { recursive: true })
       writeFileSync(join(root, "src/components/Card.g.tsx"), "export default function Card() { return null }\n")
       writeFileSync(
-        join(root, "gtsx.config.ts"),
-        `import { defineGTSXConfig } from "@gtsx/core"
+        join(root, "runelight.config.ts"),
+        `import { defineRunelightConfig } from "@runelight/core"
 
-export default defineGTSXConfig({
+export default defineRunelightConfig({
   project: {
     sourceRoot: "src",
-    entryRoot: "app/gtsx",
+    entryRoot: "app/runelight",
   },
   preview: {},
 })
 `,
       )
 
-      gtsxNextReact({ root })({})
+      runelightNextReact({ root })({})
 
-      const output = readFileSync(join(root, ".gtsx/preview-entries.ts"), "utf8")
+      const output = readFileSync(join(root, ".runelight/preview-entries.ts"), "utf8")
       expect(output).toContain('"src/components/Card.g.tsx"')
     } finally {
       rmSync(root, { force: true, recursive: true })
@@ -234,7 +234,7 @@ export default defineGTSXConfig({
   })
 
   it("writes a generated lazy preview entry registry for Next projects", () => {
-    const root = mkdtempSync(join(tmpdir(), "gtsx-next-registry-"))
+    const root = mkdtempSync(join(tmpdir(), "runelight-next-registry-"))
     try {
       mkdirSync(join(root, "src/components/ui"), { recursive: true })
       mkdirSync(join(root, "src/generated"), { recursive: true })
@@ -242,74 +242,103 @@ export default defineGTSXConfig({
       writeFileSync(join(root, "src/components/ui/Menu.g.tsx"), "export function Menu() { return null }\n")
       writeFileSync(join(root, "src/generated/Ignored.tsx"), "export default function Ignored() { return null }\n")
 
-      gtsxNextReact({ config: gtsxConfig, root })({})
+      runelightNextReact({ config: runelightConfig, root })({})
 
-      const output = readFileSync(join(root, ".gtsx/preview-entries.ts"), "utf8")
-      expect(output).toContain('"src/components/ui/Menu.g.tsx": () => import("../src/components/ui/Menu.g?gtsx-preview")')
-      expect(output).toContain('"src/components/ui/Toast.g.tsx": () => import("../src/components/ui/Toast.g?gtsx-preview")')
+      const output = readFileSync(join(root, ".runelight/preview-entries.ts"), "utf8")
+      expect(output).toContain('"src/components/ui/Menu.g.tsx": () => import("../src/components/ui/Menu.g?runelight-preview")')
+      expect(output).toContain('"src/components/ui/Toast.g.tsx": () => import("../src/components/ui/Toast.g?runelight-preview")')
       expect(output).not.toContain("Ignored")
-      expect(output).toContain("export async function loadGTSXPreviewComponent")
+      expect(output).toContain("export async function loadRunelightPreviewComponent")
     } finally {
       rmSync(root, { force: true, recursive: true })
     }
   })
 
   it("includes the configured design workspace entry when present", () => {
-    const root = mkdtempSync(join(tmpdir(), "gtsx-next-design-registry-"))
+    const root = mkdtempSync(join(tmpdir(), "runelight-next-design-registry-"))
     try {
-      mkdirSync(join(root, "app/gtsx/design"), { recursive: true })
-      mkdirSync(join(root, "src/app/gtsx/design"), { recursive: true })
+      mkdirSync(join(root, "app/runelight/design"), { recursive: true })
+      mkdirSync(join(root, "src/app/runelight/design"), { recursive: true })
       mkdirSync(join(root, "src/components/ui"), { recursive: true })
-      writeFileSync(join(root, "app/gtsx/design/RouteDesignHost.g.tsx"), "export default function RouteDesignHost() { return null }\n")
-      writeFileSync(join(root, "src/app/gtsx/design/SrcRouteDesignHost.g.tsx"), "export default function SrcRouteDesignHost() { return null }\n")
+      writeFileSync(join(root, "app/runelight/design/RouteDesignHost.g.tsx"), "export default function RouteDesignHost() { return null }\n")
+      writeFileSync(join(root, "src/app/runelight/design/SrcRouteDesignHost.g.tsx"), "export default function SrcRouteDesignHost() { return null }\n")
       writeFileSync(join(root, "src/components/ui/Toast.g.tsx"), "export default function Toast() { return null }\n")
 
-      gtsxNextReact({
+      runelightNextReact({
         config: {
           project: {
             sourceRoot: "src",
-            entryRoot: "src/app/gtsx",
+            entryRoot: "src/app/runelight",
           },
           preview: {},
         },
         root,
       })({})
 
-      const output = readFileSync(join(root, ".gtsx/preview-entries.ts"), "utf8")
-      expect(output).toContain('"src/app/gtsx/design/SrcRouteDesignHost.g.tsx": () => import("../src/app/gtsx/design/SrcRouteDesignHost.g?gtsx-preview")')
-      expect(output).not.toContain('"app/gtsx/design/RouteDesignHost.g.tsx"')
-      expect(output).toContain('"src/components/ui/Toast.g.tsx": () => import("../src/components/ui/Toast.g?gtsx-preview")')
+      const output = readFileSync(join(root, ".runelight/preview-entries.ts"), "utf8")
+      expect(output).toContain('"src/app/runelight/design/SrcRouteDesignHost.g.tsx": () => import("../src/app/runelight/design/SrcRouteDesignHost.g?runelight-preview")')
+      expect(output).not.toContain('"app/runelight/design/RouteDesignHost.g.tsx"')
+      expect(output).toContain('"src/components/ui/Toast.g.tsx": () => import("../src/components/ui/Toast.g?runelight-preview")')
     } finally {
       rmSync(root, { force: true, recursive: true })
     }
   })
 
   it("installs a webpack preview entry watcher for dev-time file additions", () => {
-    const config = gtsxNextReact({ config: gtsxConfig, root: "/repo" })({})
+    const config = runelightNextReact({ config: runelightConfig, root: "/repo" })({})
     const webpackConfig = config.webpack?.({ plugins: [] }, { dev: true })
 
     expect(
       webpackConfig?.plugins?.some(
-        (plugin: unknown) => (plugin as { constructor?: { name?: string } }).constructor?.name === "GTSXNextPreviewEntriesPlugin",
+        (plugin: unknown) => (plugin as { constructor?: { name?: string } }).constructor?.name === "RunelightNextPreviewEntriesPlugin",
       ),
     ).toBe(true)
   })
 
   it("exposes a CommonJS entry for Next config loading", () => {
     const cjsEntry = require("../index.cjs") as typeof import("../src/index.js")
-    const config = cjsEntry.gtsxNextReact({ config: gtsxConfig, root: "/repo" })({})
+    const config = cjsEntry.runelightNextReact({ config: runelightConfig, root: "/repo" })({})
 
     expect(config.webpack?.({}, {})?.module?.rules?.[0]?.use?.[0]?.loader).toContain("loader.cjs")
     expect(config.turbopack?.rules?.["*.g.tsx"]?.loaders?.[0]?.loader).toContain("loader.cjs")
-    expect(config.turbopack?.resolveAlias?.["@gtsx/adapter-next-react/preview-entries"]).toBe("./.gtsx/preview-entries.ts")
+    expect(config.turbopack?.resolveAlias?.["@runelight/adapter-next-react/preview-entries"]).toBe("./.runelight/preview-entries.ts")
+  })
+
+  it("loads runelight.config.ts from the CommonJS entry when config is omitted", () => {
+    const root = mkdtempSync(join(tmpdir(), "runelight-next-cjs-root-config-"))
+    try {
+      mkdirSync(join(root, "src/components"), { recursive: true })
+      writeFileSync(join(root, "src/components/Card.g.tsx"), "export default function Card() { return null }\n")
+      writeFileSync(
+        join(root, "runelight.config.ts"),
+        `import { defineRunelightConfig } from "@runelight/core"
+
+export default defineRunelightConfig({
+  project: {
+    sourceRoot: "src",
+    entryRoot: "app/runelight",
+  },
+  preview: {},
+})
+`,
+      )
+
+      const cjsEntry = require("../index.cjs") as typeof import("../src/index.js")
+      cjsEntry.runelightNextReact({ root })({})
+
+      const output = readFileSync(join(root, ".runelight/preview-entries.ts"), "utf8")
+      expect(output).toContain('"src/components/Card.g.tsx"')
+    } finally {
+      rmSync(root, { force: true, recursive: true })
+    }
   })
 
   it("reads preview props from Next search params including child frame overrides", () => {
-    const props = readGTSXNextPreviewProps({
+    const props = readRunelightNextPreviewProps({
       frame: "ready",
       chrome: "0",
       entry: "src/Card.g.tsx#default",
-      gframe: ["src/Child.g.tsx#default:open", "src/Menu.g.tsx#default:hover"],
+      frameOverride: ["src/Child.g.tsx#default:open", "src/Menu.g.tsx#default:hover"],
       pool: "1",
       sessionId: "session-1",
       static: "1",
@@ -330,16 +359,16 @@ export default defineGTSXConfig({
   })
 
   it("installs SSR preview scripts only when the preview URL requires early render-target delivery", () => {
-    const scripts = createGTSXNextPreviewSsrScripts({ pool: "1" })
+    const scripts = createRunelightNextPreviewSsrScripts({ pool: "1" })
     const scriptProps = scripts[0]
 
-    expect(shouldInstallGTSXNextPreviewSsrScripts({ pool: "1" })).toBe(true)
-    expect(shouldInstallGTSXNextPreviewSsrScripts({ pool: null })).toBe(false)
-    expect(createGTSXNextPreviewSsrScripts({ pool: null })).toEqual([])
-    expect(scriptProps?.id).toBe(gtsxPreviewSsrBootstrapScriptId)
+    expect(shouldInstallRunelightNextPreviewSsrScripts({ pool: "1" })).toBe(true)
+    expect(shouldInstallRunelightNextPreviewSsrScripts({ pool: null })).toBe(false)
+    expect(createRunelightNextPreviewSsrScripts({ pool: null })).toEqual([])
+    expect(scriptProps?.id).toBe(runelightPreviewSsrBootstrapScriptId)
     expect(scriptProps?.strategy).toBe("beforeInteractive")
-    expect(scriptProps?.dangerouslySetInnerHTML.__html).toBe(GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT)
-    expect(GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT).toContain("__gtsxPreviewRenderTargetMailbox")
-    expect(GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT).toContain("gtsx:render-accepted")
+    expect(scriptProps?.dangerouslySetInnerHTML.__html).toBe(RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT)
+    expect(RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT).toContain("__runelightPreviewRenderTargetMailbox")
+    expect(RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT).toContain("runelight:render-accepted")
   })
 })

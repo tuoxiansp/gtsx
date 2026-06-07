@@ -2,29 +2,29 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 
-import { buildGTSXProjectIndex } from "@gtsx/core/project-index"
+import { buildRunelightProjectIndex } from "@runelight/core/project-index"
 import { describe, expect, it } from "vitest"
 
-import { gtsxViteReact } from "../src/index.js"
-import { createGTSXVitePreviewComponentLoader, type GTSXPreviewModule } from "../src/preview.js"
+import { runelightViteReact } from "../src/index.js"
+import { createRunelightVitePreviewComponentLoader, type RunelightPreviewModule } from "../src/preview.js"
 
-const gtsxConfig = {
+const runelightConfig = {
   project: {
     sourceRoot: "src",
-    entryRoot: "src/app/gtsx",
+    entryRoot: "src/app/runelight",
   },
   preview: {},
 }
 
-describe("gtsx Vite React adapter", () => {
+describe("runelight Vite React adapter", () => {
   it("keeps .g.tsx component transforms available during Vite builds", () => {
-    const plugin = gtsxViteReact({ root: "/repo" })
+    const plugin = runelightViteReact({ root: "/repo" })
 
     expect(plugin.apply).toBeUndefined()
   })
 
-  it("transforms .g.tsx modules through the shared React transform without loading gtsx.config.ts", () => {
-    const plugin = gtsxViteReact({ root: "/repo" })
+  it("transforms .g.tsx modules through the shared React transform without loading runelight.config.ts", () => {
+    const plugin = runelightViteReact({ root: "/repo" })
     const result = plugin.transform(
       `
 export default function Card(props: { label: string }) {
@@ -38,50 +38,63 @@ Card.frames = {
       "/repo/src/Card.g.tsx?import",
     )
 
-    expect(result?.code).toContain('import { defineGComponent as __gtsxDefineGComponent } from "@gtsx/core"')
-    expect(result?.code).toContain('const Card = __gtsxDefineGComponent("src/Card.g.tsx#default", CardGTSXImpl)')
+    expect(result?.code).toContain('import { defineGComponent as __runelightDefineGComponent } from "@runelight/core"')
+    expect(result?.code).toContain('const Card = __runelightDefineGComponent("src/Card.g.tsx#default", CardRunelightImpl)')
   })
 
   it("does not expose a Studio manifest virtual module", () => {
-    const fixtureRoot = resolve(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
-    const plugin = gtsxViteReact({ root: fixtureRoot, sourceRoot: "src" })
+    const fixtureRoot = resolve(import.meta.dirname, "../../core/test/fixtures/check-project")
+    const plugin = runelightViteReact({ root: fixtureRoot, sourceRoot: "src" })
     plugin.configResolved({ root: fixtureRoot })
 
-    expect(plugin.resolveId("virtual:gtsx/studio-manifest")).toBeNull()
+    expect(plugin.resolveId("virtual:runelight/studio-manifest")).toBeNull()
   })
 
-  it("pre-optimizes CommonJS runtime dependencies needed by packed consumers", () => {
-    const plugin = gtsxViteReact({ root: "/repo" })
+  it("does not require consumers to expose internal runtime dependencies at the project root", () => {
+    const plugin = runelightViteReact({ root: "/repo" })
 
     expect(plugin.config()).toMatchObject({
       optimizeDeps: {
-        include: ["react-tracked", "scheduler", "use-context-selector"],
+        include: [
+          "@runelight/core > react-tracked",
+          "@runelight/core > react-tracked > use-context-selector",
+          "@runelight/core > react-tracked > use-context-selector > scheduler",
+        ],
+        exclude: [
+          "@runelight/core",
+          "@runelight/preview-react",
+          "@runelight/studio",
+          "@runelight/adapter-vite-react",
+          "typescript",
+          "virtual:runelight/config",
+          "virtual:runelight/project-index",
+        ],
       },
     })
   })
 
-  it("loads a low-level GTSX project index through a virtual module", () => {
-    const fixtureRoot = resolve(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
-    const plugin = gtsxViteReact({ config: gtsxConfig, root: fixtureRoot })
+  it("loads a low-level Runelight project index through a virtual module", () => {
+    const fixtureRoot = resolve(import.meta.dirname, "../../core/test/fixtures/check-project")
+    const plugin = runelightViteReact({ config: runelightConfig, root: fixtureRoot })
     plugin.configResolved({ root: fixtureRoot })
 
-    const resolvedId = plugin.resolveId("virtual:gtsx/project-index")
+    const resolvedId = plugin.resolveId("virtual:runelight/project-index")
     const loaded = plugin.load(resolvedId)
     const projectIndex = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
 
-    expect(resolvedId).toBe("\0virtual:gtsx/project-index")
-    expect(projectIndex).toEqual(buildGTSXProjectIndex({ cwd: fixtureRoot, sourceRoot: "src" }))
-    expect(JSON.stringify(projectIndex)).not.toContain("/gtsx/studio")
+    expect(resolvedId).toBe("\0virtual:runelight/project-index")
+    expect(projectIndex).toEqual(buildRunelightProjectIndex({ cwd: fixtureRoot, sourceRoot: "src" }))
+    expect(JSON.stringify(projectIndex)).not.toContain("/runelight/studio")
     expect(JSON.stringify(projectIndex)).not.toContain("urlTemplate")
   })
 
   it("loads project indexes from a selected TypeScript project scope", () => {
-    const fixtureRoot = resolve(import.meta.dirname, "../../gtsx/test/fixtures/ts-project-scope")
-    const plugin = gtsxViteReact({
+    const fixtureRoot = resolve(import.meta.dirname, "../../core/test/fixtures/ts-project-scope")
+    const plugin = runelightViteReact({
       config: {
         project: {
           sourceRoot: ".",
-          entryRoot: "src/app/gtsx",
+          entryRoot: "src/app/runelight",
         },
         preview: {},
       },
@@ -90,40 +103,40 @@ Card.frames = {
     })
     plugin.configResolved({ root: fixtureRoot })
 
-    const resolvedId = plugin.resolveId("virtual:gtsx/project-index")
+    const resolvedId = plugin.resolveId("virtual:runelight/project-index")
     const loaded = plugin.load(resolvedId)
     const projectIndex = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
 
     expect(projectIndex.files.map((file) => file.path)).toEqual([
-      "src/app/gtsx/design/Sketch.g.tsx",
+      "src/app/runelight/design/Sketch.g.tsx",
       "src/Child.g.tsx",
       "src/Included.g.tsx",
     ])
   })
 
   it("loads route design entries into the virtual project index", () => {
-    const root = mkdtempSync(join(tmpdir(), "gtsx-vite-route-design-index-"))
+    const root = mkdtempSync(join(tmpdir(), "runelight-vite-route-design-index-"))
 
     try {
       mkdirSync(join(root, "src/components"), { recursive: true })
-      mkdirSync(join(root, "src/app/gtsx/design"), { recursive: true })
+      mkdirSync(join(root, "src/app/runelight/design"), { recursive: true })
       writeFileSync(
         join(root, "src/components/Card.g.tsx"),
         ["export default function Card() { return null }", "Card.frames = { ready: { props: {} } }", ""].join("\n"),
       )
       writeFileSync(
-        join(root, "src/app/gtsx/design/Sketch.g.tsx"),
+        join(root, "src/app/runelight/design/Sketch.g.tsx"),
         ["export default function Sketch() { return null }", "Sketch.frames = { live: { props: {} } }", ""].join("\n"),
       )
 
-      const plugin = gtsxViteReact({ config: gtsxConfig, root })
+      const plugin = runelightViteReact({ config: runelightConfig, root })
       plugin.configResolved({ root })
 
-      const loaded = plugin.load(plugin.resolveId("virtual:gtsx/project-index"))
+      const loaded = plugin.load(plugin.resolveId("virtual:runelight/project-index"))
       const projectIndex = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
 
       expect(projectIndex.files.map((file) => file.path)).toEqual([
-        "src/app/gtsx/design/Sketch.g.tsx",
+        "src/app/runelight/design/Sketch.g.tsx",
         "src/components/Card.g.tsx",
       ])
     } finally {
@@ -132,12 +145,12 @@ Card.frames = {
   })
 
   it("loads project indexes from the nearest TypeScript project scope by default", () => {
-    const fixtureRoot = resolve(import.meta.dirname, "../../gtsx/test/fixtures/ts-project-scope")
-    const plugin = gtsxViteReact({
+    const fixtureRoot = resolve(import.meta.dirname, "../../core/test/fixtures/ts-project-scope")
+    const plugin = runelightViteReact({
       config: {
         project: {
           sourceRoot: ".",
-          entryRoot: "src/app/gtsx",
+          entryRoot: "src/app/runelight",
         },
         preview: {},
       },
@@ -145,25 +158,25 @@ Card.frames = {
     })
     plugin.configResolved({ root: fixtureRoot })
 
-    const resolvedId = plugin.resolveId("virtual:gtsx/project-index")
+    const resolvedId = plugin.resolveId("virtual:runelight/project-index")
     const loaded = plugin.load(resolvedId)
     const projectIndex = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
 
     expect(projectIndex.files.map((file) => file.path)).toEqual([
-      "src/app/gtsx/design/Sketch.g.tsx",
+      "src/app/runelight/design/Sketch.g.tsx",
       "src/Child.g.tsx",
       "src/Included.g.tsx",
     ])
   })
 
-  it("loads resolved gtsx config through a virtual module", () => {
-    const fixtureRoot = resolve(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
-    const plugin = gtsxViteReact({
+  it("loads resolved runelight config through a virtual module", () => {
+    const fixtureRoot = resolve(import.meta.dirname, "../../core/test/fixtures/check-project")
+    const plugin = runelightViteReact({
       config: {
         project: {
           namespace: "fixture-project",
           sourceRoot: "src/corpus",
-          entryRoot: "app/gtsx",
+          entryRoot: "app/runelight",
         },
         routes: {
           preview: "/preview",
@@ -174,38 +187,38 @@ Card.frames = {
     })
     plugin.configResolved({ root: fixtureRoot })
 
-    const resolvedId = plugin.resolveId("virtual:gtsx/config")
+    const resolvedId = plugin.resolveId("virtual:runelight/config")
     const loaded = plugin.load(resolvedId)
     const config = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
 
-    expect(resolvedId).toBe("\0virtual:gtsx/config")
+    expect(resolvedId).toBe("\0virtual:runelight/config")
     expect(config.project).toMatchObject({ namespace: "fixture-project", sourceRoot: "src/corpus" })
-    expect(config.routes).toMatchObject({ preview: "/preview", studio: "/gtsx/studio" })
+    expect(config.routes).toMatchObject({ preview: "/preview", studio: "/runelight/studio" })
   })
 
-  it("loads gtsx.config.ts from the Vite project root when config is omitted", () => {
-    const root = mkdtempSync(join(tmpdir(), "gtsx-vite-root-config-"))
+  it("loads runelight.config.ts from the Vite project root when config is omitted", () => {
+    const root = mkdtempSync(join(tmpdir(), "runelight-vite-root-config-"))
     try {
       mkdirSync(join(root, "src/components"), { recursive: true })
       writeFileSync(join(root, "src/components/Card.g.tsx"), "export default function Card() { return null }\n")
       writeFileSync(
-        join(root, "gtsx.config.ts"),
-        `import { defineGTSXConfig } from "@gtsx/core"
+        join(root, "runelight.config.ts"),
+        `import { defineRunelightConfig } from "@runelight/core"
 
-export default defineGTSXConfig({
+export default defineRunelightConfig({
   project: {
     sourceRoot: "src",
-    entryRoot: "app/gtsx",
+    entryRoot: "app/runelight",
   },
   preview: {},
 })
 `,
       )
 
-      const plugin = gtsxViteReact({ root })
+      const plugin = runelightViteReact({ root })
       plugin.configResolved({ root })
 
-      const loaded = plugin.load(plugin.resolveId("virtual:gtsx/project-index"))
+      const loaded = plugin.load(plugin.resolveId("virtual:runelight/project-index"))
       const projectIndex = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
 
       expect(projectIndex.files.map((file) => file.path)).toEqual(["src/components/Card.g.tsx"])
@@ -214,13 +227,13 @@ export default defineGTSXConfig({
     }
   })
 
-  it("uses gtsx config for the virtual project index scope", () => {
-    const fixtureRoot = resolve(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
-    const plugin = gtsxViteReact({
+  it("uses runelight config for the virtual project index scope", () => {
+    const fixtureRoot = resolve(import.meta.dirname, "../../core/test/fixtures/check-project")
+    const plugin = runelightViteReact({
       config: {
         project: {
           sourceRoot: "src/corpus",
-          entryRoot: "app/gtsx",
+          entryRoot: "app/runelight",
         },
         preview: {},
       },
@@ -228,7 +241,7 @@ export default defineGTSXConfig({
     })
     plugin.configResolved({ root: fixtureRoot })
 
-    const loaded = plugin.load(plugin.resolveId("virtual:gtsx/project-index"))
+    const loaded = plugin.load(plugin.resolveId("virtual:runelight/project-index"))
     const projectIndex = JSON.parse(loaded.code.match(/export default (.*)$/s)?.[1] ?? "null")
 
     expect(projectIndex.files.map((file) => file.path)).toEqual(["src/corpus/Badge.g.tsx", "src/corpus/StatusPanel.g.tsx"])
@@ -238,33 +251,33 @@ export default defineGTSXConfig({
     function Card() {
       return null
     }
-    const modules: Record<string, () => Promise<GTSXPreviewModule>> = {
-      "../app/gtsx/design/GiftFeature.g.tsx": async () => ({ default: Card }),
-      "/app/gtsx/design/RootGiftFeature.g.tsx": async () => ({ default: Card }),
+    const modules: Record<string, () => Promise<RunelightPreviewModule>> = {
+      "../app/runelight/design/GiftFeature.g.tsx": async () => ({ default: Card }),
+      "/app/runelight/design/RootGiftFeature.g.tsx": async () => ({ default: Card }),
       "./components/Card.g.tsx": async () => ({ default: Card }),
     }
-    const loadComponent = createGTSXVitePreviewComponentLoader(modules, { sourceRoot: "src" })
+    const loadComponent = createRunelightVitePreviewComponentLoader(modules, { sourceRoot: "src" })
 
     await expect(loadComponent("src/components/Card.g.tsx#default")).resolves.toBe(Card)
-    await expect(loadComponent("app/gtsx/design/GiftFeature.g.tsx#default")).resolves.toBe(Card)
-    await expect(loadComponent("app/gtsx/design/RootGiftFeature.g.tsx#default")).resolves.toBe(Card)
+    await expect(loadComponent("app/runelight/design/GiftFeature.g.tsx#default")).resolves.toBe(Card)
+    await expect(loadComponent("app/runelight/design/RootGiftFeature.g.tsx#default")).resolves.toBe(Card)
     await expect(loadComponent("src/components/Missing.g.tsx#default")).resolves.toBeUndefined()
   })
 
-  it("invalidates the virtual project index when a GTSX file changes", () => {
-    const plugin = gtsxViteReact({ config: gtsxConfig, root: "/repo" })
+  it("invalidates the virtual project index when a Runelight file changes", () => {
+    const plugin = runelightViteReact({ config: runelightConfig, root: "/repo" })
     plugin.configResolved({ root: "/repo" })
-    const virtualModule = { id: "\0virtual:gtsx/project-index" }
-    const changedModule = { id: "/repo/src/app/gtsx/design/NewSketch.g.tsx" }
+    const virtualModule = { id: "\0virtual:runelight/project-index" }
+    const changedModule = { id: "/repo/src/app/runelight/design/NewSketch.g.tsx" }
     const invalidated: unknown[] = []
 
     const updatedModules = plugin.handleHotUpdate?.({
-      file: "/repo/src/app/gtsx/design/NewSketch.g.tsx",
+      file: "/repo/src/app/runelight/design/NewSketch.g.tsx",
       modules: [changedModule],
       server: {
         moduleGraph: {
           getModuleById(id: string) {
-            return id === "\0virtual:gtsx/project-index" ? virtualModule : undefined
+            return id === "\0virtual:runelight/project-index" ? virtualModule : undefined
           },
           invalidateModule(module: unknown) {
             invalidated.push(module)
@@ -278,15 +291,15 @@ export default defineGTSXConfig({
   })
 
   it("invalidates Vite virtual project index modules stored under encoded URLs", () => {
-    const plugin = gtsxViteReact({ config: gtsxConfig, root: "/repo" })
+    const plugin = runelightViteReact({ config: runelightConfig, root: "/repo" })
     plugin.configResolved({ root: "/repo" })
-    const virtualModule = { id: "/@id/__x00__virtual:gtsx/project-index" }
-    const changedModule = { id: "/repo/src/app/gtsx/design/NewSketch.g.tsx" }
+    const virtualModule = { id: "/@id/__x00__virtual:runelight/project-index" }
+    const changedModule = { id: "/repo/src/app/runelight/design/NewSketch.g.tsx" }
     const invalidated: unknown[] = []
     const websocketPayloads: unknown[] = []
 
     const updatedModules = plugin.handleHotUpdate?.({
-      file: "/repo/src/app/gtsx/design/NewSketch.g.tsx",
+      file: "/repo/src/app/runelight/design/NewSketch.g.tsx",
       modules: [changedModule],
       server: {
         moduleGraph: {
@@ -296,7 +309,7 @@ export default defineGTSXConfig({
           invalidateModule(module: unknown) {
             invalidated.push(module)
           },
-          urlToModuleMap: new Map([["/@id/__x00__virtual:gtsx/project-index", virtualModule]]),
+          urlToModuleMap: new Map([["/@id/__x00__virtual:runelight/project-index", virtualModule]]),
         },
         ws: {
           send(payload: unknown) {
@@ -312,14 +325,14 @@ export default defineGTSXConfig({
   })
 
   it("invalidates the Vite module graph when the virtual project index module is not addressable", () => {
-    const plugin = gtsxViteReact({ config: gtsxConfig, root: "/repo" })
+    const plugin = runelightViteReact({ config: runelightConfig, root: "/repo" })
     plugin.configResolved({ root: "/repo" })
-    const changedModule = { id: "/repo/src/app/gtsx/design/NewSketch.g.tsx" }
+    const changedModule = { id: "/repo/src/app/runelight/design/NewSketch.g.tsx" }
     let invalidatedAll = false
     const websocketPayloads: unknown[] = []
 
     const updatedModules = plugin.handleHotUpdate?.({
-      file: "/repo/src/app/gtsx/design/NewSketch.g.tsx",
+      file: "/repo/src/app/runelight/design/NewSketch.g.tsx",
       modules: [changedModule],
       server: {
         moduleGraph: {
@@ -346,20 +359,20 @@ export default defineGTSXConfig({
     expect(updatedModules).toEqual([changedModule])
   })
 
-  it("invalidates project indexes for created GTSX files through Vite's hotUpdate hook", () => {
-    const plugin = gtsxViteReact({ config: gtsxConfig, root: "/repo" })
+  it("invalidates project indexes for created Runelight files through Vite's hotUpdate hook", () => {
+    const plugin = runelightViteReact({ config: runelightConfig, root: "/repo" })
     plugin.configResolved({ root: "/repo" })
-    const virtualModule = { id: "\0virtual:gtsx/project-index" }
+    const virtualModule = { id: "\0virtual:runelight/project-index" }
     const invalidated: unknown[] = []
     const websocketPayloads: unknown[] = []
 
     const updatedModules = plugin.hotUpdate?.({
-      file: "/repo/src/app/gtsx/design/NewSketch.g.tsx",
+      file: "/repo/src/app/runelight/design/NewSketch.g.tsx",
       modules: [],
       server: {
         moduleGraph: {
           getModuleById(id: string) {
-            return id === "\0virtual:gtsx/project-index" ? virtualModule : undefined
+            return id === "\0virtual:runelight/project-index" ? virtualModule : undefined
           },
           invalidateModule(module: unknown) {
             invalidated.push(module)
@@ -379,10 +392,10 @@ export default defineGTSXConfig({
   })
 
   it("watches the source root and entry design parent during Vite dev", () => {
-    const root = mkdtempSync(join(tmpdir(), "gtsx-vite-watch-"))
+    const root = mkdtempSync(join(tmpdir(), "runelight-vite-watch-"))
 
     try {
-      const plugin = gtsxViteReact({ config: gtsxConfig, root })
+      const plugin = runelightViteReact({ config: runelightConfig, root })
       const watched: string[] = []
 
       plugin.configureServer?.({
@@ -395,10 +408,10 @@ export default defineGTSXConfig({
 
       expect(watched).toEqual([
         join(root, "src"),
-        join(root, "src/app/gtsx"),
-        join(root, "src/app/gtsx/design"),
+        join(root, "src/app/runelight"),
+        join(root, "src/app/runelight/design"),
       ])
-      expect(existsSync(join(root, "src/app/gtsx/design"))).toBe(true)
+      expect(existsSync(join(root, "src/app/runelight/design"))).toBe(true)
     } finally {
       rmSync(root, { force: true, recursive: true })
     }

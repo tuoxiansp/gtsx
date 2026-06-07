@@ -1,13 +1,13 @@
 import { relative, resolve, sep } from "node:path"
 import { mkdirSync } from "node:fs"
 
-import { buildGTSXProjectIndex } from "@gtsx/core/project-index"
-import { transformGTSXReactModule } from "@gtsx/core/react-transform"
-import { loadGTSXConfig, resolveGTSXConfig } from "@gtsx/core/config"
-import { gtsxDesignRootFromEntryRoot, normalizeGTSXPath, requireGTSXEntryRoot } from "@gtsx/core/config-model"
-import type { GTSXConfig, ResolvedGTSXConfig } from "@gtsx/core"
+import { buildRunelightProjectIndex } from "@runelight/core/project-index"
+import { transformRunelightReactModule } from "@runelight/core/react-transform"
+import { loadRunelightConfig, resolveRunelightConfig } from "@runelight/core/config"
+import { runelightDesignRootFromEntryRoot, normalizeRunelightPath, requireRunelightEntryRoot } from "@runelight/core/config-model"
+import type { RunelightConfig, ResolvedRunelightConfig } from "@runelight/core"
 
-export { transformGTSXComponentBoundaries, transformGTSXReactModule } from "@gtsx/core/react-transform"
+export { transformRunelightComponentBoundaries, transformRunelightReactModule } from "@runelight/core/react-transform"
 
 type ViteLikeConfig = {
   root: string
@@ -51,30 +51,42 @@ type TransformResult = {
   map: null
 }
 
-type GTSXViteReactOptions = {
-  config?: GTSXConfig
+type RunelightViteReactOptions = {
+  config?: RunelightConfig
   entryRoot?: string
   sourceRoot?: string
   root?: string
   tsconfigPath?: string
 }
 
-export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
+export function runelightViteReact(options: RunelightViteReactOptions = {}) {
   let root = options.root ?? process.cwd()
-  let resolvedConfig = options.config ? resolveGTSXConfig(options.config) : undefined
-  const virtualProjectIndexId = "virtual:gtsx/project-index"
-  const virtualConfigId = "virtual:gtsx/config"
+  let resolvedConfig = options.config ? resolveRunelightConfig(options.config) : undefined
+  const virtualProjectIndexId = "virtual:runelight/project-index"
+  const virtualConfigId = "virtual:runelight/config"
   const resolvedVirtualProjectIndexId = `\0${virtualProjectIndexId}`
   const resolvedVirtualConfigId = `\0${virtualConfigId}`
 
   return {
-    name: "@gtsx/adapter-vite-react",
+    name: "@runelight/adapter-vite-react",
     enforce: "pre" as const,
     config() {
       return {
         optimizeDeps: {
-          include: ["react-tracked", "scheduler", "use-context-selector"],
-          exclude: ["@gtsx/adapter-vite-react", "typescript", virtualConfigId, virtualProjectIndexId],
+          include: [
+            "@runelight/core > react-tracked",
+            "@runelight/core > react-tracked > use-context-selector",
+            "@runelight/core > react-tracked > use-context-selector > scheduler",
+          ],
+          exclude: [
+            "@runelight/core",
+            "@runelight/preview-react",
+            "@runelight/studio",
+            "@runelight/adapter-vite-react",
+            "typescript",
+            virtualConfigId,
+            virtualProjectIndexId,
+          ],
         },
       }
     },
@@ -82,8 +94,8 @@ export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
       root = options.root ?? config.root
     },
     configureServer(server: ViteLikeDevServer) {
-      ensureGTSXDesignDirectory(root, entryRoot())
-      server.watcher?.add(gtsxViteWatchRoots(root, sourceRoot(), entryRoot()))
+      ensureRunelightDesignDirectory(root, entryRoot())
+      server.watcher?.add(runelightViteWatchRoots(root, sourceRoot(), entryRoot()))
     },
     resolveId(id: string) {
       if (id === virtualProjectIndexId) return resolvedVirtualProjectIndexId
@@ -98,8 +110,8 @@ export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
         }
       }
       if (id !== resolvedVirtualProjectIndexId) return null
-      const projectIndex = buildGTSXProjectIndex({
-        additionalRoots: [gtsxDesignRootFromEntryRoot(entryRoot())],
+      const projectIndex = buildRunelightProjectIndex({
+        additionalRoots: [runelightDesignRootFromEntryRoot(entryRoot())],
         cwd: root,
         sourceRoot: sourceRoot(),
         tsconfigPath: options.tsconfigPath ?? resolvedConfig?.project.tsconfig,
@@ -110,7 +122,7 @@ export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
       }
     },
     transform(code: string, id: string): TransformResult | null {
-      const transformed = transformGTSXReactModule({
+      const transformed = transformRunelightReactModule({
         code,
         filePath: id,
         root,
@@ -119,13 +131,13 @@ export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
       return transformed ? { code: transformed.code, map: null } : null
     },
     hotUpdate(this: ViteLikeHotUpdateHookContext, context: ViteLikeHotUpdateOptions): unknown[] | undefined {
-      return handleGTSXHotUpdate(context, {
+      return handleRunelightHotUpdate(context, {
         hot: this.environment?.hot ?? context.server.ws,
         moduleGraph: this.environment?.moduleGraph ?? context.server.moduleGraph,
       })
     },
     handleHotUpdate(context: ViteLikeHotUpdateOptions): unknown[] | undefined {
-      return handleGTSXHotUpdate(context, {
+      return handleRunelightHotUpdate(context, {
         hot: context.server.ws,
         moduleGraph: context.server.moduleGraph,
       })
@@ -137,27 +149,27 @@ export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
   }
 
   function entryRoot(): string {
-    return normalizeGTSXPath(options.entryRoot ?? requireGTSXEntryRoot(requireResolvedConfig()))
+    return normalizeRunelightPath(options.entryRoot ?? requireRunelightEntryRoot(requireResolvedConfig()))
   }
 
-  function requireResolvedConfig(): ResolvedGTSXConfig {
+  function requireResolvedConfig(): ResolvedRunelightConfig {
     if (resolvedConfig) return resolvedConfig
 
-    const loaded = loadGTSXConfig(root)
+    const loaded = loadRunelightConfig(root)
     if (loaded.config) {
-      resolvedConfig = resolveGTSXConfig(loaded.config)
+      resolvedConfig = resolveRunelightConfig(loaded.config)
       return resolvedConfig
     }
 
     const message = loaded.diagnostics.map((diagnostic) => diagnostic.message).filter(Boolean).join("\n")
-    throw new Error(message || "Missing gtsx.config.ts for Vite adapter.")
+    throw new Error(message || "Missing runelight.config.ts for Vite adapter.")
   }
 
-  function handleGTSXHotUpdate(
+  function handleRunelightHotUpdate(
     context: ViteLikeHotUpdateOptions,
     environment: { hot?: ViteLikeHotChannel; moduleGraph?: ViteLikeModuleGraph },
   ): unknown[] | undefined {
-    if (!isGTSXFileInViteWatchRoots(root, sourceRoot(), entryRoot(), context.file)) return undefined
+    if (!isRunelightFileInViteWatchRoots(root, sourceRoot(), entryRoot(), context.file)) return undefined
 
     const module = findViteVirtualModule(environment.moduleGraph, virtualProjectIndexId, resolvedVirtualProjectIndexId)
     const updatedModules = [...(context.modules ?? [])]
@@ -173,17 +185,17 @@ export function gtsxViteReact(options: GTSXViteReactOptions = {}) {
   }
 }
 
-function gtsxViteWatchRoots(root: string, sourceRoot: string, entryRoot: string): string[] {
-  const designRoot = gtsxDesignRootFromEntryRoot(entryRoot)
+function runelightViteWatchRoots(root: string, sourceRoot: string, entryRoot: string): string[] {
+  const designRoot = runelightDesignRootFromEntryRoot(entryRoot)
   return [...new Set([sourceRoot, entryRoot, designRoot])].map((watchRoot) =>
     resolve(root, watchRoot),
   )
 }
 
-function isGTSXFileInViteWatchRoots(root: string, sourceRoot: string, entryRoot: string, file: string): boolean {
+function isRunelightFileInViteWatchRoots(root: string, sourceRoot: string, entryRoot: string, file: string): boolean {
   if (!file.endsWith(".g.tsx")) return false
 
-  const watchRoots = gtsxViteWatchRoots(root, sourceRoot, entryRoot)
+  const watchRoots = runelightViteWatchRoots(root, sourceRoot, entryRoot)
   return watchRoots.some((watchRoot) => isPathInside(watchRoot, file))
 }
 
@@ -192,8 +204,8 @@ function isPathInside(root: string, filePath: string): boolean {
   return relativePath === "" || (!relativePath.startsWith("../") && relativePath !== "..")
 }
 
-function ensureGTSXDesignDirectory(root: string, entryRoot: string) {
-  mkdirSync(resolve(root, gtsxDesignRootFromEntryRoot(entryRoot)), { recursive: true })
+function ensureRunelightDesignDirectory(root: string, entryRoot: string) {
+  mkdirSync(resolve(root, runelightDesignRootFromEntryRoot(entryRoot)), { recursive: true })
 }
 
 function findViteVirtualModule(

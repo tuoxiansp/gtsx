@@ -1,12 +1,12 @@
-import { gtsxViteReact } from "@gtsx/adapter-vite-react"
+import { runelightViteReact } from "@runelight/adapter-vite-react"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
-import gtsxConfig from "./gtsx.config"
+import runelightConfig from "./runelight.config"
 
 export default defineConfig({
   optimizeDeps: {
-    exclude: ["@gtsx/core"],
+    exclude: ["@runelight/core"],
   },
-  plugins: [gtsxViteReact({ config: gtsxConfig }), react()],
+  plugins: [runelightViteReact({ config: runelightConfig }), react()],
 })

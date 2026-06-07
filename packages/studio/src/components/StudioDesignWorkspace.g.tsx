@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GFrames } from "@gtsx/core"
+import { createGScopeHook, type GFrames } from "@runelight/core"
 
 import {
   previewSessionId,
@@ -108,7 +108,7 @@ type StudioDesignWorkspaceScope = {
 }
 
 const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
-const canvasWheelExemptSelector = "[data-gtsx-canvas-wheel-exempt]"
+const canvasWheelExemptSelector = "[data-runelight-canvas-wheel-exempt]"
 const defaultStudioDesignVirtualViewportSize = { height: 720, width: 1280 }
 const emptyProviderVariantContext: StudioProviderVariantContext = {}
 const studioDesignCanvasWidth = 1600
@@ -233,7 +233,7 @@ function StudioDesignWorkspaceView(props: StudioDesignWorkspaceProps) {
   return (
     <StudioPreviewRenderSessionStoreProvider store={scope.previewRenderSessionStore}>
       <main
-        data-gtsx-studio-design-workspace="true"
+        data-runelight-studio-design-workspace="true"
         style={{
           ...studioShellStyle(),
           height: "100vh",
@@ -242,9 +242,9 @@ function StudioDesignWorkspaceView(props: StudioDesignWorkspaceProps) {
         }}
       >
         <div
-          aria-label="GTSX Studio design canvas viewport"
-          data-gtsx-canvas-viewport="true"
-          data-gtsx-studio-design-viewport="true"
+          aria-label="Runelight Studio design canvas viewport"
+          data-runelight-canvas-viewport="true"
+          data-runelight-studio-design-viewport="true"
           onPointerCancel={scope.onCanvasPointerCancel}
           onPointerDown={scope.onCanvasPointerDown}
           onPointerMove={scope.onCanvasPointerMove}
@@ -267,9 +267,9 @@ function StudioDesignWorkspaceView(props: StudioDesignWorkspaceProps) {
           <ViewportPresetTabs floating onChange={scope.onViewportPresetChange} selectedPreset={scope.viewportPreset} />
           {previewCacheReady ? (
             <div
-              data-gtsx-canvas-surface="true"
-              data-gtsx-studio-design-canvas="true"
-              data-gtsx-studio-design-layout-width={studioDesignCanvasWidth}
+              data-runelight-canvas-surface="true"
+              data-runelight-studio-design-canvas="true"
+              data-runelight-studio-design-layout-width={studioDesignCanvasWidth}
               ref={scope.setCanvasSurfaceElement}
               style={{
                 display: "block",
@@ -290,7 +290,7 @@ function StudioDesignWorkspaceView(props: StudioDesignWorkspaceProps) {
 
                   return (
                     <div
-                      data-gtsx-studio-design-card={component.coordinate}
+                      data-runelight-studio-design-card={component.coordinate}
                       key={component.coordinate}
                       style={{
                         display: "grid",
@@ -324,7 +324,7 @@ function StudioDesignWorkspaceView(props: StudioDesignWorkspaceProps) {
                 })
               ) : (
                 <section
-                  data-gtsx-studio-design-empty="true"
+                  data-runelight-studio-design-empty="true"
                   style={{
                     background: studioColors.panelBg,
                     border: `1px solid ${studioColors.panelBorder}`,
@@ -528,17 +528,17 @@ StudioDesignWorkspace.frames = {
         design: {
           frames: [
             {
-              id: "app/gtsx/design/DesignHost.g.tsx#default:live",
-              entry: "app/gtsx/design/DesignHost.g.tsx#default",
-              filePath: "app/gtsx/design/DesignHost.g.tsx",
+              id: "app/runelight/design/DesignHost.g.tsx#default:live",
+              entry: "app/runelight/design/DesignHost.g.tsx#default",
+              filePath: "app/runelight/design/DesignHost.g.tsx",
               title: "DesignHost",
               exportName: "default",
               frameName: "live",
             },
             {
-              id: "app/gtsx/design/DesignHost.g.tsx#default:loaded",
-              entry: "app/gtsx/design/DesignHost.g.tsx#default",
-              filePath: "app/gtsx/design/DesignHost.g.tsx",
+              id: "app/runelight/design/DesignHost.g.tsx#default:loaded",
+              entry: "app/runelight/design/DesignHost.g.tsx#default",
+              filePath: "app/runelight/design/DesignHost.g.tsx",
               title: "DesignHost",
               exportName: "default",
               frameName: "loaded",
@@ -546,22 +546,22 @@ StudioDesignWorkspace.frames = {
           ],
         },
         routes: {
-          preview: "/gtsx",
-          studio: "/gtsx/studio",
-          manifest: "/gtsx/studio/manifest",
+          preview: "/runelight",
+          studio: "/runelight/studio",
+          manifest: "/runelight/studio/manifest",
         },
         preview: {
-          urlTemplate: "/gtsx?entry={entry}&frame={frame}{gframe}",
-          allUrlTemplate: "/gtsx?entry={entry}{gframe}",
+          urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
+          allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
         },
         files: [
           {
-            path: "app/gtsx/design/DesignHost.g.tsx",
-            groupId: "file:app/gtsx/design/DesignHost.g.tsx",
+            path: "app/runelight/design/DesignHost.g.tsx",
+            groupId: "file:app/runelight/design/DesignHost.g.tsx",
             components: [
               {
-                coordinate: "app/gtsx/design/DesignHost.g.tsx#default",
-                filePath: "app/gtsx/design/DesignHost.g.tsx",
+                coordinate: "app/runelight/design/DesignHost.g.tsx#default",
+                filePath: "app/runelight/design/DesignHost.g.tsx",
                 exportName: "default",
                 componentName: "DesignHost",
                 mode: "pure",

@@ -17,31 +17,31 @@ import {
   type GPreviewRenderMessage,
   type GPreviewRenderTarget,
   type AnyGProvider,
-} from "@gtsx/core"
+} from "@runelight/core"
 
-export type GTSXPreviewFrame<Props extends object = Record<string, unknown>> = {
+export type RunelightPreviewFrame<Props extends object = Record<string, unknown>> = {
   props: Props
   providers?: readonly (readonly [AnyGProvider, unknown])[]
   scope?: unknown
 }
 
-export type GTSXPreviewComponent<Props extends object = Record<string, unknown>> = React.ComponentType<Props> & {
-  frames?: Record<string, GTSXPreviewFrame<Props>>
+export type RunelightPreviewComponent<Props extends object = Record<string, unknown>> = React.ComponentType<Props> & {
+  frames?: Record<string, RunelightPreviewFrame<Props>>
 }
 
-export type GTSXPreviewModule = Record<string, unknown>
+export type RunelightPreviewModule = Record<string, unknown>
 
-export type GTSXPreviewComponentLoader = (entry: string) =>
-  | GTSXPreviewComponent
-  | Promise<GTSXPreviewComponent | undefined>
+export type RunelightPreviewComponentLoader = (entry: string) =>
+  | RunelightPreviewComponent
+  | Promise<RunelightPreviewComponent | undefined>
   | undefined
 
-type LoadedGTSXPreviewEntry = {
-  component: GTSXPreviewComponent | null
+type LoadedRunelightPreviewEntry = {
+  component: RunelightPreviewComponent | null
   entry: string
 }
 
-export type GTSXPreviewRouteParams = {
+export type RunelightPreviewRouteParams = {
   frameName: string | null
   frameOverrides: Map<string, string>
   chrome: string | null
@@ -52,87 +52,90 @@ export type GTSXPreviewRouteParams = {
   staticMode: boolean
 }
 
-export type GTSXPreviewRenderTargetMailboxState = {
-  currentTarget: GTSXPreviewRouteParams | null
+export type RunelightPreviewRenderTargetMailboxState = {
+  currentTarget: RunelightPreviewRouteParams | null
   currentTargetContentKey: string | null
   renderRequestSequence: number
 }
 
-export type GTSXPreviewRenderTargetMailboxUpdate = {
+export type RunelightPreviewRenderTargetMailboxUpdate = {
   shouldNotifySubscribers: boolean
-  state: GTSXPreviewRenderTargetMailboxState
+  state: RunelightPreviewRenderTargetMailboxState
 }
 
-export type GTSXReactPreviewClientProps = {
+export type RunelightReactPreviewClientProps = {
   frameName?: string | null
   frameOverrides?: Map<string, string>
   chrome?: boolean | string | null
   defaultEntry?: string
   entry?: string | null
-  loadComponent: GTSXPreviewComponentLoader
+  loadComponent: RunelightPreviewComponentLoader
   missingEntryDetail?: string
   pool?: boolean | string | null
+  poolMode?: boolean
   sessionId?: string | null
   staticMode?: boolean
 }
 
-export type GTSXPreviewFrameSheetProps<Props extends object = Record<string, unknown>> = {
+export type RunelightPreviewFrameSheetProps<Props extends object = Record<string, unknown>> = {
   boundaryCollector?: GBoundaryCollector
   frameOverrides?: Map<string, string>
-  component: GTSXPreviewComponent<Props>
+  component: RunelightPreviewComponent<Props>
   entry: string
-  selectedFrames: Array<{ name: string; frame: GTSXPreviewFrame<Props> }>
+  selectedFrames: Array<{ name: string; frame: RunelightPreviewFrame<Props> }>
   showChrome?: boolean
 }
 
-const loadedGTSXPreviewEntriesByLoader = new WeakMap<GTSXPreviewComponentLoader, Map<string, LoadedGTSXPreviewEntry>>()
-const loadingGTSXPreviewEntriesByLoader = new WeakMap<GTSXPreviewComponentLoader, Map<string, Promise<LoadedGTSXPreviewEntry>>>()
+const loadedRunelightPreviewEntriesByLoader = new WeakMap<RunelightPreviewComponentLoader, Map<string, LoadedRunelightPreviewEntry>>()
+const loadingRunelightPreviewEntriesByLoader = new WeakMap<RunelightPreviewComponentLoader, Map<string, Promise<LoadedRunelightPreviewEntry>>>()
 
-export function GTSXReactPreviewClient({
+export function RunelightReactPreviewClient({
   frameName = null,
   frameOverrides = new Map(),
   chrome = null,
   defaultEntry,
   entry,
   loadComponent,
-  missingEntryDetail = "Pass ?entry=src/components/.../*.g.tsx to render a GTSX preview.",
+  missingEntryDetail = "Pass ?entry=src/components/.../*.g.tsx to render a Runelight preview.",
   pool = null,
+  poolMode,
   sessionId = null,
   staticMode = false,
-}: GTSXReactPreviewClientProps) {
+}: RunelightReactPreviewClientProps) {
+  const resolvedPoolMode = poolMode ?? (typeof pool === "boolean" ? pool : pool === "1")
   const routeTarget = React.useMemo(
     () => ({
       frameName,
       frameOverrides,
       chrome: typeof chrome === "boolean" ? (chrome ? "1" : "0") : chrome,
       entry: entry ?? defaultEntry ?? null,
-      poolMode: typeof pool === "boolean" ? pool : pool === "1",
+      poolMode: resolvedPoolMode,
       renderRequestSequence: 0,
       sessionId,
       staticMode,
     }),
-    [frameName, frameOverrides, chrome, defaultEntry, entry, pool, sessionId, staticMode],
+    [frameName, frameOverrides, chrome, defaultEntry, entry, resolvedPoolMode, sessionId, staticMode],
   )
-  const renderTarget = useGTSXPreviewRenderTarget(routeTarget)
+  const renderTarget = useRunelightPreviewRenderTarget(routeTarget)
   const showChrome = showChromeForPreviewTarget(renderTarget.chrome)
 
   if (!renderTarget.entry) {
     if (renderTarget.poolMode) {
-      return <GTSXPreviewDocumentBackground showChrome={false} />
+      return <RunelightPreviewDocumentBackground showChrome={false} />
     }
 
     return (
       <>
-        <GTSXPreviewDocumentBackground showChrome={showChrome} />
-        <GTSXPreviewMessage detail={missingEntryDetail} sessionId={renderTarget.sessionId} title="Missing entry" />
+        <RunelightPreviewDocumentBackground showChrome={showChrome} />
+        <RunelightPreviewMessage detail={missingEntryDetail} sessionId={renderTarget.sessionId} title="Missing entry" />
       </>
     )
   }
 
   return (
     <>
-      <GTSXPreviewDocumentBackground showChrome={showChrome} />
-      <GTSXEntryPreview
+      <RunelightPreviewDocumentBackground showChrome={showChrome} />
+      <RunelightEntryPreview
         frameName={renderTarget.frameName}
         frameOverrides={renderTarget.frameOverrides}
         entry={renderTarget.entry}
@@ -146,7 +149,7 @@ export function GTSXReactPreviewClient({
   )
 }
 
-function GTSXEntryPreview({
+function RunelightEntryPreview({
   frameName,
   frameOverrides,
   entry,
@@ -158,17 +161,17 @@ function GTSXEntryPreview({
   frameName: string | null
   frameOverrides: Map<string, string>
   entry: string
-  loadComponent: GTSXPreviewComponentLoader
+  loadComponent: RunelightPreviewComponentLoader
   sessionId: string | null
   showChrome: boolean
   staticMode: boolean
 }) {
-  const cachedEntry = readLoadedGTSXPreviewEntry(loadComponent, entry)
-  const [loadedEntry, setLoadedEntry] = React.useState<LoadedGTSXPreviewEntry | null>(cachedEntry)
+  const cachedEntry = readLoadedRunelightPreviewEntry(loadComponent, entry)
+  const [loadedEntry, setLoadedEntry] = React.useState<LoadedRunelightPreviewEntry | null>(cachedEntry)
   const effectiveLoadedEntry = cachedEntry ?? loadedEntry
 
   React.useEffect(() => {
-    const cached = readLoadedGTSXPreviewEntry(loadComponent, entry)
+    const cached = readLoadedRunelightPreviewEntry(loadComponent, entry)
     if (cached) {
       setLoadedEntry(cached)
       return
@@ -176,7 +179,7 @@ function GTSXEntryPreview({
 
     let ignore = false
 
-    loadGTSXPreviewEntry(loadComponent, entry)
+    loadRunelightPreviewEntry(loadComponent, entry)
       .then((loaded) => {
         if (!ignore) {
           setLoadedEntry(loaded)
@@ -189,15 +192,15 @@ function GTSXEntryPreview({
   }, [entry, loadComponent])
 
   if (!effectiveLoadedEntry || effectiveLoadedEntry.entry !== entry) {
-    return showChrome ? <GTSXPreviewMessage detail={entry} title="Loading" /> : null
+    return showChrome ? <RunelightPreviewMessage detail={entry} title="Loading" /> : null
   }
 
   if (!effectiveLoadedEntry.component) {
-    return <GTSXPreviewMessage detail={entry} sessionId={sessionId} title="Unknown GTSX entry" />
+    return <RunelightPreviewMessage detail={entry} sessionId={sessionId} title="Unknown Runelight entry" />
   }
 
   return (
-    <LoadedGTSXEntryPreview
+    <LoadedRunelightEntryPreview
       frameName={frameName}
       frameOverrides={frameOverrides}
       component={effectiveLoadedEntry.component}
@@ -209,30 +212,30 @@ function GTSXEntryPreview({
   )
 }
 
-function readLoadedGTSXPreviewEntry(
-  loadComponent: GTSXPreviewComponentLoader,
+function readLoadedRunelightPreviewEntry(
+  loadComponent: RunelightPreviewComponentLoader,
   entry: string,
-): LoadedGTSXPreviewEntry | null {
-  return loadedGTSXPreviewEntriesByLoader.get(loadComponent)?.get(entry) ?? null
+): LoadedRunelightPreviewEntry | null {
+  return loadedRunelightPreviewEntriesByLoader.get(loadComponent)?.get(entry) ?? null
 }
 
-function loadGTSXPreviewEntry(
-  loadComponent: GTSXPreviewComponentLoader,
+function loadRunelightPreviewEntry(
+  loadComponent: RunelightPreviewComponentLoader,
   entry: string,
-): Promise<LoadedGTSXPreviewEntry> {
-  let loadedEntries = loadedGTSXPreviewEntriesByLoader.get(loadComponent)
+): Promise<LoadedRunelightPreviewEntry> {
+  let loadedEntries = loadedRunelightPreviewEntriesByLoader.get(loadComponent)
   if (!loadedEntries) {
     loadedEntries = new Map()
-    loadedGTSXPreviewEntriesByLoader.set(loadComponent, loadedEntries)
+    loadedRunelightPreviewEntriesByLoader.set(loadComponent, loadedEntries)
   }
 
   const loadedEntry = loadedEntries.get(entry)
   if (loadedEntry) return Promise.resolve(loadedEntry)
 
-  let loadingEntries = loadingGTSXPreviewEntriesByLoader.get(loadComponent)
+  let loadingEntries = loadingRunelightPreviewEntriesByLoader.get(loadComponent)
   if (!loadingEntries) {
     loadingEntries = new Map()
-    loadingGTSXPreviewEntriesByLoader.set(loadComponent, loadingEntries)
+    loadingRunelightPreviewEntriesByLoader.set(loadComponent, loadingEntries)
   }
 
   const loadingEntry = loadingEntries.get(entry)
@@ -250,7 +253,7 @@ function loadGTSXPreviewEntry(
   return nextLoadingEntry
 }
 
-function LoadedGTSXEntryPreview({
+function LoadedRunelightEntryPreview({
   frameName,
   frameOverrides,
   component,
@@ -261,7 +264,7 @@ function LoadedGTSXEntryPreview({
 }: {
   frameName: string | null
   frameOverrides: Map<string, string>
-  component: GTSXPreviewComponent
+  component: RunelightPreviewComponent
   entry: string
   sessionId: string | null
   showChrome: boolean
@@ -273,14 +276,14 @@ function LoadedGTSXEntryPreview({
   const renderableFrames = selectedFrames.flatMap(([name, frame]) => (frame ? [{ name, frame }] : []))
   const hasRenderableFrames = selectedFrames.length > 0 && renderableFrames.length === selectedFrames.length
 
-  useGTSXPreviewProtocolMessages(sessionId, collector, hasRenderableFrames, { staticMode })
+  useRunelightPreviewProtocolMessages(sessionId, collector, hasRenderableFrames, { staticMode })
 
   if (!hasRenderableFrames) {
-    return <GTSXPreviewMessage detail={frameName ?? "No frames declared"} sessionId={sessionId} title="Unknown GTSX frame" />
+    return <RunelightPreviewMessage detail={frameName ?? "No frames declared"} sessionId={sessionId} title="Unknown Runelight frame" />
   }
 
   return (
-    <GTSXPreviewFrameSheet
+    <RunelightPreviewFrameSheet
       boundaryCollector={collector}
       frameOverrides={frameOverrides}
       component={component}
@@ -291,18 +294,18 @@ function LoadedGTSXEntryPreview({
   )
 }
 
-export function GTSXPreviewFrameSheet<Props extends object = Record<string, unknown>>({
+export function RunelightPreviewFrameSheet<Props extends object = Record<string, unknown>>({
   boundaryCollector,
   frameOverrides = new Map(),
   component: Component,
   entry,
   selectedFrames,
   showChrome = true,
-}: GTSXPreviewFrameSheetProps<Props>) {
+}: RunelightPreviewFrameSheetProps<Props>) {
   return (
     <main style={{ display: "grid", gap: 16, minHeight: showChrome ? "100vh" : undefined, padding: showChrome ? 24 : 0 }}>
       {selectedFrames.map(({ name, frame }) => (
-        <section data-gtsx-preview-frame={name} key={name}>
+        <section data-runelight-preview-frame={name} key={name}>
           {showChrome ? (
             <header
               style={{
@@ -327,13 +330,13 @@ export function GTSXPreviewFrameSheet<Props extends object = Record<string, unkn
   )
 }
 
-export function GTSXPreviewDocumentBackground({ showChrome }: { showChrome: boolean }) {
+export function RunelightPreviewDocumentBackground({ showChrome }: { showChrome: boolean }) {
   if (showChrome) return null
 
   return <style>{`html, body { background: transparent !important; }`}</style>
 }
 
-export function GTSXPreviewMessage({
+export function RunelightPreviewMessage({
   detail,
   sessionId,
   title,
@@ -349,7 +352,7 @@ export function GTSXPreviewMessage({
 
   return (
     <main
-      data-gtsx-preview-message
+      data-runelight-preview-message
       style={{
         color: "#172033",
         display: "grid",
@@ -363,10 +366,10 @@ export function GTSXPreviewMessage({
   )
 }
 
-export function readGTSXPreviewRouteParams(params: URLSearchParams): GTSXPreviewRouteParams {
+export function readRunelightPreviewRouteParams(params: URLSearchParams): RunelightPreviewRouteParams {
   return {
     frameName: params.get("frame"),
-    frameOverrides: readGTSXPreviewFrameOverrides(params),
+    frameOverrides: readRunelightPreviewFrameOverrides(params),
     chrome: params.get("chrome"),
     entry: params.get("entry"),
     poolMode: params.get("pool") === "1",
@@ -376,28 +379,28 @@ export function readGTSXPreviewRouteParams(params: URLSearchParams): GTSXPreview
   }
 }
 
-type GTSXPreviewRenderTargetSubscriber = (target: GTSXPreviewRouteParams) => void
+type RunelightPreviewRenderTargetSubscriber = (target: RunelightPreviewRouteParams) => void
 
-type GTSXPreviewRenderTargetMailbox = {
+type RunelightPreviewRenderTargetMailbox = {
   announcePoolReady: () => void
-  getTarget: () => GTSXPreviewRouteParams | null
+  getTarget: () => RunelightPreviewRouteParams | null
   render: (target: GPreviewRenderTarget) => void
-  subscribe: (subscriber: GTSXPreviewRenderTargetSubscriber) => () => void
+  subscribe: (subscriber: RunelightPreviewRenderTargetSubscriber) => () => void
 }
 
 declare global {
   interface Window {
-    __gtsxPreviewPendingRenderTarget?: GPreviewRenderTarget
-    __gtsxPreviewPrehydrationMailboxInstalled?: boolean
-    __gtsxPreviewRenderTargetMailbox?: Pick<GTSXPreviewRenderTargetMailbox, "render">
+    __runelightPreviewPendingRenderTarget?: GPreviewRenderTarget
+    __runelightPreviewPrehydrationMailboxInstalled?: boolean
+    __runelightPreviewRenderTargetMailbox?: Pick<RunelightPreviewRenderTargetMailbox, "render">
   }
 }
 
-let gtsxPreviewRenderTargetMailbox: GTSXPreviewRenderTargetMailbox | null = null
+let runelightPreviewRenderTargetMailbox: RunelightPreviewRenderTargetMailbox | null = null
 
-function useGTSXPreviewRenderTarget(routeTarget: GTSXPreviewRouteParams): GTSXPreviewRouteParams {
-  const mailbox = routeTarget.poolMode ? ensureGTSXPreviewRenderTargetMailbox() : null
-  const [messageTarget, setMessageTarget] = React.useState<GTSXPreviewRouteParams | null>(() => mailbox?.getTarget() ?? null)
+function useRunelightPreviewRenderTarget(routeTarget: RunelightPreviewRouteParams): RunelightPreviewRouteParams {
+  const mailbox = routeTarget.poolMode ? ensureRunelightPreviewRenderTargetMailbox() : null
+  const [messageTarget, setMessageTarget] = React.useState<RunelightPreviewRouteParams | null>(() => mailbox?.getTarget() ?? null)
 
   React.useEffect(() => {
     if (!mailbox) return
@@ -411,21 +414,21 @@ function useGTSXPreviewRenderTarget(routeTarget: GTSXPreviewRouteParams): GTSXPr
   return messageTarget ?? routeTarget
 }
 
-function ensureGTSXPreviewRenderTargetMailbox(): GTSXPreviewRenderTargetMailbox | null {
+function ensureRunelightPreviewRenderTargetMailbox(): RunelightPreviewRenderTargetMailbox | null {
   if (typeof window === "undefined") return null
-  if (gtsxPreviewRenderTargetMailbox) return gtsxPreviewRenderTargetMailbox
+  if (runelightPreviewRenderTargetMailbox) return runelightPreviewRenderTargetMailbox
 
-  const subscribers = new Set<GTSXPreviewRenderTargetSubscriber>()
-  let mailboxState = createGTSXPreviewRenderTargetMailboxState(window.__gtsxPreviewPendingRenderTarget ?? null)
+  const subscribers = new Set<RunelightPreviewRenderTargetSubscriber>()
+  let mailboxState = createRunelightPreviewRenderTargetMailboxState(window.__runelightPreviewPendingRenderTarget ?? null)
   let poolReadyAnnounced = false
 
   const applyRenderTarget = (target: GPreviewRenderTarget, options: { acknowledge: boolean }) => {
-    window.__gtsxPreviewPendingRenderTarget = target
+    window.__runelightPreviewPendingRenderTarget = target
     if (options.acknowledge && target.sessionId) {
       window.parent.postMessage(createGPreviewRenderAcceptedMessage(target.sessionId), "*")
     }
 
-    const update = applyGTSXPreviewRenderTargetRequest(mailboxState, target, options)
+    const update = applyRunelightPreviewRenderTargetRequest(mailboxState, target, options)
     mailboxState = update.state
     if (!update.shouldNotifySubscribers || !mailboxState.currentTarget) return
 
@@ -438,9 +441,9 @@ function ensureGTSXPreviewRenderTargetMailbox(): GTSXPreviewRenderTargetMailbox 
     if (isGPreviewRenderTarget(target)) applyRenderTarget(target, { acknowledge: false })
   }
 
-  window.__gtsxPreviewRenderTargetMailbox = { render }
-  if (window.__gtsxPreviewPrehydrationMailboxInstalled) {
-    window.addEventListener("gtsx:preview-render-target", handlePrehydrationRenderTarget)
+  window.__runelightPreviewRenderTargetMailbox = { render }
+  if (window.__runelightPreviewPrehydrationMailboxInstalled) {
+    window.addEventListener("runelight:preview-render-target", handlePrehydrationRenderTarget)
   } else {
     window.addEventListener("message", (event: MessageEvent) => {
       if (!isGPreviewRenderMessage(event.data)) return
@@ -448,11 +451,11 @@ function ensureGTSXPreviewRenderTargetMailbox(): GTSXPreviewRenderTargetMailbox 
     })
   }
 
-  gtsxPreviewRenderTargetMailbox = {
+  runelightPreviewRenderTargetMailbox = {
     announcePoolReady() {
       if (poolReadyAnnounced) return
       poolReadyAnnounced = true
-      if (window.__gtsxPreviewPrehydrationMailboxInstalled) return
+      if (window.__runelightPreviewPrehydrationMailboxInstalled) return
       window.setTimeout(() => {
         window.parent.postMessage(createGPreviewPoolReadyMessage(), "*")
       }, 0)
@@ -470,13 +473,13 @@ function ensureGTSXPreviewRenderTargetMailbox(): GTSXPreviewRenderTargetMailbox 
       }
     },
   }
-  return gtsxPreviewRenderTargetMailbox
+  return runelightPreviewRenderTargetMailbox
 }
 
 function previewRouteParamsFromRenderTarget(
   target: GPreviewRenderTarget,
   renderRequestSequence: number,
-): GTSXPreviewRouteParams {
+): RunelightPreviewRouteParams {
   return {
     frameName: target.frameName,
     frameOverrides: new Map(target.frameOverrides ?? []),
@@ -489,9 +492,9 @@ function previewRouteParamsFromRenderTarget(
   }
 }
 
-export function createGTSXPreviewRenderTargetMailboxState(
+export function createRunelightPreviewRenderTargetMailboxState(
   target: GPreviewRenderTarget | null,
-): GTSXPreviewRenderTargetMailboxState {
+): RunelightPreviewRenderTargetMailboxState {
   const currentTarget = target ? previewRouteParamsFromRenderTarget(target, 0) : null
   return {
     currentTarget,
@@ -500,11 +503,11 @@ export function createGTSXPreviewRenderTargetMailboxState(
   }
 }
 
-export function applyGTSXPreviewRenderTargetRequest(
-  state: GTSXPreviewRenderTargetMailboxState,
+export function applyRunelightPreviewRenderTargetRequest(
+  state: RunelightPreviewRenderTargetMailboxState,
   target: GPreviewRenderTarget,
   options: { acknowledge: boolean },
-): GTSXPreviewRenderTargetMailboxUpdate {
+): RunelightPreviewRenderTargetMailboxUpdate {
   const renderRequestSequence = options.acknowledge ? state.renderRequestSequence + 1 : state.renderRequestSequence
   const currentTarget = previewRouteParamsFromRenderTarget(target, renderRequestSequence)
   const currentTargetContentKey = previewRenderTargetContentKey(currentTarget)
@@ -528,7 +531,7 @@ function isGPreviewRenderMessage(value: unknown): value is GPreviewRenderMessage
   return (
     typeof value === "object" &&
     value !== null &&
-    (value as { type?: unknown }).type === "gtsx:render" &&
+    (value as { type?: unknown }).type === "runelight:render" &&
     (value as { protocolVersion?: unknown }).protocolVersion === 1 &&
     typeof (value as { target?: unknown }).target === "object" &&
     (value as { target?: unknown }).target !== null
@@ -549,7 +552,7 @@ function showChromeForPreviewTarget(chrome: string | null): boolean {
   return chrome === null ? true : chrome !== "0"
 }
 
-function previewRenderTargetKey(target: GTSXPreviewRouteParams): string {
+function previewRenderTargetKey(target: RunelightPreviewRouteParams): string {
   return JSON.stringify({
     frameName: target.frameName,
     frameOverrides: [...target.frameOverrides],
@@ -562,7 +565,7 @@ function previewRenderTargetKey(target: GTSXPreviewRouteParams): string {
   })
 }
 
-function previewRenderTargetContentKey(target: GTSXPreviewRouteParams): string {
+function previewRenderTargetContentKey(target: RunelightPreviewRouteParams): string {
   return JSON.stringify({
     frameName: target.frameName,
     frameOverrides: [...target.frameOverrides],
@@ -574,9 +577,9 @@ function previewRenderTargetContentKey(target: GTSXPreviewRouteParams): string {
   })
 }
 
-export function readGTSXPreviewFrameOverrides(params: URLSearchParams): Map<string, string> {
+export function readRunelightPreviewFrameOverrides(params: URLSearchParams): Map<string, string> {
   const overrides = new Map<string, string>()
-  for (const value of params.getAll("gframe")) {
+  for (const value of params.getAll("frameOverride")) {
     const separatorIndex = value.lastIndexOf(":")
     if (separatorIndex > 0) {
       overrides.set(value.slice(0, separatorIndex), value.slice(separatorIndex + 1))
@@ -589,17 +592,17 @@ export function frameOverridesForFrame(entry: string, frameName: string, childOv
   return new Map([...childOverrides, [toComponentCoordinate(entry), frameName]])
 }
 
-export function parseGTSXPreviewEntry(entry: string): { file: string; exportName: string } {
+export function parseRunelightPreviewEntry(entry: string): { file: string; exportName: string } {
   const [file, exportName] = entry.split("#", 2)
   return { file, exportName: exportName || "default" }
 }
 
-export function isGTSXPreviewComponent(value: unknown): value is GTSXPreviewComponent {
+export function isRunelightPreviewComponent(value: unknown): value is RunelightPreviewComponent {
   return typeof value === "function"
 }
 
 function previewRuntimeProps<Props extends object>(
-  frame: GTSXPreviewFrame<Props>,
+  frame: RunelightPreviewFrame<Props>,
 ): Pick<React.ComponentProps<typeof GPreviewProvider>, "providerValues" | "scope"> {
   return {
     ...(Object.prototype.hasOwnProperty.call(frame, "scope") ? { scope: frame.scope } : {}),
@@ -611,7 +614,7 @@ function toComponentCoordinate(entry: string): string {
   return entry.includes("#") ? entry : `${entry}#default`
 }
 
-function useGTSXPreviewProtocolMessages(
+function useRunelightPreviewProtocolMessages(
   sessionId: string | null,
   collector: ReturnType<typeof createGBoundaryCollector>,
   enabled: boolean,
@@ -709,11 +712,11 @@ function flattenBoundaryRects(node: ReturnType<GBoundaryCollector["getTree"]>[nu
 function isRuntimeValuesRequest(
   message: unknown,
   sessionId: string,
-): message is Extract<GPreviewProtocolMessage, { type: "gtsx:request-values" }> {
+): message is Extract<GPreviewProtocolMessage, { type: "runelight:request-values" }> {
   return (
     typeof message === "object" &&
     message !== null &&
-    (message as { type?: unknown }).type === "gtsx:request-values" &&
+    (message as { type?: unknown }).type === "runelight:request-values" &&
     (message as { protocolVersion?: unknown }).protocolVersion === 1 &&
     (message as { sessionId?: unknown }).sessionId === sessionId &&
     typeof (message as { boundaryId?: unknown }).boundaryId === "string"
@@ -721,8 +724,8 @@ function isRuntimeValuesRequest(
 }
 
 function updateBoundaryRects(collector: GBoundaryCollector) {
-  for (const element of document.querySelectorAll<HTMLElement>("[data-gtsx-boundary-id]")) {
-    const boundaryId = element.dataset.gtsxBoundaryId
+  for (const element of document.querySelectorAll<HTMLElement>("[data-runelight-boundary-id]")) {
+    const boundaryId = element.dataset.runelightBoundaryId
     const rect = readGBoundaryElementRect(element)
     if (boundaryId && rect) {
       collector.updateBoundaryRect(boundaryId, rect)

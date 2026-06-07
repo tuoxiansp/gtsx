@@ -1,16 +1,16 @@
-import type { GTSXPreviewComponent } from "@gtsx/preview-react"
+import type { RunelightPreviewComponent } from "@runelight/preview-react"
 
-export type GTSXPreviewModule = Record<string, unknown>
-export type GTSXPreviewEntryLoader = () => Promise<GTSXPreviewModule>
-export type GTSXPreviewEntryLoaders = Record<string, GTSXPreviewEntryLoader>
+export type RunelightPreviewModule = Record<string, unknown>
+export type RunelightPreviewEntryLoader = () => Promise<RunelightPreviewModule>
+export type RunelightPreviewEntryLoaders = Record<string, RunelightPreviewEntryLoader>
 
-export const gtsxPreviewEntryLoaders = {} satisfies GTSXPreviewEntryLoaders
+export const runelightPreviewEntryLoaders = {} satisfies RunelightPreviewEntryLoaders
 
-export async function loadGTSXPreviewComponent(_entry: string): Promise<GTSXPreviewComponent | undefined> {
+export async function loadRunelightPreviewComponent(_entry: string): Promise<RunelightPreviewComponent | undefined> {
   return undefined
 }
 
-export function parseGTSXPreviewEntry(entry: string): { file: string; exportName: string } {
+export function parseRunelightPreviewEntry(entry: string): { file: string; exportName: string } {
   const [file, exportName] = entry.split("#", 2)
   return { file, exportName: exportName || "default" }
 }

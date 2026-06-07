@@ -1,8 +1,8 @@
-import { GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT, gtsxPreviewSsrBootstrapScriptId } from "@gtsx/core/preview-protocol"
+import { RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT, runelightPreviewSsrBootstrapScriptId } from "@runelight/core/preview-protocol"
 
-export type GTSXNextPreviewSearchParams = Record<string, string | string[] | undefined> | URLSearchParams | undefined
+export type RunelightNextPreviewSearchParams = Record<string, string | string[] | undefined> | URLSearchParams | undefined
 
-export type GTSXNextPreviewRouteProps = {
+export type RunelightNextPreviewRouteProps = {
   frameName?: string | null
   frameOverrides?: Map<string, string>
   chrome?: string | null
@@ -12,24 +12,24 @@ export type GTSXNextPreviewRouteProps = {
   staticMode?: boolean
 }
 
-export type GTSXNextPreviewSsrScriptProps = {
+export type RunelightNextPreviewSsrScriptProps = {
   dangerouslySetInnerHTML: { __html: string }
   id: string
   strategy: "beforeInteractive"
 }
 
-/** @deprecated Use gtsxPreviewSsrBootstrapScriptId from gtsx/preview-protocol. */
-export const gtsxNextPreviewPoolMailboxScriptId = gtsxPreviewSsrBootstrapScriptId
+/** @deprecated Use runelightPreviewSsrBootstrapScriptId from runelight/preview-protocol. */
+export const runelightNextPreviewPoolMailboxScriptId = runelightPreviewSsrBootstrapScriptId
 
-/** @deprecated Use GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT from gtsx/preview-protocol. */
-export const GTSX_NEXT_PREVIEW_POOL_MAILBOX_SCRIPT = GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT
+/** @deprecated Use RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT from runelight/preview-protocol. */
+export const RUNELIGHT_NEXT_PREVIEW_POOL_MAILBOX_SCRIPT = RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT
 
-export function readGTSXNextPreviewProps(searchParams: GTSXNextPreviewSearchParams): GTSXNextPreviewRouteProps {
+export function readRunelightNextPreviewProps(searchParams: RunelightNextPreviewSearchParams): RunelightNextPreviewRouteProps {
   const params = searchParams instanceof URLSearchParams ? searchParams : searchParamsFromNextRecord(searchParams)
 
   return {
     frameName: params.get("frame"),
-    frameOverrides: readGTSXPreviewFrameOverrides(params),
+    frameOverrides: readRunelightPreviewFrameOverrides(params),
     chrome: params.get("chrome"),
     entry: params.get("entry"),
     pool: params.get("pool"),
@@ -38,36 +38,36 @@ export function readGTSXNextPreviewProps(searchParams: GTSXNextPreviewSearchPara
   }
 }
 
-export function createGTSXNextPreviewSsrScripts(
-  routeProps: Pick<GTSXNextPreviewRouteProps, "pool">,
-): GTSXNextPreviewSsrScriptProps[] {
-  if (!shouldInstallGTSXNextPreviewSsrScripts(routeProps)) return []
+export function createRunelightNextPreviewSsrScripts(
+  routeProps: Pick<RunelightNextPreviewRouteProps, "pool">,
+): RunelightNextPreviewSsrScriptProps[] {
+  if (!shouldInstallRunelightNextPreviewSsrScripts(routeProps)) return []
 
-  return [createGTSXNextPreviewSsrBootstrapScript()]
+  return [createRunelightNextPreviewSsrBootstrapScript()]
 }
 
-export function shouldInstallGTSXNextPreviewSsrScripts(routeProps: Pick<GTSXNextPreviewRouteProps, "pool">): boolean {
+export function shouldInstallRunelightNextPreviewSsrScripts(routeProps: Pick<RunelightNextPreviewRouteProps, "pool">): boolean {
   return routeProps.pool === "1"
 }
 
-function createGTSXNextPreviewSsrBootstrapScript(): GTSXNextPreviewSsrScriptProps {
+function createRunelightNextPreviewSsrBootstrapScript(): RunelightNextPreviewSsrScriptProps {
   return {
     dangerouslySetInnerHTML: {
-      __html: GTSX_PREVIEW_SSR_BOOTSTRAP_SCRIPT,
+      __html: RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT,
     },
-    id: gtsxPreviewSsrBootstrapScriptId,
+    id: runelightPreviewSsrBootstrapScriptId,
     strategy: "beforeInteractive",
   }
 }
 
-/** @deprecated Use createGTSXNextPreviewSsrScripts. */
-export function createGTSXNextPreviewPoolMailboxScriptProps(): GTSXNextPreviewSsrScriptProps {
-  return createGTSXNextPreviewSsrBootstrapScript()
+/** @deprecated Use createRunelightNextPreviewSsrScripts. */
+export function createRunelightNextPreviewPoolMailboxScriptProps(): RunelightNextPreviewSsrScriptProps {
+  return createRunelightNextPreviewSsrBootstrapScript()
 }
 
-/** @deprecated Use shouldInstallGTSXNextPreviewSsrScripts. */
-export function shouldInstallGTSXNextPreviewPoolMailbox(routeProps: Pick<GTSXNextPreviewRouteProps, "pool">): boolean {
-  return shouldInstallGTSXNextPreviewSsrScripts(routeProps)
+/** @deprecated Use shouldInstallRunelightNextPreviewSsrScripts. */
+export function shouldInstallRunelightNextPreviewPoolMailbox(routeProps: Pick<RunelightNextPreviewRouteProps, "pool">): boolean {
+  return shouldInstallRunelightNextPreviewSsrScripts(routeProps)
 }
 
 function searchParamsFromNextRecord(searchParams: Record<string, string | string[] | undefined> | undefined): URLSearchParams {
@@ -82,9 +82,9 @@ function searchParamsFromNextRecord(searchParams: Record<string, string | string
   return params
 }
 
-function readGTSXPreviewFrameOverrides(params: URLSearchParams): Map<string, string> {
+function readRunelightPreviewFrameOverrides(params: URLSearchParams): Map<string, string> {
   const overrides = new Map<string, string>()
-  for (const value of params.getAll("gframe")) {
+  for (const value of params.getAll("frameOverride")) {
     const separatorIndex = value.lastIndexOf(":")
     if (separatorIndex > 0) {
       overrides.set(value.slice(0, separatorIndex), value.slice(separatorIndex + 1))

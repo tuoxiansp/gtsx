@@ -171,8 +171,8 @@ export function useStudioCanvasLayout(input: {
       for (const { coordinate, element: cardElement } of mountedCardElements) {
         const cardRect = cardElement.getBoundingClientRect()
         const previewFrameRectsBySessionId: Record<string, StudioCanvasScreenRect> = {}
-        for (const previewFrame of cardElement.querySelectorAll<HTMLElement>("[data-gtsx-preview-session-id]")) {
-          const sessionId = previewFrame.dataset.gtsxPreviewSessionId
+        for (const previewFrame of cardElement.querySelectorAll<HTMLElement>("[data-runelight-preview-session-id]")) {
+          const sessionId = previewFrame.dataset.runelightPreviewSessionId
           if (!sessionId) continue
           previewFrameRectsBySessionId[sessionId] = domRectToLocalStudioCanvasScreenRect(
             previewFrame.getBoundingClientRect(),

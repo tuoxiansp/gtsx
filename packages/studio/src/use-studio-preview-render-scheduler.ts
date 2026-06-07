@@ -206,8 +206,8 @@ export function useStudioPreviewRenderScheduler(input: {
       renderRequestClock.requestRenderAfterPreviewCompletion()
     }
 
-    window.addEventListener("gtsx:preview-timing", handlePreviewCompletion)
-    return () => window.removeEventListener("gtsx:preview-timing", handlePreviewCompletion)
+    window.addEventListener("runelight:preview-timing", handlePreviewCompletion)
+    return () => window.removeEventListener("runelight:preview-timing", handlePreviewCompletion)
   }, [renderRequestClock])
 
   React.useEffect(() => {
@@ -401,6 +401,6 @@ function dispatchStudioPreviewQueueDebug(detail: {
     .map((mode) => mode.trim())
   if (!debugModes.includes("queue") && !debugModes.includes("preview-queue")) return
 
-  document.documentElement.setAttribute("data-gtsx-preview-queue-debug", JSON.stringify(detail))
-  window.dispatchEvent(new CustomEvent("gtsx:preview-queue-debug", { detail }))
+  document.documentElement.setAttribute("data-runelight-preview-queue-debug", JSON.stringify(detail))
+  window.dispatchEvent(new CustomEvent("runelight:preview-queue-debug", { detail }))
 }

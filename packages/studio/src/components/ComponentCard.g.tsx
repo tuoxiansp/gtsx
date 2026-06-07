@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import type { GBoundaryRect, GFrames } from "@gtsx/core"
+import type { GBoundaryRect, GFrames } from "@runelight/core"
 
 import {
   clipPreviewBoundaryRectToViewport,
@@ -148,8 +148,8 @@ function ComponentCardView(props: ComponentCardProps) {
   return (
     <article
       aria-label={props.component.componentName}
-      data-gtsx-card-coordinate={props.component.coordinate}
-      data-gtsx-card-selected={props.selected ? "true" : undefined}
+      data-runelight-card-coordinate={props.component.coordinate}
+      data-runelight-card-selected={props.selected ? "true" : undefined}
       style={{
         display: "grid",
         gap: 0,
@@ -157,14 +157,14 @@ function ComponentCardView(props: ComponentCardProps) {
       }}
     >
       <div
-        data-gtsx-canvas-screen-stable-chrome="card-title"
+        data-runelight-canvas-screen-stable-chrome="card-title"
         style={studioCanvasScreenStableChromeSlotStyle({
           height: studioComponentCardTitleHeight + studioComponentCardTitleGap,
           width: cardWidth,
         })}
       >
         <span
-          data-gtsx-card-title-selected={props.selected ? "true" : undefined}
+          data-runelight-card-title-selected={props.selected ? "true" : undefined}
           style={{
             ...studioCardTitleStyle(props.selected),
             ...studioCanvasScreenStableChromeContentBeforeCanvasAnchorStyle({
@@ -195,10 +195,10 @@ function ComponentCardView(props: ComponentCardProps) {
         />
       ) : (
         <div
-          data-gtsx-frame-grid={props.component.coordinate}
-          data-gtsx-frame-grid-columns={frameGridLayout.columns}
-          data-gtsx-frame-grid-preview-scale={frameGridLayout.previewScale}
-          data-gtsx-frame-grid-selected={props.selected ? "true" : undefined}
+          data-runelight-frame-grid={props.component.coordinate}
+          data-runelight-frame-grid-columns={frameGridLayout.columns}
+          data-runelight-frame-grid-preview-scale={frameGridLayout.previewScale}
+          data-runelight-frame-grid-selected={props.selected ? "true" : undefined}
           style={{
             display: "grid",
             gap: frameGridLayout.gap,
@@ -209,8 +209,8 @@ function ComponentCardView(props: ComponentCardProps) {
         >
           {frameTiles.map((tile) => (
             <div
-              data-gtsx-frame-provider-variant-state={tile.providerVariantStatus.state}
-              data-gtsx-frame-tile={tile.name}
+              data-runelight-frame-provider-variant-state={tile.providerVariantStatus.state}
+              data-runelight-frame-tile={tile.name}
               key={tile.name}
               onClick={() => props.onSelect?.(props.component, effectiveFrameStatesByName, columnIndex, "pointer")}
               onKeyDown={(event) => {
@@ -232,8 +232,8 @@ function ComponentCardView(props: ComponentCardProps) {
               title={tile.providerVariantStatus.title}
             >
               <div
-                data-gtsx-frame-preview-frame={tile.name}
-                data-gtsx-frame-preview-frame-state={componentCardPreviewFrameStateName(tile.frameState)}
+                data-runelight-frame-preview-frame={tile.name}
+                data-runelight-frame-preview-frame-state={componentCardPreviewFrameStateName(tile.frameState)}
                 style={{
                   height: Math.ceil(tile.layoutHeight * frameGridLayout.previewScale),
                   overflow: "visible",
@@ -242,7 +242,7 @@ function ComponentCardView(props: ComponentCardProps) {
                 }}
               >
                 <div
-                  data-gtsx-frame-preview-content={tile.name}
+                  data-runelight-frame-preview-content={tile.name}
                   style={{
                     filter: tile.providerVariantStatus.state === "mismatch" ? "grayscale(0.9)" : undefined,
                     height: tile.layoutHeight,
@@ -256,7 +256,7 @@ function ComponentCardView(props: ComponentCardProps) {
                   }}
                 >
                   <LazyPreviewFrame
-                    data-gtsx-preview-session-id={tile.sessionId}
+                    data-runelight-preview-session-id={tile.sessionId}
                     boundaryRect={tile.visibleBoundaryRect}
                     coordinate={props.component.coordinate}
                     debugIndicatorScale={frameGridLayout.previewScale}
@@ -293,7 +293,7 @@ function ComponentCardView(props: ComponentCardProps) {
                 {tile.providerVariantStatus.state === "mismatch" ? (
                   <div
                     aria-hidden="true"
-                    data-gtsx-frame-provider-variant-border={tile.name}
+                    data-runelight-frame-provider-variant-border={tile.name}
                     style={{
                       border: `${studioCanvasScreenStableChromeBorderWidth()} dashed ${studioColors.mismatchBorder}`,
                       borderRadius: studioRadii.md,
@@ -306,7 +306,7 @@ function ComponentCardView(props: ComponentCardProps) {
                 ) : null}
               </div>
               <span
-                data-gtsx-canvas-screen-stable-chrome="frame-label"
+                data-runelight-canvas-screen-stable-chrome="frame-label"
                 style={studioCanvasScreenStableChromeSlotStyle({
                   height: studioComponentFrameLabelMinHeight,
                   justifyItems: "center",
@@ -383,13 +383,13 @@ ComponentCard.frames = {
       manifest: {
         version: 1,
         routes: {
-          preview: "/gtsx",
-          studio: "/gtsx/studio",
-          manifest: "/gtsx/studio/manifest",
+          preview: "/runelight",
+          studio: "/runelight/studio",
+          manifest: "/runelight/studio/manifest",
         },
         preview: {
-          urlTemplate: "/gtsx?entry={entry}&frame={frame}{gframe}",
-          allUrlTemplate: "/gtsx?entry={entry}{gframe}",
+          urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
+          allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
         },
         files: [],
         diagnostics: [],

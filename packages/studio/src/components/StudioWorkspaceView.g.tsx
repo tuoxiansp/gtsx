@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GFrames } from "@gtsx/core"
+import { createGScopeHook, type GFrames } from "@runelight/core"
 
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import {
@@ -150,7 +150,7 @@ type PendingStudioCanvasViewportPresetAnchor = {
 }
 
 const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
-const canvasWheelExemptSelector = "[data-gtsx-canvas-wheel-exempt]"
+const canvasWheelExemptSelector = "[data-runelight-canvas-wheel-exempt]"
 const studioCanvasRevealMargin = 24
 const defaultStudioCanvasVirtualViewportSize = { height: 720, width: 1280 }
 const studioCanvasViewportPresetAnchorPreservationAttempts = 4
@@ -292,8 +292,8 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     let clearTimer = 0
     const publishObservationSnapshot = (snapshot: StudioPreviewRenderObservationSnapshot) => {
       setRenderObservationSnapshot(snapshot)
-      document.documentElement.setAttribute("data-gtsx-preview-render-observation", JSON.stringify(snapshot))
-      window.dispatchEvent(new CustomEvent("gtsx:preview-render-observation", { detail: snapshot }))
+      document.documentElement.setAttribute("data-runelight-preview-render-observation", JSON.stringify(snapshot))
+      window.dispatchEvent(new CustomEvent("runelight:preview-render-observation", { detail: snapshot }))
     }
     const clearPulse = () => {
       clearTimer = 0
@@ -323,19 +323,19 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
       const detail = (event as CustomEvent<{ sessionId?: string; type?: string }>).detail
       if (
         !detail?.sessionId ||
-        (detail.type !== "gtsx:ready" && detail.type !== "gtsx:error")
+        (detail.type !== "runelight:ready" && detail.type !== "runelight:error")
       ) {
         return
       }
       publishObservationSnapshot(previewRenderObservation.observePreviewTiming({ sessionId: detail.sessionId, type: detail.type }))
     }
 
-    window.addEventListener("gtsx:preview-queue-debug", handlePreviewQueueDebug)
-    window.addEventListener("gtsx:preview-timing", handlePreviewTiming)
+    window.addEventListener("runelight:preview-queue-debug", handlePreviewQueueDebug)
+    window.addEventListener("runelight:preview-timing", handlePreviewTiming)
     return () => {
-      window.removeEventListener("gtsx:preview-queue-debug", handlePreviewQueueDebug)
-      window.removeEventListener("gtsx:preview-timing", handlePreviewTiming)
-      document.documentElement.removeAttribute("data-gtsx-preview-render-observation")
+      window.removeEventListener("runelight:preview-queue-debug", handlePreviewQueueDebug)
+      window.removeEventListener("runelight:preview-timing", handlePreviewTiming)
+      document.documentElement.removeAttribute("data-runelight-preview-render-observation")
       if (clearTimer) window.clearTimeout(clearTimer)
     }
   }, [props.debugPreviewQueue])
@@ -698,8 +698,8 @@ export default function Studio(props: StudioWorkspaceViewProps) {
         <style>{studioLayoutNeutralDrilldownColumnEnterCss}</style>
         <section style={{ display: "grid", minHeight: 0, minWidth: 0 }}>
           <div
-            aria-label="GTSX Studio canvas viewport"
-            data-gtsx-canvas-viewport
+            aria-label="Runelight Studio canvas viewport"
+            data-runelight-canvas-viewport
             onPointerDown={scope.onCanvasPointerDown}
             onPointerMove={scope.onCanvasPointerMove}
             onPointerUp={scope.onCanvasPointerUp}
@@ -727,7 +727,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
             {scope.renderExpansionCenterPulse ? (
               <span
                 aria-label="Preview render expansion center"
-                data-gtsx-preview-render-expansion-center-pulse="true"
+                data-runelight-preview-render-expansion-center-pulse="true"
                 key={scope.renderExpansionCenterPulse.id}
                 style={{
                   background: studioColors.accentMuted,
@@ -773,7 +773,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
             ) : null}
             {previewCacheReady ? (
               <div
-                data-gtsx-canvas-surface
+                data-runelight-canvas-surface
                 ref={scope.setCanvasSurfaceElement}
                 style={{
                   display: "block",
@@ -796,12 +796,12 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                   )
                   return (
                     <section
-                      data-gtsx-column-index={columnIndex}
-                      data-gtsx-column-layout-x={scope.columnLayoutByIndex[columnIndex]?.x ?? 0}
-                      data-gtsx-column-layout-y={scope.columnLayoutByIndex[columnIndex]?.y ?? 0}
-                      data-gtsx-column-parent-coordinate={column.parentCoordinate}
-                      data-gtsx-drilldown-column-enter={columnIndex > 0 ? "true" : undefined}
-                      data-gtsx-drilldown-column-enter-identity={columnIndex > 0 ? drilldownColumnEnterIdentity : undefined}
+                      data-runelight-column-index={columnIndex}
+                      data-runelight-column-layout-x={scope.columnLayoutByIndex[columnIndex]?.x ?? 0}
+                      data-runelight-column-layout-y={scope.columnLayoutByIndex[columnIndex]?.y ?? 0}
+                      data-runelight-column-parent-coordinate={column.parentCoordinate}
+                      data-runelight-drilldown-column-enter={columnIndex > 0 ? "true" : undefined}
+                      data-runelight-drilldown-column-enter-identity={columnIndex > 0 ? drilldownColumnEnterIdentity : undefined}
                       key={drilldownColumnEnterIdentity}
                       ref={(element) => scope.setColumnElement(columnIndex, element)}
                       style={{
@@ -878,8 +878,8 @@ const StudioRootProviderVariantControls = React.memo(function StudioRootProvider
   return (
     <div
       aria-label="Provider variants"
-      data-gtsx-canvas-wheel-exempt
-      data-gtsx-root-env-controls="true"
+      data-runelight-canvas-wheel-exempt
+      data-runelight-root-env-controls="true"
       onPointerDown={(event) => event.stopPropagation()}
       style={{
         background: studioColors.panelBg,
@@ -915,7 +915,7 @@ const StudioRootProviderVariantControls = React.memo(function StudioRootProvider
       </header>
       {props.axes.map((axis, axisIndex) => (
         <div
-          data-gtsx-root-env-axis={axis.providerName}
+          data-runelight-root-env-axis={axis.providerName}
           key={axis.providerName}
           style={{
             display: "grid",
@@ -985,8 +985,8 @@ function StudioProviderVariantButton(props: {
   return (
     <button
       aria-pressed={props.pressed}
-      data-gtsx-root-env-selected={props.pressed ? "true" : undefined}
-      data-gtsx-root-env-variant={props.variantName}
+      data-runelight-root-env-selected={props.pressed ? "true" : undefined}
+      data-runelight-root-env-variant={props.variantName}
       onClick={(event) => {
         event.stopPropagation()
         props.onClick()
@@ -1010,7 +1010,7 @@ function StudioPreviewRenderObservationPanel(props: {
   return (
     <aside
       aria-label="Preview render observation"
-      data-gtsx-preview-render-observation-panel="true"
+      data-runelight-preview-render-observation-panel="true"
       style={{
         background: studioColors.panelBg,
         border: `1px solid ${studioColors.panelBorder}`,
@@ -1029,7 +1029,7 @@ function StudioPreviewRenderObservationPanel(props: {
         zIndex: 5,
       }}
     >
-      <span data-gtsx-preview-render-observation-scroll="true">
+      <span data-runelight-preview-render-observation-scroll="true">
         scroll{" "}
         {scrollResponse
           ? `${formatObservationMilliseconds(
@@ -1037,7 +1037,7 @@ function StudioPreviewRenderObservationPanel(props: {
             )} ${scrollResponse.completedVisibleSessionCount}/${scrollResponse.visibleSessionCount}`
           : "idle"}
       </span>
-      <span data-gtsx-preview-render-observation-full="true">
+      <span data-runelight-preview-render-observation-full="true">
         full{" "}
         {fullRender
           ? `${formatObservationMilliseconds(fullRender.latestCompletionMilliseconds)} ${fullRender.completedSessionCount}/${
@@ -1067,13 +1067,13 @@ Studio.frames = {
       manifest: {
         version: 1,
         routes: {
-          preview: "/gtsx",
-          studio: "/gtsx/studio",
-          manifest: "/gtsx/studio/manifest",
+          preview: "/runelight",
+          studio: "/runelight/studio",
+          manifest: "/runelight/studio/manifest",
         },
         preview: {
-          urlTemplate: "/gtsx?entry={entry}&frame={frame}{gframe}",
-          allUrlTemplate: "/gtsx?entry={entry}{gframe}",
+          urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
+          allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
         },
         files: [
           {
@@ -1151,13 +1151,13 @@ Studio.frames = {
       manifest: {
         version: 1,
         routes: {
-          preview: "/gtsx",
-          studio: "/gtsx/studio",
-          manifest: "/gtsx/studio/manifest",
+          preview: "/runelight",
+          studio: "/runelight/studio",
+          manifest: "/runelight/studio/manifest",
         },
         preview: {
-          urlTemplate: "/gtsx?entry={entry}&frame={frame}{gframe}",
-          allUrlTemplate: "/gtsx?entry={entry}{gframe}",
+          urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
+          allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
         },
         files: [
           {

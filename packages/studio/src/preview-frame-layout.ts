@@ -1,4 +1,4 @@
-import type { GBoundaryRect } from "@gtsx/core"
+import type { GBoundaryRect } from "@runelight/core"
 
 type PreviewFrameSize = {
   height?: number

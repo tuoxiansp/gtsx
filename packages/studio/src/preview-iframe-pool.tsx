@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGPreviewRenderMessage, type GPreviewRenderTarget } from "@gtsx/core"
+import { createGPreviewRenderMessage, type GPreviewRenderTarget } from "@runelight/core"
 
 import { studioPreviewRenderTargetFromUrl } from "./client"
 import type { StudioPreviewFrameSlot } from "./preview-frame-slot"
@@ -185,8 +185,8 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
     entry.pendingRenderDeliveryAttemptCount = studioPreviewIframePoolNextPendingRenderDeliveryAttemptCount(entry, renderKey)
     entry.lastPostedRenderKey = renderKey
     entry.lastRenderedSessionId = target.sessionId ?? entry.pendingInput.slot.sessionId
-    entry.frame.dataset.gtsxPreviewPoolLastRenderSessionId = target.sessionId ?? ""
-    entry.frame.dataset.gtsxPreviewPoolRenderDeliveryAttemptCount = String(entry.pendingRenderDeliveryAttemptCount)
+    entry.frame.dataset.runelightPreviewPoolLastRenderSessionId = target.sessionId ?? ""
+    entry.frame.dataset.runelightPreviewPoolRenderDeliveryAttemptCount = String(entry.pendingRenderDeliveryAttemptCount)
     if (renderEndpoint.transport === "direct") {
       directRenderPostCountRef.current += 1
     } else {
@@ -200,7 +200,7 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
 
   const postPendingRenderIfPoolEntryIsReady = React.useCallback(
     (entry: StudioPreviewIframePoolEntry) => {
-      if (!entry.ready) return
+      if (!entry.ready && !markStudioPreviewIframePoolEntryReadyFromDirectEndpoint(entry)) return
       postPendingRender(entry)
     },
     [postPendingRender],
@@ -219,8 +219,8 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
 
     createdCountRef.current += 1
     frame.setAttribute("aria-hidden", "true")
-    frame.dataset.gtsxPooledPreviewFrame = "true"
-    frame.dataset.gtsxPreviewPoolReady = "false"
+    frame.dataset.runelightPooledPreviewFrame = "true"
+    frame.dataset.runelightPreviewPoolReady = "false"
     frame.loading = "eager"
     frame.tabIndex = -1
     Object.assign(frame.style, {
@@ -237,7 +237,7 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
       zIndex: "1",
     } satisfies Partial<CSSStyleDeclaration>)
     overlay.setAttribute("aria-hidden", "true")
-    overlay.dataset.gtsxPooledPreviewDimOverlay = "true"
+    overlay.dataset.runelightPooledPreviewDimOverlay = "true"
     Object.assign(overlay.style, {
       background:
         "repeating-linear-gradient(135deg, rgba(87,96,106,0.34) 0, rgba(87,96,106,0.34) 6px, transparent 6px, transparent 12px)",
@@ -422,8 +422,7 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
         const entry = entriesRef.current.find((candidate) => candidate.frame.contentWindow === event.source)
         if (!entry) return
 
-        entry.ready = true
-        entry.frame.dataset.gtsxPreviewPoolReady = "true"
+        markStudioPreviewIframePoolEntryReady(entry)
         publishPoolStats()
         scheduleIdleReserveTopUp()
         clearStudioPreviewIframePoolPendingRenderDelivery(entry)
@@ -436,7 +435,7 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
         if (!entry || entry.pendingInput?.slot.sessionId !== event.data.sessionId) return
 
         entry.lastAcceptedRenderSessionId = event.data.sessionId
-        entry.frame.dataset.gtsxPreviewPoolLastAcceptedRenderSessionId = event.data.sessionId
+        entry.frame.dataset.runelightPreviewPoolLastAcceptedRenderSessionId = event.data.sessionId
         clearStudioPreviewIframePoolPendingRenderRedelivery(entry)
         acceptedRenderPostCountRef.current += 1
         publishPoolStats()
@@ -484,7 +483,7 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
       {props.children}
       <div
         aria-hidden="true"
-        data-gtsx-preview-iframe-pool="true"
+        data-runelight-preview-iframe-pool="true"
         ref={hostRef}
         style={{
           inset: 0,
@@ -542,7 +541,7 @@ export function StudioPooledPreviewIframe(props: StudioPooledPreviewIframeProps)
 
   return (
     <div
-      data-gtsx-pooled-preview-slot={props.slot.sessionId}
+      data-runelight-pooled-preview-slot={props.slot.sessionId}
       ref={containerRef}
       style={{
         height: props.size.height,
@@ -684,7 +683,7 @@ function applyStudioPreviewIframePoolEntryPlacement(entry: StudioPreviewIframePo
   }
 
   const anchorRect = container.getBoundingClientRect()
-  const clipElement = container.closest("[data-gtsx-preview-clip]")
+  const clipElement = container.closest("[data-runelight-preview-clip]")
   const clipRect = clipElement instanceof HTMLElement ? clipElement.getBoundingClientRect() : anchorRect
   Object.assign(
     entry.frame.style,
@@ -712,7 +711,7 @@ function applyStudioPreviewIframePoolEntryVisualState(entry: StudioPreviewIframe
 
   entry.frame.style.filter = "grayscale(0.9)"
   const anchorRect = entry.container?.getBoundingClientRect() ?? emptyStudioPreviewIframePoolRect
-  const clipElement = entry.container?.closest("[data-gtsx-preview-clip]")
+  const clipElement = entry.container?.closest("[data-runelight-preview-clip]")
   const clipRect = clipElement instanceof HTMLElement ? clipElement.getBoundingClientRect() : anchorRect
   Object.assign(entry.overlay.style, {
     ...studioPreviewIframePoolDimOverlayPlacementForAnchor({
@@ -782,9 +781,9 @@ function applyBorrowInput(
 
   if (previousSessionId !== nextSessionId) {
     if (retainedRender) {
-      entry.frame.dataset.gtsxPreviewPoolLastRenderSessionId = nextSessionId
+      entry.frame.dataset.runelightPreviewPoolLastRenderSessionId = nextSessionId
     } else {
-      delete entry.frame.dataset.gtsxPreviewPoolLastRenderSessionId
+      delete entry.frame.dataset.runelightPreviewPoolLastRenderSessionId
     }
     if (previousSessionId) previousInput?.onPreviewFrameMount?.(previousSessionId, null)
     input.onPreviewFrameMount?.(nextSessionId, entry.frame, { retainedRender })
@@ -802,16 +801,16 @@ function writeStudioPreviewIframePoolLeaseDebugAttributes(
   entry: StudioPreviewIframePoolEntry,
   input: StudioPreviewIframeBorrowInput,
 ) {
-  entry.frame.dataset.gtsxPreviewPoolEntryId = String(entry.id)
-  entry.frame.dataset.gtsxPreviewPoolLeaseSessionId = input.slot.sessionId
-  entry.frame.dataset.gtsxPreviewPoolReady = entry.ready ? "true" : "false"
+  entry.frame.dataset.runelightPreviewPoolEntryId = String(entry.id)
+  entry.frame.dataset.runelightPreviewPoolLeaseSessionId = input.slot.sessionId
+  entry.frame.dataset.runelightPreviewPoolReady = entry.ready ? "true" : "false"
 }
 
 function clearStudioPreviewIframePoolLeaseDebugAttributes(entry: StudioPreviewIframePoolEntry) {
-  delete entry.frame.dataset.gtsxPreviewPoolLeaseSessionId
-  delete entry.frame.dataset.gtsxPreviewPoolLastAcceptedRenderSessionId
-  delete entry.frame.dataset.gtsxPreviewPoolLastRenderSessionId
-  delete entry.frame.dataset.gtsxPreviewPoolRenderDeliveryAttemptCount
+  delete entry.frame.dataset.runelightPreviewPoolLeaseSessionId
+  delete entry.frame.dataset.runelightPreviewPoolLastAcceptedRenderSessionId
+  delete entry.frame.dataset.runelightPreviewPoolLastRenderSessionId
+  delete entry.frame.dataset.runelightPreviewPoolRenderDeliveryAttemptCount
 }
 
 function studioPreviewIframePoolEntryRetainsCompletedRender(
@@ -845,8 +844,8 @@ function readStudioPreviewIframeRenderEndpoint(
 
   try {
     const directMailbox = (contentWindow as Window & {
-      __gtsxPreviewRenderTargetMailbox?: { render: (target: GPreviewRenderTarget) => void }
-    }).__gtsxPreviewRenderTargetMailbox
+      __runelightPreviewRenderTargetMailbox?: { render: (target: GPreviewRenderTarget) => void }
+    }).__runelightPreviewRenderTargetMailbox
     return directMailbox ? { render: directMailbox.render, transport: "direct" } : undefined
   } catch {
     return {
@@ -856,6 +855,23 @@ function readStudioPreviewIframeRenderEndpoint(
       transport: "postMessage",
     }
   }
+}
+
+function markStudioPreviewIframePoolEntryReady(entry: StudioPreviewIframePoolEntry) {
+  entry.ready = true
+  entry.frame.dataset.runelightPreviewPoolReady = "true"
+}
+
+function markStudioPreviewIframePoolEntryReadyFromDirectEndpoint(entry: StudioPreviewIframePoolEntry): boolean {
+  if (studioPreviewIframePoolEntryCanUseDirectRenderEndpoint(entry)) {
+    markStudioPreviewIframePoolEntryReady(entry)
+    return true
+  }
+  return false
+}
+
+export function studioPreviewIframePoolEntryCanUseDirectRenderEndpoint(entry: { frame: HTMLIFrameElement }): boolean {
+  return readStudioPreviewIframeRenderEndpoint(entry.frame)?.transport === "direct"
 }
 
 export function studioPreviewIframePendingRenderPostKey(input: StudioPreviewIframeBorrowInput): string {
@@ -936,7 +952,7 @@ function clearStudioPreviewIframePoolPendingRenderDelivery(entry: StudioPreviewI
   clearStudioPreviewIframePoolPendingRenderRedelivery(entry)
   delete entry.lastPostedRenderKey
   delete entry.pendingRenderDeliveryAttemptCount
-  delete entry.frame.dataset.gtsxPreviewPoolRenderDeliveryAttemptCount
+  delete entry.frame.dataset.runelightPreviewPoolRenderDeliveryAttemptCount
 }
 
 export function studioPreviewIframeBorrowInputNeedsRender(
@@ -956,26 +972,26 @@ function isStudioPreviewPoolReadyMessage(value: unknown): boolean {
   return (
     typeof value === "object" &&
     value !== null &&
-    (value as { type?: unknown }).type === "gtsx:pool-ready" &&
+    (value as { type?: unknown }).type === "runelight:pool-ready" &&
     (value as { protocolVersion?: unknown }).protocolVersion === 1
   )
 }
 
-function isStudioPreviewRenderAcceptedMessage(value: unknown): value is { sessionId: string; type: "gtsx:render-accepted" } {
+function isStudioPreviewRenderAcceptedMessage(value: unknown): value is { sessionId: string; type: "runelight:render-accepted" } {
   return (
     typeof value === "object" &&
     value !== null &&
-    (value as { type?: unknown }).type === "gtsx:render-accepted" &&
+    (value as { type?: unknown }).type === "runelight:render-accepted" &&
     (value as { protocolVersion?: unknown }).protocolVersion === 1 &&
     typeof (value as { sessionId?: unknown }).sessionId === "string"
   )
 }
 
-function isStudioPreviewSessionCompletionMessage(value: unknown): value is { sessionId: string; type: "gtsx:ready" | "gtsx:error" } {
+function isStudioPreviewSessionCompletionMessage(value: unknown): value is { sessionId: string; type: "runelight:ready" | "runelight:error" } {
   return (
     typeof value === "object" &&
     value !== null &&
-    ((value as { type?: unknown }).type === "gtsx:ready" || (value as { type?: unknown }).type === "gtsx:error") &&
+    ((value as { type?: unknown }).type === "runelight:ready" || (value as { type?: unknown }).type === "runelight:error") &&
     typeof (value as { sessionId?: unknown }).sessionId === "string"
   )
 }
@@ -1026,21 +1042,21 @@ function StudioPreviewIframePoolStatsPanel(props: { stats: StudioPreviewIframePo
   return (
     <div
       aria-label="Preview iframe pool stats"
-      data-gtsx-preview-iframe-pool-stats="true"
-      data-gtsx-preview-iframe-pool-active={props.stats.active}
-      data-gtsx-preview-iframe-pool-borrows={props.stats.borrows}
-      data-gtsx-preview-iframe-pool-created={props.stats.created}
-      data-gtsx-preview-iframe-pool-direct-render-posts={props.stats.directRenderPosts}
-      data-gtsx-preview-iframe-pool-idle={props.stats.idle}
-      data-gtsx-preview-iframe-pool-new-borrows={props.stats.newBorrows}
-      data-gtsx-preview-iframe-pool-post-message-render-posts={props.stats.postMessageRenderPosts}
-      data-gtsx-preview-iframe-pool-accepted-render-posts={props.stats.acceptedRenderPosts}
-      data-gtsx-preview-iframe-pool-ready-idle={props.stats.readyIdle}
-      data-gtsx-preview-iframe-pool-render-endpoint-waits={props.stats.renderEndpointWaits}
-      data-gtsx-preview-iframe-pool-redelivered-render-posts={props.stats.redeliveredRenderPosts}
-      data-gtsx-preview-iframe-pool-render-posts={props.stats.renderPosts}
-      data-gtsx-preview-iframe-pool-reused-borrows={props.stats.reusedBorrows}
-      data-gtsx-preview-iframe-pool-total={props.stats.total}
+      data-runelight-preview-iframe-pool-stats="true"
+      data-runelight-preview-iframe-pool-active={props.stats.active}
+      data-runelight-preview-iframe-pool-borrows={props.stats.borrows}
+      data-runelight-preview-iframe-pool-created={props.stats.created}
+      data-runelight-preview-iframe-pool-direct-render-posts={props.stats.directRenderPosts}
+      data-runelight-preview-iframe-pool-idle={props.stats.idle}
+      data-runelight-preview-iframe-pool-new-borrows={props.stats.newBorrows}
+      data-runelight-preview-iframe-pool-post-message-render-posts={props.stats.postMessageRenderPosts}
+      data-runelight-preview-iframe-pool-accepted-render-posts={props.stats.acceptedRenderPosts}
+      data-runelight-preview-iframe-pool-ready-idle={props.stats.readyIdle}
+      data-runelight-preview-iframe-pool-render-endpoint-waits={props.stats.renderEndpointWaits}
+      data-runelight-preview-iframe-pool-redelivered-render-posts={props.stats.redeliveredRenderPosts}
+      data-runelight-preview-iframe-pool-render-posts={props.stats.renderPosts}
+      data-runelight-preview-iframe-pool-reused-borrows={props.stats.reusedBorrows}
+      data-runelight-preview-iframe-pool-total={props.stats.total}
       style={{
         background: "rgba(255,255,255,0.9)",
         border: "1px solid rgba(216,222,232,0.95)",

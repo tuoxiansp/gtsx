@@ -1,15 +1,16 @@
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
-import { createGProvider, createGScopeHook } from "@gtsx/core"
+import { createGProvider, createGScopeHook } from "@runelight/core"
 import {
-  GTSXPreviewFrameSheet,
-  applyGTSXPreviewRenderTargetRequest,
-  createGTSXPreviewRenderTargetMailboxState,
-  type GTSXPreviewComponent,
+  RunelightReactPreviewClient,
+  RunelightPreviewFrameSheet,
+  applyRunelightPreviewRenderTargetRequest,
+  createRunelightPreviewRenderTargetMailboxState,
+  type RunelightPreviewComponent,
 } from "../src/index.js"
 
-describe("GTSXPreviewFrameSheet", () => {
+describe("RunelightPreviewFrameSheet", () => {
   it("does not turn a missing frame scope into an undefined preview override", () => {
     const useChildScope = createGScopeHook(() => ({ label: "real child scope" }))
 
@@ -18,7 +19,7 @@ describe("GTSXPreviewFrameSheet", () => {
       return <span>{scope.label}</span>
     }
 
-    const Parent = (() => <Child />) as GTSXPreviewComponent
+    const Parent = (() => <Child />) as RunelightPreviewComponent
     Parent.frames = {
       ready: {
         props: {},
@@ -26,7 +27,7 @@ describe("GTSXPreviewFrameSheet", () => {
     }
 
     const html = renderToStaticMarkup(
-      <GTSXPreviewFrameSheet
+      <RunelightPreviewFrameSheet
         component={Parent}
         entry="src/Parent.g.tsx#default"
         selectedFrames={[{ name: "ready", frame: Parent.frames.ready }]}
@@ -46,7 +47,7 @@ describe("GTSXPreviewFrameSheet", () => {
     const Message = (() => {
       const scope = useMessage({})
       return <span>{scope.message}</span>
-    }) as GTSXPreviewComponent
+    }) as RunelightPreviewComponent
     Message.frames = {
       ready: {
         props: {},
@@ -55,7 +56,7 @@ describe("GTSXPreviewFrameSheet", () => {
     }
 
     const html = renderToStaticMarkup(
-      <GTSXPreviewFrameSheet
+      <RunelightPreviewFrameSheet
         component={Message}
         entry="src/Message.g.tsx#default"
         selectedFrames={[{ name: "ready", frame: Message.frames.ready }]}
@@ -73,13 +74,13 @@ describe("GTSXPreviewFrameSheet", () => {
       sessionId: "src/UserCard.g.tsx#default:ready",
       staticMode: true,
     }
-    const first = applyGTSXPreviewRenderTargetRequest(
-      createGTSXPreviewRenderTargetMailboxState(null),
+    const first = applyRunelightPreviewRenderTargetRequest(
+      createRunelightPreviewRenderTargetMailboxState(null),
       target,
       { acknowledge: true },
     )
-    const second = applyGTSXPreviewRenderTargetRequest(first.state, target, { acknowledge: true })
-    const prehydrationDuplicate = applyGTSXPreviewRenderTargetRequest(second.state, target, { acknowledge: false })
+    const second = applyRunelightPreviewRenderTargetRequest(first.state, target, { acknowledge: true })
+    const prehydrationDuplicate = applyRunelightPreviewRenderTargetRequest(second.state, target, { acknowledge: false })
 
     expect(first.shouldNotifySubscribers).toBe(true)
     expect(first.state.currentTarget?.renderRequestSequence).toBe(1)
@@ -87,5 +88,18 @@ describe("GTSXPreviewFrameSheet", () => {
     expect(second.state.currentTarget?.renderRequestSequence).toBe(2)
     expect(prehydrationDuplicate.shouldNotifySubscribers).toBe(false)
     expect(prehydrationDuplicate.state.currentTarget?.renderRequestSequence).toBe(2)
+  })
+
+  it("accepts route params with poolMode when rendering a pooled preview host", () => {
+    const html = renderToStaticMarkup(
+      <RunelightReactPreviewClient
+        poolMode
+        entry={null}
+        frameName={null}
+        loadComponent={() => undefined}
+      />,
+    )
+
+    expect(html).not.toContain("Missing entry")
   })
 })

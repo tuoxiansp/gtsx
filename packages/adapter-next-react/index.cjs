@@ -1,41 +1,49 @@
 "use strict"
 
 const { existsSync, mkdirSync, readdirSync, readFileSync, statSync, watch, writeFileSync } = require("node:fs")
-const { dirname, relative, resolve, sep } = require("node:path")
+const { dirname, join, relative, resolve, sep } = require("node:path")
+const vm = require("node:vm")
 
-const defaultPreviewEntriesModuleId = "@gtsx/adapter-next-react/preview-entries"
-const defaultPreviewEntriesOutputFile = ".gtsx/preview-entries.ts"
-const ignoredPreviewEntryDirs = new Set(["node_modules", "dist", ".next", ".git", ".gtsx"])
-const previewEntriesPluginName = "GTSXNextPreviewEntriesPlugin"
+const defaultPreviewEntriesModuleId = "@runelight/adapter-next-react/preview-entries"
+const defaultPreviewEntriesOutputFile = ".runelight/preview-entries.ts"
+const defaultRunelightSourceRoot = "src"
+const defaultRunelightRoutes = {
+  preview: "/runelight",
+  studio: "/runelight/studio",
+  manifest: "/runelight/studio/manifest",
+}
+const defaultStudioManifestCacheTtlMs = 1000
+const ignoredPreviewEntryDirs = new Set(["node_modules", "dist", ".next", ".git", ".runelight"])
+const previewEntriesPluginName = "RunelightNextPreviewEntriesPlugin"
 const previewEntriesWatcherDebounceMs = 50
-const globalPreviewEntryWatcherSymbol = Symbol.for("gtsx.next.preview-entry.watchers")
-const previewImportQuery = "gtsx-preview"
+const globalPreviewEntryWatcherSymbol = Symbol.for("runelight.next.preview-entry.watchers")
+const previewImportQuery = "runelight-preview"
 
-function gtsxNextReact(options = {}) {
+function runelightNextReact(options = {}) {
   const root = options.root ?? process.cwd()
   const previewEntriesEnabled = options.enabled ?? process.env.NODE_ENV !== "production"
 
   if (!previewEntriesEnabled) {
-    return function withGTSXNextReactPreviewEntriesDisabled(nextConfig = {}) {
+    return function withRunelightNextReactPreviewEntriesDisabled(nextConfig = {}) {
       return nextConfig
     }
   }
 
   const loaderPath = resolve(__dirname, "loader.cjs")
-  const transformPath = require.resolve("@gtsx/core/react-transform", {
+  const transformPath = require.resolve("@runelight/core/react-transform", {
     paths: [root, process.cwd()],
   })
   const previewEntries = resolvePreviewEntriesOptions(root, options)
 
-  return function withGTSXNextReact(nextConfig = {}) {
+  return function withRunelightNextReact(nextConfig = {}) {
     const userWebpack = nextConfig.webpack
-    writeGTSXNextPreviewEntries(root, previewEntries)
-    startGTSXNextPreviewEntriesWatcher(root, previewEntries)
+    writeRunelightNextPreviewEntries(root, previewEntries)
+    startRunelightNextPreviewEntriesWatcher(root, previewEntries)
 
     return {
       ...nextConfig,
       webpack(config, context) {
-        writeGTSXNextPreviewEntries(root, previewEntries)
+        writeRunelightNextPreviewEntries(root, previewEntries)
         const resolvedConfig = typeof userWebpack === "function" ? userWebpack(config, context) : config
         resolvedConfig.module ??= {}
         resolvedConfig.module.rules ??= []
@@ -44,7 +52,7 @@ function gtsxNextReact(options = {}) {
           ...(resolvedConfig.resolve.alias ?? {}),
           ...(previewEntries ? { [previewEntries.moduleId]: previewEntries.outputPath } : {}),
         }
-        installGTSXNextPreviewEntriesPlugin(resolvedConfig, root, previewEntries)
+        installRunelightNextPreviewEntriesPlugin(resolvedConfig, root, previewEntries)
         resolvedConfig.module.rules.unshift({
           test: /\.g\.tsx$/,
           enforce: "pre",
@@ -52,7 +60,7 @@ function gtsxNextReact(options = {}) {
         })
         return resolvedConfig
       },
-      turbopack: withGTSXTurbopackConfig(
+      turbopack: withRunelightTurbopackConfig(
         nextConfig.turbopack,
         loaderPath,
         root,
@@ -63,8 +71,8 @@ function gtsxNextReact(options = {}) {
   }
 }
 
-function withGTSXTurbopackConfig(turbopack, loaderPath, root, transformPath, previewEntries) {
-  const gtsxRule = {
+function withRunelightTurbopackConfig(turbopack, loaderPath, root, transformPath, previewEntries) {
+  const runelightRule = {
     loaders: [{ loader: loaderPath, options: { previewQuery: previewImportQuery, root, transformPath, transpilePreview: true } }],
   }
   const rules = turbopack?.rules ?? {}
@@ -77,7 +85,7 @@ function withGTSXTurbopackConfig(turbopack, loaderPath, root, transformPath, pre
     },
     rules: {
       ...rules,
-      "*.g.tsx": prependRule(gtsxRule, rules["*.g.tsx"]),
+      "*.g.tsx": prependRule(runelightRule, rules["*.g.tsx"]),
     },
   }
 }
@@ -91,27 +99,137 @@ function resolvePreviewEntriesOptions(root, options) {
   if (options.previewEntries === false) return undefined
 
   const previewEntries = typeof options.previewEntries === "object" ? options.previewEntries : {}
-  const configuredSourceRoot = options.config?.project?.sourceRoot
-  const entryRoot = previewEntries.entryRoot ?? options.config?.project?.entryRoot
+  const resolvedConfig = resolveNextRunelightConfig(root, options.config)
+  const entryRoot = previewEntries.entryRoot ?? resolvedConfig?.project.entryRoot
   if (!entryRoot) {
     throw new Error(
-      "Missing project.entryRoot in gtsx.config.ts. Run setup-gtsx again so the local /gtsx entry directory is recorded.",
+      "Missing project.entryRoot in runelight.config.ts. Run setup-runelight again so the local /runelight entry directory is recorded.",
     )
   }
 
   return {
-    entryRoot: normalizeGTSXPath(entryRoot),
+    entryRoot: normalizeRunelightPath(entryRoot),
     moduleId: previewEntries.moduleId ?? defaultPreviewEntriesModuleId,
     outputPath: resolve(root, previewEntries.outputFile ?? defaultPreviewEntriesOutputFile),
-    sourceRoot: previewEntries.sourceRoot ?? options.sourceRoot ?? configuredSourceRoot ?? "src",
+    sourceRoot: previewEntries.sourceRoot ?? options.sourceRoot ?? resolvedConfig?.project.sourceRoot ?? defaultRunelightSourceRoot,
   }
 }
 
-function writeGTSXNextPreviewEntries(root, options) {
+function resolveNextRunelightConfig(root, config) {
+  if (config) return resolveRunelightConfig(config)
+
+  const loaded = loadRunelightConfig(root)
+  if (loaded.config) return resolveRunelightConfig(loaded.config)
+
+  const message = loaded.diagnostics.map((diagnostic) => diagnostic.message).filter(Boolean).join("\n")
+  throw new Error(message || "Missing runelight.config.ts for Next adapter.")
+}
+
+function loadRunelightConfig(cwd) {
+  const configPath = ["runelight.config.ts", "runelight.config.js", "runelight.config.cjs"]
+    .map((fileName) => join(cwd, fileName))
+    .find((candidate) => existsSync(candidate))
+
+  if (!configPath) {
+    return {
+      diagnostics: [
+        {
+          stage: "adapter-configuration",
+          code: "missing-config",
+          message: "Missing runelight.config.ts for adapter commands.",
+        },
+      ],
+    }
+  }
+
+  try {
+    const config = configPath.endsWith(".ts") ? loadTypeScriptConfig(configPath) : loadCommonJSConfig(configPath)
+    return { config, diagnostics: [] }
+  } catch (error) {
+    return {
+      diagnostics: [
+        {
+          stage: "adapter-configuration",
+          code: "invalid-config",
+          message: error instanceof Error ? error.message : String(error),
+        },
+      ],
+    }
+  }
+}
+
+function loadTypeScriptConfig(configPath) {
+  const ts = require(require.resolve("typescript", { paths: [dirname(configPath), process.cwd(), __dirname] }))
+  const source = readFileSync(configPath, "utf8")
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      esModuleInterop: true,
+    },
+    fileName: configPath,
+  }).outputText
+  const moduleValue = { exports: {} }
+  vm.runInNewContext(compiled, {
+    exports: moduleValue.exports,
+    module: moduleValue,
+    require: requireRunelightConfigDependency,
+  })
+  return readDefaultExport(moduleValue.exports)
+}
+
+function loadCommonJSConfig(configPath) {
+  const moduleValue = { exports: {} }
+  const source = readFileSync(configPath, "utf8")
+  vm.runInNewContext(source, {
+    exports: moduleValue.exports,
+    module: moduleValue,
+    require: requireRunelightConfigDependency,
+  })
+  return readDefaultExport(moduleValue.exports)
+}
+
+function requireRunelightConfigDependency(specifier) {
+  if (specifier === "@runelight/core") return { defineRunelightConfig }
+  throw new Error(`Unsupported config import: ${specifier}`)
+}
+
+function defineRunelightConfig(config) {
+  return config
+}
+
+function readDefaultExport(exportsValue) {
+  const config = exportsValue.default ?? exportsValue
+  if (!config.preview) {
+    throw new Error("Missing preview configuration in runelight.config.ts.")
+  }
+  return config
+}
+
+function resolveRunelightConfig(config) {
+  return {
+    project: {
+      sourceRoot: config.project?.sourceRoot ?? defaultRunelightSourceRoot,
+      ...(config.project?.entryRoot ? { entryRoot: normalizeRunelightPath(config.project.entryRoot) } : {}),
+      ...(config.project?.namespace ? { namespace: config.project.namespace } : {}),
+      ...(config.project?.tsconfig ? { tsconfig: config.project.tsconfig } : {}),
+    },
+    preview: config.preview,
+    routes: {
+      ...defaultRunelightRoutes,
+      ...config.routes,
+    },
+    studio: {
+      manifestCacheTtlMs: config.studio?.manifestCacheTtlMs ?? defaultStudioManifestCacheTtlMs,
+    },
+  }
+}
+
+function writeRunelightNextPreviewEntries(root, options) {
   if (!options || !existsSync(root)) return
 
-  const files = discoverGTSXPreviewFiles(root, options)
-  const code = createGTSXNextPreviewEntriesModule(root, options.outputPath, files)
+  const files = discoverRunelightPreviewFiles(root, options)
+  const code = createRunelightNextPreviewEntriesModule(root, options.outputPath, files)
   const current = readFileIfExists(options.outputPath)
   if (current === code) return
 
@@ -119,17 +237,17 @@ function writeGTSXNextPreviewEntries(root, options) {
   writeFileSync(options.outputPath, code)
 }
 
-function discoverGTSXPreviewFiles(root, options) {
+function discoverRunelightPreviewFiles(root, options) {
   const files = new Set()
 
-  for (const previewRoot of gtsxNextPreviewEntryRoots(options)) {
-    collectGTSXPreviewFiles(resolve(root, previewRoot), files, root)
+  for (const previewRoot of runelightNextPreviewEntryRoots(options)) {
+    collectRunelightPreviewFiles(resolve(root, previewRoot), files, root)
   }
 
   return [...files].sort((left, right) => left.localeCompare(right))
 }
 
-function collectGTSXPreviewFiles(directory, files, root) {
+function collectRunelightPreviewFiles(directory, files, root) {
   if (!existsSync(directory)) return
 
   walk(directory)
@@ -150,27 +268,27 @@ function collectGTSXPreviewFiles(directory, files, root) {
   }
 }
 
-function gtsxNextPreviewEntryRoots(options) {
-  return [...new Set([options.sourceRoot, gtsxDesignRootFromEntryRoot(options.entryRoot)])]
+function runelightNextPreviewEntryRoots(options) {
+  return [...new Set([options.sourceRoot, runelightDesignRootFromEntryRoot(options.entryRoot)])]
 }
 
-function gtsxNextPreviewEntryWatchRoots(options) {
-  return [...new Set([options.sourceRoot, options.entryRoot, gtsxDesignRootFromEntryRoot(options.entryRoot)])]
+function runelightNextPreviewEntryWatchRoots(options) {
+  return [...new Set([options.sourceRoot, options.entryRoot, runelightDesignRootFromEntryRoot(options.entryRoot)])]
 }
 
-class GTSXNextPreviewEntriesPlugin {
+class RunelightNextPreviewEntriesPlugin {
   constructor(root, options) {
     this.root = root
     this.options = options
   }
 
   apply(compiler) {
-    compiler.hooks?.beforeRun?.tap(previewEntriesPluginName, () => writeGTSXNextPreviewEntries(this.root, this.options))
-    compiler.hooks?.watchRun?.tap(previewEntriesPluginName, () => writeGTSXNextPreviewEntries(this.root, this.options))
+    compiler.hooks?.beforeRun?.tap(previewEntriesPluginName, () => writeRunelightNextPreviewEntries(this.root, this.options))
+    compiler.hooks?.watchRun?.tap(previewEntriesPluginName, () => writeRunelightNextPreviewEntries(this.root, this.options))
     compiler.hooks?.afterCompile?.tap(previewEntriesPluginName, (compilation) => {
       if (!this.options) return
 
-      for (const watchRoot of gtsxNextPreviewEntryWatchRoots(this.options)) {
+      for (const watchRoot of runelightNextPreviewEntryWatchRoots(this.options)) {
         const absoluteWatchRoot = resolve(this.root, watchRoot)
         if (existsSync(absoluteWatchRoot)) {
           compilation.contextDependencies?.add(absoluteWatchRoot)
@@ -184,24 +302,24 @@ class GTSXNextPreviewEntriesPlugin {
   }
 }
 
-function installGTSXNextPreviewEntriesPlugin(config, root, options) {
+function installRunelightNextPreviewEntriesPlugin(config, root, options) {
   if (!options) return
 
   config.plugins ??= []
-  if (config.plugins.some((plugin) => plugin instanceof GTSXNextPreviewEntriesPlugin)) return
-  config.plugins.push(new GTSXNextPreviewEntriesPlugin(root, options))
+  if (config.plugins.some((plugin) => plugin instanceof RunelightNextPreviewEntriesPlugin)) return
+  config.plugins.push(new RunelightNextPreviewEntriesPlugin(root, options))
 }
 
-function startGTSXNextPreviewEntriesWatcher(root, options) {
+function startRunelightNextPreviewEntriesWatcher(root, options) {
   if (!options || process.env.NODE_ENV === "production" || process.env.NODE_ENV === "test") return
 
   const key = JSON.stringify({ entryRoot: options.entryRoot, outputPath: options.outputPath, sourceRoot: options.sourceRoot, root })
   const watchers = globalPreviewEntryWatchers()
   if (watchers.has(key)) return
 
-  ensureGTSXDesignDirectory(root, options)
-  writeGTSXNextPreviewEntries(root, options)
-  const watcher = watchGTSXNextPreviewEntryRoots(root, options)
+  ensureRunelightDesignDirectory(root, options)
+  writeRunelightNextPreviewEntries(root, options)
+  const watcher = watchRunelightNextPreviewEntryRoots(root, options)
   watchers.set(key, watcher)
 }
 
@@ -210,7 +328,7 @@ function globalPreviewEntryWatchers() {
   return globalThis[globalPreviewEntryWatcherSymbol]
 }
 
-function watchGTSXNextPreviewEntryRoots(root, options) {
+function watchRunelightNextPreviewEntryRoots(root, options) {
   let pending
   const directoryWatchers = new Map()
 
@@ -218,7 +336,7 @@ function watchGTSXNextPreviewEntryRoots(root, options) {
     if (pending) clearTimeout(pending)
     pending = setTimeout(() => {
       pending = undefined
-      writeGTSXNextPreviewEntries(root, options)
+      writeRunelightNextPreviewEntries(root, options)
     }, previewEntriesWatcherDebounceMs)
     pending.unref?.()
   }
@@ -266,7 +384,7 @@ function watchGTSXNextPreviewEntryRoots(root, options) {
     watchDirectory(directory)
   }
 
-  for (const watchRoot of gtsxNextPreviewEntryWatchRoots(options)) {
+  for (const watchRoot of runelightNextPreviewEntryWatchRoots(options)) {
     watchDirectoryTree(resolve(root, watchRoot), { allowIgnoredRoot: true })
   }
 
@@ -281,33 +399,33 @@ function watchGTSXNextPreviewEntryRoots(root, options) {
   }
 }
 
-function createGTSXNextPreviewEntriesModule(root, outputPath, files) {
+function createRunelightNextPreviewEntriesModule(root, outputPath, files) {
   const entries = files.map((filePath) => {
     const absoluteFilePath = resolve(root, filePath)
     return `  ${JSON.stringify(filePath)}: () => import(${JSON.stringify(toGeneratedImportSpecifier(outputPath, absoluteFilePath, previewImportQuery))}),`
   })
 
-  return `import type { GTSXPreviewComponent } from "@gtsx/adapter-next-react/preview"
+  return `import type { RunelightPreviewComponent } from "@runelight/adapter-next-react/preview"
 
-export type GTSXPreviewModule = Record<string, unknown>
-export type GTSXPreviewEntryLoader = () => Promise<GTSXPreviewModule>
-export type GTSXPreviewEntryLoaders = Record<string, GTSXPreviewEntryLoader>
+export type RunelightPreviewModule = Record<string, unknown>
+export type RunelightPreviewEntryLoader = () => Promise<RunelightPreviewModule>
+export type RunelightPreviewEntryLoaders = Record<string, RunelightPreviewEntryLoader>
 
-export const gtsxPreviewEntryLoaders = {
+export const runelightPreviewEntryLoaders = {
 ${entries.join("\n")}
-} satisfies GTSXPreviewEntryLoaders
+} satisfies RunelightPreviewEntryLoaders
 
-export async function loadGTSXPreviewComponent(entry: string): Promise<GTSXPreviewComponent | undefined> {
-  const { file, exportName } = parseGTSXPreviewEntry(entry)
-  const loader = (gtsxPreviewEntryLoaders as GTSXPreviewEntryLoaders)[file]
+export async function loadRunelightPreviewComponent(entry: string): Promise<RunelightPreviewComponent | undefined> {
+  const { file, exportName } = parseRunelightPreviewEntry(entry)
+  const loader = (runelightPreviewEntryLoaders as RunelightPreviewEntryLoaders)[file]
   if (!loader) return undefined
 
   const moduleValue = await loader()
   const component = moduleValue[exportName]
-  return typeof component === "function" ? (component as GTSXPreviewComponent) : undefined
+  return typeof component === "function" ? (component as RunelightPreviewComponent) : undefined
 }
 
-export function parseGTSXPreviewEntry(entry: string): { file: string; exportName: string } {
+export function parseRunelightPreviewEntry(entry: string): { file: string; exportName: string } {
   const [file, exportName] = entry.split("#", 2)
   return { file, exportName: exportName || "default" }
 }
@@ -342,20 +460,20 @@ function statOrUndefined(path) {
   }
 }
 
-function ensureGTSXDesignDirectory(root, options) {
-  mkdirSync(resolve(root, gtsxDesignRootFromEntryRoot(options.entryRoot)), { recursive: true })
+function ensureRunelightDesignDirectory(root, options) {
+  mkdirSync(resolve(root, runelightDesignRootFromEntryRoot(options.entryRoot)), { recursive: true })
 }
 
-function gtsxDesignRootFromEntryRoot(entryRoot) {
-  const root = normalizeGTSXPath(entryRoot)
+function runelightDesignRootFromEntryRoot(entryRoot) {
+  const root = normalizeRunelightPath(entryRoot)
   return root === "." ? "design" : `${root}/design`
 }
 
-function normalizeGTSXPath(path) {
+function normalizeRunelightPath(path) {
   const normalized = path.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/+$/, "")
   return normalized || "."
 }
 
 module.exports = {
-  gtsxNextReact,
+  runelightNextReact,
 }

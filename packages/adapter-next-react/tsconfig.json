@@ -4,12 +4,14 @@
     "noEmit": true,
     "types": ["node"],
     "paths": {
-      "@gtsx/adapter-next-react/preview-entries": ["./src/preview-entries.ts"],
-      "@gtsx/adapter-next-react/preview-route": ["./src/preview-route.ts"],
-      "@gtsx/preview-react": ["../preview-react/src/index.tsx"],
-      "@gtsx/core": ["../gtsx/src/index.ts"],
-      "@gtsx/core/config-model": ["../gtsx/src/config-model.ts"],
-      "@gtsx/core/preview-protocol": ["../gtsx/src/preview-protocol.ts"]
+      "@runelight/adapter-next-react/preview-entries": ["./src/preview-entries.ts"],
+      "@runelight/adapter-next-react/preview-route": ["./src/preview-route.ts"],
+      "@runelight/preview-react": ["../preview-react/src/index.tsx"],
+      "@runelight/core": ["../core/src/index.ts"],
+      "@runelight/core/config": ["../core/src/config.ts"],
+      "@runelight/core/config-model": ["../core/src/config-model.ts"],
+      "@runelight/core/preview-protocol": ["../core/src/preview-protocol.ts"],
+      "@runelight/core/react-transform": ["../core/src/react-transform.ts"]
     }
   },
   "include": ["src", "test/**/*.ts"]

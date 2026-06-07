@@ -1,6 +1,6 @@
 "use client"
 
-import type { GFrames } from "@gtsx/core"
+import type { GFrames } from "@runelight/core"
 
 import type { StudioPreviewFrameSlot } from "../preview-frame-slot"
 import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
@@ -44,7 +44,7 @@ export default function BufferedPreviewIframe(props: BufferedPreviewIframeProps)
       {props.dimmed ? (
         <div
           aria-hidden="true"
-          data-gtsx-buffered-preview-dim-overlay={props.slot.sessionId}
+          data-runelight-buffered-preview-dim-overlay={props.slot.sessionId}
           style={{
             background:
               "repeating-linear-gradient(135deg, rgba(87,96,106,0.34) 0, rgba(87,96,106,0.34) 6px, transparent 6px, transparent 12px)",
@@ -65,7 +65,7 @@ BufferedPreviewIframe.frames = {
     props: {
       size: { width: 390, height: 844 },
       slot: {
-        previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
+        previewUrl: "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
         sessionId: "src/UserCard.g.tsx#default:ready",
         title: "UserCard preview",
       },

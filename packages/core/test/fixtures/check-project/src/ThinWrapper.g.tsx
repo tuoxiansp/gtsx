@@ -1,0 +1,17 @@
+import type { GFrames } from "@runelight/core"
+
+function Order() {
+  return <article>Order</article>
+}
+
+export default function OrderPreview() {
+  const RunelightPreviewComponent = Order as any
+
+  return <RunelightPreviewComponent />
+}
+
+OrderPreview.frames = {
+  ready: {
+    props: {},
+  },
+} satisfies GFrames<Record<string, never>>

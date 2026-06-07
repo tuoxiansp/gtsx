@@ -1,6 +1,6 @@
 "use client"
 
-import type { GBoundaryTreeNode } from "@gtsx/core"
+import type { GBoundaryTreeNode } from "@runelight/core"
 
 import type { StudioManifest } from "./manifest"
 import type { StudioPreviewCacheEntry, StudioPreviewFrameState } from "./client"
@@ -23,7 +23,7 @@ type PersistedStudioPreviewFrameState = {
   tree?: GBoundaryTreeNode[]
 }
 
-const studioPreviewCacheDatabaseName = "gtsx-studio-preview-cache-v1"
+const studioPreviewCacheDatabaseName = "runelight-studio-preview-cache-v1"
 const studioPreviewCacheStoreName = "previewFrames"
 const studioPreviewCacheVersion = 1
 

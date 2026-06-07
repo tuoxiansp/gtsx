@@ -1,4 +1,4 @@
-import type { GFrames } from "@gtsx/core"
+import type { GFrames } from "@runelight/core"
 
 import { studioColors, studioFontFamily, studioRadii } from "../studio-theme"
 
@@ -58,7 +58,7 @@ PreviewError.frames = {
         message: "Cannot read properties of undefined",
         stack: "TypeError: Cannot read properties of undefined\n    at UserCard",
       },
-      previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
+      previewUrl: "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
     },
   },
 } satisfies GFrames<PreviewErrorProps>

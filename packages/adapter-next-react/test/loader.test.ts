@@ -17,10 +17,10 @@ type LoaderContextStub = {
 
 type LoaderCallback = (error: Error | null, code?: string, sourceMap?: unknown) => void
 
-describe("gtsx Next React loader", () => {
+describe("runelight Next React loader", () => {
   it("passes ordinary .g.tsx imports through without preview instrumentation", async () => {
     const transformPath = writeTransformModule(`
-export function transformGTSXReactModule() {
+export function transformRunelightReactModule() {
   throw new Error("ordinary imports should not be transformed")
 }
 `)
@@ -38,7 +38,7 @@ export function transformGTSXReactModule() {
 
   it("transforms preview imports through the shared React transform module", async () => {
     const transformPath = writeTransformModule(`
-export function transformGTSXReactModule(input) {
+export function transformRunelightReactModule(input) {
   return { code: [input.root, input.filePath, input.previewImportQuery, input.ensureUseClient, input.code].join("|"), filePath: input.filePath }
 }
 `)
@@ -46,18 +46,18 @@ export function transformGTSXReactModule(input) {
     await expect(
       runLoader("source", {
         root: "/repo",
-        resourceQuery: "?gtsx-preview",
+        resourceQuery: "?runelight-preview",
         transformPath,
       }),
     ).resolves.toEqual({
-      code: "/repo|/repo/src/Card.g.tsx|gtsx-preview||source",
+      code: "/repo|/repo/src/Card.g.tsx|runelight-preview||source",
       sourceMap: { version: 3 },
     })
   })
 
   it("passes original source through when the shared transform returns null", async () => {
     const transformPath = writeTransformModule(`
-export function transformGTSXReactModule() {
+export function transformRunelightReactModule() {
   return null
 }
 `)
@@ -65,7 +65,7 @@ export function transformGTSXReactModule() {
     await expect(
       runLoader(Buffer.from("source"), {
         root: "/repo",
-        resourceQuery: "?gtsx-preview",
+        resourceQuery: "?runelight-preview",
         transformPath,
       }),
     ).resolves.toEqual({
@@ -76,11 +76,11 @@ export function transformGTSXReactModule() {
 
   it("transpiles preview imports by default for stable Turbopack output", async () => {
     const transformPath = writeTransformModule(`
-export function transformGTSXReactModule(input) {
+export function transformRunelightReactModule(input) {
   return { code: input.code + "|transformed", filePath: input.filePath }
 }
 
-export function transpileGTSXReactModuleCode(input) {
+export function transpileRunelightReactModuleCode(input) {
   return input.code + "|transpiled"
 }
 `)
@@ -88,7 +88,7 @@ export function transpileGTSXReactModuleCode(input) {
     await expect(
       runLoader("source", {
         root: "/repo",
-        resourceQuery: "?gtsx-preview",
+        resourceQuery: "?runelight-preview",
         transformPath,
       }),
     ).resolves.toEqual({
@@ -99,11 +99,11 @@ export function transpileGTSXReactModuleCode(input) {
 
   it("can leave preview output untranspiled when explicitly disabled", async () => {
     const transformPath = writeTransformModule(`
-export function transformGTSXReactModule(input) {
+export function transformRunelightReactModule(input) {
   return { code: input.code + "|transformed", filePath: input.filePath }
 }
 
-export function transpileGTSXReactModuleCode(input) {
+export function transpileRunelightReactModuleCode(input) {
   return input.code + "|transpiled"
 }
 `)
@@ -111,7 +111,7 @@ export function transpileGTSXReactModuleCode(input) {
     await expect(
       runLoader("source", {
         root: "/repo",
-        resourceQuery: "?gtsx-preview",
+        resourceQuery: "?runelight-preview",
         transformPath,
         transpilePreview: false,
       }),
@@ -148,7 +148,7 @@ function runLoader(source: string | Buffer, options: Record<string, unknown>): P
 }
 
 function writeTransformModule(source: string): string {
-  const directory = mkdtempSync(join(tmpdir(), "gtsx-next-loader-"))
+  const directory = mkdtempSync(join(tmpdir(), "runelight-next-loader-"))
   const filePath = join(directory, "transform.mjs")
   writeFileSync(filePath, source)
   process.on("exit", () => rmSync(directory, { force: true, recursive: true }))

@@ -1,25 +1,25 @@
 "use client"
 
-import { installGTSXNextDevIndicatorCleanup } from "./dev-indicator-cleanup.js"
+import { installRunelightNextDevIndicatorCleanup } from "./dev-indicator-cleanup.js"
 
-export type GTSXNextDevIndicatorCleanupProps = {
+export type RunelightNextDevIndicatorCleanupProps = {
   pathPrefix?: string
 }
 
 const installedPathPrefixes = new Set<string>()
 
-ensureGTSXNextDevIndicatorCleanup()
+ensureRunelightNextDevIndicatorCleanup()
 
-export function GTSXNextDevIndicatorCleanup(props: GTSXNextDevIndicatorCleanupProps) {
-  ensureGTSXNextDevIndicatorCleanup(props.pathPrefix)
+export function RunelightNextDevIndicatorCleanup(props: RunelightNextDevIndicatorCleanupProps) {
+  ensureRunelightNextDevIndicatorCleanup(props.pathPrefix)
   return null
 }
 
-export function ensureGTSXNextDevIndicatorCleanup(pathPrefix = "/gtsx"): void {
+export function ensureRunelightNextDevIndicatorCleanup(pathPrefix = "/runelight"): void {
   if (installedPathPrefixes.has(pathPrefix)) return
 
   installedPathPrefixes.add(pathPrefix)
-  installGTSXNextDevIndicatorCleanup({ pathPrefix })
+  installRunelightNextDevIndicatorCleanup({ pathPrefix })
 }
 
-export { installGTSXNextDevIndicatorCleanup }
+export { installRunelightNextDevIndicatorCleanup }

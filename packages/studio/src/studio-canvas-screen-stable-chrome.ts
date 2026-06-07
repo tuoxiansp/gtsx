@@ -4,9 +4,9 @@ type StudioCanvasScale = {
   scale: number
 }
 
-const studioCanvasScreenStableChromeScaleProperty = "--gtsx-studio-screen-stable-chrome-scale"
-const studioCanvasScreenStableChromeContentSizeProperty = "--gtsx-studio-screen-stable-chrome-content-size"
-const studioCanvasScreenStableChromeBorderWidthProperty = "--gtsx-studio-screen-stable-chrome-border-width"
+const studioCanvasScreenStableChromeScaleProperty = "--runelight-studio-screen-stable-chrome-scale"
+const studioCanvasScreenStableChromeContentSizeProperty = "--runelight-studio-screen-stable-chrome-content-size"
+const studioCanvasScreenStableChromeBorderWidthProperty = "--runelight-studio-screen-stable-chrome-border-width"
 const studioCanvasScreenStableChromeBorderWidthPixels = 1.2
 
 export const studioCanvasScreenStableChromeMinimumStableCanvasScale = 0.75

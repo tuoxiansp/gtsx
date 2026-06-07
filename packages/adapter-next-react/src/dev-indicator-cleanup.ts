@@ -2,7 +2,7 @@ type CleanupDocument = Document & {
   defaultView: (Window & typeof globalThis) | null
 }
 
-const cleanupStyleElementId = "gtsx-next-dev-indicator-cleanup"
+const cleanupStyleElementId = "runelight-next-dev-indicator-cleanup"
 
 export const nextDevIndicatorSelectors = [
   "#devtools-indicator",
@@ -13,13 +13,13 @@ export const nextDevIndicatorSelectors = [
   "[data-nextjs-devtool]",
 ] as const
 
-export type GTSXNextDevIndicatorCleanupOptions = {
+export type RunelightNextDevIndicatorCleanupOptions = {
   document?: Document
   location?: Pick<Location, "pathname">
   pathPrefix?: string
 }
 
-export function installGTSXNextDevIndicatorCleanup(options: GTSXNextDevIndicatorCleanupOptions = {}): () => void {
+export function installRunelightNextDevIndicatorCleanup(options: RunelightNextDevIndicatorCleanupOptions = {}): () => void {
   const documentValue = options.document ?? globalThis.document
   if (!documentValue) return () => {}
 
@@ -36,7 +36,7 @@ export function installGTSXNextDevIndicatorCleanup(options: GTSXNextDevIndicator
   }
 }
 
-export function isGTSXNextPreviewPath(pathname: string, pathPrefix = "/gtsx"): boolean {
+export function isRunelightNextPreviewPath(pathname: string, pathPrefix = "/runelight"): boolean {
   const normalizedPrefix = pathPrefix.endsWith("/") ? pathPrefix.slice(0, -1) : pathPrefix
   return pathname === normalizedPrefix || pathname.startsWith(`${normalizedPrefix}/`)
 }
@@ -61,11 +61,11 @@ export function restoreNextDevIndicator(documentValue: Document): void {
 
 export function syncNextDevIndicatorCleanup(
   documentValue: Document,
-  options: GTSXNextDevIndicatorCleanupOptions = {},
+  options: RunelightNextDevIndicatorCleanupOptions = {},
 ): void {
   const locationValue =
     options.location ?? (documentValue as CleanupDocument).defaultView?.location ?? globalThis.location
-  if (isGTSXNextPreviewPath(locationValue?.pathname ?? "", options.pathPrefix)) {
+  if (isRunelightNextPreviewPath(locationValue?.pathname ?? "", options.pathPrefix)) {
     cleanupNextDevIndicator(documentValue)
   } else {
     restoreNextDevIndicator(documentValue)

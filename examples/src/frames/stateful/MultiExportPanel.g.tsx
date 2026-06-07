@@ -1,4 +1,4 @@
-import type { GFrames } from "@gtsx/core"
+import type { GFrames } from "@runelight/core"
 
 type PanelProps = {
   label: string

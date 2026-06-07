@@ -1,7 +1,7 @@
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { gtsxViteReact } from "@gtsx/adapter-vite-react"
+import { runelightViteReact } from "@runelight/adapter-vite-react"
 import react from "@vitejs/plugin-react"
 import { defineConfig, normalizePath, type Plugin } from "vite"
 
@@ -9,7 +9,7 @@ const root = dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   plugins: [
-    gtsxViteReact({ root, sourceRoot: "src" }),
+    runelightViteReact({ root, sourceRoot: "src" }),
     react(),
     preserveClientEntrypointDirective(),
   ],
@@ -27,10 +27,10 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
-        "@gtsx/core",
-        "@gtsx/core/config",
-        "@gtsx/core/config-model",
-        "@gtsx/core/project-index",
+        "@runelight/core",
+        "@runelight/core/config",
+        "@runelight/core/config-model",
+        "@runelight/core/project-index",
         "node:fs",
         "node:path",
         "react",
@@ -48,7 +48,7 @@ export default defineConfig({
 
 function preserveClientEntrypointDirective(): Plugin {
   return {
-    name: "gtsx-studio-preserve-client-entrypoint-directive",
+    name: "runelight-studio-preserve-client-entrypoint-directive",
     generateBundle(_options, bundle) {
       for (const chunk of Object.values(bundle)) {
         if (chunk.type !== "chunk") continue

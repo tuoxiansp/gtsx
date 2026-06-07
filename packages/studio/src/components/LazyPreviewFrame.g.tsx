@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GBoundaryRect, type GFrames } from "@gtsx/core"
+import { createGScopeHook, type GBoundaryRect, type GFrames } from "@runelight/core"
 
 import ComponentBoundsHitTarget from "./ComponentBoundsHitTarget.g"
 import SelectedBoundaryOutline from "./SelectedBoundaryOutline.g"
@@ -19,7 +19,7 @@ import { studioColors, studioRadii } from "../studio-theme"
 import { useStudioPreviewIsVisibleSession, useStudioPreviewShouldRenderSession } from "../preview-render-session-store"
 
 type LazyPreviewFrameProps = {
-  "data-gtsx-preview-session-id": string
+  "data-runelight-preview-session-id": string
   boundaryRect?: GBoundaryRect
   coordinate: string
   debugIndicatorScale?: number
@@ -89,9 +89,9 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
 
   return (
     <div
-      data-gtsx-preview-session-id={props["data-gtsx-preview-session-id"]}
-      data-gtsx-preview-src={props.previewUrl}
-      data-gtsx-viewport-preset={props.viewportPreset}
+      data-runelight-preview-session-id={props["data-runelight-preview-session-id"]}
+      data-runelight-preview-src={props.previewUrl}
+      data-runelight-viewport-preset={props.viewportPreset}
       style={{
         height: layoutHeight,
         overflow: "visible",
@@ -101,7 +101,7 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
     >
       {shouldLoad ? (
         <div
-          data-gtsx-preview-clip="true"
+          data-runelight-preview-clip="true"
           style={{
             borderRadius: props.dimmed ? studioRadii.md : undefined,
             contain: "layout paint style",
@@ -141,11 +141,11 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
       {props.debugPreviewQueue ? (
         <span
           aria-label="Preview render lifecycle"
-          data-gtsx-preview-render-flow={renderFlowDebugState}
-          data-gtsx-preview-render-iframe-origin={iframeOrigin}
-          data-gtsx-preview-render-lifecycle={renderLifecycleState}
-          data-gtsx-preview-render-queued={shouldLoad ? "true" : "false"}
-          data-gtsx-preview-render-visible={scope.isVisibleRenderSession ? "true" : "false"}
+          data-runelight-preview-render-flow={renderFlowDebugState}
+          data-runelight-preview-render-iframe-origin={iframeOrigin}
+          data-runelight-preview-render-lifecycle={renderLifecycleState}
+          data-runelight-preview-render-queued={shouldLoad ? "true" : "false"}
+          data-runelight-preview-render-visible={scope.isVisibleRenderSession ? "true" : "false"}
           style={{
             alignItems: "center",
             background: studioColors.panelBg,
@@ -180,7 +180,7 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
       {props.debugPreviewQueue && shouldLoad && scope.isVisibleRenderSession ? (
         <span
           aria-label="Preview task dispatched from visible viewport"
-          data-gtsx-preview-queue-origin="visible"
+          data-runelight-preview-queue-origin="visible"
           style={{
             background: studioColors.accent,
             border: `1px solid ${studioColors.panelBorder}`,
@@ -202,7 +202,7 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
       {props.debugPreviewPool && shouldLoad && scope.borrowOrigin ? (
         <span
           aria-label={scope.borrowOrigin === "pool" ? "Preview iframe reused from pool" : "Preview iframe created"}
-          data-gtsx-preview-pool-origin={scope.borrowOrigin}
+          data-runelight-preview-pool-origin={scope.borrowOrigin}
           style={{
             background: scope.borrowOrigin === "pool" ? "#2da44e" : "#fb8f2d",
             border: "1px solid rgba(255,255,255,0.92)",
@@ -232,10 +232,10 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
 LazyPreviewFrame.frames = {
   loadedPhone: {
     props: {
-      "data-gtsx-preview-session-id": "src/UserCard.g.tsx#default:ready",
+      "data-runelight-preview-session-id": "src/UserCard.g.tsx#default:ready",
       boundaryRect: { x: 10, y: 20, width: 320, height: 88 },
       coordinate: "src/UserCard.g.tsx#default",
-      previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
+      previewUrl: "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
       selectedBoundaryRect: { x: 10, y: 20, width: 320, height: 88 },
       shouldLoad: true,
       size: { width: 390, height: 844 },
@@ -246,7 +246,7 @@ LazyPreviewFrame.frames = {
   },
   debugQueue: {
     props: {
-      "data-gtsx-preview-session-id": "src/UserCard.g.tsx#default:ready",
+      "data-runelight-preview-session-id": "src/UserCard.g.tsx#default:ready",
       boundaryRect: { x: 10, y: 20, width: 320, height: 88 },
       coordinate: "src/UserCard.g.tsx#default",
       debugPreviewQueue: true,
@@ -254,7 +254,7 @@ LazyPreviewFrame.frames = {
         expectedSessionId: "src/UserCard.g.tsx#default:ready",
         ready: true,
       },
-      previewUrl: "/gtsx?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
+      previewUrl: "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0",
       selectedBoundaryRect: { x: 10, y: 20, width: 320, height: 88 },
       shouldLoad: true,
       size: { width: 390, height: 844 },

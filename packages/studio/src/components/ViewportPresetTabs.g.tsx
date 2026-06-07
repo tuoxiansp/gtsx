@@ -1,5 +1,5 @@
 import React from "react"
-import type { GFrames } from "@gtsx/core"
+import type { GFrames } from "@runelight/core"
 
 import {
   studioSegmentedControlButtonStyle,
@@ -33,8 +33,8 @@ function ViewportPresetTabsView(props: ViewportPresetTabsProps) {
   return (
     <div
       aria-label="Viewport"
-      data-gtsx-canvas-wheel-exempt
-      data-gtsx-floating-viewport-controls={props.floating ? true : undefined}
+      data-runelight-canvas-wheel-exempt
+      data-runelight-floating-viewport-controls={props.floating ? true : undefined}
       onPointerDown={(event) => event.stopPropagation()}
       style={{
         ...(props.floating ? studioViewportControlContainerStyle() : studioSegmentedControlContainerStyle()),
@@ -64,7 +64,7 @@ function ViewportPresetTabsView(props: ViewportPresetTabsProps) {
         {props.floating ? (
           <span
             aria-hidden="true"
-            data-gtsx-viewport-tab-highlight={true}
+            data-runelight-viewport-tab-highlight={true}
             style={{
               ...studioViewportTabHighlightStyle(),
               ...studioViewportTabHighlightMotionStyle(),
@@ -78,7 +78,7 @@ function ViewportPresetTabsView(props: ViewportPresetTabsProps) {
           return (
             <button
               aria-label={`Viewport ${preset}`}
-              data-gtsx-viewport-control={preset}
+              data-runelight-viewport-control={preset}
               key={preset}
               onClick={() => props.onChange?.(preset)}
               style={{

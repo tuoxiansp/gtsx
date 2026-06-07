@@ -1,4 +1,4 @@
-import type { GBoundaryRect, GBoundaryTreeNode } from "@gtsx/core"
+import type { GBoundaryRect, GBoundaryTreeNode } from "@runelight/core"
 
 const emptyStudioBoundaryRect: GBoundaryRect = { x: 0, y: 0, width: 1, height: 1 }
 

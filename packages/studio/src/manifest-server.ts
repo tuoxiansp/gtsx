@@ -1,23 +1,23 @@
-import { loadGTSXConfig, resolveGTSXConfig } from "@gtsx/core/config"
-import { requireGTSXEntryRoot } from "@gtsx/core/config-model"
-import type { GTSXConfig } from "@gtsx/core"
-import { createCachedGTSXProjectIndexBuilder } from "@gtsx/core/project-index"
+import { loadRunelightConfig, resolveRunelightConfig } from "@runelight/core/config"
+import { requireRunelightEntryRoot } from "@runelight/core/config-model"
+import type { RunelightConfig } from "@runelight/core"
+import { createCachedRunelightProjectIndexBuilder } from "@runelight/core/project-index"
 
-import { createStudioManifestFromGTSXConfig, studioDesignRoots, type StudioManifest } from "./manifest"
+import { createStudioManifestFromRunelightConfig, studioDesignRoots, type StudioManifest } from "./manifest"
 
 export { discoverStudioDesignManifest, studioDesignRoots } from "./manifest"
 
 export type CreateStudioManifestProviderOptions = {
-  config?: GTSXConfig
+  config?: RunelightConfig
   cwd?: string
 }
 
 export function createStudioManifestProvider(options: CreateStudioManifestProviderOptions = {}): () => StudioManifest {
   const cwd = options.cwd ?? "."
-  const config = options.config ?? loadRequiredGTSXConfig(cwd)
-  const resolved = resolveGTSXConfig(config)
-  const entryRoot = requireGTSXEntryRoot(resolved)
-  const buildProjectIndex = createCachedGTSXProjectIndexBuilder({
+  const config = options.config ?? loadRequiredRunelightConfig(cwd)
+  const resolved = resolveRunelightConfig(config)
+  const entryRoot = requireRunelightEntryRoot(resolved)
+  const buildProjectIndex = createCachedRunelightProjectIndexBuilder({
     ttlMs: resolved.studio.manifestCacheTtlMs,
   })
 
@@ -29,14 +29,14 @@ export function createStudioManifestProvider(options: CreateStudioManifestProvid
       tsconfigPath: resolved.project.tsconfig,
     })
 
-    return createStudioManifestFromGTSXConfig(projectIndex, config)
+    return createStudioManifestFromRunelightConfig(projectIndex, config)
   }
 }
 
-function loadRequiredGTSXConfig(cwd: string): GTSXConfig {
-  const result = loadGTSXConfig(cwd)
+function loadRequiredRunelightConfig(cwd: string): RunelightConfig {
+  const result = loadRunelightConfig(cwd)
   if (result.config) return result.config
 
   const message = result.diagnostics.map((diagnostic) => diagnostic.message).join("\n")
-  throw new Error(message || "Missing gtsx.config.ts.")
+  throw new Error(message || "Missing runelight.config.ts.")
 }

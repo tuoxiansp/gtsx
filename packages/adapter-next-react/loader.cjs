@@ -2,13 +2,13 @@
 
 const { pathToFileURL } = require("node:url")
 
-module.exports = function gtsxNextReactLoader(source, inputSourceMap) {
+module.exports = function runelightNextReactLoader(source, inputSourceMap) {
   const callback = this.async()
   const options = readLoaderOptions(this)
   const root = typeof options.root === "string" ? options.root : process.cwd()
-  const transformModule = typeof options.transformPath === "string" ? pathToFileURL(options.transformPath).href : "@gtsx/core/react-transform"
+  const transformModule = typeof options.transformPath === "string" ? pathToFileURL(options.transformPath).href : "@runelight/core/react-transform"
   const filePath = this.resourcePath
-  const previewQuery = typeof options.previewQuery === "string" ? options.previewQuery : "gtsx-preview"
+  const previewQuery = typeof options.previewQuery === "string" ? options.previewQuery : "runelight-preview"
   const isPreviewImport = hasResourceQuery(this.resourceQuery, previewQuery)
   const shouldTranspilePreview = options.transpilePreview !== false
   const code = Buffer.isBuffer(source) ? source.toString("utf8") : String(source)
@@ -19,8 +19,8 @@ module.exports = function gtsxNextReactLoader(source, inputSourceMap) {
   }
 
   import(transformModule).then(
-    ({ transformGTSXReactModule, transpileGTSXReactModuleCode }) => {
-      const transformed = transformGTSXReactModule({
+    ({ transformRunelightReactModule, transpileRunelightReactModuleCode }) => {
+      const transformed = transformRunelightReactModule({
         code,
         filePath,
         previewImportQuery: previewQuery,
@@ -28,8 +28,8 @@ module.exports = function gtsxNextReactLoader(source, inputSourceMap) {
       })
       const output = transformed?.code ?? code
       const finalOutput =
-        shouldTranspilePreview && typeof transpileGTSXReactModuleCode === "function"
-          ? transpileGTSXReactModuleCode({ code: output, filePath })
+        shouldTranspilePreview && typeof transpileRunelightReactModuleCode === "function"
+          ? transpileRunelightReactModuleCode({ code: output, filePath })
           : output
       callback(null, finalOutput, inputSourceMap)
     },

@@ -2,7 +2,7 @@
 
 Date: 2026-05-28
 
-Scope: GTSX Studio canvas, yuckuolie Studio entry, preview iframe rendering, geometry cache, render queue, scroll/zoom interaction.
+Scope: Runelight Studio canvas, yuckuolie Studio entry, preview iframe rendering, geometry cache, render queue, scroll/zoom interaction.
 
 This trace records the performance and abstraction work done after the Studio canvas UX changes. It is meant as an engineering memory: what was broken, which abstractions were introduced, what decisions were made, how the behavior was verified, and what still deserves observation.
 
@@ -196,18 +196,18 @@ Primary files:
 
 - `packages/adapter-next-react/src/preview-route.ts`
 - `packages/preview-react/src/index.tsx`
-- `examples/yuckuolie/src/app/gtsx/page.tsx`
+- `examples/yuckuolie/src/app/runelight/page.tsx`
 
 Responsibilities:
 
 - Keep user-project entry code small.
-- Move reusable preview/studio wiring into GTSX packages.
+- Move reusable preview/studio wiring into Runelight packages.
 - Support Studio static preview URLs.
 - Preserve the yuckuolie Studio entry as a concrete integration target.
 
 One test implication:
 
-- The GTSX package SSR test was updated to expect `static=1` in Studio preview URLs, because Studio cards now use static preview URLs.
+- The Runelight package SSR test was updated to expect `static=1` in Studio preview URLs, because Studio cards now use static preview URLs.
 
 ## Render Flow
 
@@ -307,18 +307,18 @@ The important tuning direction:
 
 Passing checks recorded during the final phase:
 
-- `pnpm --filter @gtsx/studio test -- test/studio-client.test.tsx`
+- `pnpm --filter @runelight/studio test -- test/studio-client.test.tsx`
   - Passed 143 tests.
-- `pnpm --filter @gtsx/studio build`
+- `pnpm --filter @runelight/studio build`
   - Passed.
   - Vite dynamic import warnings remained, but they were not new blockers.
-- `pnpm --filter @gtsx/adapter-next-react test`
+- `pnpm --filter @runelight/adapter-next-react test`
   - Passed 12 tests.
-- `pnpm --filter @gtsx/adapter-next-react build`
+- `pnpm --filter @runelight/adapter-next-react build`
   - Passed earlier in the run.
-- `pnpm --filter @gtsx/preview-react build`
+- `pnpm --filter @runelight/preview-react build`
   - Passed.
-- `pnpm --filter gtsx test`
+- `pnpm --filter runelight test`
   - Initially failed in sandbox because of listen/tsx IPC/Chromium permission errors.
   - Reran with escalation and passed 69 tests.
 
@@ -352,7 +352,7 @@ These numbers moved the experience from "blank for several seconds after fast sc
 
 The yuckuolie Studio target used during verification:
 
-- `http://127.0.0.1:4315/gtsx/studio`
+- `http://127.0.0.1:4315/runelight/studio`
 
 Observed unrelated server warning:
 
@@ -361,9 +361,9 @@ Observed unrelated server warning:
 
 Temporary browser/probe scripts were placed in `/private/tmp`, for example:
 
-- `/private/tmp/gtsx-studio-performance-audit.mjs`
-- `/private/tmp/gtsx-studio-visible-scroll-probe.mjs`
-- `/private/tmp/gtsx-studio-frame-state-probe.mjs`
+- `/private/tmp/runelight-studio-performance-audit.mjs`
+- `/private/tmp/runelight-studio-visible-scroll-probe.mjs`
+- `/private/tmp/runelight-studio-frame-state-probe.mjs`
 
 These were investigation artifacts, not source files.
 

@@ -1,16 +1,16 @@
 "use client"
 
-import { GTSXReactPreviewClient, type GTSXReactPreviewClientProps } from "@gtsx/preview-react"
+import { RunelightReactPreviewClient, type RunelightReactPreviewClientProps } from "@runelight/preview-react"
 
-export type { GTSXPreviewFrame, GTSXPreviewComponent, GTSXPreviewModule } from "@gtsx/preview-react"
+export type { RunelightPreviewFrame, RunelightPreviewComponent, RunelightPreviewModule } from "@runelight/preview-react"
 
-export type GTSXNextPreviewClientProps = Omit<GTSXReactPreviewClientProps, "loadComponent">
+export type RunelightNextPreviewClientProps = Omit<RunelightReactPreviewClientProps, "loadComponent">
 
-export function GTSXNextPreviewClient(props: GTSXNextPreviewClientProps) {
-  return <GTSXReactPreviewClient {...props} loadComponent={loadGTSXNextPreviewComponent} />
+export function RunelightNextPreviewClient(props: RunelightNextPreviewClientProps) {
+  return <RunelightReactPreviewClient {...props} loadComponent={loadRunelightNextPreviewComponent} />
 }
 
-async function loadGTSXNextPreviewComponent(entry: string) {
-  const { loadGTSXPreviewComponent } = await import("@gtsx/adapter-next-react/preview-entries")
-  return loadGTSXPreviewComponent(entry)
+async function loadRunelightNextPreviewComponent(entry: string) {
+  const { loadRunelightPreviewComponent } = await import("@runelight/adapter-next-react/preview-entries")
+  return loadRunelightPreviewComponent(entry)
 }

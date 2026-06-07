@@ -1,4 +1,4 @@
-import type { GBoundaryRect, GFrames } from "@gtsx/core"
+import type { GBoundaryRect, GFrames } from "@runelight/core"
 
 import { studioColors } from "../studio-theme"
 
@@ -10,7 +10,7 @@ export default function SelectedBoundaryOutline(props: SelectedBoundaryOutlinePr
   return (
     <div
       aria-hidden="true"
-      data-gtsx-selection-outline="true"
+      data-runelight-selection-outline="true"
       style={{
         height: props.rect.height,
         left: props.rect.x,

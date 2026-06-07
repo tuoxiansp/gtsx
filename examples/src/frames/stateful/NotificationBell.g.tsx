@@ -1,4 +1,4 @@
-import { createGScopeHook, type GFrames } from "@gtsx/core"
+import { createGScopeHook, type GFrames } from "@runelight/core"
 
 type NotificationBellProps = {
   label: string

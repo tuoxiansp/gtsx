@@ -3,12 +3,12 @@ import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
 import { describe, expect, it } from "vitest"
 
-import { buildGTSXProjectIndex } from "@gtsx/core/project-index"
-import { createStudioManifest, createStudioManifestFromGTSXConfig, studioUrlSearchFromSearchParams } from "../src/index.js"
+import { buildRunelightProjectIndex } from "@runelight/core/project-index"
+import { createStudioManifest, createStudioManifestFromRunelightConfig, studioUrlSearchFromSearchParams } from "../src/index.js"
 import { createStudioManifestProvider, discoverStudioDesignManifest } from "../src/manifest-server.js"
 
-const fixtureRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/check-project")
-const tsProjectScopeRoot = join(import.meta.dirname, "../../gtsx/test/fixtures/ts-project-scope")
+const fixtureRoot = join(import.meta.dirname, "../../core/test/fixtures/check-project")
+const tsProjectScopeRoot = join(import.meta.dirname, "../../core/test/fixtures/ts-project-scope")
 const repositoryRoot = resolve(import.meta.dirname, "../../..")
 const packageRoot = join(repositoryRoot, "packages/studio")
 const examplesRoot = join(repositoryRoot, "examples")
@@ -18,7 +18,7 @@ type CreateStudioManifestOptions = NonNullable<Parameters<typeof createStudioMan
 function buildStudioManifest(
   options: { additionalRoots?: string[]; cwd: string; sourceRoot?: string; tsconfigPath?: string } & CreateStudioManifestOptions,
 ) {
-  const projectIndex = buildGTSXProjectIndex({
+  const projectIndex = buildRunelightProjectIndex({
     additionalRoots: options.additionalRoots,
     cwd: options.cwd,
     sourceRoot: options.sourceRoot,
@@ -40,24 +40,24 @@ function manifestJsonKeys(value: unknown): string[] {
   return Object.entries(value).flatMap(([key, nested]) => [key, ...manifestJsonKeys(nested)])
 }
 
-describe("GTSX Studio manifest", () => {
+describe("Runelight Studio manifest", () => {
   it("returns stable static JSON for a project surface", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       sourceRoot: "src/corpus",
-      preview: { urlTemplate: "https://preview.test/gtsx?entry={entry}&frame={frame}&port={port}" },
+      preview: { urlTemplate: "https://preview.test/runelight?entry={entry}&frame={frame}&port={port}" },
     })
 
     expect(manifest).toEqual({
       version: 1,
       routes: {
-        preview: "/gtsx",
-        studio: "/gtsx/studio",
-        manifest: "/gtsx/studio/manifest",
+        preview: "/runelight",
+        studio: "/runelight/studio",
+        manifest: "/runelight/studio/manifest",
       },
       preview: {
-        urlTemplate: "https://preview.test/gtsx?entry={entry}&frame={frame}&port={port}",
-        allUrlTemplate: "/gtsx?entry={entry}{gframe}",
+        urlTemplate: "https://preview.test/runelight?entry={entry}&frame={frame}&port={port}",
+        allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
       },
       files: [
         {
@@ -109,12 +109,12 @@ describe("GTSX Studio manifest", () => {
     })
   })
 
-  it("assembles Studio route and grouping concerns from a GTSX project index", () => {
-    const projectIndex = buildGTSXProjectIndex({ cwd: fixtureRoot, sourceRoot: "src/corpus" })
+  it("assembles Studio route and grouping concerns from a Runelight project index", () => {
+    const projectIndex = buildRunelightProjectIndex({ cwd: fixtureRoot, sourceRoot: "src/corpus" })
 
     const manifest = createStudioManifest(projectIndex, {
       preview: {
-        urlTemplate: "https://preview.test/gtsx?entry={entry}&frame={frame}",
+        urlTemplate: "https://preview.test/runelight?entry={entry}&frame={frame}",
       },
       routes: {
         studio: "/custom/studio",
@@ -122,13 +122,13 @@ describe("GTSX Studio manifest", () => {
     })
 
     expect(manifest.routes).toEqual({
-      preview: "/gtsx",
+      preview: "/runelight",
       studio: "/custom/studio",
-      manifest: "/gtsx/studio/manifest",
+      manifest: "/runelight/studio/manifest",
     })
     expect(manifest.preview).toEqual({
-      urlTemplate: "https://preview.test/gtsx?entry={entry}&frame={frame}",
-      allUrlTemplate: "/gtsx?entry={entry}{gframe}",
+      urlTemplate: "https://preview.test/runelight?entry={entry}&frame={frame}",
+      allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
     })
     expect(manifest.files.map((file) => file.groupId)).toEqual([
       "file:src/corpus/Badge.g.tsx",
@@ -147,13 +147,13 @@ describe("GTSX Studio manifest", () => {
     expect(manifest.cache).toEqual({ namespace: "fixture-project" })
   })
 
-  it("creates a cached Studio manifest provider from gtsx config", () => {
+  it("creates a cached Studio manifest provider from runelight config", () => {
     const getManifest = createStudioManifestProvider({
       cwd: fixtureRoot,
       config: {
         project: {
           sourceRoot: "src/corpus",
-          entryRoot: "app/gtsx",
+          entryRoot: "app/runelight",
           namespace: "fixture-project",
         },
         routes: {
@@ -178,19 +178,19 @@ describe("GTSX Studio manifest", () => {
       manifest: "/studio/manifest",
     })
     expect(manifest.preview).toEqual({
-      urlTemplate: "/preview?entry={entry}&frame={frame}{gframe}",
-      allUrlTemplate: "/preview?entry={entry}{gframe}",
+      urlTemplate: "/preview?entry={entry}&frame={frame}{frameOverrides}",
+      allUrlTemplate: "/preview?entry={entry}{frameOverrides}",
     })
     expect(manifest.files.map((file) => file.path)).toEqual(["src/corpus/Badge.g.tsx", "src/corpus/StatusPanel.g.tsx"])
   })
 
   it("discovers local design frames under the configured route entry", () => {
-    const cwd = mkdtempSync(join(tmpdir(), "gtsx-studio-design-"))
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-studio-design-"))
 
     try {
-      mkdirSync(join(cwd, "components/app/gtsx/design/nested"), { recursive: true })
+      mkdirSync(join(cwd, "components/app/runelight/design/nested"), { recursive: true })
       writeFileSync(
-        join(cwd, "components/app/gtsx/design/alpha.g.tsx"),
+        join(cwd, "components/app/runelight/design/alpha.g.tsx"),
         [
           "export function AlphaDesign() { return null }",
           "AlphaDesign.frames = {",
@@ -200,44 +200,44 @@ describe("GTSX Studio manifest", () => {
           "",
         ].join("\n"),
       )
-      writeFileSync(join(cwd, "components/app/gtsx/design/current-design.tsx"), "export function CurrentDesign() { return null }\n")
-      writeFileSync(join(cwd, "components/app/gtsx/design/missing.g.tsx"), "export default function MissingDesign() { return null }\n")
+      writeFileSync(join(cwd, "components/app/runelight/design/current-design.tsx"), "export function CurrentDesign() { return null }\n")
+      writeFileSync(join(cwd, "components/app/runelight/design/missing.g.tsx"), "export default function MissingDesign() { return null }\n")
       writeFileSync(
-        join(cwd, "components/app/gtsx/design/nested/beta.g.tsx"),
+        join(cwd, "components/app/runelight/design/nested/beta.g.tsx"),
         ["export function BetaDesign() { return null }", "BetaDesign.frames = { live: { props: {} } }", ""].join("\n"),
       )
-      const projectIndex = buildGTSXProjectIndex({ cwd, sourceRoot: "components" })
+      const projectIndex = buildRunelightProjectIndex({ cwd, sourceRoot: "components" })
 
-      expect(discoverStudioDesignManifest(projectIndex, "components/app/gtsx")).toEqual({
+      expect(discoverStudioDesignManifest(projectIndex, "components/app/runelight")).toEqual({
         frames: [
           {
-            id: "components/app/gtsx/design/alpha.g.tsx#AlphaDesign:live",
-            entry: "components/app/gtsx/design/alpha.g.tsx#AlphaDesign",
-            filePath: "components/app/gtsx/design/alpha.g.tsx",
+            id: "components/app/runelight/design/alpha.g.tsx#AlphaDesign:live",
+            entry: "components/app/runelight/design/alpha.g.tsx#AlphaDesign",
+            filePath: "components/app/runelight/design/alpha.g.tsx",
             title: "AlphaDesign",
             exportName: "AlphaDesign",
             frameName: "live",
           },
           {
-            id: "components/app/gtsx/design/alpha.g.tsx#AlphaDesign:dense",
-            entry: "components/app/gtsx/design/alpha.g.tsx#AlphaDesign",
-            filePath: "components/app/gtsx/design/alpha.g.tsx",
+            id: "components/app/runelight/design/alpha.g.tsx#AlphaDesign:dense",
+            entry: "components/app/runelight/design/alpha.g.tsx#AlphaDesign",
+            filePath: "components/app/runelight/design/alpha.g.tsx",
             title: "AlphaDesign",
             exportName: "AlphaDesign",
             frameName: "dense",
           },
           {
-            id: "components/app/gtsx/design/missing.g.tsx#default:missing-frames",
-            entry: "components/app/gtsx/design/missing.g.tsx#default",
-            filePath: "components/app/gtsx/design/missing.g.tsx",
+            id: "components/app/runelight/design/missing.g.tsx#default:missing-frames",
+            entry: "components/app/runelight/design/missing.g.tsx#default",
+            filePath: "components/app/runelight/design/missing.g.tsx",
             title: "MissingDesign",
             exportName: "default",
             frameName: "missing-frames",
           },
           {
-            id: "components/app/gtsx/design/nested/beta.g.tsx#BetaDesign:live",
-            entry: "components/app/gtsx/design/nested/beta.g.tsx#BetaDesign",
-            filePath: "components/app/gtsx/design/nested/beta.g.tsx",
+            id: "components/app/runelight/design/nested/beta.g.tsx#BetaDesign:live",
+            entry: "components/app/runelight/design/nested/beta.g.tsx#BetaDesign",
+            filePath: "components/app/runelight/design/nested/beta.g.tsx",
             title: "BetaDesign",
             exportName: "BetaDesign",
             frameName: "live",
@@ -250,13 +250,13 @@ describe("GTSX Studio manifest", () => {
   })
 
   it("discovers route design frames outside the component workspace", () => {
-    const cwd = mkdtempSync(join(tmpdir(), "gtsx-studio-route-design-"))
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-studio-route-design-"))
 
     try {
       mkdirSync(join(cwd, "src/components"), { recursive: true })
-      mkdirSync(join(cwd, "src/app/gtsx/design"), { recursive: true })
+      mkdirSync(join(cwd, "src/app/runelight/design"), { recursive: true })
       writeFileSync(
-        join(cwd, "src/app/gtsx/design/checkout-flow.g.tsx"),
+        join(cwd, "src/app/runelight/design/checkout-flow.g.tsx"),
         ["export default function CheckoutFlow() { return null }", "CheckoutFlow.frames = { live: { props: {} } }", ""].join("\n"),
       )
       writeFileSync(
@@ -264,60 +264,60 @@ describe("GTSX Studio manifest", () => {
         ["export default function Card() { return null }", "Card.frames = { ready: { props: {} } }", ""].join("\n"),
       )
       const manifest = buildStudioManifest({
-        additionalRoots: ["src/app/gtsx/design"],
+        additionalRoots: ["src/app/runelight/design"],
         cwd,
         design: discoverStudioDesignManifest(
-          buildGTSXProjectIndex({
-            additionalRoots: ["src/app/gtsx/design"],
+          buildRunelightProjectIndex({
+            additionalRoots: ["src/app/runelight/design"],
             cwd,
             sourceRoot: "src",
           }),
-          "src/app/gtsx",
+          "src/app/runelight",
         ),
         sourceRoot: "src",
       })
 
       expect(manifest.design?.frames).toEqual([
         {
-          id: "src/app/gtsx/design/checkout-flow.g.tsx#default:live",
-          entry: "src/app/gtsx/design/checkout-flow.g.tsx#default",
-          filePath: "src/app/gtsx/design/checkout-flow.g.tsx",
+          id: "src/app/runelight/design/checkout-flow.g.tsx#default:live",
+          entry: "src/app/runelight/design/checkout-flow.g.tsx#default",
+          filePath: "src/app/runelight/design/checkout-flow.g.tsx",
           title: "CheckoutFlow",
           exportName: "default",
           frameName: "live",
         },
       ])
-      expect(manifest.files.map((file) => file.path)).toEqual(["src/app/gtsx/design/checkout-flow.g.tsx", "src/components/Card.g.tsx"])
+      expect(manifest.files.map((file) => file.path)).toEqual(["src/app/runelight/design/checkout-flow.g.tsx", "src/components/Card.g.tsx"])
     } finally {
       rmSync(cwd, { force: true, recursive: true })
     }
   })
 
-  it("adds route design frames when creating a manifest from gtsx config", () => {
-    const cwd = mkdtempSync(join(tmpdir(), "gtsx-studio-route-design-config-"))
+  it("adds route design frames when creating a manifest from runelight config", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-studio-route-design-config-"))
 
     try {
       mkdirSync(join(cwd, "src/components"), { recursive: true })
-      mkdirSync(join(cwd, "src/app/gtsx/design"), { recursive: true })
+      mkdirSync(join(cwd, "src/app/runelight/design"), { recursive: true })
       writeFileSync(
-        join(cwd, "src/app/gtsx/design/checkout-flow.g.tsx"),
+        join(cwd, "src/app/runelight/design/checkout-flow.g.tsx"),
         ["export default function CheckoutFlow() { return null }", "CheckoutFlow.frames = { live: { props: {} } }", ""].join("\n"),
       )
       writeFileSync(
         join(cwd, "src/components/Card.g.tsx"),
         ["export default function Card() { return null }", "Card.frames = { ready: { props: {} } }", ""].join("\n"),
       )
-      const projectIndex = buildGTSXProjectIndex({
-        additionalRoots: ["src/app/gtsx/design"],
+      const projectIndex = buildRunelightProjectIndex({
+        additionalRoots: ["src/app/runelight/design"],
         cwd,
         sourceRoot: "src",
       })
-      const manifest = createStudioManifestFromGTSXConfig(projectIndex, {
-        project: { sourceRoot: "src", entryRoot: "src/app/gtsx" },
+      const manifest = createStudioManifestFromRunelightConfig(projectIndex, {
+        project: { sourceRoot: "src", entryRoot: "src/app/runelight" },
         preview: {},
       })
 
-      expect(manifest.design?.frames.map((frame) => frame.id)).toEqual(["src/app/gtsx/design/checkout-flow.g.tsx#default:live"])
+      expect(manifest.design?.frames.map((frame) => frame.id)).toEqual(["src/app/runelight/design/checkout-flow.g.tsx#default:live"])
     } finally {
       rmSync(cwd, { force: true, recursive: true })
     }
@@ -340,7 +340,7 @@ describe("GTSX Studio manifest", () => {
     })
 
     expect(manifest.files.map((file) => file.path)).toEqual([
-      "src/app/gtsx/design/Sketch.g.tsx",
+      "src/app/runelight/design/Sketch.g.tsx",
       "src/Child.g.tsx",
       "src/Included.g.tsx",
     ])
@@ -350,7 +350,7 @@ describe("GTSX Studio manifest", () => {
     const manifest = buildStudioManifest({ cwd: tsProjectScopeRoot })
 
     expect(manifest.files.map((file) => file.path)).toEqual([
-      "src/app/gtsx/design/Sketch.g.tsx",
+      "src/app/runelight/design/Sketch.g.tsx",
       "src/Child.g.tsx",
       "src/Included.g.tsx",
     ])
@@ -393,7 +393,7 @@ describe("GTSX Studio manifest", () => {
     )
   })
 
-  it("does not list exported GTSX providers as component exports", () => {
+  it("does not list exported Runelight providers as component exports", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const userCardFile = manifest.files.find((file) => file.path === "src/UserCard.g.tsx")
 
@@ -424,14 +424,14 @@ describe("GTSX Studio manifest", () => {
       cwd: examplesRoot,
       sourceRoot: "src/frames",
       preview: {
-        urlTemplate: "http://localhost:{port}/gtsx?entry={entry}&frame={frame}{gframe}",
-        allUrlTemplate: "http://localhost:{port}/gtsx?entry={entry}{gframe}",
+        urlTemplate: "http://localhost:{port}/runelight?entry={entry}&frame={frame}{frameOverrides}",
+        allUrlTemplate: "http://localhost:{port}/runelight?entry={entry}{frameOverrides}",
       },
     })
 
     expect(manifest.preview).toEqual({
-      urlTemplate: "http://localhost:{port}/gtsx?entry={entry}&frame={frame}{gframe}",
-      allUrlTemplate: "http://localhost:{port}/gtsx?entry={entry}{gframe}",
+      urlTemplate: "http://localhost:{port}/runelight?entry={entry}&frame={frame}{frameOverrides}",
+      allUrlTemplate: "http://localhost:{port}/runelight?entry={entry}{frameOverrides}",
     })
     expect(manifest.files.map((file) => file.path)).toEqual([
       "src/frames/language/PrimitiveProps.g.tsx",

@@ -1,4 +1,4 @@
-import type { GFrames } from "@gtsx/core"
+import type { GFrames } from "@runelight/core"
 
 import { studioColors, studioFontFamily, studioRadii } from "../studio-theme"
 
@@ -31,7 +31,7 @@ export default function StudioEmptyState(props: StudioEmptyStateProps) {
           textTransform: "uppercase",
         }}
       >
-        GTSX Studio
+        Runelight Studio
       </p>
       <h1 style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.2, margin: "0 0 8px" }}>{props.title}</h1>
       <p style={{ color: studioColors.textMuted, fontSize: 12, lineHeight: 1.5, margin: 0 }}>{props.detail}</p>
@@ -61,7 +61,7 @@ StudioEmptyState.frames = {
   empty: {
     props: {
       title: "No components selected",
-      detail: "Studio can inspect this package the same way it inspects any other GTSX project.",
+      detail: "Studio can inspect this package the same way it inspects any other Runelight project.",
       actionLabel: "Create a frame",
     },
   },

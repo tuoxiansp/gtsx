@@ -6,13 +6,16 @@
     "noEmit": true,
     "types": ["vite/client"],
     "paths": {
-      "@gtsx/adapter-vite-react": ["../packages/adapter-vite-react/src/index.ts"],
-      "@gtsx/adapter-vite-react/preview": ["../packages/adapter-vite-react/src/preview.ts"],
-      "@gtsx/preview-react": ["../packages/preview-react/src/index.tsx"],
-      "@gtsx/studio": ["../packages/studio/src/index.ts"],
-      "@gtsx/core": ["../packages/gtsx/src/index.ts"],
-      "@gtsx/core/project-index": ["../packages/gtsx/src/project-index.ts"]
+      "@runelight/adapter-vite-react": ["../packages/adapter-vite-react/src/index.ts"],
+      "@runelight/adapter-vite-react/preview": ["../packages/adapter-vite-react/src/preview.ts"],
+      "@runelight/preview-react": ["../packages/preview-react/src/index.tsx"],
+      "@runelight/studio": ["../packages/studio/src/index.ts"],
+      "@runelight/core": ["../packages/core/src/index.ts"],
+      "@runelight/core/config": ["../packages/core/src/config.ts"],
+      "@runelight/core/config-model": ["../packages/core/src/config-model.ts"],
+      "@runelight/core/project-index": ["../packages/core/src/project-index.ts"],
+      "@runelight/core/react-transform": ["../packages/core/src/react-transform.ts"]
     }
   },
-  "include": ["src", "vite.config.ts", "gtsx.config.ts"]
+  "include": ["src", "vite.config.ts", "runelight.config.ts"]
 }

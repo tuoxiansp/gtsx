@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GBoundaryRect, type GFrames, type GPreviewProtocolMessage } from "@gtsx/core"
+import { createGScopeHook, type GBoundaryRect, type GFrames, type GPreviewProtocolMessage } from "@runelight/core"
 
 import type { StudioPreviewFrameState } from "../client"
 import { studioBoundaryRectForCoordinate } from "../boundary-tree"
@@ -54,7 +54,7 @@ function useRealSidebarComponentPreviewScope(component: StudioManifestComponent)
 
     const handleMessage = (event: MessageEvent) => {
       const message = event.data as GPreviewProtocolMessage
-      if (!isGPreviewProtocolMessage(message) || message.sessionId !== sessionId || message.type !== "gtsx:tree") return
+      if (!isGPreviewProtocolMessage(message) || message.sessionId !== sessionId || message.type !== "runelight:tree") return
 
       setBoundaryRect(studioBoundaryRectForCoordinate(message.tree, component.coordinate))
     }
@@ -77,9 +77,9 @@ export default function SidebarComponentPreview(props: SidebarComponentPreviewPr
   return (
     <div
       aria-hidden="true"
-      data-gtsx-sidebar-preview-coordinate={props.component.coordinate}
-      data-gtsx-sidebar-preview-loaded={scope.shouldLoad ? "true" : undefined}
-      data-gtsx-viewport-preset="tablet"
+      data-runelight-sidebar-preview-coordinate={props.component.coordinate}
+      data-runelight-sidebar-preview-loaded={scope.shouldLoad ? "true" : undefined}
+      data-runelight-viewport-preset="tablet"
       ref={scope.setContainerElement}
       style={{
         background: studioColors.panelBgElevated,
@@ -91,7 +91,7 @@ export default function SidebarComponentPreview(props: SidebarComponentPreviewPr
     >
       {previewUrl && scope.shouldLoad ? (
         <iframe
-          data-gtsx-sidebar-preview-frame="true"
+          data-runelight-sidebar-preview-frame="true"
           src={previewUrl}
           style={{
             background: "transparent",
@@ -129,13 +129,13 @@ SidebarComponentPreview.frames = {
       manifest: {
         version: 1,
         routes: {
-          preview: "/gtsx",
-          studio: "/gtsx/studio",
-          manifest: "/gtsx/studio/manifest",
+          preview: "/runelight",
+          studio: "/runelight/studio",
+          manifest: "/runelight/studio/manifest",
         },
         preview: {
-          urlTemplate: "/gtsx?entry={entry}&frame={frame}{gframe}",
-          allUrlTemplate: "/gtsx?entry={entry}{gframe}",
+          urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
+          allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
         },
         files: [],
         diagnostics: [],
@@ -189,6 +189,6 @@ function isGPreviewProtocolMessage(value: unknown): value is GPreviewProtocolMes
     value !== null &&
     "type" in value &&
     typeof (value as { type: unknown }).type === "string" &&
-    (value as { type: string }).type.startsWith("gtsx:")
+    (value as { type: string }).type.startsWith("runelight:")
   )
 }

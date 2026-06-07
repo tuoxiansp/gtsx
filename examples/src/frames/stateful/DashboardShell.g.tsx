@@ -1,4 +1,4 @@
-import type { GFrames } from "@gtsx/core"
+import type { GFrames } from "@runelight/core"
 
 import NotificationBell from "./NotificationBell.g"
 
@@ -14,7 +14,7 @@ export default function DashboardShell(props: DashboardShellProps) {
         <span className="dashboard-kicker">{props.environment}</span>
         <h1>{props.title}</h1>
         <p>
-          This parent frame controls the page shell while the nested notification bell chooses its own GTSX frame.
+          This parent frame controls the page shell while the nested notification bell chooses its own Runelight frame.
         </p>
       </section>
       <NotificationBell label="Agent inbox" />

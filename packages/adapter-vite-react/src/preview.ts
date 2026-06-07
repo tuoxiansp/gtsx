@@ -1,43 +1,43 @@
 export {
-  GTSXReactPreviewClient as GTSXVitePreviewClient,
-  isGTSXPreviewComponent,
-  parseGTSXPreviewEntry,
-  readGTSXPreviewRouteParams,
-} from "@gtsx/preview-react"
+  RunelightReactPreviewClient as RunelightVitePreviewClient,
+  isRunelightPreviewComponent,
+  parseRunelightPreviewEntry,
+  readRunelightPreviewRouteParams,
+} from "@runelight/preview-react"
 
 import {
-  isGTSXPreviewComponent,
-  parseGTSXPreviewEntry,
-  type GTSXPreviewComponent,
-  type GTSXPreviewModule,
-} from "@gtsx/preview-react"
+  isRunelightPreviewComponent,
+  parseRunelightPreviewEntry,
+  type RunelightPreviewComponent,
+  type RunelightPreviewModule,
+} from "@runelight/preview-react"
 
 export type {
-  GTSXPreviewFrame,
-  GTSXPreviewComponent,
-  GTSXPreviewComponentLoader,
-  GTSXPreviewModule,
-  GTSXPreviewRouteParams,
-  GTSXReactPreviewClientProps as GTSXVitePreviewClientProps,
-} from "@gtsx/preview-react"
+  RunelightPreviewFrame,
+  RunelightPreviewComponent,
+  RunelightPreviewComponentLoader,
+  RunelightPreviewModule,
+  RunelightPreviewRouteParams,
+  RunelightReactPreviewClientProps as RunelightVitePreviewClientProps,
+} from "@runelight/preview-react"
 
-export type GTSXVitePreviewEntryModules = Record<string, () => Promise<GTSXPreviewModule>>
+export type RunelightVitePreviewEntryModules = Record<string, () => Promise<RunelightPreviewModule>>
 
-export function createGTSXVitePreviewComponentLoader(
-  modules: GTSXVitePreviewEntryModules,
+export function createRunelightVitePreviewComponentLoader(
+  modules: RunelightVitePreviewEntryModules,
   options: { sourceRoot?: string } = {},
-): (entry: string) => Promise<GTSXPreviewComponent | undefined> {
+): (entry: string) => Promise<RunelightPreviewComponent | undefined> {
   const sourceRoot = normalizeSourceRoot(options.sourceRoot ?? "src")
   const modulesByEntryFile = normalizeVitePreviewEntryModules(modules, sourceRoot)
 
   return async (entry: string) => {
-    const { file, exportName } = parseGTSXPreviewEntry(entry)
+    const { file, exportName } = parseRunelightPreviewEntry(entry)
     const loader = modulesByEntryFile[file] ?? modules[toModuleKey(file, sourceRoot)]
     if (!loader) return undefined
 
     const moduleValue = await loader()
     const component = moduleValue[exportName]
-    return isGTSXPreviewComponent(component) ? component : undefined
+    return isRunelightPreviewComponent(component) ? component : undefined
   }
 }
 
@@ -46,10 +46,10 @@ function normalizeSourceRoot(sourceRoot: string): string {
 }
 
 function normalizeVitePreviewEntryModules(
-  modules: GTSXVitePreviewEntryModules,
+  modules: RunelightVitePreviewEntryModules,
   sourceRoot: string,
-): GTSXVitePreviewEntryModules {
-  const normalized: GTSXVitePreviewEntryModules = {}
+): RunelightVitePreviewEntryModules {
+  const normalized: RunelightVitePreviewEntryModules = {}
   for (const [key, loader] of Object.entries(modules)) {
     for (const entryFile of entryFilesFromModuleKey(key, sourceRoot)) {
       normalized[entryFile] = loader

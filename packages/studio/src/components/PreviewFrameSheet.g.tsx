@@ -1,24 +1,24 @@
-import { type GFrames } from "@gtsx/core"
+import { type GFrames } from "@runelight/core"
 import {
-  GTSXPreviewFrameSheet,
-  type GTSXPreviewFrame,
-  type GTSXPreviewFrameSheetProps,
-  type GTSXPreviewComponent,
-} from "@gtsx/preview-react"
+  RunelightPreviewFrameSheet,
+  type RunelightPreviewFrame,
+  type RunelightPreviewFrameSheetProps,
+  type RunelightPreviewComponent,
+} from "@runelight/preview-react"
 
-export type PreviewFrame<Props extends object = Record<string, unknown>> = GTSXPreviewFrame<Props>
+export type PreviewFrame<Props extends object = Record<string, unknown>> = RunelightPreviewFrame<Props>
 
-export type PreviewComponent<Props extends object = Record<string, unknown>> = GTSXPreviewComponent<Props>
+export type PreviewComponent<Props extends object = Record<string, unknown>> = RunelightPreviewComponent<Props>
 
 export type PreviewRenderableFrame<Props extends object = Record<string, unknown>> = {
   name: string
   frame: PreviewFrame<Props>
 }
 
-export type PreviewFrameSheetProps<Props extends object = Record<string, unknown>> = GTSXPreviewFrameSheetProps<Props>
+export type PreviewFrameSheetProps<Props extends object = Record<string, unknown>> = RunelightPreviewFrameSheetProps<Props>
 
 export default function PreviewFrameSheet<Props extends object = Record<string, unknown>>(props: PreviewFrameSheetProps<Props>) {
-  return <GTSXPreviewFrameSheet {...props} />
+  return <RunelightPreviewFrameSheet {...props} />
 }
 
 type ExamplePreviewProps = {

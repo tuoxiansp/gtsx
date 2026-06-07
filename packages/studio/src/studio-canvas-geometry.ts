@@ -1,6 +1,6 @@
 "use client"
 
-import type { GBoundaryRect } from "@gtsx/core"
+import type { GBoundaryRect } from "@runelight/core"
 
 import {
   clipPreviewBoundaryRectToViewport,

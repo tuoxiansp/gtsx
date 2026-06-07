@@ -1,24 +1,24 @@
 import {
-  createGTSXVitePreviewComponentLoader,
-  GTSXVitePreviewClient,
-  readGTSXPreviewRouteParams,
-  type GTSXPreviewModule,
-} from "@gtsx/adapter-vite-react/preview"
-import gtsxConfig from "virtual:gtsx/config"
+  createRunelightVitePreviewComponentLoader,
+  RunelightVitePreviewClient,
+  readRunelightPreviewRouteParams,
+  type RunelightPreviewModule,
+} from "@runelight/adapter-vite-react/preview"
+import runelightConfig from "virtual:runelight/config"
 
-const modules = import.meta.glob<GTSXPreviewModule>(["./frames/**/*.g.tsx", "/app/gtsx/design/**/*.g.tsx"])
-const loadExamplePreviewComponent = createGTSXVitePreviewComponentLoader(modules, {
-  sourceRoot: gtsxConfig.project.sourceRoot,
+const modules = import.meta.glob<RunelightPreviewModule>(["./frames/**/*.g.tsx", "/app/runelight/design/**/*.g.tsx"])
+const loadExamplePreviewComponent = createRunelightVitePreviewComponentLoader(modules, {
+  sourceRoot: runelightConfig.project.sourceRoot,
 })
 
-export function GTSXPreviewApp() {
-  const params = readGTSXPreviewRouteParams(new URLSearchParams(window.location.search))
+export function RunelightPreviewApp() {
+  const params = readRunelightPreviewRouteParams(new URLSearchParams(window.location.search))
 
   return (
-    <GTSXVitePreviewClient
+    <RunelightVitePreviewClient
       {...params}
       loadComponent={loadExamplePreviewComponent}
-      missingEntryDetail="Pass ?entry=src/frames/.../*.g.tsx to render a GTSX example."
+      missingEntryDetail="Pass ?entry=src/frames/.../*.g.tsx to render a Runelight example."
     />
   )
 }

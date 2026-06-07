@@ -1,8 +1,8 @@
-# gtsx
+# Runelight
 
-**Design, build, and review React UI — with your AI agent.**
+**The visual workspace for agent-built React apps.**
 
-gtsx is a GUI development workflow for the AI era. Your agent designs screens, builds components, and declares every visual state — typed and verifiable. You describe what you want, open `/gtsx/studio`, and see the full picture. Design, build, and review — one workflow, one URL.
+Runelight is a GUI development workflow for the AI era. Your agent designs screens, builds components, and declares every visual state - typed and verifiable. You describe what you want, open `/runelight/studio`, and see the full picture. Design, build, and review in one workspace.
 
 ![Studio — every component, every state, one screen](docs/images/studio-components.jpeg)
 
@@ -16,13 +16,13 @@ No mockup tool. No handoff. Design and production live in the same workspace.
 
 ## Build
 
-Describe what you want: "Build a user card with loading, error, and ready states." Your agent writes the component and declares every visual state in the same file — typed and verifiable. It handles the patterns through installed skills. You stay at the level of intent.
+Ask your agent to build the component or screen you want, the same way you would in any React project: a user card, a settings panel, a checkout step. In a Runelight project, the implementation does not stop at the happy path. The agent keeps meaningful visual states beside the component as frames, and `runelight check` validates that reachable branches are represented.
 
-Building an admin panel with different views for admins, regular users, and anonymous visitors? Your agent models those as variant states. Pages that look different when data is empty vs. populated? Declared and visible — without manually switching accounts or seeding databases.
+For admin panels, role-specific views become provider variants. For pages that look different when data is empty or populated, those states become frames. They are visible in Studio without switching accounts or seeding databases.
 
 ## Review
 
-Open `/gtsx/studio`. Every component in your project, every visual state — rendered on one screen. Toggle filters to see how your UI responds across contexts: admin vs. regular user, signed-in vs. anonymous, empty vs. loaded.
+Open `/runelight/studio`. Every component in your project, every visual state — rendered on one screen. Toggle filters to see how your UI responds across contexts: admin vs. regular user, signed-in vs. anonymous, empty vs. loaded.
 
 No navigating your app. No clicking through flows. No test data. One URL.
 
@@ -35,28 +35,28 @@ Because every state is declared and type-checked, your agent can also verify its
 Paste this into your AI agent:
 
 ```
-Install or upgrade gtsx in this project. Fetch and refresh these Agent Skills from
-https://github.com/tuoxiansp/gtsx:
+Install or upgrade Runelight in this project. Fetch and refresh these Agent Skills from
+https://github.com/tuoxiansp/runelight:
 
-- skills/setup-gtsx
-- skills/authoring-gtsx
-- skills/refactor-to-gtsx
-- skills/design-gtsx
+- skills/setup-runelight
+- skills/authoring-runelight
+- skills/refactor-to-runelight
+- skills/design-runelight
 
 If any of these skills are already installed, do not assume they are current.
-After installing or refreshing them, ask me whether to run the `setup-gtsx` skill in this project now.
+After installing or refreshing them, ask me whether to run the `setup-runelight` skill in this project now.
 ```
 
-The agent detects your project (Vite / Next.js), installs packages, wires Studio, and verifies everything works. ~2 minutes.
+The agent detects your project (Vite / Next.js), installs packages, wires Studio, and verifies everything works. ~5 minutes.
 
-Already have components? Tell your agent to run the `refactor-to-gtsx` skill — it converts your existing codebase.
+Already have components? Tell your agent to run the `refactor-to-runelight` skill — it converts your existing codebase.
 
 ## Under the Hood
 
-A gtsx component is a normal React file (`.g.tsx`) with one static object appended:
+Runelight is built on the [`.g` protocol](docs/g-protocol.md) for modeling UI states. The React/TSX format is `.g.tsx`: a normal React file with one static object appended.
 
 ```tsx
-import type { GFrames } from "@gtsx/core"
+import type { GFrames } from "@runelight/core"
 
 type BadgeProps = {
   tone: "neutral" | "warning"
@@ -73,9 +73,11 @@ Badge.frames = {
 } satisfies GFrames<BadgeProps>
 ```
 
-That `.frames` object is the entire footprint — inert data that never runs in production and never appears in your bundle. Your agent writes it. The type checker keeps it in sync.
+That `.frames` object is the component-level footprint - inert data that never runs in production and never appears in your bundle. Your agent writes it. The type checker keeps it in sync.
 
-No config files. No separate build step. Nothing to maintain.
+Protocol types and helpers use the `G` prefix, such as `GFrames`, `createGScopeHook`, and `createGProvider`.
+
+No preview wrappers in your components. No separate app shell to maintain. The Studio route is a sidecar that can be removed cleanly.
 
 ### Leave Anytime
 
@@ -83,23 +85,24 @@ Rename `.g.tsx` → `.tsx`, delete `.frames`, remove the Studio route. Plain Rea
 
 ## Docs
 
-**Using gtsx:**
+**Using Runelight:**
 
-- [Authoring Guide](docs/gtsx-authoring-guide.md) — patterns for pure, stateful, and contextual components
-- [Refactor Guide](docs/gtsx-refactor-guide.md) — convert existing TSX into `.g.tsx`
-- [Design Workspace](docs/gtsx-design-workspace.md) — AI-assisted product design drafts in Studio
+- [Authoring Guide](docs/runelight-authoring-guide.md) — patterns for pure, stateful, and contextual components
+- [Refactor Guide](docs/runelight-refactor-guide.md) — convert existing TSX into Runelight format
+- [Design Workspace](docs/runelight-design-workspace.md) — AI-assisted product design drafts in Studio
 
-**Understanding gtsx:**
+**Understanding Runelight:**
 
-- [Design](docs/gtsx-design.md) — architecture, sidecar model, and guarantees
-- [Static Contract](docs/gtsx-static-contract.md) — the type-level contract, JSX branch coverage, and provider variant model
+- [Design](docs/runelight-design.md) — architecture, sidecar model, and guarantees
+- [.g Protocol](docs/g-protocol.md) — the source-level model behind frames, seams, and static checks
+- [Static Contract](docs/runelight-static-contract.md) — the type-level contract, JSX branch coverage, and provider variant model
 
 **For AI agents:**
 
-- [Skills](skills/) — agent-executable workflows: [`setup-gtsx`](skills/setup-gtsx/SKILL.md), [`authoring-gtsx`](skills/authoring-gtsx/SKILL.md), [`refactor-to-gtsx`](skills/refactor-to-gtsx/SKILL.md), [`design-gtsx`](skills/design-gtsx/SKILL.md)
+- [Skills](skills/) — agent-executable workflows: [`setup-runelight`](skills/setup-runelight/SKILL.md), [`authoring-runelight`](skills/authoring-runelight/SKILL.md), [`refactor-to-runelight`](skills/refactor-to-runelight/SKILL.md), [`design-runelight`](skills/design-runelight/SKILL.md)
 
 ## Contributing
 
 pnpm workspace. `pnpm install && pnpm build && pnpm test && pnpm typecheck`.
 
-Packages: `@gtsx/core` (protocol, CLI), `@gtsx/studio` (shell, manifests), `@gtsx/adapter-vite-react` (Vite adapter), and `@gtsx/adapter-next-react` (Next.js adapter). Repository examples live in [`examples/`](examples/); agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).
+Packages: `@runelight/core` (protocol, CLI), `@runelight/studio` (shell, manifests), `@runelight/adapter-vite-react` (Vite adapter), and `@runelight/adapter-next-react` (Next.js adapter). Repository examples live in [`examples/`](examples/); agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).

@@ -9,27 +9,27 @@ body {
   margin: 0;
 }
 
-:root[data-gtsx-preview-chrome="1"] {
+:root[data-runelight-preview-chrome="1"] {
   background: #eef2f7;
 }
 
-:root[data-gtsx-preview-chrome="0"],
-:root[data-gtsx-preview-chrome="0"] body {
+:root[data-runelight-preview-chrome="0"],
+:root[data-runelight-preview-chrome="0"] body {
   background: transparent;
 }
 
-.gtsx-contact-sheet {
+.runelight-contact-sheet {
   display: grid;
   gap: 28px;
   padding: 28px;
 }
 
-.gtsx-contact-sheet[data-gtsx-preview-chrome="0"] {
+.runelight-contact-sheet[data-runelight-preview-chrome="0"] {
   gap: 0;
   padding: 0;
 }
 
-.gtsx-frame-frame {
+.runelight-frame-frame {
   overflow: hidden;
   border: 1px solid #c8d1df;
   border-radius: 18px;
@@ -37,7 +37,7 @@ body {
   box-shadow: 0 16px 44px rgb(15 23 42 / 10%);
 }
 
-.gtsx-contact-sheet[data-gtsx-preview-chrome="0"] .gtsx-frame-frame {
+.runelight-contact-sheet[data-runelight-preview-chrome="0"] .runelight-frame-frame {
   overflow: visible;
   border: 0;
   border-radius: 0;
@@ -45,7 +45,7 @@ body {
   box-shadow: none;
 }
 
-.gtsx-frame-label {
+.runelight-frame-label {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -57,19 +57,19 @@ body {
   font-size: 13px;
 }
 
-.gtsx-frame-label strong {
+.runelight-frame-label strong {
   color: #0f172a;
 }
 
-.gtsx-frame-body {
+.runelight-frame-body {
   padding: 32px;
 }
 
-.gtsx-contact-sheet[data-gtsx-preview-chrome="0"] .gtsx-frame-body {
+.runelight-contact-sheet[data-runelight-preview-chrome="0"] .runelight-frame-body {
   padding: 0;
 }
 
-.gtsx-preview-message {
+.runelight-preview-message {
   padding: 48px;
 }
 

@@ -1,15 +1,15 @@
 /// <reference types="vite/client" />
 
-declare module "virtual:gtsx/project-index" {
-  import type { GTSXProjectIndex } from "@gtsx/core/project-index"
+declare module "virtual:runelight/project-index" {
+  import type { RunelightProjectIndex } from "@runelight/core/project-index"
 
-  const projectIndex: GTSXProjectIndex
+  const projectIndex: RunelightProjectIndex
   export default projectIndex
 }
 
-declare module "virtual:gtsx/config" {
-  import type { ResolvedGTSXConfig } from "@gtsx/core"
+declare module "virtual:runelight/config" {
+  import type { ResolvedRunelightConfig } from "@runelight/core"
 
-  const config: ResolvedGTSXConfig
+  const config: ResolvedRunelightConfig
   export default config
 }

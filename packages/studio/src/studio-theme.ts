@@ -80,7 +80,7 @@ export const studioLayoutNeutralDrilldownColumnEnterMotionMs = 180
 
 export const studioLayoutNeutralDrilldownColumnEnterEasing = "cubic-bezier(0.22, 1, 0.36, 1)"
 
-export const studioLayoutNeutralDrilldownColumnEnterCss = `@keyframes gtsx-studio-layout-neutral-drilldown-column-enter {
+export const studioLayoutNeutralDrilldownColumnEnterCss = `@keyframes runelight-studio-layout-neutral-drilldown-column-enter {
   from {
     opacity: 0;
   }
@@ -89,7 +89,7 @@ export const studioLayoutNeutralDrilldownColumnEnterCss = `@keyframes gtsx-studi
   }
 }
 
-@keyframes gtsx-studio-layout-neutral-drilldown-chrome-enter {
+@keyframes runelight-studio-layout-neutral-drilldown-chrome-enter {
   from {
     opacity: 0;
     translate: -8px 0;
@@ -100,13 +100,13 @@ export const studioLayoutNeutralDrilldownColumnEnterCss = `@keyframes gtsx-studi
   }
 }
 
-[data-gtsx-drilldown-column-enter="true"] [data-gtsx-canvas-screen-stable-chrome] > * {
-  animation: gtsx-studio-layout-neutral-drilldown-chrome-enter ${studioLayoutNeutralDrilldownColumnEnterMotionMs}ms ${studioLayoutNeutralDrilldownColumnEnterEasing} both;
+[data-runelight-drilldown-column-enter="true"] [data-runelight-canvas-screen-stable-chrome] > * {
+  animation: runelight-studio-layout-neutral-drilldown-chrome-enter ${studioLayoutNeutralDrilldownColumnEnterMotionMs}ms ${studioLayoutNeutralDrilldownColumnEnterEasing} both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-gtsx-drilldown-column-enter="true"],
-  [data-gtsx-drilldown-column-enter="true"] [data-gtsx-canvas-screen-stable-chrome] > * {
+  [data-runelight-drilldown-column-enter="true"],
+  [data-runelight-drilldown-column-enter="true"] [data-runelight-canvas-screen-stable-chrome] > * {
     animation: none !important;
     opacity: 1 !important;
     translate: 0 0 !important;
@@ -115,7 +115,7 @@ export const studioLayoutNeutralDrilldownColumnEnterCss = `@keyframes gtsx-studi
 
 export function studioLayoutNeutralDrilldownColumnEnterStyle(): CSSProperties {
   return {
-    animation: `gtsx-studio-layout-neutral-drilldown-column-enter ${studioLayoutNeutralDrilldownColumnEnterMotionMs}ms ${studioLayoutNeutralDrilldownColumnEnterEasing} both`,
+    animation: `runelight-studio-layout-neutral-drilldown-column-enter ${studioLayoutNeutralDrilldownColumnEnterMotionMs}ms ${studioLayoutNeutralDrilldownColumnEnterEasing} both`,
   }
 }
 

@@ -4,7 +4,7 @@
     "noEmit": true,
     "types": ["node"],
     "paths": {
-      "@gtsx/core": ["../gtsx/src/index.ts"]
+      "@runelight/core": ["../core/src/index.ts"]
     }
   },
   "include": ["src", "test/**/*.ts", "test/**/*.tsx"]

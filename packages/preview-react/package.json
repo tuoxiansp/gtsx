@@ -1,20 +1,20 @@
 {
-  "name": "@gtsx/preview-react",
+  "name": "@runelight/preview-react",
   "version": "0.0.6",
-  "description": "React preview runtime for GTSX component frames.",
+  "description": "React preview runtime for Runelight component frames.",
   "license": "MIT",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tuoxiansp/gtsx.git",
+    "url": "git+https://github.com/tuoxiansp/runelight.git",
     "directory": "packages/preview-react"
   },
   "bugs": {
-    "url": "https://github.com/tuoxiansp/gtsx/issues"
+    "url": "https://github.com/tuoxiansp/runelight/issues"
   },
-  "homepage": "https://github.com/tuoxiansp/gtsx#readme",
+  "homepage": "https://github.com/tuoxiansp/runelight#readme",
   "keywords": [
-    "gtsx",
+    "runelight",
     "react",
     "preview",
     "component-preview"
@@ -39,7 +39,7 @@
   },
   "peerDependencies": {
     "react": ">=18",
-    "@gtsx/core": "workspace:*"
+    "@runelight/core": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.2.15",

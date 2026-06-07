@@ -9,7 +9,7 @@ export type StudioPreviewRenderQueueDebugObservationInput = {
 
 export type StudioPreviewTimingObservationInput = {
   sessionId: string
-  type: "gtsx:error" | "gtsx:ready"
+  type: "runelight:error" | "runelight:ready"
 }
 
 export type StudioPreviewRenderObservationSnapshot = {

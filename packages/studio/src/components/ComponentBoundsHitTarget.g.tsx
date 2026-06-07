@@ -1,4 +1,4 @@
-import type { GBoundaryRect, GFrames } from "@gtsx/core"
+import type { GBoundaryRect, GFrames } from "@runelight/core"
 
 type ComponentBoundsHitTargetProps = {
   coordinate: string
@@ -10,8 +10,8 @@ export default function ComponentBoundsHitTarget(props: ComponentBoundsHitTarget
   return (
     <div
       aria-hidden="true"
-      data-gtsx-card-select-coordinate={props.coordinate}
-      data-gtsx-card-select-target="component-bounds"
+      data-runelight-card-select-coordinate={props.coordinate}
+      data-runelight-card-select-target="component-bounds"
       onClick={(event) => {
         event.stopPropagation()
         props.onSelect?.()
