@@ -64,6 +64,11 @@
       "import": "./dist/react-transform.js",
       "default": "./dist/react-transform.js"
     },
+    "./vue": {
+      "types": "./dist/vue.d.ts",
+      "import": "./dist/vue.js",
+      "default": "./dist/vue.js"
+    },
     "./vue-analyzer": {
       "types": "./dist/vue-analyzer.d.ts",
       "import": "./dist/vue-analyzer.js",
@@ -84,14 +89,19 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
-    "react": ">=18"
+    "react": ">=18",
+    "vue": ">=3"
   },
   "peerDependenciesMeta": {
     "react": {
       "optional": true
+    },
+    "vue": {
+      "optional": true
     }
   },
   "dependencies": {
+    "@vue/compiler-dom": "^3.5.35",
     "playwright": "^1.60.0",
     "react-tracked": "^2.0.1",
     "scheduler": "^0.27.0",
@@ -101,7 +111,8 @@
     "@types/react-test-renderer": "^19.1.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "react-test-renderer": "^19.2.6"
+    "react-test-renderer": "^19.2.6",
+    "vue": "^3.5.25"
   },
   "publishConfig": {
     "access": "public"

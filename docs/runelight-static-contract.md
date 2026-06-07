@@ -10,7 +10,7 @@ For Runelight's product architecture and sidecar model, see [Design](./runelight
 
 ## Known Inputs
 
-The static contract treats three dynamic inputs, plus local or imported static constants, as sources of visual state for a `.g.tsx` component:
+The static contract treats three dynamic inputs, plus local or imported static constants, as sources of visual state for a `.g` component:
 
 | Input | How it enters |
 |-------|--------------|
@@ -19,7 +19,7 @@ The static contract treats three dynamic inputs, plus local or imported static c
 | **provider context** | Read through `useGContext(Provider)` |
 | **static const literals** | Local `const` values, or imported `const` exports, initialized from literal arrays, objects, and primitives |
 
-If one of these values controls whether a JSX subtree renders, that relationship must be statically visible. The checker does not need to understand every JavaScript execution path. It only needs to trace the visual branches back to these known inputs.
+If one of these values controls whether a JSX subtree or Vue template branch renders, that relationship must be statically visible. The checker does not need to understand every JavaScript execution path. It only needs to trace the visual branches back to these known inputs.
 
 ## Branch Coverage
 
@@ -31,7 +31,7 @@ It does not prove every combination of every prop. It only prevents a visual bra
 
 ### What counts as inspectable
 
-For this to work, JSX-producing control flow must stay first-order over the known inputs:
+For this to work, render-producing control flow must stay first-order over the known inputs:
 
 | Inspectable shape | Why it works |
 |-------------------|-------------|
@@ -56,6 +56,8 @@ For this to work, JSX-producing control flow must stay first-order over the know
 | `items.filter(shouldShow).map(...)` | Predicate hides which items produce JSX |
 
 Opaque shapes are valid React. They are not valid `.g.tsx` protocol shape. `runelight check` reports them as diagnostics - the component must be refactored into inspectable expressions before coverage can be verified.
+
+For Vue SFCs, the same principle applies to template directives. Branches driven by `v-if`, `v-else-if`, `v-show`, `v-for`, and dynamic component `:is` are inspectable when their expressions refer directly to frame `props`, frame `scope`, or native `inject(key)` bindings backed by frame `provide` entries.
 
 ### Frame values follow the same rule
 
@@ -116,6 +118,9 @@ All coverage and control-flow diagnostics are fatal (`runelight check` exits non
 | `opaque-jsx-control-flow` | A JSX branch cannot be traced to props/scope/context |
 | `unknown-jsx-branch-coverage` | Frame values affecting reachability are not static enough |
 | `uncovered-jsx-branch` | No frame makes a JSX branch reachable |
+| `opaque-vue-template-control-flow` | A Vue template branch cannot be traced to props/scope/provide |
+| `unknown-vue-branch-coverage` | Frame values affecting Vue template reachability are not static enough |
+| `uncovered-vue-template-branch` | No frame makes a Vue template branch reachable |
 | `missing-provider-variant-frames` | A consumed provider's variants are not fully covered |
 
 Projection hints are warnings (non-blocking):
@@ -124,4 +129,4 @@ Projection hints are warnings (non-blocking):
 |-----------|---------|
 | `unmarked-provider-variant-projection` | A child might need `GProviderFrame` markers for provider-derived props |
 
-The point is not to restrict how production React works. The point is to prevent Studio's map from drifting away from the component's real TSX.
+The point is not to restrict how production React or Vue works. The point is to prevent Studio's map from drifting away from the component's real render surface.

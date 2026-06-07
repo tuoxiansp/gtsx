@@ -20,9 +20,9 @@ The protocol adds three things. All optional. All additive:
 
 1. **A naming convention.** The `.g.tsx` extension marks React/TSX files; `.g.vue` marks Vue SFC files.
 2. **A static export.** React uses `Component.frames`; Vue uses a `<g:frames>` block with `export default { ... }`.
-3. **Seam helpers or frame scope.** React uses `createGScopeHook` and `createGProvider`. Vue preview can inject frame `props` and `scope` directly into the SFC template.
+3. **Seam helpers or frame scope.** React uses `createGScopeHook` and `createGProvider`. Vue preview can inject frame `props` and `scope` directly into the SFC template, and can provide native Vue injection keys from frame `provide` entries.
 
-Protocol types and helpers use the `G` prefix: `GFrames`, `GProviderFrame`, `createGScopeHook`, `createGProvider`, and `useGContext`.
+Protocol types and helpers use the `G` prefix: `GFrames`, `GProviderFrame`, `createGScopeHook`, `createGProvider`, `useGContext`, `GVueFrames`, `GVueProvideFrame`, and `defineGInjectionKey`.
 
 None of these modify React. None change how your component renders in production.
 

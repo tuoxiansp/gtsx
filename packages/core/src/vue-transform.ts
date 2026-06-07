@@ -47,6 +47,7 @@ export function transformRunelightVuePreviewSfc(
   const parts = parseVueSfcParts(code)
   const frames = extractVueFrames(code, filePath)
   const frameObjectCode = frames.frameObjectCode || "{}"
+  const frameImportCode = frames.frameImportCode.trim()
   const identifiers = collectPreviewIdentifiers(frameObjectCode)
   const preservedScriptSetup = preserveScriptSetupScope(parts.scriptSetup?.content ?? "", identifiers)
   const scriptSetupLang = readSfcBlockLang(parts.scriptSetup) ?? "ts"
@@ -55,6 +56,7 @@ export function transformRunelightVuePreviewSfc(
 
   return [
     `<script lang="ts">`,
+    frameImportCode,
     `const __runelightVueFrames = (${frameObjectCode})`,
     `export default { frames: __runelightVueFrames }`,
     `</script>`,
@@ -186,10 +188,16 @@ function shouldPreserveVariableStatement(statement: ts.VariableStatement, genera
     const initializer = unwrapExpression(declaration.initializer)
     if (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) continue
     if (isStaticLiteralExpression(initializer)) continue
+    if (isVueInjectExpression(initializer)) continue
     return false
   }
 
   return true
+}
+
+function isVueInjectExpression(expression: ts.Expression): boolean {
+  const value = unwrapExpression(expression)
+  return ts.isCallExpression(value) && ts.isIdentifier(value.expression) && value.expression.text === "inject"
 }
 
 function isStaticLiteralExpression(expression: ts.Expression): boolean {
@@ -214,7 +222,12 @@ function isStaticLiteralExpression(expression: ts.Expression): boolean {
 }
 
 function unwrapExpression(expression: ts.Expression): ts.Expression {
-  if (ts.isSatisfiesExpression(expression) || ts.isAsExpression(expression) || ts.isParenthesizedExpression(expression)) {
+  if (
+    ts.isSatisfiesExpression(expression) ||
+    ts.isAsExpression(expression) ||
+    ts.isNonNullExpression(expression) ||
+    ts.isParenthesizedExpression(expression)
+  ) {
     return unwrapExpression(expression.expression)
   }
 

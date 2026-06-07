@@ -123,7 +123,8 @@ Supported frame fields:
 | --- | --- |
 | `props` | Values passed as component props. In Vue preview they are also exposed through `props` and direct prop-key variables. |
 | `scope` | State supplied at a protocol seam. React scope hooks read this value; Vue preview exposes it as template-visible scope for the selected frame. |
-| `providers` | Provider seam values for context-dependent components. React provider helpers consume these values directly. |
+| `providers` | React provider seam values for context-dependent components. React provider helpers consume these values directly. |
+| `provide` | Vue-native provide entries: `[[injectionKey, value]]`. Vue preview calls `provide(injectionKey, value)` before rendering the frame. |
 
 Frame data should be static and inspectable: object literals with statically enumerable keys. Protocol consumers should not need to execute application code to discover the frame list.
 
@@ -155,13 +156,57 @@ Opaque script expressions are not automatically a problem. A formatter such as `
 
 This keeps the Vue contract template-first: analyze what the template needs to render the branch, then require frames to supply those template-visible values.
 
+### Vue Provide/Inject
+
+Vue context uses native `provide` / `inject`. Runelight adds a typed key helper only when the injection should appear as a finite Studio axis:
+
+```ts
+// auth.ts
+import { defineGInjectionKey } from "@runelight/core/vue"
+
+export const authKey = defineGInjectionKey<{ role: "admin" | "viewer" }>({
+  variants: ["admin", "viewer"] as const,
+})
+```
+
+Production code stays ordinary Vue:
+
+```vue
+<script setup lang="ts">
+import { inject } from "vue"
+import { authKey } from "./auth"
+
+const auth = inject(authKey)!
+</script>
+```
+
+Frames import the same key and use a Vue-shaped `provide` field:
+
+```vue
+<g:frames lang="ts">
+import { authKey } from "./auth"
+import type { GVueFrames, GVueProvideFrame } from "@runelight/core/vue"
+
+export default {
+  admin: {
+    props: {},
+    provide: [[authKey, { role: "admin" }]],
+  } satisfies GVueProvideFrame<typeof authKey, "admin">,
+  viewer: {
+    props: {},
+    provide: [[authKey, { role: "viewer" }]],
+  } satisfies GVueProvideFrame<typeof authKey, "viewer">,
+} satisfies GVueFrames<Record<string, never>, never, [typeof authKey]>
+</g:frames>
+```
+
 ## Static Check
 
 `runelight check` verifies that the frame model can represent the component's reachable visual branches. If render structure depends on props, scope, or provider context, at least one frame should make each branch reachable.
 
 The check is intentionally narrow. It does not prove every possible state combination. It prevents reachable visual branches from escaping the declared frame set.
 
-React diagnostics currently inspect JSX branches, scope seams, and provider variants. Vue diagnostics start from SFC frame enumeration and previewability; deeper Vue branch diagnostics should be derived from template directives, not from arbitrary `<script setup>` execution.
+React diagnostics inspect JSX branches, scope seams, and provider variants. Vue diagnostics inspect SFC frame enumeration, previewability, declared injection-key variants, and template directive reachability. Vue branch analysis is template-first: `v-if`, `v-else-if`, `v-else`, `v-show`, `v-for`, and dynamic component `:is` checks are derived from template expressions over frame `props`, `scope`, and injected `provide` values, not from arbitrary `<script setup>` execution.
 
 For branch-coverage rules and diagnostics, see [.g Static Contract](./runelight-static-contract.md).
 

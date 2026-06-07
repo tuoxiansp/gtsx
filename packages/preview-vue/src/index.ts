@@ -11,6 +11,7 @@ import {
   shallowRef,
   watch,
   type Component,
+  type InjectionKey,
   type PropType,
   type Ref,
 } from "vue"
@@ -30,10 +31,13 @@ import {
   type GRuntimeValuesSnapshot,
 } from "@runelight/core/preview-protocol"
 
+export type RunelightVuePreviewProvideEntry = readonly [InjectionKey<any> | string, unknown]
+
 export type RunelightVuePreviewFrame<Props extends object = Record<string, unknown>> = {
   props?: Props
   scope?: Record<string, unknown>
-  providers?: readonly unknown[]
+  provide?: readonly RunelightVuePreviewProvideEntry[]
+  providers?: readonly RunelightVuePreviewProvideEntry[]
 }
 
 export type RunelightVuePreviewComponent<Props extends object = Record<string, unknown>> = Component & {
@@ -272,6 +276,9 @@ const RunelightVueFrameProvider = defineComponent({
   setup(props) {
     const frameRef = shallowRef(props.frame)
     provide(RunelightVueFrameSymbol, frameRef)
+    for (const [key, value] of runelightVuePreviewFrameProvideEntries(props.frame)) {
+      provide(key, value)
+    }
     return () => {
       const boundaryId = `runelight-boundary:${props.entry}:${props.frameName}`
       return h(
@@ -286,6 +293,10 @@ const RunelightVueFrameProvider = defineComponent({
     }
   },
 })
+
+function runelightVuePreviewFrameProvideEntries(frame: RunelightVuePreviewFrame): readonly RunelightVuePreviewProvideEntry[] {
+  return frame.provide ?? frame.providers ?? []
+}
 
 export function useRunelightVueFrame(): Ref<RunelightVuePreviewFrame> {
   return inject<RunelightVueFrameContextValue>(RunelightVueFrameSymbol, ref({}))

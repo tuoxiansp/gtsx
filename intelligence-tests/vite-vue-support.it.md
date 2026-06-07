@@ -6,6 +6,10 @@ Create a temporary Vite Vue 3 app outside the repository workspace. Exercise the
 
 Add at least one `.g.vue` component under the selected source root. The file must use a normal Vue `<template>`, a normal `<script setup lang="ts">`, and a single direct `<g:frames>` block whose content is `export default { ... }`. Do not use nested `<g:frame>` tags. Include at least two frames where `props` and `scope` drive visible template branches.
 
+Add a Vue template reachability target. Start with a `.g.vue` component whose template has a structural branch that is not covered by any frame, such as a `v-if` / `v-else-if` branch, a visible `v-show` branch, a non-empty `v-for` branch, or a dynamic component `:is` branch. Confirm `runelight check` reports `uncovered-vue-template-branch` for that component. Then add the missing static frame value and confirm the same check passes.
+
+Also add a Vue-native provide/inject case in the same temporary project. Define an injection key in a normal TypeScript module with `defineGInjectionKey<{ role: "admin" | "viewer" }>({ variants: ["admin", "viewer"] as const })`. Have a `.g.vue` component import that key, call Vue's native `inject(key)` in `<script setup>`, and render the injected role in the template. Its `<g:frames lang="ts">` block must import the same key, use frame `provide: [[key, value]]` entries, and mark coverage with `GVueProvideFrame` / `GVueFrames`.
+
 Validate these outcomes:
 
 - Before setup runs, the project contains `.agents/skills/setup-runelight` and no other Runelight project-level skills.
@@ -13,9 +17,13 @@ Validate these outcomes:
 - Setup does not install `authoring-runelight-react`, `refactor-to-runelight`, `design-runelight`, or the deprecated unsplit `authoring-runelight`.
 - The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
 - `runelight check` accepts the `.g.vue` entry and lists its frames.
+- `runelight check` reports `uncovered-vue-template-branch` when a Vue template branch has no matching frame, then accepts the component after the missing frame is added.
 - `/runelight/studio/manifest` returns JSON that includes the `.g.vue#default` coordinate and every frame from `<g:frames>`.
+- For the provide/inject component, `/runelight/studio/manifest` reports the injection key as a provider axis with `admin` and `viewer` variants, and the relevant frames include matching `providerVariants`.
 - `/runelight?entry=...g.vue%23default&frame=<name>&chrome=0` renders the selected frame through the Vue preview client.
 - The rendered preview uses frame `scope` rather than the production setup state for structural template branches.
+- The provide/inject preview renders the value supplied by the selected frame's `provide` entry through native Vue `inject(key)`, for both `admin` and `viewer` frames.
+- The provide/inject preview does not require the temporary app to directly depend on `@runelight/preview-vue`; the app should use `@runelight/adapter-vite-vue/preview`, with preview-vue only reachable through the adapter package.
 - A non-structural helper or formatter from `<script setup>` can still be used by the template during preview.
 - The original Vue app route still renders normally.
 - A production `vite build` succeeds.
