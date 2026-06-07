@@ -1,6 +1,6 @@
 # Runelight Authoring Reference
 
-Complete patterns for Runelight components in `.g.tsx` files, the React/TSX format for the `.g` protocol.
+Complete patterns for Runelight React components in `.g.tsx` files, the React/TSX format for the `.g` protocol.
 
 ## Pattern 1: Pure Props
 

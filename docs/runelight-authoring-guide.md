@@ -2,7 +2,7 @@
 
 How to write Runelight components: React components in `.g.tsx` files that use the `.g` protocol, pass `runelight check`, and render correctly in Studio.
 
-This is the human-readable companion to the agent skill. The canonical reference for all patterns lives in [skills/authoring-runelight/REFERENCE.md](../skills/authoring-runelight/REFERENCE.md). This guide covers the mental model and decision points.
+This is the human-readable companion to the React agent skill. The canonical reference for all React patterns lives in [skills/authoring-runelight-react/REFERENCE.md](../skills/authoring-runelight-react/REFERENCE.md). This guide covers the mental model and decision points.
 
 If converting existing TSX, start with the [Refactor Guide](./runelight-refactor-guide.md). If the project isn't wired for Runelight yet, run the [`setup-runelight`](../skills/setup-runelight/SKILL.md) skill.
 
@@ -97,7 +97,7 @@ Counter.frames = {
 
 The real hook can call any React hooks. `createGScopeHook` wraps it so that in preview, the frame-supplied scope is returned instead.
 
-For discriminated unions, combined scope+provider patterns, and collection branches, see the [full reference](../skills/authoring-runelight/REFERENCE.md).
+For discriminated unions, combined scope+provider patterns, and collection branches, see the [full reference](../skills/authoring-runelight-react/REFERENCE.md).
 
 ## The Hook Boundary
 

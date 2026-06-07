@@ -1,6 +1,6 @@
 # Runelight
 
-**The visual workspace for agent-built React apps.**
+**The visual workspace for agent-built apps.**
 
 Runelight is a GUI development workflow for the AI era. Your agent designs screens, builds components, and declares every visual state - typed and verifiable. You describe what you want, open `/runelight/studio`, and see the full picture. Design, build, and review in one workspace.
 
@@ -16,7 +16,7 @@ No mockup tool. No handoff. Design and production live in the same workspace.
 
 ## Build
 
-Ask your agent to build the component or screen you want, the same way you would in any React project: a user card, a settings panel, a checkout step. In a Runelight project, the implementation does not stop at the happy path. The agent keeps meaningful visual states beside the component as frames, and `runelight check` validates that reachable branches are represented.
+Ask your agent to build the component or screen you want, the same way you would in any supported app: a user card, a settings panel, a checkout step. In a Runelight project, the implementation does not stop at the happy path. The agent keeps meaningful visual states beside the component as frames, and `runelight check` validates that reachable branches are represented.
 
 For admin panels, role-specific views become provider variants. For pages that look different when data is empty or populated, those states become frames. They are visible in Studio without switching accounts or seeding databases.
 
@@ -35,25 +35,28 @@ Because every state is declared and type-checked, your agent can also verify its
 Paste this into your AI agent:
 
 ```
-Install or upgrade Runelight in this project. Fetch and refresh these Agent Skills from
+Install or upgrade Runelight in this project.
+
+Fetch or refresh only this Runelight Agent Skill from
 https://github.com/tuoxiansp/runelight:
 
 - skills/setup-runelight
-- skills/authoring-runelight
-- skills/refactor-to-runelight
-- skills/design-runelight
 
-If any of these skills are already installed, do not assume they are current.
-After installing or refreshing them, ask me whether to run the `setup-runelight` skill in this project now.
+Install it as a project-level skill in this repository at `.agents/skills/setup-runelight`.
+Do not install the full Runelight skill set globally.
+
+After refreshing that setup skill, run `setup-runelight` in this project now. The setup
+skill will detect this project's host and install only the needed project-level companion
+skills, such as React or Vue authoring skills, into `.agents/skills`.
 ```
 
-The agent detects your project (Vite / Next.js), installs packages, wires Studio, and verifies everything works. ~5 minutes.
+The agent detects your project (Vite React, Vite Vue, Next.js), installs packages, wires Studio, and verifies everything works. ~5 minutes.
 
-Already have components? Tell your agent to run the `refactor-to-runelight` skill — it converts your existing codebase.
+Already have React components? Tell your agent to run the `refactor-to-runelight` skill after setup — it converts your existing TSX surfaces.
 
 ## Under the Hood
 
-Runelight is built on the [`.g` protocol](docs/g-protocol.md) for modeling UI states. The React/TSX format is `.g.tsx`: a normal React file with one static object appended.
+Runelight is built on the [`.g` protocol](docs/g-protocol.md) for modeling UI states. React uses `.g.tsx`: a normal React file with one static object appended. Vue uses `.g.vue`: a normal SFC with one `<g:frames>` custom block.
 
 ```tsx
 import type { GFrames } from "@runelight/core"
@@ -81,7 +84,7 @@ No preview wrappers in your components. No separate app shell to maintain. `@run
 
 ### Leave Anytime
 
-Rename `.g.tsx` → `.tsx`, delete `.frames`, remove the Studio route. Plain React. No lock-in.
+Rename `.g.tsx` → `.tsx` or `.g.vue` → `.vue`, delete frames, remove the Studio route. Plain app code. No lock-in.
 
 ## Docs
 
@@ -99,7 +102,7 @@ Rename `.g.tsx` → `.tsx`, delete `.frames`, remove the Studio route. Plain Rea
 
 **For AI agents:**
 
-- [Skills](skills/) — agent-executable workflows: [`setup-runelight`](skills/setup-runelight/SKILL.md), [`authoring-runelight`](skills/authoring-runelight/SKILL.md), [`refactor-to-runelight`](skills/refactor-to-runelight/SKILL.md), [`design-runelight`](skills/design-runelight/SKILL.md)
+- [Skills](skills/) — agent-executable workflows: [`setup-runelight`](skills/setup-runelight/SKILL.md), [`authoring-runelight-react`](skills/authoring-runelight-react/SKILL.md), [`authoring-runelight-vue`](skills/authoring-runelight-vue/SKILL.md), [`refactor-to-runelight`](skills/refactor-to-runelight/SKILL.md), [`design-runelight`](skills/design-runelight/SKILL.md)
 
 ## Contributing
 

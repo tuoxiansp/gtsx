@@ -1,13 +1,13 @@
 ---
-name: authoring-runelight
-description: "Use when writing, editing, or reviewing Runelight components in .g.tsx files; guides the .g protocol, UI models, static preview frames, provider variants, JSX branch shape, and Runelight verification."
+name: authoring-runelight-react
+description: "Write, edit, or review Runelight React components in .g.tsx files. Use when working on React/TSX .g protocol components, GFrames, createGScopeHook, createGProvider, provider variants, JSX branch coverage, or React Runelight authoring diagnostics."
 ---
 
-# Authoring Runelight Components
+# Authoring Runelight React Components
 
 ## Core idea
 
-A Runelight component is TSX in a `.g.tsx` file, the React/TSX format for the `.g` protocol. Protocol types and helpers use the `G` prefix, such as `GFrames`, `createGScopeHook`, and `createGProvider`.
+A Runelight React component is TSX in a `.g.tsx` file, the React/TSX format for the `.g` protocol. Protocol types and helpers use the `G` prefix, such as `GFrames`, `createGScopeHook`, and `createGProvider`.
 
 Each exported component owns real visual TSX and carries static `Component.frames` declaring its visual states. The data flow:
 
@@ -17,7 +17,7 @@ Each exported component owns real visual TSX and carries static `Component.frame
 
 Frames inject at the scope seam — preview renders any state without executing production hooks.
 
-For existing TSX conversions, use `refactor-to-runelight` first, then return here.
+For existing TSX conversions, use `refactor-to-runelight` first, then return here. For Vue SFC authoring, use `authoring-runelight-vue`.
 
 ## Quick start
 

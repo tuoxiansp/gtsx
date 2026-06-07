@@ -1,11 +1,11 @@
 ---
 name: setup-runelight
-description: Install, upgrade, or ensure Runelight Studio in a TypeScript React project. Detects the TypeScript project and React host topology, routes to the matching integration profile, uses validated profiles for Vite React and Next.js App Router when possible, adapts other TypeScript React hosts through client-runtime or server-runtime contracts, and verifies the integration end-to-end. Use when a project asks for "install Runelight", "set up Runelight", "upgrade Runelight", or "update Runelight".
+description: Install, upgrade, or ensure Runelight Studio in a TypeScript React or Vue project. Use when a project asks for "install Runelight", "set up Runelight", "upgrade Runelight", or "update Runelight"; this project-level bootstrap skill detects the host, wires the integration, installs only the needed project-level companion skills, and verifies end-to-end.
 ---
 
 # Install Or Upgrade Runelight In This Project
 
-Install, upgrade, or repair the smallest working Runelight integration for a TypeScript React project. This skill normally runs after a bootstrap prompt has installed the Runelight skills and routed the coding assistant here. Inspect project shape, preserve existing app behavior, and do not migrate components unless the user explicitly asked.
+Install, upgrade, or repair the smallest working Runelight integration for a TypeScript React or Vue project. This skill is installed first into the target project's `.agents/skills/setup-runelight` by the installer prompt, then it installs only the companion skills needed for the detected project. Inspect project shape, preserve existing app behavior, and do not migrate components unless the user explicitly asked.
 
 This file is the router. Read the detection profile first, then enter exactly one primary integration profile.
 
@@ -13,9 +13,10 @@ This file is the router. Read the detection profile first, then enter exactly on
 
 1. Always start with [Project Detection](profiles/00-detect-project.md).
 2. If the project is Vite React TypeScript, Vite React with React Router, or a Vite-compatible client SPA, use [Vite React](profiles/vite-react.md).
-3. If the project is Next.js App Router, use [Next.js App Router](profiles/next-app-router.md).
-4. If the project is client-only React but not Vite, use [Client Runtime](profiles/client-runtime.md) and adapt the generic contract to the host.
-5. If the project owns server routes, SSR, static route generation, or islands, use [Server Runtime](profiles/server-runtime.md) and adapt the generic contract to the host.
+3. If the project is Vite Vue 3 TypeScript, use [Vite Vue](profiles/vite-vue.md).
+4. If the project is Next.js App Router, use [Next.js App Router](profiles/next-app-router.md).
+5. If the project is client-only React but not Vite, use [Client Runtime](profiles/client-runtime.md) and adapt the generic contract to the host.
+6. If the project owns server routes, SSR, static route generation, or islands, use [Server Runtime](profiles/server-runtime.md) and adapt the generic React contract to the host.
 
 ## Mode Selection
 
@@ -43,7 +44,7 @@ When upgrade/ensure mode updates package versions, the agent must self-check whe
 ## Global Rules
 
 - Install packages from npm as `@runelight/core`, `@runelight/studio`, and the selected adapter package.
-- Never add `@runelight/preview-react` directly to the user project; it is adapter internals.
+- Never add `@runelight/preview-react` or `@runelight/preview-vue` directly to the user project; they are adapter internals.
 - Host preview code owns only framework wiring: search params, CSS/setup imports, providers/mocks, and adapter loading.
 - The preview route must recreate the component visual environment that the normal app route would provide through CSS or static DOM: global styles, design-system stylesheets, font/style setup imports, and root theme/style classes or `data-*` attributes.
 - Keep preview route shells static. Do not wrap the preview client in production layouts or providers that run ordinary React hooks, auth/session clients, data fetchers, routers, or effects. If visual context is needed, prefer CSS imports, static wrapper elements, and Runelight `createGProvider` frames.
@@ -52,10 +53,24 @@ When upgrade/ensure mode updates package versions, the agent must self-check whe
 - Treat the installer as idempotent: re-running it must not duplicate wrappers/routes, reset project structure, or erase local Runelight customizations.
 - Never write runtime props, scope, provider values, DOM rects, or serialized snapshots into public files.
 
+## Project-Level Companion Skills
+
+Do not install the full Runelight skill set globally. During setup, install or refresh only the companion skills needed by the detected project into the target project's `.agents/skills`.
+
+Fetch or copy companion skill directories from the Runelight source repository into `.agents/skills/<skill-name>` in the target project. Use these source paths as the source of truth:
+
+| Project type | Project-level skills to install |
+| --- | --- |
+| React | `skills/authoring-runelight-react`, `skills/refactor-to-runelight`, `skills/design-runelight` |
+| Vue | `skills/authoring-runelight-vue` |
+
+If a companion skill is already present in `.agents/skills`, refresh it from the current Runelight source before relying on it. Do not write these companion skills into the user's global skills directory, and do not install irrelevant framework skills.
+
 ## After Setup
 
 Route to sibling skills for component work:
 
-- `authoring-runelight` — write new `.g.tsx` components and frames.
+- `authoring-runelight-react` — write new React `.g.tsx` components and frames.
+- `authoring-runelight-vue` — write new Vue `.g.vue` components and frames.
 - `refactor-to-runelight` — convert existing TSX components into `.g.tsx`.
 - `design-runelight` — create and iterate `project.entryRoot/design` frames in Studio's design workspace.

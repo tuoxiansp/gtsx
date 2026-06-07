@@ -10,7 +10,7 @@ Convert existing React components into `.g.tsx` UI models.
 ## Read First
 
 - This skill owns the refactor workflow and decision gates.
-- For concrete `.g.tsx` writing patterns, route to `authoring-runelight` and read [Authoring Reference](../authoring-runelight/REFERENCE.md).
+- For concrete `.g.tsx` writing patterns, route to `authoring-runelight-react` and read [Authoring Reference](../authoring-runelight-react/REFERENCE.md).
 
 If the project isn't wired for Runelight yet, run the `setup-runelight` skill first.
 

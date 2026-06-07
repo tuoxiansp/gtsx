@@ -4,35 +4,35 @@ Read this before choosing an integration profile.
 
 ## Model
 
-- Runelight Project = selected TypeScript project + `.g.tsx` protocol.
-- Runelight Scope = `.g.tsx` files in the selected TypeScript Program.
-- Host = framework/runtime that renders that scope.
-- Host topology = either client-only React or client+server React.
+- Runelight Project = selected TypeScript project + `.g` protocol files.
+- Runelight Source Set = `.g.tsx` or `.g.vue` files in selected source roots.
+- Host = framework/runtime that renders that source set.
+- Host topology = client-only React, client+server React, or client-only Vue.
 - Adapter = package that makes the Host understand Runelight transforms and preview URLs.
-- Scope follows TypeScript. Host does not expand scope.
-- Validated profile = a tested framework-specific integration path. Validated profiles are Vite React and Next.js App Router.
+- Source discovery follows the selected TypeScript project plus configured source roots. Host setup does not widen it accidentally.
+- Validated profile = a tested framework-specific integration path. Validated profiles are Vite React, Vite Vue, and Next.js App Router.
 - Integration contract = framework-neutral wiring to adapt when no validated profile exists.
 
 ## Required Contract
 
 Every successful integration needs:
 
-1. TypeScript Program scope for `.g.tsx` discovery.
-2. React transform for `.g.tsx` component boundaries.
-3. Project index / manifest built from the selected scope.
+1. TypeScript Program and source-root scope for `.g.tsx` or `.g.vue` discovery.
+2. React or Vue transform for component boundaries.
+3. Project index / manifest built from the selected source set.
 4. Preview route that maps `entry`, `frame`, and `frameOverride` search params to the preview client.
 5. Studio route that serves the prebuilt `@runelight/studio` app and manifest.
 6. Stable `preview.serve`, `preview.url`, `preview.allUrl`, and optional `preview.studioUrl` commands for verification and capture.
 
 ## Supported Project Scope
 
-The setup-runelight skill supports TypeScript React projects. A supported project has:
+The setup-runelight skill supports TypeScript React and Vue projects. A supported project has:
 
-- A TypeScript Program that includes React source and can include `.g.tsx` files.
-- A React host with a browser entry or framework routes.
-- A bundler/framework hook where `.g.tsx` files can run through the Runelight React transform.
+- A TypeScript Program that includes framework source and can include `.g.tsx` or `.g.vue` files.
+- A React or Vue host with a browser entry or framework routes.
+- A bundler/framework hook where protocol files can run through the matching Runelight transform.
 
-JavaScript-only React projects, non-React projects, and projects without a selectable TypeScript Program are outside the setup-runelight scope.
+JavaScript-only projects, unsupported framework hosts, and projects without a selectable TypeScript Program are outside the setup-runelight scope.
 
 ## Detection Steps
 
@@ -40,12 +40,14 @@ JavaScript-only React projects, non-React projects, and projects without a selec
 2. Resolve the TypeScript project:
    - Prefer explicit `-p` / `--project` user input.
    - Otherwise: nearest `tsconfig.json`.
-   - If the nearest `tsconfig.json` is a project-reference container with `files: []`, choose the app config that includes React source, such as `tsconfig.app.json` in create-vite templates.
+   - If the nearest `tsconfig.json` is a project-reference container with `files: []`, choose the app config that includes framework source, such as `tsconfig.app.json` in create-vite templates.
 3. Detect host topology:
    - Browser-owned entry and browser-owned routing -> client-only React.
+   - Vite + Vue 3 browser entry -> client-only Vue.
    - Server routes, SSR, static route generation, framework route files, or islands -> client+server React.
 4. Select the most specific integration profile:
    - Vite React before client runtime.
+   - Vite Vue before client runtime.
    - Next.js App Router before server runtime.
    - Client Runtime for client-only React hosts such as CRA/Webpack, Vite-compatible SPA variants, and isolated Electron renderers.
    - Server Runtime for server/static/islands hosts such as Next.js Pages Router, Remix / React Router framework mode, TanStack Start, Astro, and Gatsby.
@@ -72,7 +74,8 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 ## Common Configuration Rules
 
 - Always install `@runelight/core` and `@runelight/studio`.
-- Install `@runelight/adapter-vite-react` only for Vite-compatible client-only hosts.
+- Install `@runelight/adapter-vite-react` only for Vite-compatible React client-only hosts.
+- Install `@runelight/adapter-vite-vue` only for Vite Vue 3 client-only hosts.
 - Install `@runelight/adapter-next-react` only for Next.js App Router.
 - Put selected root, selected local Runelight entry root, optional tsconfig, stable cache namespace, routes, and preview commands in `runelight.config.ts`.
 - Use the package name or repo slug as `project.namespace`, not a file hash.
@@ -84,12 +87,12 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 ## Verification
 
 1. Run project typecheck.
-2. Run `runelight check` against the selected scope or a `.g.tsx` file.
+2. Run `runelight check` against the selected source root, a `.g.tsx` file, or a `.g.vue` file.
 3. Start the host dev server.
 4. Open `/runelight/studio`.
 5. Open `/runelight/studio#/design`.
-6. Confirm the manifest contains TypeScript Program `.g.tsx` entries, including design frames from `${project.entryRoot}/design` when present. A setup-only project may legitimately have zero entries; Studio should show its empty state.
-7. If at least one `.g.tsx` entry exists, open one `/runelight?...` preview URL.
+6. Confirm the manifest contains `.g.tsx` or `.g.vue` entries, including design frames from `${project.entryRoot}/design` when present. A setup-only project may legitimately have zero entries; Studio should show its empty state.
+7. If at least one protocol entry exists, open one `/runelight?...` preview URL.
 8. Confirm no `Missing entry`, `Unknown Runelight entry`, or `Unknown Runelight frame` errors.
 9. Run `runelight capture` when configured.
 
