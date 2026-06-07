@@ -1,6 +1,6 @@
 {
   "name": "@runelight/preview-react",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "React preview runtime for Runelight component frames.",
   "license": "MIT",
   "type": "module",

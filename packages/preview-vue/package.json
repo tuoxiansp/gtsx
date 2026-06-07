@@ -1,6 +1,6 @@
 {
   "name": "@runelight/preview-vue",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Vue preview runtime for Runelight component frames.",
   "license": "MIT",
   "type": "module",
