@@ -5,11 +5,11 @@ Read this before choosing an integration profile.
 ## Model
 
 - Runelight Project = selected TypeScript project + `.g` protocol files.
-- Runelight Source Set = `.g.tsx` or `.g.vue` files in selected source roots.
+- Runelight Source Set = `.g.tsx` or `.g.vue` files in the selected TypeScript project and configured source roots.
 - Host = framework/runtime that renders that source set.
 - Host topology = client-only React, client+server React, or client-only Vue.
 - Adapter = package that makes the Host understand Runelight transforms and preview URLs.
-- Source discovery follows the selected TypeScript project plus configured source roots. Host setup does not widen it accidentally.
+- Source discovery follows the selected TypeScript project plus configured source roots. Host setup does not widen the source scope accidentally.
 - Validated profile = a tested framework-specific integration path. Validated profiles are Vite React, Vite Vue, and Next.js App Router.
 - Integration contract = framework-neutral wiring to adapt when no validated profile exists.
 
@@ -26,7 +26,7 @@ Every successful integration needs:
 
 ## Supported Project Scope
 
-The setup-runelight skill supports TypeScript React and Vue projects. A supported project has:
+The setup-runelight skill supports TypeScript React projects and TypeScript Vue 3 projects. A supported project has:
 
 - A TypeScript Program that includes framework source and can include `.g.tsx` or `.g.vue` files.
 - A React or Vue host with a browser entry or framework routes.
@@ -39,7 +39,7 @@ JavaScript-only projects, unsupported framework hosts, and projects without a se
 1. Detect package manager and workspace layout.
 2. Resolve the TypeScript project:
    - Prefer explicit `-p` / `--project` user input.
-   - Otherwise: nearest `tsconfig.json`.
+   - Otherwise use the nearest `tsconfig.json`.
    - If the nearest `tsconfig.json` is a project-reference container with `files: []`, choose the app config that includes framework source, such as `tsconfig.app.json` in create-vite templates.
 3. Detect host topology:
    - Browser-owned entry and browser-owned routing -> client-only React.
@@ -57,7 +57,7 @@ JavaScript-only projects, unsupported framework hosts, and projects without a se
 Before selecting write actions, check whether the project is already integrated:
 
 - Runelight packages in dependencies or devDependencies.
-- `runelight.config.ts` or an equivalent local Runelight config import.
+- `runelight.config.ts`.
 - Adapter wrappers in `vite.config.*`, `next.config.*`, or another framework config.
 - Existing `/runelight`, `/runelight/studio`, `/runelight/studio/assets/*`, or `/runelight/studio/manifest` route files or browser-entry branches.
 - Existing `.runelight/preview-entries.ts` imports or adapter-generated output.
@@ -77,9 +77,9 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 - Install `@runelight/adapter-vite-react` only for Vite-compatible React client-only hosts.
 - Install `@runelight/adapter-vite-vue` only for Vite Vue 3 client-only hosts.
 - Install `@runelight/adapter-next-react` only for Next.js App Router.
-- Put selected root, selected local Runelight entry root, optional tsconfig, stable cache namespace, routes, and preview commands in `runelight.config.ts`.
+- Put selected root, selected local Runelight entry root, selected tsconfig, stable cache namespace, routes, and preview commands in `runelight.config.ts`.
 - Use the package name or repo slug as `project.namespace`, not a file hash.
-- Choose `project.sourceRoot: "src"` when TypeScript source lives under `src`; choose `project.sourceRoot: "."` for root-level `app`, `pages`, `components`, or `lib`.
+- Choose `project.sourceRoot: "src"` when app source lives under `src`; choose `project.sourceRoot: "."` for root-level `app`, `pages`, `components`, or `lib`.
 - Choose `project.entryRoot` as the filesystem directory that owns the local `/runelight` entry: usually `app/runelight`, or `src/app/runelight` when the route tree lives under `src/app`. For client-only hosts without filesystem routes, still create and record this logical entry root during setup.
 - Generate `preview.serve` for the detected package manager and host. Do not hard-code `pnpm` in npm/yarn/bun projects.
 - Keep `preview.studioUrl`, `preview.url`, and `preview.allUrl` on the same host bound by `preview.serve`; when serving on `127.0.0.1`, use `127.0.0.1` in URLs instead of `localhost`.

@@ -1,32 +1,32 @@
 ---
 name: setup-runelight
-description: Install, upgrade, or ensure Runelight Studio in a TypeScript React or Vue project. Use when a project asks for "install Runelight", "set up Runelight", "upgrade Runelight", or "update Runelight"; this project-level bootstrap skill detects the host, wires the integration, installs only the needed project-level companion skills, and verifies end-to-end.
+description: Install, upgrade, or ensure Runelight Studio in a TypeScript React project or TypeScript Vue 3 project. Use when a project asks for "install Runelight", "set up Runelight", "upgrade Runelight", or "update Runelight"; this bootstrap skill detects the host, wires the integration, and verifies end-to-end.
 ---
 
 # Install Or Upgrade Runelight In This Project
 
-Install, upgrade, or repair the smallest working Runelight integration for a TypeScript React or Vue project. This skill is installed first into the target project's `.agents/skills/setup-runelight` by the installer prompt, then it installs only the companion skills needed for the detected project. Inspect project shape, preserve existing app behavior, and do not migrate components unless the user explicitly asked.
+Install, upgrade, or repair the smallest working Runelight integration for a TypeScript React project or TypeScript Vue 3 project. Inspect project shape, preserve existing app behavior, and do not migrate components unless the user explicitly asked.
 
 This file is the router. Read the detection profile first, then enter exactly one primary integration profile.
 
 ## Integration Profiles
 
 1. Always start with [Project Detection](profiles/00-detect-project.md).
-2. If the project is Vite React TypeScript, Vite React with React Router, or a Vite-compatible client SPA, use [Vite React](profiles/vite-react.md).
+2. If the project is Vite React TypeScript, Vite React with React Router, or a Vite-compatible TypeScript client SPA, use [Vite React](profiles/vite-react.md).
 3. If the project is Vite Vue 3 TypeScript, use [Vite Vue](profiles/vite-vue.md).
-4. If the project is Next.js App Router, use [Next.js App Router](profiles/next-app-router.md).
-5. If the project is client-only React but not Vite, use [Client Runtime](profiles/client-runtime.md) and adapt the generic contract to the host.
+4. If the project is Next.js App Router TypeScript, use [Next.js App Router](profiles/next-app-router.md).
+5. If the project is client-only TypeScript React but not Vite, use [Client Runtime](profiles/client-runtime.md) and adapt the generic contract to the host.
 6. If the project owns server routes, SSR, static route generation, or islands, use [Server Runtime](profiles/server-runtime.md) and adapt the generic React contract to the host.
 
 ## Mode Selection
 
-- If the project has no Runelight packages, `runelight.config.ts`, adapter wrapper, or `/runelight` route/browser entry, run first-time setup.
+- If the project has no Runelight packages, Runelight config, adapter wrapper, or `/runelight` route/browser entry, run first-time setup.
 - If any existing Runelight package, config, adapter wrapper, route, or browser entry is present, run upgrade/ensure mode first.
 - In upgrade/ensure mode:
   - treat `@runelight/core`, `@runelight/studio`, and the selected adapter package as one compatibility group; align them to compatible current npm versions and update the lockfile;
   - run an upgrade compatibility audit before deciding glue code is still valid;
-  - preserve existing `runelight.config.ts`, route files, framework config wrappers, browser entry branches, Studio URLs, preview URLs, and `.runelight/preview-entries.ts` import patterns unless the audit shows a package-version contract change requires a minimal migration;
-  - ensure `runelight.config.ts` records `project.entryRoot`, then create `${project.entryRoot}/design` if it is missing;
+  - preserve existing Runelight config, route files, framework config wrappers, browser entry branches, Studio URLs, preview URLs, and `.runelight/preview-entries.ts` import patterns unless the audit shows a package-version contract change requires a minimal migration;
+  - ensure the Runelight config records `project.entryRoot`, then create `${project.entryRoot}/design` if it is missing;
   - restart or ask the user to restart the dev server so adapter-generated files such as `.runelight/preview-entries.ts` can be refreshed;
   - verify `/runelight/studio`, `/runelight/studio#/design`, `/runelight/studio/manifest`, and at least one preview URL when entries exist.
 - Only use profile templates to fill missing or demonstrably broken glue. Do not overwrite working local integration code just to match the examples.
@@ -55,16 +55,16 @@ When upgrade/ensure mode updates package versions, the agent must self-check whe
 
 ## Project-Level Companion Skills
 
-Do not install the full Runelight skill set globally. During setup, install or refresh only the companion skills needed by the detected project into the target project's `.agents/skills`.
+During setup, install or refresh the companion skills needed by the detected project as project-level skills.
 
-Fetch or copy companion skill directories from the Runelight source repository into `.agents/skills/<skill-name>` in the target project. Use these source paths as the source of truth:
+Fetch or copy companion skill directories from the Runelight source repository into the target project's project-level skill location. Use these source paths as the source of truth:
 
 | Project type | Project-level skills to install |
 | --- | --- |
-| React | `skills/authoring-runelight-react`, `skills/refactor-to-runelight`, `skills/design-runelight` |
-| Vue | `skills/authoring-runelight-vue` |
+| React | `skills/authoring-runelight-react`, `skills/refactor-to-runelight-react`, `skills/design-runelight-react` |
+| Vue | `skills/authoring-runelight-vue`, `skills/refactor-to-runelight-vue`, `skills/design-runelight-vue` |
 
-If a companion skill is already present in `.agents/skills`, refresh it from the current Runelight source before relying on it. Do not write these companion skills into the user's global skills directory, and do not install irrelevant framework skills.
+If a companion skill is already present, refresh it from the current Runelight source before relying on it. Do not install irrelevant framework skills.
 
 ## After Setup
 
@@ -72,5 +72,7 @@ Route to sibling skills for component work:
 
 - `authoring-runelight-react` — write new React `.g.tsx` components and frames.
 - `authoring-runelight-vue` — write new Vue `.g.vue` components and frames.
-- `refactor-to-runelight` — convert existing TSX components into `.g.tsx`.
-- `design-runelight` — create and iterate `project.entryRoot/design` frames in Studio's design workspace.
+- `refactor-to-runelight-react` — convert existing React TSX components into `.g.tsx`.
+- `refactor-to-runelight-vue` — convert existing Vue SFCs into `.g.vue`.
+- `design-runelight-react` — create and iterate React `.g.tsx` design frames in Studio's design workspace.
+- `design-runelight-vue` — create and iterate Vue `.g.vue` design frames in Studio's design workspace.

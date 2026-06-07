@@ -14,7 +14,7 @@ Runelight = your UI source + the .g protocol + Studio
 
 A `.g.tsx` file is a real TypeScript React component. A `.g.vue` file is a real Vue SFC with a Runelight `<g:frames>` custom block. Your compiler reads it. Your bundler reads it. Your tests run it.
 
-The [`.g` protocol](./g-protocol.md) is Runelight's technical layer for modeling UI states close to source code. React/TSX uses the `.g.tsx` file format. Future Vue or Svelte integrations can grow their own `.g.*` formats without changing the Runelight brand.
+The [`.g` protocol](./g-protocol.md) is Runelight's technical layer for modeling UI states close to source code. React/TSX uses the `.g.tsx` file format. Vue uses the `.g.vue` file format. Other frameworks can grow their own `.g.*` formats without changing the Runelight brand.
 
 The protocol adds three things. All optional. All additive:
 
@@ -33,7 +33,7 @@ Four primitives. No more.
 | Primitive | What it is |
 |-----------|-----------|
 | **Runelight Project** | Your TypeScript project + the `.g` protocol |
-| **Runelight Scope** | The `.g.tsx` files in your selected TypeScript Program |
+| **Runelight Scope** | The `.g.tsx` and `.g.vue` files in the selected TypeScript Program |
 | **Host** | Your framework runtime — Next.js, Vite, or anything else |
 | **Adapter** | The thin shim that mounts Runelight preview inside your Host |
 
@@ -103,7 +103,7 @@ Runelight is a sidecar, not a wrapper:
 
 Your app and the sidecar share the same Host because that is the cheapest way to render your real components in your real environment. They do not share ownership of anything else.
 
-The sidecar reads `.g.tsx` files through the TypeScript Program. It does not modify your routes, your providers, your data layer, or your bundler config — it only registers two preview routes.
+The sidecar reads `.g.tsx` and `.g.vue` files through the selected TypeScript Program. Runelight does not modify your routes, your providers, your data layer, or your bundler config — it only registers preview routes.
 
 ### The visual boundary
 
@@ -135,4 +135,4 @@ Removal is mechanical and gradual:
 4. Remove the Adapter from your build config. Your app still builds.
 5. Delete the `/runelight/studio` and `/runelight` routes. Your app still runs.
 
-What remains is what you started with: ordinary TypeScript React components.
+What remains is what you started with: ordinary React or Vue components.

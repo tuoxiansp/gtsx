@@ -2,7 +2,7 @@
 
 Use Studio as a scratchpad for product design exploration — without the formality of component coverage.
 
-The full agent workflow lives in [`skills/design-runelight/SKILL.md`](../skills/design-runelight/SKILL.md). This document explains the concept and the file contract for humans.
+The framework-specific agent workflows live in [`skills/design-runelight-react/SKILL.md`](../skills/design-runelight-react/SKILL.md) and [`skills/design-runelight-vue/SKILL.md`](../skills/design-runelight-vue/SKILL.md). Setup installs the one that matches the user's project. This document explains the concept and the file contract for humans.
 
 ---
 
@@ -12,7 +12,7 @@ The design workspace is a lightweight surface inside Studio for AI-assisted prod
 
 The difference:
 
-| | Component `.g.tsx` | Design frame |
+| | Component `.g.*` | Design frame |
 |---|---|---|
 | **Purpose** | Cover all meaningful visual states | Explore one happy path |
 | **Frames** | Multiple, named by visual state | One: `live` |
@@ -23,20 +23,22 @@ The difference:
 ## How It Works
 
 1. You describe what you want to a local agent.
-2. The agent writes or edits a `.g.tsx` frame in `project.entryRoot/design/`.
+2. The agent writes or edits a framework-specific design frame in `project.entryRoot/design/`.
 3. You open `/runelight/studio#/design`.
 4. Each file appears as a draggable frame on a canvas. Positions are stored in your browser's `localStorage` — nothing is written to the repo.
 
 ## Frame Contract
 
-- Location: `project.entryRoot/design/<FrameName>.g.tsx`, where `project.entryRoot` is the local `/runelight` entry directory recorded by setup.
-- One default-exported React component per file.
+- React location: `project.entryRoot/design/<FrameName>.g.tsx`, where `project.entryRoot` is the local `/runelight` entry directory recorded by setup.
+- Vue location: `project.entryRoot/design/<FrameName>.g.vue`.
+- React files default-export one React component and attach `Component.frames`.
+- Vue files are ordinary SFCs with one `<g:frames>` block.
 - One frame named `live`.
 - Multiple alternatives = multiple files, not multiple frames.
-- Prefer self-contained TSX — quick drafts shouldn't depend on fragile helper resolution.
+- Prefer self-contained frames — quick drafts shouldn't depend on fragile helper resolution.
 - Never write screenshots, serialized DOM, or layout positions into the repo.
 
-Minimal frame:
+Minimal React frame:
 
 ```tsx
 "use client"
@@ -50,6 +52,25 @@ export default function CheckoutFlow() {
 CheckoutFlow.frames = {
   live: { props: {} },
 } satisfies GFrames<Record<string, never>>
+```
+
+Minimal Vue frame:
+
+```vue
+<template>
+  <main>
+    <!-- visual draft -->
+  </main>
+</template>
+
+<g:frames>
+export default {
+  live: {
+    props: {},
+    scope: {},
+  },
+}
+</g:frames>
 ```
 
 ## Opening It
@@ -66,7 +87,13 @@ A single frame directly:
 /runelight?entry=app%2Frunelight%2Fdesign%2FCheckoutFlow.g.tsx%23default&frame=live&chrome=0
 ```
 
-Replace `app%2Frunelight` with the URL-encoded `project.entryRoot` if setup chose a different entry root, such as `src%2Fapp%2Frunelight`.
+For Vue, the same URL shape points at a `.g.vue` entry:
+
+```
+/runelight?entry=src%2Fapp%2Frunelight%2Fdesign%2FCheckoutFlow.g.vue%23default&frame=live&chrome=0
+```
+
+Replace the entry-root segment with the URL-encoded `project.entryRoot` if setup chose a different entry root, such as `src%2Fapp%2Frunelight`.
 
 ## The Agent's Design Loop
 
@@ -76,7 +103,7 @@ The quality of a design frame doesn't depend on how well you word the prompt. Th
 2. **Intent expansion** — turns your request into a brief: goal, audience, core job, constraints.
 3. **Direction gate** — asks one clarifying question only if the missing detail would change the product direction. Otherwise makes an explicit assumption and proceeds.
 4. **Layout plan** — decides hierarchy, primary action, density, visual system.
-5. **Frame implementation** — writes a self-contained `.g.tsx` file with realistic content.
+5. **Frame implementation** — writes a self-contained `.g.tsx` or `.g.vue` file with realistic content.
 6. **Critique** — reviews against clarity, rhythm, domain fit, accessibility. Revises if generic.
 
 You see the result in Studio and react: "adjust this", "try a different approach", "make it denser". The agent iterates on the same frame or creates alternatives as separate files.

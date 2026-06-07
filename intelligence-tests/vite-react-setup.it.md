@@ -8,8 +8,8 @@ Validate these outcomes:
 
 - Before setup runs, the project contains `.agents/skills/setup-runelight` and no other Runelight project-level skills.
 - Setup installs/wires the needed Runelight packages, Vite adapter, config file, and browser-entry branch.
-- Setup installs or refreshes only the React companion skills needed for this project: `authoring-runelight-react`, `refactor-to-runelight`, and `design-runelight`.
-- Setup does not install `authoring-runelight-vue` or the deprecated unsplit `authoring-runelight`.
+- Setup installs or refreshes only the React companion skills needed for this project: `authoring-runelight-react`, `refactor-to-runelight-react`, and `design-runelight`.
+- Setup does not install `authoring-runelight-vue`, `refactor-to-runelight-vue`, `refactor-to-runelight`, or the deprecated unsplit `authoring-runelight`.
 - The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
 - `runelight.config.ts` records `project.sourceRoot` and `project.entryRoot`.
 - `${project.entryRoot}/design` exists after setup or dev-server startup.

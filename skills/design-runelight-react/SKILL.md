@@ -1,30 +1,38 @@
 ---
-name: design-runelight
-description: Create and iterate product design drafts inside a Runelight project using local project.entryRoot/design frames and Studio's design workspace. Use when the user asks for design exploration, UI drafts, visual prototypes, making a product surface look good, or adjusting an existing Runelight design board.
+name: design-runelight-react
+description: Create and iterate product GUI design drafts for React Runelight projects using Studio design frames in project.entryRoot/design/*.g.tsx. Use when the user asks for design exploration, UI drafts, visual prototypes, making a product surface look good, or adjusting an existing Runelight design board in a React project.
 ---
 
-# Design Runelight
+# Design Runelight React
 
-Use this skill when the user wants an AI-assisted product/UI design pass inside an existing Runelight-enabled workspace.
+Use this framework-specific skill when the user wants an AI-assisted product/UI design pass inside a React Runelight workspace. Setup installs this skill for React projects; for Vue projects use `design-runelight-vue`.
+
+Maintenance note: keep the Design Loop and Quality Gate semantically aligned with the Vue design skill. Framework file contracts may differ; design judgment should not.
 
 ## User Flow
 
-The user talks to the local agent. The agent edits local files. Studio renders the board.
+The user talks to the local agent. The agent edits local React design frames. Studio renders the design board.
 
 1. User asks for a design draft, visual direction, or design adjustment.
-2. Agent reads `runelight.config.ts` and writes or edits one or more `project.entryRoot/design/*.g.tsx` files.
-3. User opens `/runelight/studio#/design`.
-4. Each design file appears as a draggable frame. Frame positions are stored in browser `localStorage`.
+2. Agent studies the product context and turns the request into a concrete design brief.
+3. Agent creates or updates one or more `.g.tsx` design frames under `project.entryRoot/design`.
+4. User opens the Studio design workspace, compares frames, gives feedback, and iterates.
 
 ## File Contract
 
-- Put design drafts in `project.entryRoot/design/<FrameName>.g.tsx`, where `project.entryRoot` comes from `runelight.config.ts`.
-- Each frame is one default-exported React component with one happy-path frame named `live`.
-- Prefer self-contained files. Do not split a design frame into sibling helper files unless the target adapter is known to resolve them in preview.
-- Multiple alternatives are separate files, not multiple frames.
+- Put React design drafts in `project.entryRoot/design/<FrameName>.g.tsx`, where `project.entryRoot` comes from `runelight.config.ts`.
+- If `project.entryRoot` is missing or the design directory is unavailable, setup is incomplete; use `setup-runelight` before writing design frames.
+- Each design file should default-export one React component and expose one design frame named `live`.
+- Multiple alternatives are multiple files, not multiple frame keys. Use names such as `CheckoutFlowCalm.g.tsx`, `CheckoutFlowDense.g.tsx`, and `CheckoutFlowEditorial.g.tsx`.
+- Prefer self-contained TSX. Import existing design-system CSS, tokens, or simple presentational components only when they are stable in preview.
 - Do not write screenshots, serialized DOM, runtime state, or generated layout positions into the repo.
 - Treat `.runelight/preview-entries.ts` and other adapter outputs as generated. Do not put design drafts under `.runelight/`.
-- If `project.entryRoot` is missing, setup is incomplete; use `setup-runelight` before writing design frames.
+- A design frame is not formal component coverage. It usually shows one strong happy path; production states are modeled later by component frames.
+- Avoid ordinary React app hooks inside design frame components. If an interaction state matters for the visual direction, create another design frame or model the chosen state statically instead of adding `useState`, `useEffect`, queries, routers, or production providers.
+
+## Reference Scope
+
+`DESIGN_REFERENCE.md` is an aesthetic reference only. Use it for taste, hierarchy, layout discipline, anti-default rules, accessibility checks, and visual critique. It does not override the React project, the existing host, or the Runelight frame contract.
 
 Minimal frame:
 
@@ -33,11 +41,11 @@ Minimal frame:
 
 import type { GFrames } from "@runelight/core"
 
-export default function CheckoutDesign() {
-  return <main>{/* real visual TSX */}</main>
+export default function CheckoutFlowConcept() {
+  return <main>{/* visual draft */}</main>
 }
 
-CheckoutDesign.frames = {
+CheckoutFlowConcept.frames = {
   live: { props: {} },
 } satisfies GFrames<Record<string, never>>
 ```
@@ -46,13 +54,13 @@ CheckoutDesign.frames = {
 
 Do not rely on a stronger prompt to produce a better design. Treat the user's prompt as a seed, then run a design loop that turns product context into a concrete frame.
 
-1. **Context scan**: inspect the target app, nearby screens, existing components, CSS variables, tokens, icons, copy tone, route shape, and likely viewport.
+1. **Context scan**: inspect the target app, nearby screens, existing components, visual tokens, icons, copy tone, navigation context, and likely viewport.
 2. **Intent expansion**: convert the request into a compact private brief: goal, audience, core job, product surface, content model, interaction weight, constraints, and taste.
 3. **Direction gate**: ask one clarifying question only when the missing choice changes the product direction. Otherwise make a visible assumption and proceed.
-4. **Happy-path selection**: choose the one moment that best communicates the feature's value. Design exploration is not exhaustive frame coverage.
-5. **Design reference pass**: for substantive visual work, read [`DESIGN_REFERENCE.md`](./DESIGN_REFERENCE.md), choose a concrete visual direction, and apply the relevant surface rules. Use it as a web design quality reference, not as a substitute for product context.
+4. **Happy-path selection**: choose the one moment that best communicates the feature's value. Design exploration is not exhaustive state coverage.
+5. **Design reference pass**: for substantive visual work, read [`DESIGN_REFERENCE.md`](./DESIGN_REFERENCE.md), choose a concrete visual direction, and apply the relevant surface rules. Use it as an aesthetic reference, not as a substitute for product context, the existing React host, or the Runelight frame contract.
 6. **Visual/layout plan**: decide the visual anchor, aesthetic family, information hierarchy, primary action, secondary actions, data density, and visual system before writing TSX.
-7. **Frame implementation**: create or update a named `project.entryRoot/design/*.g.tsx` frame with credible content and stable dimensions.
+7. **Frame drafting**: create or update named `.g.tsx` design frames with credible content and stable dimensions.
 8. **Critique/refine**: review the frame against hierarchy, clarity, rhythm, density, accessibility, affordance, and domain fit. If it looks generic or unfinished, revise before hand-off.
 9. **Iteration**: if the user says "adjust here/there", preserve the current direction and edit the relevant frame unless they ask for a variant.
 
@@ -68,15 +76,14 @@ For a short request like "design a gift feature", infer enough product design co
 
 State the key assumptions briefly in the user-facing update, then implement. Keep the assumptions concrete enough that the user can correct them in the next turn.
 
-## Edge Frames
+## Alternatives
 
-- If the user asks for broad exploration, create 2-3 named frame files with distinct concepts.
+- If the user asks for broad exploration, create 2-3 named `.g.tsx` files with distinct concepts.
 - If the user asks for a precise tweak, update the current frame instead of creating a new one.
 - If product direction is ambiguous, ask one question or create named alternatives only when the user explicitly wants exploration.
 - If there is an existing design system, reuse its tokens, components, icon style, typography, radius, shadows, and interaction patterns.
 - If there is no stable design system, define a small local system inside the frame: 2-3 semantic colors, type scale, spacing rhythm, surface treatment, and icon rules.
 - If backend, data, payment, policy, or safety details are unknown, design the happy-path UI with explicit assumptions. Do not invent operational guarantees.
-- If preview cannot resolve sibling helper files, keep the frame self-contained.
 
 ## Design Rules
 
@@ -123,23 +130,15 @@ Open:
 /runelight?entry=app%2Frunelight%2Fdesign%2F<FrameName>.g.tsx%23default&frame=live&chrome=0
 ```
 
-Also run the project typecheck when available. Replace `app%2Frunelight` with the URL-encoded `project.entryRoot` when it differs.
+Replace `app%2Frunelight` with the URL-encoded `project.entryRoot` when it differs. Also run the project typecheck or `runelight check` when practical.
 
-## When Setup Is Missing
+If Studio does not show the frame, stop and report that the design workspace is unavailable. Common causes are missing `project.entryRoot`, stale adapter-generated preview entries, or a dev server that needs restart after adding the first design frame.
 
-If `/runelight/studio#/design` does not show frames:
-
-- Confirm `project.entryRoot` is present in `runelight.config.ts` and the project is using a Runelight adapter version that includes `project.entryRoot/design/**/*.g.tsx` in preview entries.
-- Reload Studio after generated preview entry maps refresh.
-- If the project consumes `@runelight/studio` from built `dist`, rebuild `@runelight/studio` after source changes.
-
-If the project is not Runelight-enabled, use `setup-runelight` first.
-
-## Hand-off To The User
+## Hand-Off To The User
 
 End with:
 
 - The design board URL.
-- The frame files created or changed.
-- Any verification commands run.
-- Any known limitations, especially if a frame was kept self-contained because preview cannot resolve helper siblings.
+- The `.g.tsx` design frames created or changed.
+- What was checked.
+- Any known design limitations or assumptions.

@@ -15,14 +15,14 @@ Do not install `@runelight/preview-react` directly.
 ## Configuration
 
 - Configure `runelightViteReact` from `@runelight/adapter-vite-react`.
-- Use `runelightViteReact()` without statically importing `runelight.config.ts` from `vite.config.*`; the adapter keeps the `.g.tsx` component transform active for both dev and build, and loads `runelight.config.ts` only when dev-only virtual Runelight modules are loaded.
+- Use `runelightViteReact()` without statically importing the Runelight config from `vite.config.*`; the adapter keeps the `.g.tsx` component transform active for both dev and build, and loads the Runelight config only when dev-only virtual Runelight modules are loaded.
 - `.g.tsx` files are production React components. Do not move normal app imports away from `.g.tsx`; isolate only preview routes, `virtual:runelight/*`, and generated preview registries from production bundles.
 - The Vite adapter serves the prebuilt Studio app at `/runelight/studio` and `/runelight/studio/assets/*`; the browser entry should not import `@runelight/studio`.
-- Production `vite build` must not require `runelight.config.ts`, resolve `virtual:runelight/*`, include preview route code, expose a usable `/runelight` experience, or read/write Runelight-generated preview files.
+- Production `vite build` must not require the Runelight config, resolve `virtual:runelight/*`, include preview route code, expose a usable `/runelight` experience, or read/write Runelight-generated preview files.
 - If the root `tsconfig.json` is a references container, set `project.tsconfig` to the app config that includes React files, usually `tsconfig.app.json`.
 - Record the local Runelight entry directory in `project.entryRoot`. Design frames live in `${project.entryRoot}/design`; do not add a `designRoot` config key.
-- During setup, create the empty `${project.entryRoot}/design` directory. Do not add placeholder frames; the first `design-runelight` request writes the first `.g.tsx` frame.
-- In upgrade/ensure mode, do not rewrite `vite.config.*`, `runelight.config.ts`, browser-entry branches, or `src/preview.tsx` if they already exist and pass verification; only update packages and add missing design-directory support.
+- During setup, create the empty `${project.entryRoot}/design` directory. Do not add placeholder frames; the first `design-runelight-react` request writes the first `.g.tsx` frame.
+- In upgrade/ensure mode, do not rewrite `vite.config.*`, Runelight config, browser-entry branches, or `src/preview.tsx` if they already exist and pass verification; only update packages and add missing design-directory support.
 - After package upgrades, rerun Vite typecheck/dev verification. If adapter exports, virtual modules, preview loader signatures, or manifest generation changed, migrate only the affected glue while preserving the existing app render path.
 - Preserve the existing application render path. Only `/runelight` renders the preview app. `/runelight/studio` is handled by the adapter middleware and should not be a browser-entry branch.
 

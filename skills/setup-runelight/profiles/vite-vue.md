@@ -19,9 +19,10 @@ Do not install `@runelight/preview-vue` directly.
 - The adapter serves the prebuilt Studio app at `/runelight/studio` and `/runelight/studio/assets/*`.
 - `.g.vue` files are ordinary Vue SFCs with one `<g:frames>` block.
 - Vue frames use `props` and `scope`; do not generate or document `bindings`.
-- Vue provider frames through `provide`/`inject` are not supported yet.
+- Vue native `provide`/`inject` preview works through static frame `provide` entries when the injected key is importable from `<g:frames>`.
+- Declared Vue injection variants need `defineGInjectionKey` and `GVueProvideFrame` markers.
 - Record the local Runelight entry directory in `project.entryRoot`. Design frames live in `${project.entryRoot}/design`.
-- During setup, create the empty `${project.entryRoot}/design` directory. Do not add placeholder frames.
+- During setup, create the empty `${project.entryRoot}/design` directory. Do not add placeholder frames; the first `design-runelight-vue` request writes the first `.g.vue` frame.
 - Preserve the existing application render path. Only `/runelight` renders the preview app.
 
 `vite.config.ts`:
@@ -134,10 +135,6 @@ declare module "virtual:runelight/config" {
 }
 ```
 
-## Project-Level Authoring Skill
-
-Install or preserve `.agents/skills/authoring-runelight-vue` in the target project. Do not rely on a global authoring skill for Vue authoring.
-
 ## Verify
 
 1. Run typecheck/build.
@@ -145,4 +142,4 @@ Install or preserve `.agents/skills/authoring-runelight-vue` in the target proje
 3. Start the Vite dev server.
 4. Open `/` and confirm the original app still renders.
 5. Open `/runelight/studio`.
-6. If a `.g.vue` entry exists, open one `/runelight?...` preview URL and verify frame `scope` overrides production setup state.
+6. If a `.g.vue` entry exists, open one `/runelight?...` preview URL and verify frame `scope` or `provide` values override production setup state.

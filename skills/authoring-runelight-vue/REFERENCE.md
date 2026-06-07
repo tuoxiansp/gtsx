@@ -118,6 +118,44 @@ Both forms are valid in template:
 
 Use `props.userId` when it helps distinguish public input from local scope. Use direct `userId` for idiomatic compact Vue templates.
 
+## Native Provide / Inject
+
+Use frame `provide` only when the component already consumes native Vue injection. Prefer `props` or `scope` for ordinary component state.
+
+```vue
+<template>
+  <section>
+    <p v-if="auth.role === 'admin'">Admin tools</p>
+    <p v-else>Viewer tools</p>
+  </section>
+</template>
+
+<script setup lang="ts">
+import { inject } from "vue"
+import { authKey } from "./auth"
+
+const auth = inject(authKey)!
+</script>
+
+<g:frames lang="ts">
+import { authKey } from "./auth"
+import type { GVueFrames, GVueProvideFrame } from "@runelight/core/vue"
+
+export default {
+  admin: {
+    props: {},
+    provide: [[authKey, { role: "admin" }]],
+  } satisfies GVueProvideFrame<typeof authKey, "admin">,
+  viewer: {
+    props: {},
+    provide: [[authKey, { role: "viewer" }]],
+  } satisfies GVueProvideFrame<typeof authKey, "viewer">,
+} satisfies GVueFrames<Record<string, never>, never, [typeof authKey]>
+</g:frames>
+```
+
+The `provide` value is the runtime preview value. The `GVueProvideFrame` marker is type-level metadata that tells Studio and `runelight check` which finite injection variant the frame covers.
+
 ## Frame Names
 
 Name frames by visual state:
@@ -142,7 +180,7 @@ Plain Vue child components can run normally if their script is safe in dev previ
 
 ## Current Limitations
 
-- Vue `provide`/`inject` provider frames are not supported yet.
+- Finite Vue injection variant axes currently require TypeScript frame markers.
 - `.g.vue` exposes one protocol component entry: the default SFC component.
 - Frame objects must be statically enumerable; top-level spread composition is not supported yet.
 
@@ -153,5 +191,5 @@ Plain Vue child components can run normally if their script is safe in dev previ
 | `<g:frame>` nested blocks | Use one `<g:frames>` block with `export default { ... }` |
 | `bindings` frame field | Use `scope` |
 | Relying on production-only setup state for preview branches | Put the template-visible value in frame `scope` |
-| Opaque helper controls `v-if` / `v-for` | Make the directive depend directly on `props` or `scope` |
+| Opaque helper controls `v-if` / `v-for` | Make the directive depend directly on `props`, `scope`, or injected frame values |
 | Forgetting styles | Keep SFC `<style>` blocks; preview preserves them |

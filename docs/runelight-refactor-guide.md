@@ -2,7 +2,7 @@
 
 How to turn existing React components into `.g.tsx` UI models without creating wrappers.
 
-The canonical workflow for AI agents lives in [`skills/refactor-to-runelight/SKILL.md`](../skills/refactor-to-runelight/SKILL.md). This guide is the human-readable version: the decision framework, the key moves, and the traps to avoid.
+The canonical workflow for AI agents lives in [`skills/refactor-to-runelight-react/SKILL.md`](../skills/refactor-to-runelight-react/SKILL.md). This guide is the human-readable version: the decision framework, the key moves, and the traps to avoid.
 
 If the project isn't wired for Runelight yet, run [`setup-runelight`](../skills/setup-runelight/SKILL.md) first. For authoring patterns in the resulting `.g.tsx`, see the [Authoring Guide](./runelight-authoring-guide.md).
 

@@ -13,8 +13,8 @@ Also add a Vue-native provide/inject case in the same temporary project. Define 
 Validate these outcomes:
 
 - Before setup runs, the project contains `.agents/skills/setup-runelight` and no other Runelight project-level skills.
-- Setup installs or refreshes only the Vue companion skill needed for this project: `authoring-runelight-vue`.
-- Setup does not install `authoring-runelight-react`, `refactor-to-runelight`, `design-runelight`, or the deprecated unsplit `authoring-runelight`.
+- Setup installs or refreshes only the Vue companion skills needed for this project: `authoring-runelight-vue`, `refactor-to-runelight-vue`, and `design-runelight`.
+- Setup does not install `authoring-runelight-react`, `refactor-to-runelight-react`, `refactor-to-runelight`, or the deprecated unsplit `authoring-runelight`.
 - The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
 - `runelight check` accepts the `.g.vue` entry and lists its frames.
 - `runelight check` reports `uncovered-vue-template-branch` when a Vue template branch has no matching frame, then accepts the component after the missing frame is added.

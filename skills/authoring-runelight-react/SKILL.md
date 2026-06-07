@@ -17,7 +17,7 @@ Each exported component owns real visual TSX and carries static `Component.frame
 
 Frames inject at the scope seam — preview renders any state without executing production hooks.
 
-For existing TSX conversions, use `refactor-to-runelight` first, then return here. For Vue SFC authoring, use `authoring-runelight-vue`.
+For existing TSX conversions, use `refactor-to-runelight-react` first, then return here. For Vue SFC authoring, use `authoring-runelight-vue`.
 
 ## Quick start
 

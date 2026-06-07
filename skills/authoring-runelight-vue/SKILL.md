@@ -17,7 +17,7 @@ props + scope -> template
 
 Preview is template-first: frames provide the template-visible values needed to render visual states. Production-only `<script setup>` state does not need to run during preview when the frame supplies the values used by the template.
 
-Vue provider support through `provide`/`inject` is not part of the current Vue authoring surface. Do not author Vue `providers` frames until runtime support exists.
+Vue native `provide`/`inject` is an advanced authoring surface. Use it only when the component already injects Vue context. Frames may use `provide: [[key, value]]`; finite Studio axes need a typed `defineGInjectionKey` plus `GVueProvideFrame` marker.
 
 ## Quick Start
 
@@ -64,7 +64,7 @@ runelight check src
 2. Keep one normal `<template>` and normal Vue script blocks.
 3. Add exactly one `<g:frames>` block with direct `export default { ... }`.
 4. Use `props` for public component inputs and `scope` for frame-supplied template state.
-5. Make structural template branches reachable through frame `props` or `scope`.
+5. Make structural template branches reachable through frame `props`, `scope`, or static injected values from frame `provide`.
 6. Run `runelight check`, then the host typecheck/build.
 
 ## Rules
@@ -72,6 +72,9 @@ runelight check src
 - Use `.g.vue`, not plain `.vue`, for protocol components.
 - Do not use nested `<g:frame>` tags.
 - Do not use `bindings`; the Vue frame payload is `props` and `scope`.
+- Use `provide`, not `providers`, for Vue-native injection frames.
+- Import the same injection key in `<g:frames>` that the component passes to `inject(key)`.
+- Use `GVueProvideFrame` only for meaningful finite axes such as role, theme, locale, auth state, or platform.
 - Frame keys must be statically enumerable object literal keys.
 - Keep frames static. Do not generate frame objects from runtime code.
 - `scope` should include every non-prop template value that affects branch shape.

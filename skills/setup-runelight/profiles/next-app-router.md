@@ -1,6 +1,6 @@
 # Next.js App Router
 
-Use this profile for Next.js App Router projects. The setup-runelight skill does not currently provide a validated Pages Router integration profile.
+Use this profile for Next.js App Router TypeScript projects. The setup-runelight skill does not currently provide a validated Pages Router integration profile.
 
 ## Packages
 
@@ -15,16 +15,16 @@ Do not install `@runelight/preview-react` directly.
 ## Configuration
 
 - Wrap config with `runelightNextReact` from `@runelight/adapter-next-react`.
-- Use `runelightNextReact()` without statically importing `runelight.config.ts` from `next.config.*`; the adapter loads `runelight.config.ts` only when preview entries are enabled.
+- Use `runelightNextReact()` without statically importing the Runelight config from `next.config.*`; the adapter loads the Runelight config only when preview entries are enabled.
 - `.g.tsx` files are production React components. Do not move normal app imports away from `.g.tsx`; isolate only preview routes, generated preview entries, Studio route helpers, and config loading from production.
 - `@runelight/studio` ships a prebuilt Studio app. Next route files should call `@runelight/adapter-next-react/studio-route` helpers instead of importing `@runelight/studio/client`.
 - The Next preview/studio integration is development-only by default. It must not mutate production `next build`, production server startup, Docker standalone output, or read/write `.runelight` at production runtime unless the project explicitly opts in with `runelightNextReact({ enabled: true, ... })`.
 - The adapter generates `.runelight/preview-entries.ts` and wires webpack/Turbopack for preview imports when preview entries are enabled. Do not add a custom `.g.tsx` Turbopack loader in app code.
 - Record the local Runelight route entry directory in `project.entryRoot`. Design frames live in `${project.entryRoot}/design`; do not add a `designRoot` config key.
-- During setup, create the empty `${project.entryRoot}/design` directory. Do not add placeholder frames; the first `design-runelight` request writes the first `.g.tsx` frame.
-- In upgrade/ensure mode, do not rewrite `next.config.*`, `runelight.config.ts`, or `app/runelight/*` if they already exist and pass verification; only update packages and add missing design-directory support.
+- During setup, create the empty `${project.entryRoot}/design` directory. Do not add placeholder frames; the first `design-runelight-react` request writes the first `.g.tsx` frame.
+- In upgrade/ensure mode, do not rewrite `next.config.*`, Runelight config, or `app/runelight/*` if they already exist and pass verification; only update packages and add missing design-directory support.
 - After package upgrades, rerun Next.js typecheck/dev verification. If adapter exports, route helper signatures, generated `.runelight/preview-entries.ts`, or manifest generation changed, migrate only the affected glue while preserving existing route isolation and config-wrapper composition.
-- Preserve existing Next.js config wrappers. If the project exports `withMDX(nextConfig)`, `withContentlayer(nextConfig)`, `createNextIntlPlugin(...)(nextConfig)`, or another wrapper, apply `runelightNextReact()` around the existing composed config without statically importing `runelight.config.ts`.
+- Preserve existing Next.js config wrappers. If the project exports `withMDX(nextConfig)`, `withContentlayer(nextConfig)`, `createNextIntlPlugin(...)(nextConfig)`, or another wrapper, apply `runelightNextReact()` around the existing composed config without statically importing the Runelight config.
 - Use `project.sourceRoot: "."` for root-level `app`, `components`, or `lib`; use `src` only when the app source lives under `src`.
 - Be careful with package-manager argument separators: npm needs `npm run dev -- --hostname 127.0.0.1 --port {port}` while pnpm should use `pnpm dev --hostname 127.0.0.1 --port {port}`.
 

@@ -63,6 +63,15 @@ For Vue SFCs, the same principle applies to template directives. Branches driven
 
 Literal props, scope values, provider values, and const declarations initialized from literal arrays, objects, and primitives are inspectable. Imported constants must resolve to local source exports with literal initializers; named re-exports, star re-exports, namespace re-exports, default exports, and aliases of other static const literals are supported. Object and array spreads are inspectable when every spread source is also static. Values produced by helpers, external packages, or unresolved spread composition may typecheck, but they are not static enough for branch coverage. When they affect JSX reachability, `runelight check` reports the uncertainty rather than silently accepting it.
 
+### Type-marked features
+
+Some features need type-level markers because the runtime value alone does not name the intended finite environment axis:
+
+- React provider variants use `createGProvider(..., { variants })` plus `GProviderFrame`.
+- Vue injection variants use `defineGInjectionKey(..., { variants })` plus `GVueProvideFrame`.
+
+The frame still carries the runtime value with `providers` or `provide`; the marker tells Studio and `runelight check` which named variant the frame covers. Provider/injection variant axes are not inferred from arbitrary runtime values.
+
 ## Provider Variants
 
 A provider can declare a finite environment axis:

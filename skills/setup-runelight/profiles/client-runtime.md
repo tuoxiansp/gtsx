@@ -1,10 +1,10 @@
 # Client Runtime
 
-Use this profile when the host has one browser-owned entry and browser-owned routing. Vite React is the validated profile, but the same contract can be adapted to Vite-powered React Router, TanStack Router SPA, CRA / Webpack, and isolated Electron + Vite renderer projects.
+Use this profile when a TypeScript React host has one browser-owned entry and browser-owned routing. Vite React is the validated profile, but the same contract can be adapted to Vite-powered React Router, TanStack Router SPA, CRA / Webpack, and isolated Electron + Vite renderer projects.
 
 ## Contract
 
-1. Add `runelight.config.ts` with `project.sourceRoot`, `project.entryRoot`, optional `project.tsconfig`, routes, and preview commands.
+1. Add `runelight.config.ts` with `project.sourceRoot`, `project.entryRoot`, `project.tsconfig`, routes, and preview commands.
 2. Add a bundler transform so every `.g.tsx` file runs through the Runelight React transform.
 3. Expose the project index and resolved config to the browser entry.
 4. Create the empty `${project.entryRoot}/design` directory. Do not add a `designRoot` config key or placeholder frames.

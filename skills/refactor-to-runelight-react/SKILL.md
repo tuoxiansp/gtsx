@@ -1,15 +1,15 @@
 ---
-name: refactor-to-runelight
+name: refactor-to-runelight-react
 description: Refactor existing React TSX into production .g.tsx UI models without preview wrappers.
 ---
 
-# Refactor Existing TSX To Runelight
+# Refactor Existing React TSX To Runelight
 
 Convert existing React components into `.g.tsx` UI models.
 
 ## Read First
 
-- This skill owns the refactor workflow and decision gates.
+- This skill owns the React refactor workflow and decision gates.
 - For concrete `.g.tsx` writing patterns, route to `authoring-runelight-react` and read [Authoring Reference](../authoring-runelight-react/REFERENCE.md).
 
 If the project isn't wired for Runelight yet, run the `setup-runelight` skill first.
@@ -42,15 +42,15 @@ If the project isn't wired for Runelight yet, run the `setup-runelight` skill fi
 - `scope: { node: <OldComponent /> }`
 - Runelight-ifying route/provider/layout orchestration
 - Bulk-generating `*.impl.tsx` or `*.preview.g.tsx` files
-- Preserving old paths by adding wrappers (update imports or use barrels)
+- Preserving old paths by adding wrappers; update imports or use barrels
 - Hiding JSX branch reachability behind helper predicates, `switch`, loops, or local JSX variables
 - Marking provider variants when the provider is just arbitrary data instead of an environment axis
 
 ## Done When
 
 - `.g.tsx` owns the migrated visual TSX
-- Frames describe meaningful visual states (happy-path first, at least two)
-- Stateful frames: concrete scope data + no-op callbacks
+- Frames describe meaningful visual states, happy-path first
+- Stateful frames use concrete scope data and no-op callbacks
 - Old TSX no longer owns migrated visual branches
 - `runelight check` passes
-- Project typecheck passes (or unrelated failures reported)
+- Project typecheck passes, or unrelated failures are reported

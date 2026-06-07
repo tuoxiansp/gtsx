@@ -343,7 +343,7 @@ function StudioDesignWorkspaceView(props: StudioDesignWorkspaceProps) {
                   }}
                 >
                   <strong style={{ color: studioColors.text, fontSize: 12, fontWeight: 600 }}>No design frames</strong>
-                  <span>project.entryRoot/design/*.g.tsx</span>
+                  <span>project.entryRoot/design/*.g.tsx or *.g.vue</span>
                 </section>
               )}
             </div>
