@@ -11,6 +11,58 @@ import {
 } from "../src/index.js"
 
 describe("RunelightPreviewFrameSheet", () => {
+  it("renders visible chrome as a Studio-style capture sheet", () => {
+    const Preview = (() => <span>Ready preview</span>) as RunelightPreviewComponent
+    Preview.frames = {
+      ready: {
+        props: {},
+      },
+      error: {
+        props: {},
+      },
+    }
+
+    const html = renderToStaticMarkup(
+      <RunelightPreviewFrameSheet
+        component={Preview}
+        entry="src/components/UserCard.g.tsx#default"
+        selectedFrames={[
+          { name: "ready", frame: Preview.frames.ready },
+          { name: "error", frame: Preview.frames.error },
+        ]}
+      />,
+    )
+
+    expect(html).toContain('data-runelight-preview-contact-sheet="true"')
+    expect(html).toContain("UserCard")
+    expect(html).toContain("src/components/UserCard.g.tsx#default / 2 frames")
+    expect(html).toContain('data-runelight-preview-frame-grid-scale="0.45"')
+    expect(html).toContain("background-color:#181818")
+    expect(html).toContain("ready")
+  })
+
+  it("keeps hidden chrome previews unwrapped for single-frame capture", () => {
+    const Preview = (() => <span>Selected preview</span>) as RunelightPreviewComponent
+    Preview.frames = {
+      selected: {
+        props: {},
+      },
+    }
+
+    const html = renderToStaticMarkup(
+      <RunelightPreviewFrameSheet
+        component={Preview}
+        entry="src/components/UserCard.g.tsx#default"
+        selectedFrames={[{ name: "selected", frame: Preview.frames.selected }]}
+        showChrome={false}
+      />,
+    )
+
+    expect(html).not.toContain("data-runelight-preview-contact-sheet")
+    expect(html).not.toContain("runelight capture")
+    expect(html).toContain("Selected preview")
+  })
+
   it("does not turn a missing frame scope into an undefined preview override", () => {
     const useChildScope = createGScopeHook(() => ({ label: "real child scope" }))
 

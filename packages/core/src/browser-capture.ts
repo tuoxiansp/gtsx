@@ -3,6 +3,10 @@ import { setTimeout as delay } from "node:timers/promises"
 
 import { chromium } from "playwright"
 
+const previewCaptureBoundsSelector = "[data-runelight-preview-capture-bounds]"
+const previewFrameGroupSelector = "[data-runelight-preview-frame-group]"
+const previewCaptureCanvasPadding = 32
+
 export type BrowserCaptureOptions = {
   cwd: string
   url: string
@@ -18,7 +22,9 @@ export async function capturePreviewPage(options: BrowserCaptureOptions): Promis
     browser = await chromium.launch()
     const page = await browser.newPage({ viewport: parseViewport(options.viewport) })
     await gotoWhenReady(page, options.url)
-    await page.screenshot({ path: join(options.cwd, options.out), fullPage: true })
+    await waitForPreviewCaptureLayout(page)
+    const clip = await previewCaptureClip(page)
+    await page.screenshot({ path: join(options.cwd, options.out), ...(clip ? { clip } : { fullPage: true }) })
   } finally {
     try {
       await browser?.close()
@@ -34,6 +40,46 @@ function parseViewport(viewport: string): { width: number; height: number } {
     throw new Error(`Invalid viewport: ${viewport}`)
   }
   return { width, height }
+}
+
+async function waitForPreviewCaptureLayout(
+  page: Awaited<ReturnType<Awaited<ReturnType<typeof chromium.launch>>["newPage"]>>,
+) {
+  try {
+    await page.waitForFunction(
+      (selector) => {
+        const frameGroup = document.querySelector(selector)
+        return !frameGroup || frameGroup.getAttribute("data-runelight-preview-frame-group-measured") === "true"
+      },
+      previewFrameGroupSelector,
+      { timeout: 5_000 },
+    )
+  } catch {
+    // Capture should still work for hosts that do not expose Runelight contact-sheet layout markers.
+  }
+}
+
+async function previewCaptureClip(
+  page: Awaited<ReturnType<Awaited<ReturnType<typeof chromium.launch>>["newPage"]>>,
+): Promise<{ x: number; y: number; width: number; height: number } | undefined> {
+  const bounds = await page.locator(previewCaptureBoundsSelector).first().boundingBox().catch(() => null)
+  if (!bounds) return undefined
+
+  const pageSize = await page.evaluate(() => ({
+    height: Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0),
+    width: Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0),
+  }))
+  const x = Math.max(0, Math.floor(bounds.x - previewCaptureCanvasPadding))
+  const y = Math.max(0, Math.floor(bounds.y - previewCaptureCanvasPadding))
+  const right = Math.min(pageSize.width, Math.ceil(bounds.x + bounds.width + previewCaptureCanvasPadding))
+  const bottom = Math.min(pageSize.height, Math.ceil(bounds.y + bounds.height + previewCaptureCanvasPadding))
+
+  return {
+    x,
+    y,
+    width: Math.max(1, right - x),
+    height: Math.max(1, bottom - y),
+  }
 }
 
 async function gotoWhenReady(

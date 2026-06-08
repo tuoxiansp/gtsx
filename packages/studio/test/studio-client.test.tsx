@@ -225,7 +225,9 @@ describe("Runelight Studio shell", () => {
     )
 
     expect(html).toContain('data-runelight-preview-frame="ready"')
-    expect(html).toContain("src/Example.g.tsx#default / ready")
+    expect(html).toContain("Example")
+    expect(html).toContain("src/Example.g.tsx#default / 1 frame")
+    expect(html).toContain('data-runelight-preview-frame-grid-scale="0.45"')
     expect(html).toContain("Ready preview")
   })
 

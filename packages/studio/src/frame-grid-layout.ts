@@ -1,22 +1,34 @@
-import type { StudioViewportPreset } from "./client"
-import { studioCanvasScreenStableChromeReservedCanvasLength } from "./studio-canvas-screen-stable-chrome"
+import {
+  runelightStudioComponentCardTitleGap,
+  runelightStudioComponentCardTitleHeight,
+  runelightStudioComponentCardTitleScreenGap,
+  runelightStudioComponentCardTitleScreenHeight,
+  runelightStudioComponentFrameChromeHeight,
+  runelightStudioComponentFrameGridGap,
+  runelightStudioComponentFrameGridMinScale,
+  runelightStudioComponentFrameLabelGap,
+  runelightStudioComponentFrameLabelMinHeight,
+  runelightStudioComponentFrameLabelScreenGap,
+  runelightStudioComponentFrameLabelScreenMinHeight,
+  runelightStudioComponentFrameMismatchBorderOutset,
+  runelightStudioFrameGridMaxSide,
+} from "@runelight/core"
 
-export const studioComponentFrameGridGap = 14
-export const studioComponentCardTitleScreenGap = 8
-export const studioComponentCardTitleScreenHeight = 9
-export const studioComponentFrameLabelScreenGap = 5
-export const studioComponentFrameLabelScreenMinHeight = 13
-export const studioComponentCardTitleGap = studioCanvasScreenStableChromeReservedCanvasLength(studioComponentCardTitleScreenGap)
-export const studioComponentCardTitleHeight = studioCanvasScreenStableChromeReservedCanvasLength(studioComponentCardTitleScreenHeight)
-export const studioComponentFrameLabelGap = studioCanvasScreenStableChromeReservedCanvasLength(studioComponentFrameLabelScreenGap)
-export const studioComponentFrameLabelMinHeight = studioCanvasScreenStableChromeReservedCanvasLength(
-  studioComponentFrameLabelScreenMinHeight,
-)
-export const studioComponentFrameChromeHeight = studioComponentFrameLabelGap + studioComponentFrameLabelMinHeight
-export const studioComponentFrameGridMinScale = 0.18
-export const studioComponentFrameMismatchBorderOutset = 2
+import type { StudioViewportPreset } from "./client"
 
 export function studioFrameGridMaxSide(viewportPreset: StudioViewportPreset, frameCount: number): number {
-  const base = viewportPreset === "desktop" ? 860 : viewportPreset === "phone" ? 680 : 760
-  return frameCount <= 1 ? Math.min(base, 720) : base
+  return runelightStudioFrameGridMaxSide(viewportPreset, frameCount)
 }
+
+export const studioComponentFrameGridGap = runelightStudioComponentFrameGridGap
+export const studioComponentCardTitleScreenGap = runelightStudioComponentCardTitleScreenGap
+export const studioComponentCardTitleScreenHeight = runelightStudioComponentCardTitleScreenHeight
+export const studioComponentFrameLabelScreenGap = runelightStudioComponentFrameLabelScreenGap
+export const studioComponentFrameLabelScreenMinHeight = runelightStudioComponentFrameLabelScreenMinHeight
+export const studioComponentCardTitleGap = runelightStudioComponentCardTitleGap
+export const studioComponentCardTitleHeight = runelightStudioComponentCardTitleHeight
+export const studioComponentFrameLabelGap = runelightStudioComponentFrameLabelGap
+export const studioComponentFrameLabelMinHeight = runelightStudioComponentFrameLabelMinHeight
+export const studioComponentFrameChromeHeight = runelightStudioComponentFrameChromeHeight
+export const studioComponentFrameGridMinScale = runelightStudioComponentFrameGridMinScale
+export const studioComponentFrameMismatchBorderOutset = runelightStudioComponentFrameMismatchBorderOutset

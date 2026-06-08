@@ -42,6 +42,30 @@ export type {
   GFrames,
 } from "./types.js"
 export type { GBoundaryCollector, GBoundaryRect, GBoundaryTreeNode } from "./runtime.js"
+export {
+  computeRunelightFrameGridLayout,
+  runelightStudioCanvasFixedFramePreviewScale,
+  runelightStudioCanvasScreenStableChromeMinimumScale,
+  runelightStudioCanvasScreenStableChromeReservedLength,
+  runelightStudioComponentCardTitleGap,
+  runelightStudioComponentCardTitleHeight,
+  runelightStudioComponentCardTitleScreenGap,
+  runelightStudioComponentCardTitleScreenHeight,
+  runelightStudioComponentFrameChromeHeight,
+  runelightStudioComponentFrameGridGap,
+  runelightStudioComponentFrameGridMinScale,
+  runelightStudioComponentFrameLabelGap,
+  runelightStudioComponentFrameLabelMinHeight,
+  runelightStudioComponentFrameLabelScreenGap,
+  runelightStudioComponentFrameLabelScreenMinHeight,
+  runelightStudioComponentFrameMismatchBorderOutset,
+  runelightStudioFrameGridMaxSide,
+} from "./frame-grid-layout.js"
+export type {
+  RunelightFrameGridItemLayout,
+  RunelightFrameGridLayout,
+  RunelightStudioViewportPreset,
+} from "./frame-grid-layout.js"
 export { serializeGRuntimeValue } from "./runtime-values.js"
 export type { GRuntimeValueSerializationOptions, GRuntimeValueTruncation, GSerializedRuntimeValue } from "./runtime-values.js"
 export {

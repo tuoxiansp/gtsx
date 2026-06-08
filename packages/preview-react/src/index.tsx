@@ -1,7 +1,8 @@
-import React from "react"
+import React, { type CSSProperties } from "react"
 
 import {
   GPreviewProvider,
+  computeRunelightFrameGridLayout,
   createGBoundaryCollector,
   createGPreviewErrorMessage,
   createGPreviewPoolReadyMessage,
@@ -11,12 +12,27 @@ import {
   createGPreviewTreeMessage,
   createGPreviewValuesMessage,
   readGBoundaryElementRect,
+  runelightStudioCanvasFixedFramePreviewScale,
+  runelightStudioComponentCardTitleGap,
+  runelightStudioComponentCardTitleHeight,
+  runelightStudioComponentCardTitleScreenGap,
+  runelightStudioComponentCardTitleScreenHeight,
+  runelightStudioComponentFrameChromeHeight,
+  runelightStudioComponentFrameGridGap,
+  runelightStudioComponentFrameGridMinScale,
+  runelightStudioComponentFrameLabelGap,
+  runelightStudioComponentFrameLabelMinHeight,
+  runelightStudioComponentFrameLabelScreenGap,
+  runelightStudioFrameGridMaxSide,
   type GBoundaryCollector,
   type GBoundaryRect,
+  type GBoundaryTreeNode,
   type GPreviewProtocolMessage,
   type GPreviewRenderMessage,
   type GPreviewRenderTarget,
   type AnyGProvider,
+  type RunelightFrameGridItemLayout,
+  type RunelightFrameGridLayout,
 } from "@runelight/core"
 
 export type RunelightPreviewFrame<Props extends object = Record<string, unknown>> = {
@@ -86,8 +102,274 @@ export type RunelightPreviewFrameSheetProps<Props extends object = Record<string
   showChrome?: boolean
 }
 
+type RunelightPreviewFrameSheetModel<Props extends object = Record<string, unknown>> = {
+  collector: GBoundaryCollector
+  frame: RunelightPreviewFrame<Props>
+  name: string
+}
+
+type RunelightPreviewFrameGeometry = {
+  boundaryRect?: GBoundaryRect
+  viewportSize: { width: number; height: number }
+}
+
+type RunelightPreviewContactSheetFrameLayout = RunelightFrameGridItemLayout & {
+  measured: boolean
+  offset: { x: number; y: number }
+  viewportSize: { width: number; height: number }
+}
+
 const loadedRunelightPreviewEntriesByLoader = new WeakMap<RunelightPreviewComponentLoader, Map<string, LoadedRunelightPreviewEntry>>()
 const loadingRunelightPreviewEntriesByLoader = new WeakMap<RunelightPreviewComponentLoader, Map<string, Promise<LoadedRunelightPreviewEntry>>>()
+
+const runelightPreviewStudioFontFamily =
+  '"JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace'
+
+const runelightPreviewFrameGridGap = runelightStudioComponentFrameGridGap
+const runelightPreviewFrameLabelGap = runelightStudioComponentFrameLabelGap
+const runelightPreviewFrameLabelMinHeight = runelightStudioComponentFrameLabelMinHeight
+const runelightPreviewFrameLabelScreenGap = runelightStudioComponentFrameLabelScreenGap
+const runelightPreviewFrameChromeHeight = runelightStudioComponentFrameChromeHeight
+const runelightPreviewFrameGridMinScale = runelightStudioComponentFrameGridMinScale
+const runelightPreviewFramePreviewScale = runelightStudioCanvasFixedFramePreviewScale
+const runelightPreviewComponentCardTitleGap = runelightStudioComponentCardTitleGap
+const runelightPreviewComponentCardTitleHeight = runelightStudioComponentCardTitleHeight
+const runelightPreviewComponentCardTitleScreenGap = runelightStudioComponentCardTitleScreenGap
+const runelightPreviewComponentCardTitleScreenHeight = runelightStudioComponentCardTitleScreenHeight
+const runelightPreviewDefaultViewportSize = { height: 1024, width: 768 } as const
+const runelightPreviewFrameGridFallbackItem = { height: 160, width: 280 } satisfies RunelightFrameGridItemLayout
+
+const runelightPreviewStudioColors = {
+  canvasBg: "#181818",
+  panelBg: "#1e1e1e",
+  panelBgElevated: "#282828",
+  panelBorder: "#3a3a3a",
+  panelBorderSubtle: "#2e2e2e",
+  text: "#d4d4d4",
+  textMuted: "#a0a0a0",
+  textDim: "#8f8f8f",
+  textLabel: "#9a9a9a",
+  textTitle: "#a8a8a8",
+  accent: "#ff8c82",
+  accentText: "#e68a7d",
+  accentMuted: "rgba(255,140,130,0.28)",
+} as const
+
+const visibleChromePreviewSheetStyle: CSSProperties = {
+  alignContent: "start",
+  backgroundColor: runelightPreviewStudioColors.canvasBg,
+  boxSizing: "border-box",
+  color: runelightPreviewStudioColors.text,
+  display: "grid",
+  fontFamily: runelightPreviewStudioFontFamily,
+  gap: 28,
+  minHeight: "100vh",
+  padding: 32,
+}
+
+const hiddenChromePreviewSheetStyle: CSSProperties = {
+  display: "grid",
+  gap: 0,
+  padding: 0,
+}
+
+function contactSheetCardTitleSlotStyle(width: number): CSSProperties {
+  return {
+    alignContent: "start",
+    alignItems: "start",
+    display: "grid",
+    height: runelightPreviewComponentCardTitleHeight + runelightPreviewComponentCardTitleGap,
+    minWidth: 0,
+    overflow: "visible",
+    width,
+  }
+}
+
+const contactSheetCardTitleStyle: CSSProperties = {
+  alignItems: "center",
+  color: runelightPreviewStudioColors.accentText,
+  display: "flex",
+  fontFamily: runelightPreviewStudioFontFamily,
+  fontSize: 9,
+  fontSynthesis: "none",
+  fontWeight: 400,
+  gap: 7,
+  letterSpacing: "0.06em",
+  lineHeight: 1,
+  minWidth: 0,
+  overflow: "hidden",
+  position: "relative",
+  textRendering: "geometricPrecision",
+  textOverflow: "ellipsis",
+  top: runelightPreviewComponentCardTitleHeight + runelightPreviewComponentCardTitleGap,
+  transform: `translateY(-${runelightPreviewComponentCardTitleScreenHeight + runelightPreviewComponentCardTitleScreenGap}px)`,
+  whiteSpace: "nowrap",
+}
+
+const contactSheetCardTitleIndicatorStyle: CSSProperties = {
+  background: runelightPreviewStudioColors.accentText,
+  flexShrink: 0,
+  height: 9,
+  opacity: 1,
+  width: 2,
+}
+
+const contactSheetCardTitleTextStyle: CSSProperties = {
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+}
+
+function contactSheetComponentGroupStyle(width: number): CSSProperties {
+  return {
+    display: "grid",
+    gap: 0,
+    minWidth: 0,
+    width,
+  }
+}
+
+function contactSheetFrameGridStyle(layout: RunelightFrameGridLayout): CSSProperties {
+  return {
+    alignItems: "start",
+    display: "grid",
+    gap: layout.gap,
+    gridTemplateColumns: `repeat(${layout.columns}, ${layout.cellWidth}px)`,
+    width: layout.width,
+  }
+}
+
+function contactSheetFrameTileStyle(cellWidth: number): CSSProperties {
+  return {
+    alignItems: "start",
+    display: "grid",
+    gap: runelightPreviewFrameLabelGap,
+    justifyItems: "start",
+    minWidth: 0,
+    width: cellWidth,
+  }
+}
+
+function contactSheetFrameShellStyle(
+  frameLayout: RunelightPreviewContactSheetFrameLayout,
+  groupLayout: RunelightFrameGridLayout,
+): CSSProperties {
+  if (!frameLayout.measured) {
+    return {
+      overflow: "visible",
+      position: "relative",
+      width: runelightPreviewDefaultViewportSize.width,
+    }
+  }
+
+  return {
+    height: Math.ceil(frameLayout.height * groupLayout.previewScale),
+    overflow: "visible",
+    position: "relative",
+    width: Math.ceil(frameLayout.width * groupLayout.previewScale),
+  }
+}
+
+function contactSheetFrameScaledCanvasStyle(
+  frameLayout: RunelightPreviewContactSheetFrameLayout,
+  groupLayout: RunelightFrameGridLayout,
+): CSSProperties {
+  if (!frameLayout.measured) {
+    return {
+      position: "relative",
+      width: runelightPreviewDefaultViewportSize.width,
+    }
+  }
+
+  return {
+    height: frameLayout.height,
+    left: 0,
+    position: "absolute",
+    top: 0,
+    transform: `scale(${formatRunelightPreviewCssNumber(groupLayout.previewScale)})`,
+    transformOrigin: "0 0",
+    width: frameLayout.width,
+  }
+}
+
+function contactSheetFrameViewportStyle(frameLayout: RunelightPreviewContactSheetFrameLayout): CSSProperties {
+  if (!frameLayout.measured) {
+    return {
+      overflow: "visible",
+      position: "relative",
+      width: runelightPreviewDefaultViewportSize.width,
+    }
+  }
+
+  return {
+    height: frameLayout.height,
+    overflow: "hidden",
+    position: "relative",
+    width: frameLayout.width,
+  }
+}
+
+function contactSheetFrameContentStyle(frameLayout: RunelightPreviewContactSheetFrameLayout): CSSProperties {
+  if (!frameLayout.measured) {
+    return {
+      position: "relative",
+      width: runelightPreviewDefaultViewportSize.width,
+    }
+  }
+
+  return {
+    left: -frameLayout.offset.x,
+    position: "absolute",
+    top: -frameLayout.offset.y,
+    width: frameLayout.viewportSize.width,
+  }
+}
+
+const contactSheetFrameLabelSlotStyle: CSSProperties = {
+  alignContent: "start",
+  display: "grid",
+  height: runelightPreviewFrameLabelMinHeight,
+  justifyItems: "center",
+  minWidth: 0,
+  overflow: "visible",
+  width: "100%",
+}
+
+const contactSheetFrameLabelStyle: CSSProperties = {
+  color: runelightPreviewStudioColors.textLabel,
+  display: "block",
+  fontSize: 9,
+  fontWeight: 400,
+  letterSpacing: "0.05em",
+  lineHeight: 1.35,
+  maxWidth: "100%",
+  overflow: "hidden",
+  textAlign: "center",
+  textOverflow: "ellipsis",
+  textTransform: "lowercase",
+  position: "relative",
+  top: -runelightPreviewFrameLabelGap,
+  transform: `translateY(${runelightPreviewFrameLabelScreenGap}px)`,
+  transformOrigin: "top center",
+  whiteSpace: "nowrap",
+}
+
+const contactSheetMeasuringFrameGridStyle: CSSProperties = {
+  alignItems: "start",
+  display: "grid",
+  gap: 20,
+  gridTemplateColumns: "repeat(auto-fit, max-content)",
+}
+
+const runelightVisiblePreviewDocumentStyle = `html, body {
+  background: ${runelightPreviewStudioColors.canvasBg} !important;
+  margin: 0;
+}`
+
+const runelightHiddenPreviewDocumentStyle = `html, body {
+  background: transparent !important;
+  margin: 0;
+}`
 
 export function RunelightReactPreviewClient({
   frameName = null,
@@ -302,38 +584,380 @@ export function RunelightPreviewFrameSheet<Props extends object = Record<string,
   selectedFrames,
   showChrome = true,
 }: RunelightPreviewFrameSheetProps<Props>) {
-  return (
-    <main style={{ display: "grid", gap: 16, minHeight: showChrome ? "100vh" : undefined, padding: showChrome ? 24 : 0 }}>
-      {selectedFrames.map(({ name, frame }) => (
-        <section data-runelight-preview-frame={name} key={name}>
-          {showChrome ? (
-            <header
-              style={{
-                color: "#64748b",
-                font: "12px ui-monospace, SFMono-Regular, Menlo, monospace",
-                marginBottom: 8,
-              }}
+  if (!showChrome) {
+    return (
+      <main style={hiddenChromePreviewSheetStyle}>
+        {selectedFrames.map(({ name, frame }) => (
+          <section data-runelight-preview-frame={name} key={name}>
+            <GPreviewProvider
+              boundaryCollector={boundaryCollector}
+              frameOverrides={frameOverridesForFrame(entry, name, frameOverrides)}
+              {...previewRuntimeProps(frame)}
             >
-              {entry} / {name}
-            </header>
-          ) : null}
-          <GPreviewProvider
-            boundaryCollector={boundaryCollector}
-            frameOverrides={frameOverridesForFrame(entry, name, frameOverrides)}
-            {...previewRuntimeProps(frame)}
-          >
-            <Component {...frame.props} />
-          </GPreviewProvider>
-        </section>
-      ))}
+              <Component {...frame.props} />
+            </GPreviewProvider>
+          </section>
+        ))}
+      </main>
+    )
+  }
+
+  return (
+    <RunelightPreviewContactSheetFrameGroup
+      frameOverrides={frameOverrides}
+      component={Component}
+      entry={entry}
+      selectedFrames={selectedFrames}
+    />
+  )
+}
+
+function RunelightPreviewContactSheetFrameGroup<Props extends object = Record<string, unknown>>({
+  frameOverrides,
+  component: Component,
+  entry,
+  selectedFrames,
+}: {
+  frameOverrides: Map<string, string>
+  component: RunelightPreviewComponent<Props>
+  entry: string
+  selectedFrames: Array<{ name: string; frame: RunelightPreviewFrame<Props> }>
+}) {
+  const frameModels = React.useMemo(
+    () =>
+      selectedFrames.map(({ name, frame }) => ({
+        collector: createGBoundaryCollector(),
+        frame,
+        name,
+      })),
+    [selectedFrames],
+  )
+  const frameViewportElements = React.useRef(new Map<string, HTMLElement>())
+  const frameContentElements = React.useRef(new Map<string, HTMLElement>())
+  const geometryByFrame = useRunelightPreviewContactSheetGeometry({
+    coordinate: toComponentCoordinate(entry),
+    contentElements: frameContentElements,
+    frameModels,
+    viewportElements: frameViewportElements,
+  })
+  const frameLayouts = frameModels.map((model) => runelightPreviewContactSheetFrameLayout(geometryByFrame[model.name]))
+  const groupLayout = computeRunelightFrameGridLayout({
+    frameChromeHeight: runelightPreviewFrameChromeHeight,
+    gap: runelightPreviewFrameGridGap,
+    items: frameLayouts,
+    maxSide: runelightStudioFrameGridMaxSide("desktop", selectedFrames.length),
+    minScale: runelightPreviewFrameGridMinScale,
+    previewScale: runelightPreviewFramePreviewScale,
+  })
+  const groupWidth = groupLayout.width
+  const entryTitle = previewEntryTitle(entry)
+
+  return (
+    <main data-runelight-preview-contact-sheet="true" style={visibleChromePreviewSheetStyle}>
+      <div
+        data-runelight-preview-capture-bounds="true"
+        data-runelight-preview-frame-group="true"
+        data-runelight-preview-frame-group-measured={runelightPreviewContactSheetHasMeasuredEveryFrame(frameLayouts) ? "true" : "false"}
+        style={contactSheetComponentGroupStyle(groupWidth)}
+      >
+        <header
+          title={`${entry} / ${selectedFrames.length} ${selectedFrames.length === 1 ? "frame" : "frames"}`}
+          style={contactSheetCardTitleSlotStyle(groupWidth)}
+        >
+          <span style={contactSheetCardTitleStyle}>
+            <span aria-hidden="true" style={contactSheetCardTitleIndicatorStyle} />
+            <span style={contactSheetCardTitleTextStyle}>{entryTitle}</span>
+          </span>
+        </header>
+        <div
+          data-runelight-preview-frame-grid-columns={groupLayout.columns}
+          data-runelight-preview-frame-grid-scale={formatRunelightPreviewCssNumber(groupLayout.previewScale)}
+          style={
+            runelightPreviewContactSheetHasMeasuredEveryFrame(frameLayouts)
+              ? contactSheetFrameGridStyle(groupLayout)
+              : contactSheetMeasuringFrameGridStyle
+          }
+        >
+          {frameModels.map((model, frameIndex) => {
+            const frameLayout = frameLayouts[frameIndex] ?? runelightPreviewContactSheetFrameLayout(undefined)
+            return (
+              <section
+                data-runelight-preview-frame={model.name}
+                data-runelight-preview-frame-measured={frameLayout.measured ? "true" : "false"}
+                key={model.name}
+                style={
+                  frameLayout.measured
+                    ? contactSheetFrameTileStyle(groupLayout.cellWidth)
+                    : contactSheetFrameTileStyle(frameLayout.width)
+                }
+              >
+                <div style={contactSheetFrameShellStyle(frameLayout, groupLayout)}>
+                  <div style={contactSheetFrameScaledCanvasStyle(frameLayout, groupLayout)}>
+                    <div
+                      data-runelight-preview-frame-viewport={model.name}
+                      ref={(element) => setRunelightPreviewContactSheetElement(frameViewportElements.current, model.name, element)}
+                      style={contactSheetFrameViewportStyle(frameLayout)}
+                    >
+                      <div
+                        data-runelight-preview-frame-content={model.name}
+                        ref={(element) => setRunelightPreviewContactSheetElement(frameContentElements.current, model.name, element)}
+                        style={contactSheetFrameContentStyle(frameLayout)}
+                      >
+                        <GPreviewProvider
+                          boundaryCollector={model.collector}
+                          frameOverrides={frameOverridesForFrame(entry, model.name, frameOverrides)}
+                          {...previewRuntimeProps(model.frame)}
+                        >
+                          <Component {...model.frame.props} />
+                        </GPreviewProvider>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <span style={contactSheetFrameLabelSlotStyle}>
+                  <span style={contactSheetFrameLabelStyle}>{model.name}</span>
+                </span>
+              </section>
+            )
+          })}
+        </div>
+      </div>
     </main>
   )
 }
 
-export function RunelightPreviewDocumentBackground({ showChrome }: { showChrome: boolean }) {
-  if (showChrome) return null
+const useRunelightPreviewLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
 
-  return <style>{`html, body { background: transparent !important; }`}</style>
+function useRunelightPreviewContactSheetGeometry<Props extends object>(input: {
+  coordinate: string
+  contentElements: React.MutableRefObject<Map<string, HTMLElement>>
+  frameModels: Array<RunelightPreviewFrameSheetModel<Props>>
+  viewportElements: React.MutableRefObject<Map<string, HTMLElement>>
+}): Record<string, RunelightPreviewFrameGeometry | undefined> {
+  const geometrySignature = `${input.coordinate}\n${input.frameModels.map((model) => model.name).join("\n")}`
+  const [geometryState, setGeometryState] = React.useState<{
+    frames: Record<string, RunelightPreviewFrameGeometry | undefined>
+    signature: string
+  }>(() => ({ frames: {}, signature: geometrySignature }))
+  const geometryByFrame = geometryState.signature === geometrySignature ? geometryState.frames : {}
+
+  useRunelightPreviewLayoutEffect(() => {
+    if (geometryState.signature !== geometrySignature) {
+      setGeometryState({ frames: {}, signature: geometrySignature })
+      return
+    }
+
+    const nextGeometry: Record<string, RunelightPreviewFrameGeometry | undefined> = {}
+    let hasNextGeometry = false
+
+    for (const model of input.frameModels) {
+      if (geometryByFrame[model.name]) continue
+
+      const viewportElement = input.viewportElements.current.get(model.name)
+      const contentElement = input.contentElements.current.get(model.name)
+      if (!viewportElement || !contentElement) continue
+
+      const geometry = measureRunelightPreviewFrameGeometry({
+        collector: model.collector,
+        contentElement,
+        coordinate: input.coordinate,
+        viewportElement,
+      })
+      nextGeometry[model.name] = geometry
+      hasNextGeometry = true
+    }
+
+    if (!hasNextGeometry) return
+    setGeometryState((current) => ({
+      frames: current.signature === geometrySignature ? { ...current.frames, ...nextGeometry } : nextGeometry,
+      signature: geometrySignature,
+    }))
+  }, [geometryByFrame, geometrySignature, geometryState.signature, input])
+
+  return geometryByFrame
+}
+
+function setRunelightPreviewContactSheetElement(
+  elements: Map<string, HTMLElement>,
+  frameName: string,
+  element: HTMLElement | null,
+) {
+  if (element) {
+    elements.set(frameName, element)
+  } else {
+    elements.delete(frameName)
+  }
+}
+
+function measureRunelightPreviewFrameGeometry(input: {
+  collector: GBoundaryCollector
+  contentElement: HTMLElement
+  coordinate: string
+  viewportElement: HTMLElement
+}): RunelightPreviewFrameGeometry {
+  const localBoundaryRects = updateRunelightPreviewLocalBoundaryRects(input.collector, input.viewportElement)
+  const tree = input.collector.getTree()
+  const measuredBoundaryRect = runelightPreviewBoundaryRectForCoordinate(tree, input.coordinate)
+  const contentRect = input.contentElement.getBoundingClientRect()
+  const viewportSize = runelightPreviewMeasuredViewportSize(input.viewportElement, contentRect, localBoundaryRects)
+  const boundaryRect = clipRunelightPreviewBoundaryRectToViewport(measuredBoundaryRect, viewportSize)
+
+  return {
+    ...(boundaryRect ? { boundaryRect } : {}),
+    viewportSize,
+  }
+}
+
+function updateRunelightPreviewLocalBoundaryRects(
+  collector: GBoundaryCollector,
+  viewportElement: HTMLElement,
+): GBoundaryRect[] {
+  const viewportRect = viewportElement.getBoundingClientRect()
+  const rects: GBoundaryRect[] = []
+
+  for (const element of viewportElement.querySelectorAll<HTMLElement>("[data-runelight-boundary-id]")) {
+    const boundaryId = element.dataset.runelightBoundaryId
+    const rect = readGBoundaryElementRect(element)
+    if (!boundaryId || !rect) continue
+
+    const localRect = {
+      x: rect.x - viewportRect.x,
+      y: rect.y - viewportRect.y,
+      width: rect.width,
+      height: rect.height,
+    }
+    collector.updateBoundaryRect(boundaryId, localRect)
+    rects.push(localRect)
+  }
+
+  return rects
+}
+
+function runelightPreviewMeasuredViewportSize(
+  viewportElement: HTMLElement,
+  contentRect: DOMRect,
+  boundaryRects: GBoundaryRect[],
+): { width: number; height: number } {
+  const right = Math.max(
+    1,
+    viewportElement.scrollWidth,
+    contentRect.width,
+    ...boundaryRects.map((rect) => rect.x + rect.width),
+  )
+  const bottom = Math.max(
+    1,
+    viewportElement.scrollHeight,
+    contentRect.height,
+    ...boundaryRects.map((rect) => rect.y + rect.height),
+  )
+
+  return {
+    width: Math.ceil(right),
+    height: Math.ceil(bottom),
+  }
+}
+
+function runelightPreviewContactSheetFrameLayout(
+  geometry: RunelightPreviewFrameGeometry | undefined,
+): RunelightPreviewContactSheetFrameLayout {
+  if (!geometry) {
+    return {
+      ...runelightPreviewFrameGridFallbackItem,
+      measured: false,
+      offset: { x: 0, y: 0 },
+      viewportSize: runelightPreviewFrameGridFallbackItem,
+    }
+  }
+
+  const width = previewFrameLayoutWidth(geometry.viewportSize, geometry.boundaryRect)
+  const height = previewFrameLayoutHeight(geometry.viewportSize, geometry.boundaryRect)
+  return {
+    height,
+    measured: true,
+    offset: previewFrameViewportOffset(geometry.boundaryRect),
+    viewportSize: geometry.viewportSize,
+    width,
+  }
+}
+
+function runelightPreviewContactSheetHasMeasuredEveryFrame(frames: RunelightPreviewContactSheetFrameLayout[]): boolean {
+  return frames.every((frame) => frame.measured)
+}
+
+function previewFrameLayoutHeight(displaySize: { height: number }, rect: GBoundaryRect | undefined): number {
+  return rect ? Math.max(1, Math.ceil(rect.height)) : displaySize.height
+}
+
+function previewFrameLayoutWidth(displaySize: { width: number }, rect: GBoundaryRect | undefined): number {
+  return rect ? Math.max(1, Math.ceil(rect.width)) : displaySize.width
+}
+
+function previewFrameViewportOffset(rect: GBoundaryRect | undefined): { x: number; y: number } {
+  return {
+    x: Math.max(0, Math.floor(rect?.x ?? 0)),
+    y: Math.max(0, Math.floor(rect?.y ?? 0)),
+  }
+}
+
+function clipRunelightPreviewBoundaryRectToViewport(
+  rect: GBoundaryRect | undefined,
+  viewport: { width: number; height: number },
+): GBoundaryRect | undefined {
+  if (!rect) return undefined
+
+  const left = clampRunelightPreviewNumber(rect.x, 0, viewport.width)
+  const top = clampRunelightPreviewNumber(rect.y, 0, viewport.height)
+  const right = clampRunelightPreviewNumber(rect.x + rect.width, 0, viewport.width)
+  const bottom = clampRunelightPreviewNumber(rect.y + rect.height, 0, viewport.height)
+
+  if (right <= left || bottom <= top) return undefined
+
+  return {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+  }
+}
+
+function runelightPreviewBoundaryRectForCoordinate(
+  tree: GBoundaryTreeNode[] | undefined,
+  coordinate: string,
+): GBoundaryRect | undefined {
+  const node = runelightPreviewBoundaryNodeForCoordinate(tree, coordinate)
+  return node?.rect
+}
+
+function runelightPreviewBoundaryNodeForCoordinate(
+  tree: GBoundaryTreeNode[] | undefined,
+  coordinate: string,
+): GBoundaryTreeNode | undefined {
+  if (!tree) return undefined
+
+  for (const node of tree) {
+    if (node.coordinate === coordinate) return node
+    const childMatch = runelightPreviewBoundaryNodeForCoordinate(node.children, coordinate)
+    if (childMatch) return childMatch
+  }
+
+  return undefined
+}
+
+function clampRunelightPreviewNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function formatRunelightPreviewCssNumber(value: number): string {
+  const rounded = Math.round(value * 1000) / 1000
+  return String(Object.is(rounded, -0) ? 0 : rounded)
+}
+
+export function RunelightPreviewDocumentBackground({ showChrome }: { showChrome: boolean }) {
+  if (showChrome) {
+    return <style>{runelightVisiblePreviewDocumentStyle}</style>
+  }
+
+  return <style>{runelightHiddenPreviewDocumentStyle}</style>
 }
 
 export function RunelightPreviewMessage({
@@ -354,14 +978,17 @@ export function RunelightPreviewMessage({
     <main
       data-runelight-preview-message
       style={{
-        color: "#172033",
+        backgroundColor: runelightPreviewStudioColors.canvasBg,
+        color: runelightPreviewStudioColors.text,
         display: "grid",
-        gap: 8,
-        padding: 24,
+        fontFamily: runelightPreviewStudioFontFamily,
+        gap: 9,
+        minHeight: "100vh",
+        padding: 32,
       }}
     >
-      <h1 style={{ fontSize: 18, fontWeight: 700 }}>{title}</h1>
-      <p style={{ color: "#64748b", fontSize: 14 }}>{detail}</p>
+      <h1 style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.25, margin: 0 }}>{title}</h1>
+      <p style={{ color: runelightPreviewStudioColors.textMuted, fontSize: 11, lineHeight: 1.45, margin: 0 }}>{detail}</p>
     </main>
   )
 }
@@ -595,6 +1222,13 @@ export function frameOverridesForFrame(entry: string, frameName: string, childOv
 export function parseRunelightPreviewEntry(entry: string): { file: string; exportName: string } {
   const [file, exportName] = entry.split("#", 2)
   return { file, exportName: exportName || "default" }
+}
+
+function previewEntryTitle(entry: string): string {
+  const coordinate = parseRunelightPreviewEntry(entry)
+  const fileName = coordinate.file.split(/[\\/]/).pop() ?? coordinate.file
+  const componentName = fileName.replace(/\.g\.(?:tsx|vue)$/, "")
+  return coordinate.exportName === "default" ? componentName : `${componentName} / ${coordinate.exportName}`
 }
 
 export function isRunelightPreviewComponent(value: unknown): value is RunelightPreviewComponent {
