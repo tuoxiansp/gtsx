@@ -11,7 +11,7 @@
   "bugs": {
     "url": "https://github.com/tuoxiansp/runelight/issues"
   },
-  "homepage": "https://github.com/tuoxiansp/runelight#readme",
+  "homepage": "https://runelight.ai",
   "packageManager": "pnpm@10.11.0",
   "scripts": {
     "build": "pnpm -r build",

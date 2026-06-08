@@ -1,10 +1,10 @@
 import type { GFrames } from "@runelight/core"
 
+import { WebsiteBrowserShell } from "./browser-shell"
+
 export default function WebsiteExplorationLight() {
   return (
-    <main className="wd-explore wd-light">
-      <span className="wd-explore-label wd-explore-label-dark">Direction D · Light catalog</span>
-
+    <WebsiteBrowserShell label="Direction D · Light catalog" pageClassName="wd-light">
       <header className="wd-light-top">
         <span>Runelight</span>
         <span>2026</span>
@@ -42,7 +42,7 @@ export default function WebsiteExplorationLight() {
         <span>View on GitHub</span>
         <span>React · Vue 3</span>
       </footer>
-    </main>
+    </WebsiteBrowserShell>
   )
 }
 

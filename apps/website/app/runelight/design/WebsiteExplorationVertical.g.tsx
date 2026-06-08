@@ -1,10 +1,10 @@
 import type { GFrames } from "@runelight/core"
 
+import { WebsiteBrowserShell } from "./browser-shell"
+
 export default function WebsiteExplorationVertical() {
   return (
-    <main className="wd-explore wd-vertical">
-      <span className="wd-explore-label">Direction A · Vertical calm</span>
-
+    <WebsiteBrowserShell label="Direction A · Vertical calm" pageClassName="wd-vertical">
       <header className="wd-vertical-brand">
         <i aria-hidden="true" />
         Runelight
@@ -31,7 +31,7 @@ export default function WebsiteExplorationVertical() {
         <span className="wd-vertical-cta">View on GitHub →</span>
         <span className="wd-vertical-hint">Install with one agent prompt · React & Vue</span>
       </footer>
-    </main>
+    </WebsiteBrowserShell>
   )
 }
 

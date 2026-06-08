@@ -2,6 +2,8 @@
 
 **The visual workspace for agent-built apps.**
 
+[runelight.ai](https://runelight.ai)
+
 Runelight is a GUI development workflow for the AI era. Your agent designs screens, builds components, and declares every visual state - typed and verifiable. You describe what you want, open `/runelight/studio`, and see the full picture. Design, build, and review in one workspace.
 
 ![Studio — every component, every state, one screen](docs/images/studio-components.jpeg)

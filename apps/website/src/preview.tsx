@@ -8,6 +8,7 @@ import runelightConfig from "virtual:runelight/config"
 
 import "./styles.css"
 import "./frames/preview.css"
+import "./frames/website-design-explore.css"
 
 const modules = import.meta.glob<RunelightPreviewModule>(["./app/**/*.g.tsx", "/app/runelight/design/**/*.g.tsx"])
 const loadWebsitePreviewComponent = createRunelightVitePreviewComponentLoader(modules, {

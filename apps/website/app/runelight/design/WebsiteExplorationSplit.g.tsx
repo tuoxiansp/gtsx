@@ -1,9 +1,10 @@
 import type { GFrames } from "@runelight/core"
 
+import { WebsiteBrowserShell } from "./browser-shell"
+
 export default function WebsiteExplorationSplit() {
   return (
-    <main className="wd-explore wd-split">
-      <span className="wd-explore-label">Direction B · Split manifesto</span>
+    <WebsiteBrowserShell label="Direction B · Split manifesto" pageClassName="wd-split">
       <div className="wd-split-slash" aria-hidden="true" />
 
       <section className="wd-split-copy">
@@ -33,7 +34,7 @@ export default function WebsiteExplorationSplit() {
           <strong>all frames · one URL</strong>
         </div>
       </section>
-    </main>
+    </WebsiteBrowserShell>
   )
 }
 

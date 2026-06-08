@@ -26,7 +26,7 @@ LandingScreen.frames = {
   live: { props: {} },
 } satisfies GFrames<EmptyProps>
 
-export function LandingBackground() {
+function LandingBackground() {
   return (
     <>
       <div className="landing-grid" aria-hidden="true" />
@@ -34,10 +34,6 @@ export function LandingBackground() {
     </>
   )
 }
-
-LandingBackground.frames = {
-  live: { props: {} },
-} satisfies GFrames<EmptyProps>
 
 export function LandingHeader() {
   return (
@@ -84,7 +80,10 @@ export function LandingVisualProof() {
           decoding="async"
           fetchPriority="high"
         />
-        <a className="landing-visual-tag" href="/runelight/studio">
+        <a
+          className="landing-visual-tag"
+          href="/runelight/studio?canvasX=288.795&canvasY=9.462&canvasScale=1.574&path=src%2Fapp%2FLandingScreen.g.tsx%23LandingScreen&designCanvasX=35.213&designCanvasY=-61.229&designCanvasScale=1.491"
+        >
           <span>live from this repo</span>
           <strong>/runelight/studio</strong>
         </a>

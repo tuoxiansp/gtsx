@@ -1,10 +1,10 @@
 import type { GFrames } from "@runelight/core"
 
+import { WebsiteBrowserShell } from "./browser-shell"
+
 export default function WebsiteExplorationTerminal() {
   return (
-    <main className="wd-explore wd-terminal">
-      <span className="wd-explore-label">Direction C · Terminal gate</span>
-
+    <WebsiteBrowserShell label="Direction C · Terminal gate" url="runelight.ai" pageClassName="wd-terminal">
       <header className="wd-terminal-bar">
         <span>runelight — zsh</span>
         <span>127.0.0.1</span>
@@ -28,7 +28,7 @@ export default function WebsiteExplorationTerminal() {
           ▌
         </p>
       </section>
-    </main>
+    </WebsiteBrowserShell>
   )
 }
 
