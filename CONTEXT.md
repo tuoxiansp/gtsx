@@ -13,8 +13,24 @@ A Runelight-powered public website whose own design and component states are ins
 _Avoid_: marketing site only, external showcase, screenshot-only demo
 
 **Public Studio Showcase**:
-The publicly reachable Studio view for the deployed **Self-Demonstrating Website**, not just a local development tool. It is a visitor-facing proof point, secondary to the installation call to action, where the website's own design frames and component frames can be inspected.
+The publicly reachable Studio view for the deployed **Self-Demonstrating Website**, not just a local development tool. It is a visitor-facing proof point, secondary to the GitHub call to action, where the website's own design frames and component frames can be inspected.
 _Avoid_: private dev route, internal QA page, screenshot gallery
+
+**GitHub-First Website**:
+A public Runelight website whose first job is to explain the category in one screen and send the **Website Visitor** to GitHub for installation, docs, and source proof. Studio remains visual evidence, not the primary conversion path.
+_Avoid_: multi-section product brochure, install funnel, documentation site
+
+**One-Screen Category Story**:
+The homepage story for a **GitHub-First Website**: one tip line, one large headline, and one subtitle. For Runelight, the locked story is "THE GUI WORKSPACE FOR AGENT-BUILT APPS", "Every visual branch on one screen.", and "Design, build, and review AI-era GUI workflows without clicking through your app."
+_Avoid_: multi-paragraph hero, stacked feature claims, repeated installation copy, abstract model explanation
+
+**Homepage Visual Proof**:
+The single proof image on the **GitHub-First Website** homepage. It should be a real Studio Components board screenshot that shows multiple **Visual Branches** on one screen, with a small "LIVE FROM THIS REPO /runelight/studio" annotation if needed.
+_Avoid_: generated hero collage, design-board screenshot, install prompt, abstract artwork, decorative product mockup
+
+**Agent Client GUI Workspace**:
+A browser-operable Studio workspace that fits into desktop AI agent clients such as Codex or Cursor. The agent client can already open and manipulate web pages; Runelight adds the missing UI-state layer between the codebase and the rendered page, so agents can design, inspect, and refine declared GUI branches instead of guessing from code alone.
+_Avoid_: native agent-client plugin, chat panel, mockup tool, generic browser preview
 
 **Curated Frame Set**:
 A deliberately named group of design frames and component frames selected for visitor understanding. It should explain Runelight's visual model rather than expose every internal UI fragment.

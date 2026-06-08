@@ -870,12 +870,13 @@
   width: 1120px;
   height: 660px;
   overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 10%);
-  border-radius: 30px;
+  border: 1px solid rgb(241 240 232 / 14%);
+  border-radius: 10px;
   background:
-    radial-gradient(ellipse at 72% 12%, rgb(103 212 255 / 20%), transparent 34%),
-    radial-gradient(ellipse at 22% 22%, rgb(93 255 177 / 18%), transparent 32%),
-    linear-gradient(140deg, #141d22 0%, #07090d 46%, #05070a 100%);
+    linear-gradient(126deg, transparent 0 15%, rgb(var(--accent-rgb) / 18%) 15.08% 15.28%, transparent 15.4% 100%),
+    linear-gradient(64deg, transparent 0 56%, rgb(241 240 232 / 8%) 56.08% 56.2%, transparent 56.3% 100%),
+    repeating-linear-gradient(118deg, rgb(255 255 255 / 4%) 0 1px, transparent 1px 72px),
+    linear-gradient(140deg, #111516 0%, #050607 48%, #0c0f10 100%);
   color: var(--paper);
   font-family: var(--font-body);
   isolation: isolate;
@@ -888,40 +889,43 @@
   inset: 0;
   z-index: -2;
   background:
-    linear-gradient(118deg, transparent 0 24%, rgb(255 255 255 / 5%) 24.4% 24.8%, transparent 25.2% 100%),
-    linear-gradient(32deg, transparent 0 56%, rgb(103 212 255 / 8%) 56.2% 56.8%, transparent 57.2% 100%),
-    linear-gradient(180deg, rgb(255 255 255 / 6%), transparent 36%);
-  opacity: 0.68;
+    linear-gradient(112deg, transparent 0 23%, rgb(var(--accent-rgb) / 23%) 23.4% 23.68%, transparent 23.9% 100%),
+    linear-gradient(32deg, transparent 0 57%, rgb(241 240 232 / 10%) 57.1% 57.28%, transparent 57.42% 100%),
+    linear-gradient(180deg, rgb(241 240 232 / 7%), transparent 36%);
+  opacity: 0.86;
 }
 
 .hero-system-map::after {
-  content: "";
+  content: "SOURCE TO STUDIO";
   position: absolute;
-  inset: auto 34px 28px 34px;
+  inset: auto -18px -10px auto;
   z-index: -1;
-  height: 130px;
-  border-radius: 999px;
-  background: radial-gradient(ellipse at center, rgb(93 255 177 / 18%), rgb(7 8 11 / 0) 68%);
-  filter: blur(20px);
-  transform: perspective(700px) rotateX(62deg);
+  color: rgb(241 240 232 / 5%);
+  font-family: var(--font-mono);
+  font-size: 92px;
+  font-weight: 600;
+  line-height: 0.82;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .hero-scene-sheen {
   position: absolute;
-  inset: -18% -20% auto 42%;
-  height: 58%;
-  background: linear-gradient(110deg, transparent, rgb(255 255 255 / 18%) 46%, transparent 68%);
-  filter: blur(28px);
-  opacity: 0.36;
-  transform: rotate(-8deg);
+  inset: 5% auto auto 34%;
+  width: 58%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(var(--accent-rgb) / 78%), transparent);
+  box-shadow: 0 0 44px rgb(var(--accent-rgb) / 28%);
+  opacity: 0.72;
+  transform: rotate(-5deg);
 }
 
 .hero-scene-rail {
   position: absolute;
   z-index: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgb(93 255 177 / 52%), transparent);
-  box-shadow: 0 0 28px rgb(93 255 177 / 32%);
+  background: linear-gradient(90deg, transparent, rgb(var(--accent-rgb) / 72%), rgb(241 240 232 / 26%), transparent);
+  box-shadow: 0 0 28px rgb(var(--accent-rgb) / 24%);
   transform-origin: center;
 }
 
@@ -945,11 +949,14 @@
   position: relative;
   z-index: 1;
   overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 12%);
-  border-radius: 20px;
-  background: linear-gradient(180deg, rgb(17 22 31 / 92%), rgb(6 8 12 / 88%));
+  border: 1px solid rgb(241 240 232 / 15%);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgb(var(--accent-rgb) / 9%), transparent 36%),
+    linear-gradient(180deg, rgb(16 19 20 / 94%), rgb(4 6 7 / 92%));
   box-shadow:
     0 34px 100px rgb(0 0 0 / 48%),
+    0 0 0 1px rgb(var(--accent-rgb) / 8%),
     inset 0 1px 0 rgb(255 255 255 / 10%);
   backdrop-filter: blur(18px);
 }
@@ -960,7 +967,7 @@
   top: 76px;
   width: 350px;
   height: 460px;
-  border-radius: 22px;
+  border-radius: 10px;
   transform: rotateY(13deg) rotateX(2deg) rotateZ(-2deg);
   transform-origin: left center;
 }
@@ -972,7 +979,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 14px 16px;
-  border-bottom: 1px solid rgb(255 255 255 / 8%);
+  border-bottom: 1px solid rgb(241 240 232 / 10%);
   color: var(--paper-muted);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -988,7 +995,7 @@
   margin: 0;
   padding: 18px 18px 24px;
   overflow: hidden;
-  color: #dbe7f3;
+  color: #f1eedc;
   font-family: var(--font-mono);
   font-size: 10.5px;
   line-height: 1.64;
@@ -1015,7 +1022,7 @@
   z-index: 2;
   width: 520px;
   height: 548px;
-  border-radius: 24px;
+  border-radius: 12px;
   transform: rotateY(-10deg) rotateX(3deg) rotateZ(1deg);
 }
 
@@ -1029,7 +1036,7 @@
   z-index: 4;
   width: 390px;
   height: 236px;
-  border-radius: 21px;
+  border-radius: 10px;
   transform: rotateY(-8deg) rotateX(5deg) rotateZ(-1deg);
 }
 
@@ -1073,9 +1080,9 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(115deg, rgb(255 255 255 / 16%), transparent 34%, transparent 76%, rgb(93 255 177 / 8%));
+  background: linear-gradient(115deg, rgb(241 240 232 / 16%), transparent 34%, transparent 76%, rgb(var(--accent-rgb) / 12%));
   mix-blend-mode: screen;
-  opacity: 0.42;
+  opacity: 0.36;
 }
 
 .hero-scene-chain {
@@ -1087,9 +1094,9 @@
   align-items: center;
   gap: 10px;
   padding: 10px 13px;
-  border: 1px solid rgb(93 255 177 / 24%);
-  border-radius: 999px;
-  background: rgb(3 6 9 / 78%);
+  border: 1px solid rgb(var(--accent-rgb) / 34%);
+  border-radius: var(--radius-sm);
+  background: rgb(3 6 7 / 80%);
   color: var(--paper-muted);
   font-family: var(--font-mono);
   font-size: 10px;

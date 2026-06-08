@@ -1,0 +1,449 @@
+/* Website design exploration frames — app/runelight/design/WebsiteExploration*.g.tsx */
+
+.wd-explore {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 720px;
+  min-height: 680px;
+  overflow: hidden;
+  color: #f2efe6;
+  font-family: "Syne", ui-sans-serif, system-ui, sans-serif;
+}
+
+.wd-explore-label {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  z-index: 4;
+  padding: 6px 10px;
+  border: 1px solid rgb(110 240 255 / 28%);
+  border-radius: 4px;
+  background: rgb(3 3 4 / 84%);
+  color: #6ef0ff;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.wd-explore-label-dark {
+  border-color: rgb(0 0 0 / 12%);
+  background: rgb(255 255 255 / 72%);
+  color: rgb(0 0 0 / 52%);
+}
+
+/* Direction A — vertical calm (production-adjacent) */
+
+.wd-vertical {
+  gap: 0;
+  border: 1px solid rgb(242 239 230 / 12%);
+  border-radius: 8px;
+  background:
+    linear-gradient(rgb(242 239 230 / 4%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(242 239 230 / 4%) 1px, transparent 1px),
+    #030304;
+  background-size: 48px 48px, 48px 48px, auto;
+}
+
+.wd-vertical-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 28px 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.wd-vertical-brand i {
+  width: 11px;
+  height: 11px;
+  border: 1px solid #6ef0ff;
+  background: linear-gradient(135deg, #6ef0ff 0 45%, transparent 45% 100%), #0a0b0d;
+}
+
+.wd-vertical-hero {
+  padding: 28px 28px 0;
+  text-align: center;
+}
+
+.wd-vertical-kicker {
+  margin: 0 0 14px;
+  color: #6ef0ff;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.wd-vertical-hero h1 {
+  display: grid;
+  gap: 0.08em;
+  margin: 0 auto;
+  max-width: 11ch;
+  font-size: 38px;
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+}
+
+.wd-vertical-hero h1 em {
+  color: #6ef0ff;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.wd-vertical-payoff {
+  max-width: 32ch;
+  margin: 16px auto 0;
+  color: rgb(242 239 230 / 58%);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.wd-vertical-shot {
+  position: relative;
+  margin: 24px 28px 0;
+  overflow: hidden;
+  border: 1px solid rgb(110 240 255 / 22%);
+  border-radius: 6px;
+}
+
+.wd-vertical-shot img {
+  display: block;
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  object-position: left top;
+}
+
+.wd-vertical-shot span {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 6px 8px;
+  background: rgb(3 3 4 / 88%);
+  color: #6ef0ff;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 9px;
+}
+
+.wd-vertical-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding: 22px 28px 28px;
+}
+
+.wd-vertical-cta {
+  min-height: 36px;
+  padding: 9px 18px;
+  background: #6ef0ff;
+  color: #041014;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wd-vertical-hint {
+  color: rgb(242 239 230 / 38%);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 9px;
+}
+
+/* Direction B — split manifesto */
+
+.wd-split {
+  display: grid;
+  grid-template-columns: 0.92fr 1.08fr;
+  min-height: 500px;
+  border-radius: 8px;
+  background: #030304;
+}
+
+.wd-split-slash {
+  position: absolute;
+  inset: -20% 18% 0 -10%;
+  z-index: 0;
+  background: linear-gradient(
+    118deg,
+    transparent 0 46%,
+    rgb(110 240 255 / 16%) 46.2% 46.55%,
+    transparent 46.8% 100%
+  );
+  transform: rotate(-8deg);
+  pointer-events: none;
+}
+
+.wd-split-copy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-content: center;
+  gap: 18px;
+  padding: 36px 28px;
+}
+
+.wd-split-index {
+  margin: 0;
+  color: rgb(242 239 230 / 32%);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.wd-split-copy h1 {
+  margin: 0;
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 0.92;
+  letter-spacing: -0.03em;
+}
+
+.wd-split-copy h1 span {
+  color: #6ef0ff;
+}
+
+.wd-split-copy p {
+  max-width: 28ch;
+  margin: 0;
+  color: rgb(242 239 230 / 58%);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.wd-split-cta {
+  color: #6ef0ff;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px;
+}
+
+.wd-split-visual {
+  position: relative;
+  z-index: 1;
+  min-height: 100%;
+  border-left: 1px solid rgb(242 239 230 / 10%);
+  background:
+    linear-gradient(90deg, rgb(242 239 230 / 3%) 1px, transparent 1px),
+    linear-gradient(0deg, rgb(242 239 230 / 3%) 1px, transparent 1px),
+    rgb(255 255 255 / 2%);
+  background-size: 32px 32px, 32px 32px, auto;
+}
+
+.wd-split-tile {
+  position: absolute;
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid rgb(242 239 230 / 14%);
+  border-radius: 6px;
+  background: rgb(3 3 4 / 88%);
+  box-shadow: 0 20px 50px rgb(0 0 0 / 36%);
+}
+
+.wd-split-tile span {
+  color: #6ef0ff;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.wd-split-tile strong {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.wd-split-tile-a {
+  left: 24px;
+  top: 72px;
+  width: 168px;
+}
+
+.wd-split-tile-b {
+  right: 20px;
+  top: 148px;
+  width: 178px;
+}
+
+.wd-split-tile-c {
+  left: 48px;
+  bottom: 56px;
+  width: 200px;
+  border-color: rgb(110 240 255 / 32%);
+}
+
+/* Direction C — terminal gate */
+
+.wd-terminal {
+  min-height: 500px;
+  border: 1px solid rgb(242 239 230 / 10%);
+  border-radius: 8px;
+  background: #050607;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+.wd-terminal-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgb(242 239 230 / 10%);
+  color: rgb(242 239 230 / 42%);
+  font-size: 10px;
+}
+
+.wd-terminal-body {
+  display: grid;
+  gap: 10px;
+  padding: 28px 24px 32px;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.wd-terminal-prompt {
+  color: #6ef0ff;
+}
+
+.wd-terminal-muted {
+  margin: 0;
+  padding-left: 18px;
+  color: rgb(242 239 230 / 42%);
+}
+
+.wd-terminal-out {
+  margin: 8px 0 0;
+  padding: 16px 0;
+  border-block: 1px solid rgb(242 239 230 / 10%);
+}
+
+.wd-terminal-out strong {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.wd-terminal-link {
+  color: #d8ff8a;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wd-terminal-cursor {
+  margin: 0;
+  color: #6ef0ff;
+  animation: wd-blink 1.1s step-end infinite;
+}
+
+@keyframes wd-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Direction D — light catalog */
+
+.wd-light {
+  min-height: 680px;
+  border: 1px solid rgb(0 0 0 / 8%);
+  border-radius: 4px;
+  background: #f6f3eb;
+  color: #121110;
+}
+
+.wd-light-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 28px 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.wd-light-top span:last-child {
+  color: rgb(18 17 16 / 42%);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px;
+}
+
+.wd-light-hero {
+  padding: 36px 28px 0;
+}
+
+.wd-light-hero h1 {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+}
+
+.wd-light-hero hr {
+  width: 72px;
+  height: 2px;
+  margin: 22px 0 18px;
+  border: 0;
+  background: #e04530;
+}
+
+.wd-light-hero p {
+  max-width: 38ch;
+  margin: 0;
+  color: rgb(18 17 16 / 62%);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.wd-light-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  margin: 32px 28px 0;
+  border-top: 1px solid rgb(0 0 0 / 10%);
+}
+
+.wd-light-strip article {
+  display: grid;
+  gap: 8px;
+  padding: 18px 14px;
+  border-right: 1px solid rgb(0 0 0 / 10%);
+}
+
+.wd-light-strip article:last-child {
+  border-right: 0;
+}
+
+.wd-light-strip span {
+  color: rgb(18 17 16 / 38%);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px;
+}
+
+.wd-light-strip strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.wd-light-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding: 24px 28px 28px;
+  border-top: 1px solid rgb(0 0 0 / 10%);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.wd-light-footer span:last-child {
+  color: rgb(18 17 16 / 42%);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 400;
+}

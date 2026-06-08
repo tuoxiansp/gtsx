@@ -2,7 +2,7 @@ import { defineRunelightConfig } from "@runelight/core"
 
 export default defineRunelightConfig({
   project: {
-    sourceRoot: "src/frames",
+    sourceRoot: "src/app",
     entryRoot: "app/runelight",
     namespace: "runelight-website",
   },

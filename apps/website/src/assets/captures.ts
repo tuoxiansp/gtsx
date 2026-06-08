@@ -11,5 +11,3 @@ export const captureAssets = {
     layout: "/captures/cases/layout-case.png",
   },
 } as const
-
-export type CaptureVariant = "hero" | "studio" | "case" | "inline"

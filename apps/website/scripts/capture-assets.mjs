@@ -16,46 +16,8 @@ const baseUrl = `http://127.0.0.1:${port}`
 mkdirSync(casesDir, { recursive: true })
 mkdirSync(siteDir, { recursive: true })
 
-const contactSheetCaptures = [
-  {
-    entry: "src/frames/cases/AuthCase.g.tsx#default",
-    out: "public/captures/cases/auth-case.png",
-    viewport: "440x640",
-    crop: { height: 640, width: 440, x: 0, y: 0 },
-  },
-  {
-    entry: "src/frames/cases/DataCase.g.tsx#default",
-    out: "public/captures/cases/data-case.png",
-    viewport: "440x850",
-    crop: { height: 850, width: 440, x: 0, y: 0 },
-  },
-  {
-    entry: "src/frames/cases/PermissionCase.g.tsx#default",
-    out: "public/captures/cases/permission-case.png",
-    viewport: "440x580",
-    crop: { height: 580, width: 440, x: 0, y: 0 },
-  },
-  {
-    entry: "src/frames/cases/LayoutCase.g.tsx#default",
-    out: "public/captures/cases/layout-case.png",
-    viewport: "440x700",
-    crop: { height: 700, width: 440, x: 0, y: 0 },
-  },
-  {
-    entry: "src/frames/site/WebsiteInstallPrompt.g.tsx#default",
-    out: "public/captures/site/website-install-prompt.png",
-    viewport: "920x560",
-  },
-]
-
-const singleFrameCaptures = [
-  {
-    entry: "src/frames/site/HeroSystemMap.g.tsx#default",
-    frame: "live",
-    out: "public/captures/site/hero-system-map.png",
-    viewport: "1180x720",
-  },
-]
+const contactSheetCaptures = []
+const singleFrameCaptures = []
 
 function runContactSheetCapture(capture) {
   execFileSync(
@@ -232,24 +194,20 @@ async function captureStudioScreenshots() {
     const page = await browser.newPage({ viewport: { width: 1700, height: 1040 } })
 
     try {
-      const dataCaseCoordinate = "src/frames/cases/DataCase.g.tsx#default"
-      const reviewQueueCoordinate = "src/frames/cases/DataCase.g.tsx#InboxReviewQueue"
-      const componentSelection = encodeURIComponent(`component:${dataCaseCoordinate}`)
+      const landingScreenCoordinate = "src/app/LandingScreen.g.tsx#LandingScreen"
+      const componentSelection = encodeURIComponent(`component:${landingScreenCoordinate}`)
 
       await page.goto(`${baseUrl}/runelight/studio?selection=${componentSelection}&canvasViewport=desktop`, { waitUntil: "networkidle" })
       await page.waitForSelector('[data-runelight-studio-shell-loading="true"]', { state: "detached", timeout: 120_000 })
       await page.waitForSelector("[data-runelight-frame-grid]", { timeout: 120_000 })
       await waitForStudioPreviews(page)
-      await clickStudioFrameTile(page, dataCaseCoordinate, "populated")
-      await page.waitForFunction(() => document.querySelectorAll('[data-runelight-column-index="1"] [data-runelight-card-coordinate]').length >= 3, { timeout: 120_000 })
-      await waitForStudioPreviews(page)
-      await clickStudioFrameTile(page, reviewQueueCoordinate, "populated")
-      await page.waitForFunction(() => document.querySelectorAll('[data-runelight-column-index="2"] [data-runelight-card-coordinate]').length >= 1, { timeout: 120_000 })
-      await waitForStudioPreviews(page)
+      await clickStudioFrameTile(page, landingScreenCoordinate, "live")
+      await page.waitForFunction(() => document.querySelectorAll('[data-runelight-column-index="1"] [data-runelight-card-coordinate]').length >= 5, { timeout: 120_000 })
+      await waitForStudioPreviews(page, 6)
 
       const componentsClip = await clipToCards(page, 32)
       if (componentsClip) {
-        componentsClip.height = Math.min(componentsClip.height, 680)
+        componentsClip.height = Math.min(componentsClip.height, 1120)
         await page.screenshot({
           path: join(capturesRoot, "studio-components.png"),
           clip: componentsClip,

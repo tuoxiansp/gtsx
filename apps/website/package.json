@@ -6,7 +6,7 @@
     "dev": "vite --host 127.0.0.1 --port 5199 --strictPort",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "runelight:check": "runelight check src/frames",
+    "runelight:check": "runelight check src/app",
     "runelight:capture": "node scripts/capture-assets.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
