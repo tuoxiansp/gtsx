@@ -24,7 +24,7 @@ export async function capturePreviewPage(options: BrowserCaptureOptions): Promis
     await gotoWhenReady(page, options.url)
     await waitForPreviewCaptureLayout(page)
     const clip = await previewCaptureClip(page)
-    await page.screenshot({ path: join(options.cwd, options.out), ...(clip ? { clip } : { fullPage: true }) })
+    await page.screenshot({ path: join(options.cwd, options.out), omitBackground: true, ...(clip ? { clip } : { fullPage: true }) })
   } finally {
     try {
       await browser?.close()
@@ -62,7 +62,7 @@ async function waitForPreviewCaptureLayout(
 async function previewCaptureClip(
   page: Awaited<ReturnType<Awaited<ReturnType<typeof chromium.launch>>["newPage"]>>,
 ): Promise<{ x: number; y: number; width: number; height: number } | undefined> {
-  const bounds = await page.locator(previewCaptureBoundsSelector).first().boundingBox().catch(() => null)
+  const bounds = await previewCaptureBoundsBox(page)
   if (!bounds) return undefined
 
   const pageSize = await page.evaluate(() => ({
@@ -80,6 +80,49 @@ async function previewCaptureClip(
     width: Math.max(1, right - x),
     height: Math.max(1, bottom - y),
   }
+}
+
+async function previewCaptureBoundsBox(
+  page: Awaited<ReturnType<Awaited<ReturnType<typeof chromium.launch>>["newPage"]>>,
+): Promise<{ x: number; y: number; width: number; height: number } | null> {
+  return page.evaluate((selector) => {
+    const element = document.querySelector(selector)
+    if (!(element instanceof HTMLElement)) return null
+
+    if (element.hasAttribute("data-runelight-preview-frame")) {
+      const descendantRects = [...element.querySelectorAll<HTMLElement>("*")]
+        .filter((node) => {
+          const style = window.getComputedStyle(node)
+          if (style.display === "contents" || style.visibility === "hidden") return false
+          const rect = node.getBoundingClientRect()
+          return rect.width > 0 && rect.height > 0
+        })
+        .map((node) => node.getBoundingClientRect())
+
+      if (descendantRects.length > 0) return unionDomRects(descendantRects)
+    }
+
+    const rect = element.getBoundingClientRect()
+    return {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+    }
+
+    function unionDomRects(rects: DOMRect[]): { x: number; y: number; width: number; height: number } {
+      const left = Math.min(...rects.map((rect) => rect.left))
+      const top = Math.min(...rects.map((rect) => rect.top))
+      const right = Math.max(...rects.map((rect) => rect.right))
+      const bottom = Math.max(...rects.map((rect) => rect.bottom))
+      return {
+        x: left,
+        y: top,
+        width: right - left,
+        height: bottom - top,
+      }
+    }
+  }, previewCaptureBoundsSelector)
 }
 
 async function gotoWhenReady(

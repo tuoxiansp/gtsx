@@ -277,6 +277,8 @@ function contactSheetFrameScaledCanvasStyle(
   if (!frameLayout.measured) {
     return {
       position: "relative",
+      transform: "translateZ(0)",
+      transformOrigin: "0 0",
       width: runelightPreviewDefaultViewportSize.width,
     }
   }
@@ -588,7 +590,11 @@ export function RunelightPreviewFrameSheet<Props extends object = Record<string,
     return (
       <main style={hiddenChromePreviewSheetStyle}>
         {selectedFrames.map(({ name, frame }) => (
-          <section data-runelight-preview-frame={name} key={name}>
+          <section
+            data-runelight-preview-capture-bounds={selectedFrames.length === 1 ? "true" : undefined}
+            data-runelight-preview-frame={name}
+            key={name}
+          >
             <GPreviewProvider
               boundaryCollector={boundaryCollector}
               frameOverrides={frameOverridesForFrame(entry, name, frameOverrides)}

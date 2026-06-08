@@ -38,6 +38,7 @@ describe("RunelightPreviewFrameSheet", () => {
     expect(html).toContain("src/components/UserCard.g.tsx#default / 2 frames")
     expect(html).toContain('data-runelight-preview-frame-grid-scale="0.45"')
     expect(html).toContain("background-color:#181818")
+    expect(html).toContain("transform:translateZ(0)")
     expect(html).toContain("ready")
   })
 
@@ -60,6 +61,8 @@ describe("RunelightPreviewFrameSheet", () => {
 
     expect(html).not.toContain("data-runelight-preview-contact-sheet")
     expect(html).not.toContain("runelight capture")
+    expect(html).toContain('data-runelight-preview-capture-bounds="true"')
+    expect(html).not.toContain("max-content")
     expect(html).toContain("Selected preview")
   })
 
