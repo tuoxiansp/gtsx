@@ -1,0 +1,26 @@
+{
+  "name": "@runelight/website",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5199 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "runelight:check": "runelight check src/frames",
+    "runelight:capture": "node scripts/capture-assets.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@runelight/adapter-vite-react": "workspace:*",
+    "@runelight/core": "workspace:*",
+    "@runelight/studio": "workspace:*",
+    "@vitejs/plugin-react": "^5.1.2",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "vite": "^8.0.14"
+  },
+  "devDependencies": {
+    "playwright": "^1.55.0",
+    "typescript": "^6.0.3"
+  }
+}

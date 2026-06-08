@@ -30,6 +30,37 @@ importers:
         specifier: ^4.1.7
         version: 4.1.7(@types/node@25.9.1)(vite@8.0.14(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.3))
 
+  apps/website:
+    dependencies:
+      '@runelight/adapter-vite-react':
+        specifier: workspace:*
+        version: link:../../packages/adapter-vite-react
+      '@runelight/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@runelight/studio':
+        specifier: workspace:*
+        version: link:../../packages/studio
+      '@vitejs/plugin-react':
+        specifier: ^5.1.2
+        version: 5.2.0(vite@8.0.14(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.3))
+      react:
+        specifier: ^19.2.6
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.2.6
+        version: 19.2.6(react@19.2.6)
+      vite:
+        specifier: ^8.0.14
+        version: 8.0.14(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.3)
+    devDependencies:
+      playwright:
+        specifier: ^1.55.0
+        version: 1.60.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
   examples/react-vite:
     dependencies:
       '@runelight/adapter-vite-react':

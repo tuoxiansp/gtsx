@@ -4,6 +4,38 @@ Runelight is a GUI development workflow for agent-built apps. Its language disti
 
 ## Language
 
+**Website Visitor**:
+A developer or technical lead evaluating Runelight for TypeScript React or Vue apps built with AI agents. They need fast evidence that Runelight changes their UI workflow, not a generic product brochure.
+_Avoid_: generic visitor, designer-only visitor, passive reader
+
+**Self-Demonstrating Website**:
+A Runelight-powered public website whose own design and component states are inspectable in Studio. It uses the same visual workflow it presents, so the website can be reviewed as a **Runelight Project**.
+_Avoid_: marketing site only, external showcase, screenshot-only demo
+
+**Public Studio Showcase**:
+The publicly reachable Studio view for the deployed **Self-Demonstrating Website**, not just a local development tool. It is a visitor-facing proof point, secondary to the installation call to action, where the website's own design frames and component frames can be inspected.
+_Avoid_: private dev route, internal QA page, screenshot gallery
+
+**Curated Frame Set**:
+A deliberately named group of design frames and component frames selected for visitor understanding. It should explain Runelight's visual model rather than expose every internal UI fragment.
+_Avoid_: exhaustive component inventory, internal scratch dump, unordered frame list
+
+**Source-Level Visual Model**:
+A source-code representation of GUI branches that people and AI agents can inspect, render, and verify. It connects product design and production code through the same project context instead of treating visuals as detached artifacts.
+_Avoid_: screenshot, mockup handoff, preview wrapper, visual test only
+
+**Visual Branch**:
+A meaningful path the GUI can render, such as empty, loaded, errored, anonymous, admin, compact, or overflowing. Public product language should prefer this term over "UI state"; a **Frame** makes a visual branch presentable and reviewable.
+_Avoid_: abstract UI state, hidden render path, test case only
+
+**Proof Panel**:
+A product explanation that traces one **Visual Branch** from source condition to frame declaration to Studio rendering. It proves Runelight by showing the model, the declaration, and the rendered result together.
+_Avoid_: static screenshot, isolated code snippet, feature card
+
+**Positive Category Narrative**:
+The website's way of explaining Runelight by defining its own model and workflow directly. It should not depend on comparisons against mockup tools, preview tools, or screenshot testing to make Runelight feel important.
+_Avoid_: competitor comparison, "not another" positioning, category attack
+
 **Design Workspace**:
 The Studio area for AI-assisted product GUI exploration and design critique. It is for trying product directions before committing to production component coverage.
 _Avoid_: standalone HTML design workflow, external mockup board
@@ -34,3 +66,10 @@ Designer: "Should one design skill handle React and Vue?"
 Agent: "No. Setup installs the Framework-Specific Design Skill that matches the project."
 Designer: "Should there be a shared design skill too?"
 Agent: "No. Each Framework-Specific Design Skill should be self-contained."
+
+Developer: "The website should show Runelight by using Runelight itself."
+Agent: "That makes it a Self-Demonstrating Website: its own design frames and component frames should be inspectable in the Public Studio Showcase."
+Developer: "Should the homepage say UI states?"
+Agent: "Prefer Visual Branches in public product language. A Frame makes one branch presentable and reviewable."
+Developer: "Should we compare against existing tools?"
+Agent: "No. Use a Positive Category Narrative: define the Source-Level Visual Model directly."
