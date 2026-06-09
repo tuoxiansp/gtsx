@@ -82,7 +82,7 @@ One boundary. One well-defined difference. Everything else is shared.
 
 ## Architecture
 
-Runelight is a CLI-owned launch layer over your existing Host, not a replacement runtime:
+Runelight is a dev sidecar for your existing Host, not a replacement runtime:
 
 ```
 ┌──────────────────┐         ┌──────────────────┐
@@ -97,12 +97,12 @@ Runelight is a CLI-owned launch layer over your existing Host, not a replacement
                         │
               ┌─────────▼─────────┐
               │ runelight serve   │
-              │ wraps your Host   │
+              │ starts your Host  │
               │ (Next.js / Vite)  │
               └───────────────────┘
 ```
 
-Your app and Runelight share the same Host because that is the cheapest way to render your real components in your real environment. The user-facing entry is the Runelight CLI: `runelight serve` wraps the configured Host command, passes `RUNELIGHT_DEV=1`, and exposes the conventional `/runelight` route space.
+Your app and Runelight share the same Host so Studio can render real components in the real framework environment. The project remains a Next.js, Vite, or custom Host project. The Runelight CLI gives the development workflow a consistent entry point: `runelight serve` starts the configured Host command, passes `RUNELIGHT_DEV=1`, and exposes the conventional `/runelight` route space.
 
 Runelight reads `.g.tsx` and `.g.vue` files through the selected TypeScript Program. It does not replace your routes, providers, data layer, or framework; the adapters remain installed in your normal bundler config, and only activate Studio and preview routes in Runelight dev mode.
 
@@ -118,7 +118,7 @@ This model gives Runelight a small, well-defined surface area:
 
 **Production code.** Frames are inert static data. The preview runtime is separate code loaded only by Studio. No production path reads frames. No bundle ships them.
 
-**Build pipeline.** Adapters plug into your existing pipeline. `runelight serve` starts the configured Host command rather than running a parallel bundler or second app runtime.
+**Build pipeline.** Adapters plug into your existing pipeline. `runelight serve` starts the configured Host command rather than introducing a parallel bundler or second app runtime.
 
 **Data layer.** Runelight has no opinions about fetching, caching, stores, or providers. The seam swaps state at preview time without changing how production works.
 

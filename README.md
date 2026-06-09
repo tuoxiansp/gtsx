@@ -12,7 +12,7 @@ Runelight is a GUI development workflow for the AI era. Your agent designs scree
 
 Explore directions before writing production code. Tell your agent "design a checkout flow" or "try three layouts for the settings page." It drafts visual frames in Studio's design workspace — you see them side by side, give feedback, iterate until the direction is right.
 
-No mockup tool. No handoff. Design and production live in the same workspace.
+Design and production live in the same workspace, so exploratory frames can move toward implementation without a separate handoff.
 
 ![Studio design workspace](docs/images/studio-design.jpeg)
 
@@ -26,7 +26,7 @@ For admin panels, role-specific views become provider variants. For pages that l
 
 Run `runelight serve`, then open `/runelight/studio`. Every component in your project, every visual state — rendered on one screen. Toggle filters to see how your UI responds across contexts: admin vs. regular user, signed-in vs. anonymous, empty vs. loaded.
 
-No navigating your app. No clicking through flows. No test data. One URL.
+Studio gives you one URL for scanning those branches without manually navigating app flows or preparing test data.
 
 ![Toggle USERSIGN to anonymous — every component responds](docs/images/studio-variant-filter.jpeg)
 
@@ -86,7 +86,7 @@ That `.frames` object is the component-level footprint - inert data that never r
 
 Protocol types and helpers use the `G` prefix, such as `GFrames`, `createGScopeHook`, and `createGProvider`.
 
-No preview wrappers in your components. No separate app shell to maintain. `@runelight/cli` starts your existing Vite or Next.js host through `runelight serve`, and the framework adapter serves the prebuilt `@runelight/studio` app at `/runelight/studio`.
+No preview wrappers in your components. No separate app shell to maintain. Your project remains a normal Vite, Next.js, or custom Host project; `@runelight/cli` starts that Host through `runelight serve`, and the framework adapter serves the prebuilt `@runelight/studio` app at `/runelight/studio`.
 
 ### Leave Anytime
 

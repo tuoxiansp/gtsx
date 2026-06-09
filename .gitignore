@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .runelight/
+CONTEXT.md
 *.log
 *command-log.jsonl
 .runelight-artifacts/
