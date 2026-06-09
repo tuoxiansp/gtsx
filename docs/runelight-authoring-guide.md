@@ -1,16 +1,16 @@
-# Runelight Authoring Guide
+# Runelight React Authoring Guide
 
-How to write Runelight components: React components in `.g.tsx` files that use the `.g` protocol, pass `runelight check`, and render correctly in Studio.
+How to write Runelight components: React components in `.g.tsx` files that use the `.g` protocol, pass `runelight check`, and render correctly in Studio. For Vue SFCs, see the [Vue Authoring Guide](./runelight-vue-authoring-guide.md).
 
 This is the human-readable companion to the React agent skill. The canonical reference for all React patterns lives in [skills/authoring-runelight-react/REFERENCE.md](../skills/authoring-runelight-react/REFERENCE.md). This guide covers the mental model and decision points.
 
-If converting existing TSX, start with the [Refactor Guide](./runelight-refactor-guide.md). If the project isn't wired for Runelight yet, run the [`setup-runelight`](../skills/setup-runelight/SKILL.md) skill.
+If converting existing TSX, start with the [React Refactor Guide](./runelight-refactor-guide.md). If the project isn't wired for Runelight yet, run the [`setup-runelight`](../skills/setup-runelight/SKILL.md) skill.
 
 ---
 
 ## The Mental Model
 
-A Runelight component is a real React component in a `.g.tsx` file. `.g.tsx` is the React/TSX format for the `.g` protocol, whose types and helpers use the `G` prefix: `GFrames`, `createGScopeHook`, `createGProvider`, and `useGContext`.
+A Runelight component is a real React component in a `.g.tsx` file. `.g.tsx` is the React/TSX format for the `.g` protocol. Protocol names carry a `G` marker: `G`-prefixed types such as `GFrames`, and `createG*`/`useG*` helpers such as `createGScopeHook`, `createGProvider`, and `useGContext`.
 
 It also declares its visual states:
 
@@ -78,15 +78,22 @@ Badge.frames = {
 When the UI depends on application state, wrap your production hook:
 
 ```tsx
+import { useState } from "react"
 import { createGScopeHook, type GFrames } from "@runelight/core"
 
+type CounterProps = { title: string }
 type CounterScope = { count: number; increment: () => void }
+
+function useRealCounterScope(): CounterScope {
+  const [count, setCount] = useState(0)
+  return { count, increment: () => setCount((value) => value + 1) }
+}
 
 const useCounterScope = createGScopeHook(useRealCounterScope)
 
 export default function Counter(props: CounterProps) {
   const scope = useCounterScope()
-  return <button onClick={scope.increment}>{scope.count}</button>
+  return <button onClick={scope.increment}>{props.title}: {scope.count}</button>
 }
 
 Counter.frames = {

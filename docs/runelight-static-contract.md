@@ -120,22 +120,45 @@ Declared variants become environment controls in Studio. A root-level selection 
 
 ## Diagnostics
 
-All coverage and control-flow diagnostics are fatal (`runelight check` exits non-zero):
+This section is the complete diagnostic registry for `runelight check`. Every diagnostic is fatal (`runelight check` exits non-zero) except the projection warning at the end.
 
-| Diagnostic | Meaning |
-|-----------|---------|
-| `opaque-jsx-control-flow` | A JSX branch cannot be traced to props/scope/context |
-| `unknown-jsx-branch-coverage` | Frame values affecting reachability are not static enough |
-| `uncovered-jsx-branch` | No frame makes a JSX branch reachable |
-| `opaque-vue-template-control-flow` | A Vue template branch cannot be traced to props/scope/provide |
-| `unknown-vue-branch-coverage` | Frame values affecting Vue template reachability are not static enough |
-| `uncovered-vue-template-branch` | No frame makes a Vue template branch reachable |
-| `missing-provider-variant-frames` | A consumed provider's variants are not fully covered |
+### Contract-shape diagnostics
 
-Projection hints are warnings (non-blocking):
+These report entries that do not yet satisfy the `.g` protocol shape, before any coverage analysis runs:
 
-| Diagnostic | Meaning |
-|-----------|---------|
-| `unmarked-provider-variant-projection` | A child might need `GProviderFrame` markers for provider-derived props |
+| Diagnostic | Applies to | Meaning |
+|-----------|-----------|---------|
+| `entry-not-found` | React, Vue | The entry file or the requested `#export` does not exist |
+| `missing-frames` | React, Vue | A component has no frames declaration |
+| `malformed-frames` | React, Vue | Frames are not a statically enumerable object literal, or use unsupported spread composition |
+| `non-static-frame-key` | React, Vue | A frame key is computed instead of a literal |
+| `frames-before-component-export` | React | `Component.frames` is assigned before the component declaration |
+| `non-runelight-hook` | React | A component body calls a raw React/library hook instead of a `createGScopeHook` hook or `useGContext` |
+| `multiple-scope-hooks` | React | A component calls more than one primary scope hook |
+| `scope-hook-frames-unsupported` | React | `.frames` is attached to a scope hook instead of the component export |
+| `missing-component-export` | Vue | A `.g.vue` entry was addressed with a non-default export name |
+| `missing-provider` | React, Vue | A frame supplies a provider or injection key the component does not consume |
+| `missing-provider-variants` | React, Vue | A frame marks a variant on a provider/key that declares no `variants` |
+| `unknown-provider-variant` | React, Vue | A frame marks a variant that the provider/key does not declare |
+
+### Coverage and control-flow diagnostics
+
+These report drift between the declared frame set and the component's reachable visual branches:
+
+| Diagnostic | Applies to | Meaning |
+|-----------|-----------|---------|
+| `opaque-jsx-control-flow` | React | A JSX branch cannot be traced to props/scope/context |
+| `unknown-jsx-branch-coverage` | React | Frame values affecting reachability are not static enough |
+| `uncovered-jsx-branch` | React | No frame makes a JSX branch reachable |
+| `opaque-vue-template-control-flow` | Vue | A Vue template branch cannot be traced to props/scope/provide |
+| `unknown-vue-branch-coverage` | Vue | Frame values affecting Vue template reachability are not static enough |
+| `uncovered-vue-template-branch` | Vue | No frame makes a Vue template branch reachable |
+| `missing-provider-variant-frames` | React, Vue | A consumed provider's variants are not fully covered |
+
+### Warnings (non-blocking)
+
+| Diagnostic | Applies to | Meaning |
+|-----------|-----------|---------|
+| `unmarked-provider-variant-projection` | React | A child might need `GProviderFrame` markers for provider-derived props |
 
 The point is not to restrict how production React or Vue works. The point is to prevent Studio's map from drifting away from the component's real render surface.
