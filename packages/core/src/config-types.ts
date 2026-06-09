@@ -1,13 +1,11 @@
 export type RunelightConfig = {
+  host?: RunelightHostConfig
   project?: RunelightProjectConfig
-  preview: {
-    serve?: string
-    studioUrl?: string
-    url?: string
-    allUrl?: string
-  }
-  routes?: Partial<RunelightRouteConfig>
   studio?: RunelightStudioConfig
+}
+
+export type RunelightHostConfig = {
+  command?: string
 }
 
 export type RunelightProjectConfig = {
@@ -30,8 +28,8 @@ export type RunelightStudioConfig = {
 }
 
 export type ResolvedRunelightConfig = {
+  host: RunelightHostConfig
   project: Required<Pick<RunelightProjectConfig, "sourceRoot">> & Pick<RunelightProjectConfig, "entryRoot" | "namespace" | "tsconfig">
-  preview: RunelightConfig["preview"]
   routes: RunelightRouteConfig
   studio: Required<RunelightStudioConfig>
 }

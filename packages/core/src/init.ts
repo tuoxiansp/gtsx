@@ -19,7 +19,7 @@ export function initRunelight(options: InitOptions): InitResult {
   const changes = [
     `${existsSync(join(options.cwd, CONFIG_FILE)) ? "Would keep" : "Would create"} ${CONFIG_FILE}`,
     `${existsSync(join(options.cwd, INSTRUCTIONS_FILE)) ? "Would keep" : "Would create"} ${INSTRUCTIONS_FILE}`,
-    "Would merge package scripts: runelight:check, runelight:serve, runelight:capture",
+    "Would merge package scripts: dev, runelight:check, runelight:capture",
   ]
 
   if (options.dryRun) {
@@ -56,8 +56,8 @@ function mergePackageScripts(cwd: string) {
   }
   packageJson.scripts = {
     ...(packageJson.scripts ?? {}),
+    dev: packageJson.scripts?.dev ?? "runelight serve",
     "runelight:check": packageJson.scripts?.["runelight:check"] ?? "runelight check",
-    "runelight:serve": packageJson.scripts?.["runelight:serve"] ?? "runelight serve",
     "runelight:capture": packageJson.scripts?.["runelight:capture"] ?? "runelight capture",
   }
 
@@ -73,16 +73,8 @@ export default defineRunelightConfig({
     entryRoot: "app/runelight",
     namespace: "my-project",
   },
-  routes: {
-    preview: "/runelight",
-    studio: "/runelight/studio",
-    manifest: "/runelight/studio/manifest",
-  },
-  preview: {
-    serve: "npm run dev -- --port {port}",
-    studioUrl: "http://localhost:{port}/runelight/studio",
-    url: "http://localhost:{port}/runelight?entry={entry}&frame={frame}{frameOverrides}",
-    allUrl: "http://localhost:{port}/runelight?entry={entry}{frameOverrides}",
+  host: {
+    command: "vite --host 127.0.0.1 --port {port} --strictPort",
   },
   studio: {
     manifestCacheTtlMs: 1000,
@@ -97,10 +89,9 @@ function instructionsTemplate(): string {
 - Keep preview frames close to production React components in .g.tsx files.
 - Put main frames on component exports as Component.frames.
 - Use createGScopeHook for stateful components and keep scope values in the component frames.
-- Configure \`preview.serve\` to start this project's normal dev server.
-- Configure \`preview.url\` to point at this project's Runelight preview route.
-- Configure \`preview.allUrl\` to render all frames for one entry as a contact sheet.
-- Configure \`project.sourceRoot\`, \`project.entryRoot\`, \`project.namespace\`, and \`routes\` as the single source of truth for Studio routes.
+- Configure \`host.command\` as the underlying framework command that \`runelight serve\` wraps.
+- Use \`/runelight/studio\`, \`/runelight/studio/manifest\`, and \`/runelight\` as the conventional Runelight route space.
+- Configure \`project.sourceRoot\`, \`project.entryRoot\`, and \`project.namespace\` as the single source of truth for Studio scope.
 - Put design exploration frames in \`project.entryRoot/design\`.
 - Do not put secrets, credentials, tokens, or customer data in Runelight frames.
 `

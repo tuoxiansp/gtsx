@@ -156,13 +156,8 @@ describe("Runelight Studio manifest", () => {
           entryRoot: "app/runelight",
           namespace: "fixture-project",
         },
-        routes: {
-          preview: "/preview",
-          studio: "/studio",
-          manifest: "/studio/manifest",
-        },
-        preview: {
-          serve: "pnpm dev --port {port}",
+        host: {
+          command: "vite --host 127.0.0.1 --port {port} --strictPort",
         },
         studio: {
           manifestCacheTtlMs: 60_000,
@@ -173,13 +168,13 @@ describe("Runelight Studio manifest", () => {
 
     expect(manifest.cache).toEqual({ namespace: "fixture-project" })
     expect(manifest.routes).toEqual({
-      preview: "/preview",
-      studio: "/studio",
-      manifest: "/studio/manifest",
+      preview: "/runelight",
+      studio: "/runelight/studio",
+      manifest: "/runelight/studio/manifest",
     })
     expect(manifest.preview).toEqual({
-      urlTemplate: "/preview?entry={entry}&frame={frame}{frameOverrides}",
-      allUrlTemplate: "/preview?entry={entry}{frameOverrides}",
+      urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
+      allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
     })
     expect(manifest.files.map((file) => file.path)).toEqual(["src/corpus/Badge.g.tsx", "src/corpus/StatusPanel.g.tsx"])
   })
@@ -314,7 +309,7 @@ describe("Runelight Studio manifest", () => {
       })
       const manifest = createStudioManifestFromRunelightConfig(projectIndex, {
         project: { sourceRoot: "src", entryRoot: "src/app/runelight" },
-        preview: {},
+        host: { command: "vite --host 127.0.0.1 --port {port} --strictPort" },
       })
 
       expect(manifest.design?.frames.map((frame) => frame.id)).toEqual(["src/app/runelight/design/checkout-flow.g.tsx#default:live"])

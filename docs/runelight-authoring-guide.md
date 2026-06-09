@@ -22,7 +22,7 @@ Frames inject at the seam. Preview renders any visual state without executing pr
 
 A `.g.tsx` file contains:
 
-- Real visual TSX (the actual DOM this component owns)
+- Real visual TSX (the actual DOM this component renders)
 - Props and scope types
 - Static `Component.frames` declaring visual states
 - Optionally: a production hook wrapped by `createGScopeHook`, providers created with `createGProvider`

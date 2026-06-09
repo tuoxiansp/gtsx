@@ -82,13 +82,13 @@ One boundary. One well-defined difference. Everything else is shared.
 
 ## Architecture
 
-Runelight is a sidecar, not a wrapper:
+Runelight is a dev sidecar for your existing Host, not a replacement runtime:
 
 ```
 ┌──────────────────┐         ┌──────────────────┐
-│  Your App        │         │  Runelight Studio     │
-│  routes          │         │  /runelight/studio    │
-│  components      │         │  /runelight           │
+│  Your App        │         │  Runelight Studio │
+│  routes          │         │  /runelight/studio│
+│  components      │         │  /runelight       │
 │  providers       │         │                  │
 │  data layer      │         │                  │
 └────────┬─────────┘         └────────┬─────────┘
@@ -96,14 +96,15 @@ Runelight is a sidecar, not a wrapper:
          └──────────────┬─────────────┘
                         │
               ┌─────────▼─────────┐
-              │  Your Build/Host  │
+              │ runelight serve   │
+              │ starts your Host  │
               │ (Next.js / Vite)  │
               └───────────────────┘
 ```
 
-Your app and the sidecar share the same Host because that is the cheapest way to render your real components in your real environment. They do not share ownership of anything else.
+Your app and Runelight share the same Host so Studio can render real components in the real framework environment. The project remains a Next.js, Vite, or custom Host project. The Runelight CLI gives the development workflow a consistent entry point: `runelight serve` starts the configured Host command, passes `RUNELIGHT_DEV=1`, and exposes the conventional `/runelight` route space.
 
-The sidecar reads `.g.tsx` and `.g.vue` files through the selected TypeScript Program. Runelight does not modify your routes, your providers, your data layer, or your bundler config — it only registers preview routes.
+Runelight reads `.g.tsx` and `.g.vue` files through the selected TypeScript Program. It does not replace your routes, providers, data layer, or framework; the adapters remain installed in your normal bundler config, and only activate Studio and preview routes in Runelight dev mode.
 
 ### The visual boundary
 
@@ -113,11 +114,11 @@ For Next.js App Router, this means inherited layouts matter. A `/runelight` page
 
 ## Guarantees
 
-The sidecar model means Runelight has a small, well-defined surface area:
+This model gives Runelight a small, well-defined surface area:
 
 **Production code.** Frames are inert static data. The preview runtime is separate code loaded only by Studio. No production path reads frames. No bundle ships them.
 
-**Build pipeline.** Adapters plug into your existing pipeline. No parallel bundler, no second dev server, no configuration to keep in sync.
+**Build pipeline.** Adapters plug into your existing pipeline. `runelight serve` starts the configured Host command rather than introducing a parallel bundler or second app runtime.
 
 **Data layer.** Runelight has no opinions about fetching, caching, stores, or providers. The seam swaps state at preview time without changing how production works.
 

@@ -10,7 +10,7 @@ If the project isn't wired for Runelight yet, run [`setup-runelight`](../skills/
 
 ## The One Rule
 
-`.g.tsx` owns real visual UI. It is not a preview wrapper around existing TSX.
+`.g.tsx` contains real visual UI. It is not a preview wrapper around existing TSX.
 
 If the visual UI cannot be safely moved into `.g.tsx`, skip that component. Never create a thin forwarding layer just to show progress.
 
@@ -18,7 +18,7 @@ If the visual UI cannot be safely moved into `.g.tsx`, skip that component. Neve
 
 Start from a user-visible visual surface, not from a file tree sweep.
 
-**Good targets** own DOM, TSX, and visible branches: loading, empty, error, overflow, open, selected, disabled, permission states.
+**Good targets** render DOM, TSX, and visible branches: loading, empty, error, overflow, open, selected, disabled, permission states.
 
 **Bad targets** are orchestration: route glue, provider nesting, layout slots, feature composition, data plumbing. Descend through them until you find real visual surfaces.
 
@@ -95,6 +95,6 @@ These are never valid refactor outputs:
 - [ ] Imports point at the `.g` module (or barrel re-exports it)
 - [ ] Frames enumerate meaningful visual states (happy-path first, at least two)
 - [ ] Stateful frames use concrete scope values and no-op callbacks
-- [ ] The old file no longer owns the migrated visual branches
+- [ ] The old file is no longer responsible for the migrated visual branches
 - [ ] `runelight check` passes
 - [ ] Project typecheck passes

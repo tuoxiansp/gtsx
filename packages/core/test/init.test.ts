@@ -14,7 +14,7 @@ describe("runelight init", () => {
     }
   })
 
-  it("prints a minimal preview integration plan in dry-run mode", async () => {
+  it("prints a minimal Runelight integration plan in dry-run mode", async () => {
     const root = createTempProject()
 
     const result = await runCLI(["init", "--dry-run"], {
@@ -29,7 +29,7 @@ describe("runelight init", () => {
     expect(existsSync(join(root, "runelight.config.ts"))).toBe(false)
   })
 
-  it("creates preview config, local instructions, and package scripts", async () => {
+  it("creates Host config, local instructions, and package scripts", async () => {
     const root = createTempProject()
 
     const result = await runCLI(["init"], {
@@ -39,11 +39,12 @@ describe("runelight init", () => {
     })
 
     expect(result.exitCode).toBe(0)
-    expect(readFileSync(join(root, "runelight.config.ts"), "utf8")).toContain("preview")
+    expect(readFileSync(join(root, "runelight.config.ts"), "utf8")).toContain("host")
+    expect(readFileSync(join(root, "runelight.config.ts"), "utf8")).toContain("command")
     expect(readFileSync(join(root, "AGENTS.md"), "utf8")).toContain(".g.tsx")
     expect(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).scripts).toMatchObject({
+      dev: "runelight serve",
       "runelight:check": "runelight check",
-      "runelight:serve": "runelight serve",
       "runelight:capture": "runelight capture",
     })
   })

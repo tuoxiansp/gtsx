@@ -18,22 +18,17 @@ const previewEntriesPluginName = "RunelightNextPreviewEntriesPlugin"
 const previewEntriesWatcherDebounceMs = 50
 const globalPreviewEntryWatcherSymbol = Symbol.for("runelight.next.preview-entry.watchers")
 const previewImportQuery = "runelight-preview"
+const runelightDevEnvName = "RUNELIGHT_DEV"
 
 function runelightNextReact(options = {}) {
   const root = options.root ?? process.cwd()
-  const previewEntriesEnabled = options.enabled ?? process.env.NODE_ENV !== "production"
-
-  if (!previewEntriesEnabled) {
-    return function withRunelightNextReactPreviewEntriesDisabled(nextConfig = {}) {
-      return nextConfig
-    }
-  }
+  const runelightDevEnabled = options.enabled ?? process.env[runelightDevEnvName] === "1"
 
   const loaderPath = resolve(__dirname, "loader.cjs")
   const transformPath = require.resolve("@runelight/core/react-transform", {
     paths: [root, process.cwd()],
   })
-  const previewEntries = resolvePreviewEntriesOptions(root, options)
+  const previewEntries = runelightDevEnabled ? resolvePreviewEntriesOptions(root, options) : undefined
 
   return function withRunelightNextReact(nextConfig = {}) {
     const userWebpack = nextConfig.webpack
@@ -200,25 +195,22 @@ function defineRunelightConfig(config) {
 
 function readDefaultExport(exportsValue) {
   const config = exportsValue.default ?? exportsValue
-  if (!config.preview) {
-    throw new Error("Missing preview configuration in runelight.config.ts.")
+  if (!config.host) {
+    throw new Error("Missing host configuration in runelight.config.ts.")
   }
   return config
 }
 
 function resolveRunelightConfig(config) {
   return {
+    host: config.host ?? {},
     project: {
       sourceRoot: config.project?.sourceRoot ?? defaultRunelightSourceRoot,
       ...(config.project?.entryRoot ? { entryRoot: normalizeRunelightPath(config.project.entryRoot) } : {}),
       ...(config.project?.namespace ? { namespace: config.project.namespace } : {}),
       ...(config.project?.tsconfig ? { tsconfig: config.project.tsconfig } : {}),
     },
-    preview: config.preview,
-    routes: {
-      ...defaultRunelightRoutes,
-      ...config.routes,
-    },
+    routes: defaultRunelightRoutes,
     studio: {
       manifestCacheTtlMs: config.studio?.manifestCacheTtlMs ?? defaultStudioManifestCacheTtlMs,
     },

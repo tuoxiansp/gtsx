@@ -80,6 +80,10 @@ describe("examples Vite host", () => {
     const port = "4322"
     const server = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port", port, "--strictPort"], {
       cwd: examplesRoot,
+      env: {
+        ...process.env,
+        RUNELIGHT_DEV: "1",
+      },
       stdio: "ignore",
     })
 

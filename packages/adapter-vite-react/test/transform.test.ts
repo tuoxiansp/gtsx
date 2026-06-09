@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 
 import { buildRunelightProjectIndex } from "@runelight/core/project-index"
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { runelightViteReact } from "../src/index.js"
 import { createRunelightVitePreviewComponentLoader, type RunelightPreviewModule } from "../src/preview.js"
@@ -13,17 +13,33 @@ const runelightConfig = {
     sourceRoot: "src",
     entryRoot: "src/app/runelight",
   },
-  preview: {},
+  host: {
+    command: "vite --host 127.0.0.1 --port {port} --strictPort",
+  },
 }
 
 describe("runelight Vite React adapter", () => {
+  const previousRunelightDev = process.env.RUNELIGHT_DEV
+
+  beforeEach(() => {
+    process.env.RUNELIGHT_DEV = "1"
+  })
+
+  afterEach(() => {
+    if (previousRunelightDev === undefined) {
+      delete process.env.RUNELIGHT_DEV
+    } else {
+      process.env.RUNELIGHT_DEV = previousRunelightDev
+    }
+  })
+
   it("keeps .g.tsx component transforms available during Vite builds", () => {
     const plugin = runelightViteReact({ root: "/repo" })
 
     expect(plugin.apply).toBeUndefined()
   })
 
-  it("transforms .g.tsx modules through the shared React transform without loading runelight.config.ts", () => {
+  it("elides frames from ordinary .g.tsx imports without loading runelight.config.ts", () => {
     const plugin = runelightViteReact({ root: "/repo" })
     const result = plugin.transform(
       `
@@ -38,8 +54,28 @@ Card.frames = {
       "/repo/src/Card.g.tsx?import",
     )
 
+    expect(result?.code).not.toContain("Card.frames")
+    expect(result?.code).not.toContain("__runelightDefineGComponent")
+  })
+
+  it("applies the preview transform to Runelight preview imports", () => {
+    const plugin = runelightViteReact({ root: "/repo" })
+    const result = plugin.transform(
+      `
+export default function Card(props: { label: string }) {
+  return <span>{props.label}</span>
+}
+
+Card.frames = {
+  ready: { props: { label: "Ready" } },
+}
+`,
+      "/repo/src/Card.g.tsx?runelight-preview",
+    )
+
     expect(result?.code).toContain('import { defineGComponent as __runelightDefineGComponent } from "@runelight/core"')
     expect(result?.code).toContain('const Card = __runelightDefineGComponent("src/Card.g.tsx#default", CardRunelightImpl)')
+    expect(result?.code).toContain("Card.frames")
   })
 
   it("does not expose a Studio manifest virtual module", () => {
@@ -141,7 +177,9 @@ Card.frames = {
           sourceRoot: ".",
           entryRoot: "src/app/runelight",
         },
-        preview: {},
+        host: {
+          command: "vite --host 127.0.0.1 --port {port} --strictPort",
+        },
       },
       root: fixtureRoot,
       tsconfigPath: "tsconfig.json",
@@ -197,7 +235,9 @@ Card.frames = {
           sourceRoot: ".",
           entryRoot: "src/app/runelight",
         },
-        preview: {},
+        host: {
+          command: "vite --host 127.0.0.1 --port {port} --strictPort",
+        },
       },
       root: fixtureRoot,
     })
@@ -223,10 +263,9 @@ Card.frames = {
           sourceRoot: "src/corpus",
           entryRoot: "app/runelight",
         },
-        routes: {
-          preview: "/preview",
+        host: {
+          command: "vite --host 127.0.0.1 --port {port} --strictPort",
         },
-        preview: {},
       },
       root: fixtureRoot,
     })
@@ -238,7 +277,7 @@ Card.frames = {
 
     expect(resolvedId).toBe("\0virtual:runelight/config")
     expect(config.project).toMatchObject({ namespace: "fixture-project", sourceRoot: "src/corpus" })
-    expect(config.routes).toMatchObject({ preview: "/preview", studio: "/runelight/studio" })
+    expect(config.routes).toMatchObject({ preview: "/runelight", studio: "/runelight/studio" })
   })
 
   it("loads runelight.config.ts from the Vite project root when config is omitted", () => {
@@ -255,7 +294,9 @@ export default defineRunelightConfig({
     sourceRoot: "src",
     entryRoot: "app/runelight",
   },
-  preview: {},
+  host: {
+    command: "vite --host 127.0.0.1 --port {port} --strictPort",
+  },
 })
 `,
       )
@@ -280,7 +321,9 @@ export default defineRunelightConfig({
           sourceRoot: "src/corpus",
           entryRoot: "app/runelight",
         },
-        preview: {},
+        host: {
+          command: "vite --host 127.0.0.1 --port {port} --strictPort",
+        },
       },
       root: fixtureRoot,
     })

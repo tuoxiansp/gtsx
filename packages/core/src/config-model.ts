@@ -11,17 +11,14 @@ export const DEFAULT_STUDIO_MANIFEST_CACHE_TTL_MS = 1000
 
 export function resolveRunelightConfig(config: RunelightConfig): ResolvedRunelightConfig {
   return {
+    host: config.host ?? {},
     project: {
       sourceRoot: config.project?.sourceRoot ?? DEFAULT_RUNELIGHT_SOURCE_ROOT,
       ...(config.project?.entryRoot ? { entryRoot: normalizeRunelightPath(config.project.entryRoot) } : {}),
       ...(config.project?.namespace ? { namespace: config.project.namespace } : {}),
       ...(config.project?.tsconfig ? { tsconfig: config.project.tsconfig } : {}),
     },
-    preview: config.preview,
-    routes: {
-      ...DEFAULT_RUNELIGHT_ROUTES,
-      ...config.routes,
-    },
+    routes: DEFAULT_RUNELIGHT_ROUTES,
     studio: {
       manifestCacheTtlMs: config.studio?.manifestCacheTtlMs ?? DEFAULT_STUDIO_MANIFEST_CACHE_TTL_MS,
     },

@@ -79,6 +79,8 @@ type RunelightViteVueOptions = {
   tsconfigPath?: string
 }
 
+const runelightDevEnvName = "RUNELIGHT_DEV"
+
 export function runelightViteVue(options: RunelightViteVueOptions = {}) {
   let root = options.root ?? process.cwd()
   let resolvedConfig = options.config ? resolveRunelightConfig(options.config) : undefined
@@ -109,6 +111,8 @@ export function runelightViteVue(options: RunelightViteVueOptions = {}) {
       root = options.root ?? config.root
     },
     configureServer(server: ViteLikeDevServer) {
+      if (!isRunelightDevMode()) return
+
       ensureRunelightDesignDirectory(root, entryRoot())
       server.watcher?.add(runelightViteWatchRoots(root, sourceRoot(), entryRoot()))
       server.middlewares?.use((request, response, next) => {
@@ -130,11 +134,15 @@ export function runelightViteVue(options: RunelightViteVueOptions = {}) {
       })
     },
     resolveId(id: string) {
+      if (!isRunelightDevMode()) return null
+
       if (id === virtualProjectIndexId) return resolvedVirtualProjectIndexId
       if (id === virtualConfigId) return resolvedVirtualConfigId
       return null
     },
     load(id: string): TransformResult | null {
+      if (!isRunelightDevMode()) return null
+
       if (id === resolvedVirtualConfigId) {
         return {
           code: `export default ${JSON.stringify(requireResolvedConfig())}\n`,
@@ -161,23 +169,27 @@ export function runelightViteVue(options: RunelightViteVueOptions = {}) {
       return null
     },
     transform(code: string, id: string): TransformResult | null {
-      if (!hasRunelightVuePreviewQuery(id)) return null
-
       const transformed = transformRunelightVuePreviewModule({
         code,
         filePath: id,
-        previewRuntimeImport: "@runelight/adapter-vite-vue/preview",
+        ...(isRunelightDevMode() && hasRunelightVuePreviewQuery(id)
+          ? { previewRuntimeImport: "@runelight/adapter-vite-vue/preview" }
+          : {}),
       })
 
       return transformed ? { code: transformed.code, map: null } : null
     },
     hotUpdate(this: ViteLikeHotUpdateHookContext, context: ViteLikeHotUpdateOptions): unknown[] | undefined {
+      if (!isRunelightDevMode()) return undefined
+
       return handleRunelightHotUpdate(context, {
         hot: this.environment?.hot ?? context.server.ws,
         moduleGraph: this.environment?.moduleGraph ?? context.server.moduleGraph,
       })
     },
     handleHotUpdate(context: ViteLikeHotUpdateOptions): unknown[] | undefined {
+      if (!isRunelightDevMode()) return undefined
+
       return handleRunelightHotUpdate(context, {
         hot: context.server.ws,
         moduleGraph: context.server.moduleGraph,
@@ -224,6 +236,10 @@ export function runelightViteVue(options: RunelightViteVueOptions = {}) {
     environment.hot?.send({ type: "full-reload" })
     return updatedModules
   }
+}
+
+function isRunelightDevMode(): boolean {
+  return process.env[runelightDevEnvName] === "1"
 }
 
 type RunelightViteStudioRequestOptions = {

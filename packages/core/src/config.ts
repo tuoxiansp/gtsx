@@ -87,8 +87,8 @@ function requireRunelightConfigDependency(specifier: string): unknown {
 
 function readDefaultExport(exportsValue: Record<string, unknown>): RunelightConfig {
   const config = (exportsValue.default ?? exportsValue) as RunelightConfig
-  if (!config.preview) {
-    throw new Error("Missing preview configuration in runelight.config.ts.")
+  if (!config.host) {
+    throw new Error("Missing host configuration in runelight.config.ts.")
   }
   return config
 }

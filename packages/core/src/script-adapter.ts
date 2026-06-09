@@ -31,7 +31,7 @@ export async function runScriptAdapter(
   action: ScriptAdapterAction,
   params: ScriptAdapterParams,
 ): Promise<ScriptAdapterResult> {
-  const template = action === "serve" ? config.preview.serve : undefined
+  const template = action === "serve" ? config.host?.command : undefined
   if (!template) {
     return {
       exitCode: action === "strip" ? 0 : 1,
@@ -44,7 +44,7 @@ export async function runScriptAdapter(
           message:
             action === "strip"
               ? "No strip script is configured; preview metadata may ship in production bundles."
-              : `No ${action} script is configured in runelight.config.ts.`,
+              : `No ${action} Host command is configured in runelight.config.ts.`,
         },
       ],
     }

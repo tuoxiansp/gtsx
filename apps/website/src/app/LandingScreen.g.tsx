@@ -53,7 +53,7 @@ LandingHeader.frames = {
 export function LandingHero() {
   return (
     <section className="landing-hero">
-      <p className="landing-kicker">The visual workspace for agent-built apps</p>
+      <p className="landing-kicker">{siteContent.kicker}</p>
       <h1 className="landing-headline">
         <span>{siteContent.headline.lead}</span>
         <span className="landing-headline-emphasis">{siteContent.headline.emphasis}</span>
@@ -105,7 +105,11 @@ export function LandingCta() {
           →
         </span>
       </a>
-      <p className="landing-cta-hint">{siteContent.cta.hint}</p>
+      <p className="landing-cta-hint">
+        <a href={siteContent.cta.installUrl} target="_blank" rel="noreferrer">
+          {siteContent.cta.hint}
+        </a>
+      </p>
     </section>
   )
 }
@@ -117,8 +121,10 @@ LandingCta.frames = {
 export function LandingFooter() {
   return (
     <footer className="landing-footer">
-      <span>{siteContent.meta.hosts}</span>
-      <span>{siteContent.meta.year}</span>
+      <a href={siteContent.meta.authorUrl} target="_blank" rel="noreferrer">
+        {siteContent.meta.byline}
+      </a>
+      <span>{siteContent.meta.license}</span>
     </footer>
   )
 }

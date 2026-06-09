@@ -11,6 +11,7 @@ export {
 } from "./config-model.js"
 export type {
   RunelightConfig,
+  RunelightHostConfig,
   RunelightProjectConfig,
   RunelightRouteConfig,
   RunelightScriptConfig,

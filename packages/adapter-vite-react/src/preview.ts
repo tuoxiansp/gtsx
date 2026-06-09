@@ -65,7 +65,7 @@ function toModuleKey(entryFile: string, sourceRoot: string): string {
 }
 
 function entryFilesFromModuleKey(moduleKey: string, sourceRoot: string): string[] {
-  const normalizedModuleKey = moduleKey.replaceAll("\\", "/")
+  const normalizedModuleKey = moduleKey.replaceAll("\\", "/").split("?", 1)[0] ?? moduleKey
   const localPath = normalizedModuleKey.replace(/^\.\//, "").replace(/^\//, "")
   const candidates = new Set<string>()
 

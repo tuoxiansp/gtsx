@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest"
 import { loadRunelightConfig, resolveRunelightConfig } from "../src/config.js"
 
 describe("runelight config", () => {
-  it("loads project, route, preview, and Studio settings", () => {
+  it("loads project, Host, and Studio settings", () => {
     const root = mkdtempSync(join(tmpdir(), "runelight-config-"))
     try {
       writeFileSync(
@@ -21,14 +21,8 @@ export default defineRunelightConfig({
     namespace: "demo-app",
     tsconfig: "tsconfig.app.json",
   },
-  routes: {
-    preview: "/dev/runelight",
-  },
-  preview: {
-    serve: "pnpm dev --port {port}",
-    studioUrl: "http://localhost:{port}/dev/runelight/studio",
-    url: "http://localhost:{port}/dev/runelight?entry={entry}&frame={frame}{frameOverrides}",
-    allUrl: "http://localhost:{port}/dev/runelight?entry={entry}{frameOverrides}",
+  host: {
+    command: "pnpm dev --port {port}",
   },
   studio: {
     manifestCacheTtlMs: 2500,
@@ -46,8 +40,9 @@ export default defineRunelightConfig({
         namespace: "demo-app",
         tsconfig: "tsconfig.app.json",
       })
+      expect(resolveRunelightConfig(result.config!).host.command).toBe("pnpm dev --port {port}")
       expect(resolveRunelightConfig(result.config!).routes).toEqual({
-        preview: "/dev/runelight",
+        preview: "/runelight",
         studio: "/runelight/studio",
         manifest: "/runelight/studio/manifest",
       })
@@ -59,8 +54,8 @@ export default defineRunelightConfig({
 
   it("defaults source root, routes, and Studio cache ttl", () => {
     const resolved = resolveRunelightConfig({
-      preview: {
-        serve: "pnpm dev --port {port}",
+      host: {
+        command: "pnpm dev --port {port}",
       },
     })
 

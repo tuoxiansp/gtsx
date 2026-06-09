@@ -3,13 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "runelight serve",
     "runelight:check": "runelight check src/frames",
     "runelight:capture": "runelight capture src/frames --all --out ../../snapshots/examples",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@runelight/adapter-vite-react": "workspace:*",
+    "@runelight/cli": "workspace:*",
     "@runelight/studio": "workspace:*",
     "@vitejs/plugin-react": "^5.1.2",
     "react": "^19.2.6",

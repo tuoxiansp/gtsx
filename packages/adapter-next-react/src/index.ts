@@ -68,6 +68,7 @@ const previewEntriesPluginName = "RunelightNextPreviewEntriesPlugin"
 const previewEntriesWatcherDebounceMs = 50
 const globalPreviewEntryWatcherSymbol = Symbol.for("runelight.next.preview-entry.watchers")
 const previewImportQuery = "runelight-preview"
+const runelightDevEnvName = "RUNELIGHT_DEV"
 
 type GlobalPreviewEntryWatcher = typeof globalThis & {
   [globalPreviewEntryWatcherSymbol]?: Map<string, { close(): void }>
@@ -77,19 +78,11 @@ export function runelightNextReact(
   options: RunelightNextReactOptions = {},
 ): <Config extends NextConfigLike>(nextConfig?: Config) => Config & NextConfigLike {
   const root = options.root ?? process.cwd()
-  const previewEntriesEnabled = options.enabled ?? process.env.NODE_ENV !== "production"
-
-  if (!previewEntriesEnabled) {
-    return function withRunelightNextReactPreviewEntriesDisabled<Config extends NextConfigLike>(
-      nextConfig: Config = {} as Config,
-    ): Config & NextConfigLike {
-      return nextConfig as Config & NextConfigLike
-    }
-  }
+  const runelightDevEnabled = options.enabled ?? isRunelightDevMode()
 
   const loaderPath = resolve(dirname(fileURLToPath(import.meta.url)), "../loader.cjs")
   const transformPath = resolveRunelightReactTransform(root)
-  const previewEntries = resolvePreviewEntriesOptions(root, options)
+  const previewEntries = runelightDevEnabled ? resolvePreviewEntriesOptions(root, options) : undefined
 
   return function withRunelightNextReact<Config extends NextConfigLike>(nextConfig: Config = {} as Config): Config & NextConfigLike {
     const userWebpack = nextConfig.webpack
@@ -125,6 +118,10 @@ export function runelightNextReact(
       ),
     } as Config & NextConfigLike
   }
+}
+
+function isRunelightDevMode(): boolean {
+  return process.env[runelightDevEnvName] === "1"
 }
 
 function withRunelightTurbopackConfig(
