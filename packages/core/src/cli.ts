@@ -50,7 +50,6 @@ Usage:
   runelight serve [-p <tsconfig-or-dir>] [--port <port>]
   runelight capture [-p <tsconfig-or-dir>] <entry.g.tsx|entry.g.vue[#export]|dir> [--frame <name>|--all] [--frame-override <entry#export:frame>] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
   runelight strip [--check]
-  runelight diagnose
 `
 
 export async function runCLI(args: string[], context: CLIContext): Promise<CLIResult> {
