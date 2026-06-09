@@ -32,11 +32,17 @@ export function transformRunelightVuePreviewModule(input: RunelightVueTransformI
   if (!isRunelightVueComponentFile(filePath)) return null
 
   return {
-    code: transformRunelightVuePreviewSfc(input.code, filePath, {
-      previewRuntimeImport: input.previewRuntimeImport,
-    }),
+    code: input.previewRuntimeImport
+      ? transformRunelightVuePreviewSfc(input.code, filePath, {
+          previewRuntimeImport: input.previewRuntimeImport,
+        })
+      : elideRunelightVueFrames(input.code),
     filePath,
   }
+}
+
+export function elideRunelightVueFrames(code: string): string {
+  return code.replace(/<g:frames\b[^>]*>[\s\S]*?<\/g:frames>/gi, "")
 }
 
 export function transformRunelightVuePreviewSfc(

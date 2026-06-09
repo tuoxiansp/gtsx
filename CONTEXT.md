@@ -32,6 +32,42 @@ _Avoid_: generated hero collage, design-board screenshot, install prompt, abstra
 A browser-operable Studio workspace that fits into desktop AI agent clients such as Codex or Cursor. The agent client can already open and manipulate web pages; Runelight adds the missing UI-state layer between the codebase and the rendered page, so agents can design, inspect, and refine declared GUI branches instead of guessing from code alone.
 _Avoid_: native agent-client plugin, chat panel, mockup tool, generic browser preview
 
+**Host**:
+The user's framework runtime that renders the app and Runelight preview surfaces for a **Runelight Project**. The **Host** remains responsible for component execution even when Runelight owns the user-facing launch command.
+_Avoid_: standalone renderer, mock framework runtime, replacement app shell
+
+**Runelight Route Space**:
+The conventional local route space under `/runelight` where Studio, manifests, and preview renders live inside the **Host**. It belongs to Runelight and is treated as reserved project-local tooling space rather than user app surface.
+_Avoid_: custom preview route namespace, user-owned app route, configurable Studio path
+
+**Runelight-Owned Launch Layer**:
+The Runelight command surface that starts and coordinates Studio, capture, and related workflows while still rendering through the project's **Host**. It gives users a Runelight-first way to begin work; the project's Host launch instructions may still declare how that Host starts.
+_Avoid_: hostless preview, separate app shell, framework replacement, framework autodetection as the core promise
+
+**Runelight Serve Session**:
+The local development session started by `runelight serve`. It wraps the project's **Host** command, enters **Runelight Dev Mode**, and makes Studio and capture available as capabilities of the running session.
+_Avoid_: Studio-only launch command, capture-only launch command, ordinary framework dev server
+
+**Runelight Serve Session Registry**:
+The local runtime registry where active **Runelight Serve Sessions** publish their project identity, process id, port, and base URL. Other Runelight commands may attach to a registered session only after confirming that the process and **Runelight Route Space** are healthy.
+_Avoid_: trusted port file, project config, unchecked pid cache
+
+**Host Launch Instructions**:
+The project-owned declaration that tells the **Runelight-Owned Launch Layer** the underlying **Host** command to wrap. Project scripts should point at Runelight, while Runelight uses this declaration to start Vite, Next.js, or another supported Host in **Runelight Dev Mode**.
+_Avoid_: preview serve script, autodetected framework command, hostless launch config
+
+**Runelight Dev Mode**:
+The explicit development mode entered during a **Runelight Serve Session** when the Host process receives `RUNELIGHT_DEV=1`. In this mode the **Runelight Route Space** and preview transforms are enabled; outside it, Host behavior should match ordinary app development and production.
+_Avoid_: NODE_ENV as the Runelight switch, always-on Studio routes, always-on preview transforms
+
+**Preview Transform**:
+The Runelight transform mode that prepares a `.g` entry for Studio rendering by wiring preview seams and preserving the frame data needed by the **Runelight Route Space**. It is for preview graphs, not ordinary app graphs.
+_Avoid_: production transform, blanket .g transform, frame stripping
+
+**Frame Elision**:
+The Runelight transform mode that removes frame declarations from ordinary app graphs so source-level frame data does not ship or execute as app code. It remains relevant outside **Runelight Dev Mode** and for non-preview app paths inside a **Runelight Serve Session**.
+_Avoid_: disabling all transforms outside Runelight Dev Mode, shipping frames, relying on dead-code elimination
+
 **Curated Frame Set**:
 A deliberately named group of design frames and component frames selected for visitor understanding. It should explain Runelight's visual model rather than expose every internal UI fragment.
 _Avoid_: exhaustive component inventory, internal scratch dump, unordered frame list
@@ -89,3 +125,16 @@ Developer: "Should the homepage say UI states?"
 Agent: "Prefer Visual Branches in public product language. A Frame makes one branch presentable and reviewable."
 Developer: "Should we compare against existing tools?"
 Agent: "No. Use a Positive Category Narrative: define the Source-Level Visual Model directly."
+
+Developer: "Should Runelight replace Vite or Next.js when I open Studio?"
+Agent: "No. The Host still renders the app and preview surfaces; the Runelight-Owned Launch Layer owns the command that starts and coordinates the workflow from the project's Host launch instructions."
+Developer: "Should the project still call this preview.serve?"
+Agent: "No. Treat it as Host Launch Instructions so the config language matches the Runelight-first CLI."
+Developer: "Should every project customize the Studio and preview paths?"
+Agent: "No. Use the Runelight Route Space under /runelight by convention."
+Developer: "Should ordinary dev mode expose Runelight routes?"
+Agent: "No. Runelight Dev Mode is explicit: a Runelight Serve Session wraps the Host command and enables routes and transforms only for that process."
+Developer: "Should capture trust a saved port from a previous serve?"
+Agent: "Only through the Runelight Serve Session Registry, and only after checking that the process and Runelight Route Space are still healthy."
+Developer: "Does RUNELIGHT_DEV mean all transforms are disabled outside serve?"
+Agent: "No. Preview Transform is gated by Runelight Dev Mode, but Frame Elision still protects ordinary app graphs."

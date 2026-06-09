@@ -35,6 +35,7 @@ describe("Runelight preview commands", () => {
       {
         action: "serve",
         args: ["--port", port],
+        runelightDev: "1",
       },
       {
         action: "ready-check",
@@ -67,6 +68,7 @@ describe("Runelight preview commands", () => {
       {
         action: "serve",
         args: ["--port", port],
+        runelightDev: "1",
       },
       {
         action: "ready-check",
@@ -87,7 +89,7 @@ describe("Runelight preview commands", () => {
     expect(existsSync(checkProjectLogFile)).toBe(false)
   })
 
-  it("requires an all-frames preview URL before capturing a contact sheet", async () => {
+  it("starts a temporary Runelight dev host before capturing a contact sheet", async () => {
     const result = await runCLI(["capture", "src/Badge.g.tsx", "--all"], {
       cwd: checkProjectRoot,
       stdout: "",
@@ -95,8 +97,14 @@ describe("Runelight preview commands", () => {
     })
 
     expect(result.exitCode).toBe(1)
-    expect(result.stdout).toContain("missing-preview-all-url")
-    expect(existsSync(checkProjectLogFile)).toBe(false)
+    expect(result.stdout).toContain("recorded serve")
+    expect(readLog(checkProjectLogFile)).toEqual([
+      {
+        action: "serve",
+        args: ["--port", expect.any(String)],
+        runelightDev: "1",
+      },
+    ])
   })
 })
 

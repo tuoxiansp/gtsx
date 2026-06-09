@@ -18,10 +18,14 @@ type LoaderContextStub = {
 type LoaderCallback = (error: Error | null, code?: string, sourceMap?: unknown) => void
 
 describe("runelight Next React loader", () => {
-  it("passes ordinary .g.tsx imports through without preview instrumentation", async () => {
+  it("elides ordinary .g.tsx imports without preview instrumentation", async () => {
     const transformPath = writeTransformModule(`
-export function transformRunelightReactModule() {
-  throw new Error("ordinary imports should not be transformed")
+export function transformRunelightReactModule(input) {
+  return { code: [input.root, input.filePath, input.previewImportQuery ?? "", input.code].join("|"), filePath: input.filePath }
+}
+
+export function transpileRunelightReactModuleCode() {
+  throw new Error("ordinary imports should not use preview transpilation")
 }
 `)
 
@@ -31,7 +35,7 @@ export function transformRunelightReactModule() {
         transformPath,
       }),
     ).resolves.toEqual({
-      code: "source",
+      code: "/repo|/repo/src/Card.g.tsx||source",
       sourceMap: { version: 3 },
     })
   })

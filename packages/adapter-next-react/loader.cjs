@@ -13,25 +13,24 @@ module.exports = function runelightNextReactLoader(source, inputSourceMap) {
   const shouldTranspilePreview = options.transpilePreview !== false
   const code = Buffer.isBuffer(source) ? source.toString("utf8") : String(source)
 
-  if (!isPreviewImport) {
-    callback(null, code, inputSourceMap)
-    return
-  }
-
   import(transformModule).then(
     ({ transformRunelightReactModule, transpileRunelightReactModuleCode }) => {
-      const transformed = transformRunelightReactModule({
-        code,
-        filePath,
-        previewImportQuery: previewQuery,
-        root,
-      })
-      const output = transformed?.code ?? code
-      const finalOutput =
-        shouldTranspilePreview && typeof transpileRunelightReactModuleCode === "function"
-          ? transpileRunelightReactModuleCode({ code: output, filePath })
-          : output
-      callback(null, finalOutput, inputSourceMap)
+      try {
+        const transformed = transformRunelightReactModule({
+          code,
+          filePath,
+          ...(isPreviewImport ? { previewImportQuery: previewQuery } : {}),
+          root,
+        })
+        const output = transformed?.code ?? code
+        const finalOutput =
+          isPreviewImport && shouldTranspilePreview && typeof transpileRunelightReactModuleCode === "function"
+            ? transpileRunelightReactModuleCode({ code: output, filePath })
+            : output
+        callback(null, finalOutput, inputSourceMap)
+      } catch (error) {
+        callback(error)
+      }
     },
     (error) => {
       callback(error)

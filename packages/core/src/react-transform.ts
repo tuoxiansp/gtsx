@@ -38,10 +38,15 @@ export function transformRunelightReactModule(input: RunelightReactTransformInpu
   const filePath = normalizeRunelightReactModuleId(input.filePath)
   if (!isRunelightReactComponentFile(filePath)) return null
 
-  const code = transformRunelightComponentBoundaries({
-    ...input,
-    filePath,
-  })
+  const code = input.previewImportQuery
+    ? transformRunelightComponentBoundaries({
+        ...input,
+        filePath,
+      })
+    : elideRunelightReactFrames({
+        ...input,
+        filePath,
+      })
 
   if (code === input.code) return null
   return { code, filePath }
@@ -146,6 +151,32 @@ export function transformRunelightComponentBoundaries(input: RunelightReactTrans
   })
 
   return output
+}
+
+export function elideRunelightReactFrames(input: RunelightReactTransformInput): string {
+  const sourceFile = ts.createSourceFile(input.filePath, input.code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const replacements: Replacement[] = []
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isExpressionStatement(statement)) continue
+    if (!isFramesAssignment(statement.expression)) continue
+
+    replacements.push({
+      start: statement.getStart(sourceFile),
+      end: statement.end,
+      text: "",
+    })
+  }
+
+  if (replacements.length === 0) return input.code
+  return applyEdits(input.code, { replacements, insertions: [] })
+}
+
+function isFramesAssignment(expression: ts.Expression): boolean {
+  if (!ts.isBinaryExpression(expression) || expression.operatorToken.kind !== ts.SyntaxKind.EqualsToken) return false
+
+  const left = expression.left
+  return ts.isPropertyAccessExpression(left) && left.name.text === "frames"
 }
 
 function functionDeclarationBoundary(input: {

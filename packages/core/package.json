@@ -1,7 +1,7 @@
 {
   "name": "@runelight/core",
   "version": "0.0.8",
-  "description": "Core runtime and CLI for authoring and previewing Runelight React components.",
+  "description": "Core runtime for authoring and previewing Runelight React components.",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -20,9 +20,6 @@
     "component-preview",
     "agent"
   ],
-  "bin": {
-    "runelight": "./dist/cli.js"
-  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -48,6 +45,11 @@
       "types": "./dist/config-types.d.ts",
       "import": "./dist/config-types.js",
       "default": "./dist/config-types.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "import": "./dist/cli.js",
+      "default": "./dist/cli.js"
     },
     "./define-config": {
       "types": "./dist/define-config.d.ts",

@@ -4,7 +4,7 @@
 
 [runelight.ai](https://runelight.ai)
 
-Runelight is a GUI development workflow for the AI era. Your agent designs screens, builds components, and declares every visual state - typed and verifiable. You describe what you want, open `/runelight/studio`, and see the full picture. Design, build, and review in one workspace.
+Runelight is a GUI development workflow for the AI era. Your agent designs screens, builds components, and declares every visual state - typed and verifiable. You describe what you want, start `runelight serve`, open `/runelight/studio`, and see the full picture. Design, build, and review in one workspace.
 
 ![Studio — every component, every state, one screen](docs/images/studio-components.jpeg)
 
@@ -24,7 +24,7 @@ For admin panels, role-specific views become provider variants. For pages that l
 
 ## Review
 
-Open `/runelight/studio`. Every component in your project, every visual state — rendered on one screen. Toggle filters to see how your UI responds across contexts: admin vs. regular user, signed-in vs. anonymous, empty vs. loaded.
+Run `runelight serve`, then open `/runelight/studio`. Every component in your project, every visual state — rendered on one screen. Toggle filters to see how your UI responds across contexts: admin vs. regular user, signed-in vs. anonymous, empty vs. loaded.
 
 No navigating your app. No clicking through flows. No test data. One URL.
 
@@ -86,7 +86,7 @@ That `.frames` object is the component-level footprint - inert data that never r
 
 Protocol types and helpers use the `G` prefix, such as `GFrames`, `createGScopeHook`, and `createGProvider`.
 
-No preview wrappers in your components. No separate app shell to maintain. `@runelight/studio` ships as a prebuilt local Studio app, and the framework adapter serves it from your existing dev server at `/runelight/studio`.
+No preview wrappers in your components. No separate app shell to maintain. `@runelight/cli` starts your existing Vite or Next.js host through `runelight serve`, and the framework adapter serves the prebuilt `@runelight/studio` app at `/runelight/studio`.
 
 ### Leave Anytime
 
@@ -114,4 +114,4 @@ Rename `.g.tsx` → `.tsx` or `.g.vue` → `.vue`, delete frames, remove the Stu
 
 pnpm workspace. `pnpm install && pnpm build && pnpm test && pnpm typecheck`.
 
-Packages: `@runelight/core` (protocol, CLI), `@runelight/studio` (prebuilt Studio app and manifests), `@runelight/adapter-vite-react` (Vite React adapter), `@runelight/adapter-next-react` (Next.js adapter), and `@runelight/adapter-vite-vue` (Vite Vue adapter). Repository examples live under [`examples/`](examples/), including `react-vite` and `vue-vite`; agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).
+Packages: `@runelight/cli` (the `runelight` command), `@runelight/core` (protocol, analysis, and config), `@runelight/studio` (prebuilt Studio app and manifests), `@runelight/adapter-vite-react` (Vite React adapter), `@runelight/adapter-next-react` (Next.js adapter), and `@runelight/adapter-vite-vue` (Vite Vue adapter). Repository examples live under [`examples/`](examples/), including `react-vite` and `vue-vite`; agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).

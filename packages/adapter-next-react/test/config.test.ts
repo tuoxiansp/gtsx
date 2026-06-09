@@ -24,7 +24,9 @@ const runelightConfig = {
     sourceRoot: "src",
     entryRoot: "app/runelight",
   },
-  preview: {},
+  host: {
+    command: "next dev -H 127.0.0.1 -p {port}",
+  },
 }
 
 function withNodeEnv<T>(nodeEnv: string, run: () => T): T {
@@ -54,7 +56,7 @@ describe("runelight Next React adapter", () => {
         }
         const config = runelightNextReact({ root })(nextConfig)
 
-        expect(config).toBe(nextConfig)
+        expect(config).not.toBe(nextConfig)
         expect(existsSync(join(root, ".runelight/preview-entries.ts"))).toBe(false)
       })
     } finally {
@@ -127,7 +129,7 @@ describe("runelight Next React adapter", () => {
   })
 
   it("adds webpack and turbopack rules for .g.tsx files", () => {
-    const withRunelight = runelightNextReact({ config: runelightConfig, root: "/repo" })
+    const withRunelight = runelightNextReact({ config: runelightConfig, enabled: true, root: "/repo" })
     const config = withRunelight({
       allowedDevOrigins: ["127.0.0.1"],
     })
@@ -164,7 +166,7 @@ describe("runelight Next React adapter", () => {
   })
 
   it("preserves user webpack config and prepends existing turbopack rules", () => {
-    const withRunelight = runelightNextReact({ config: runelightConfig, root: "/repo" })
+    const withRunelight = runelightNextReact({ config: runelightConfig, enabled: true, root: "/repo" })
     const config = withRunelight({
       webpack(current, _context) {
         current.module = { rules: [{ test: /other/ }] }
@@ -207,6 +209,7 @@ describe("runelight Next React adapter", () => {
   it("preserves user aliases and supports a custom preview entries module id", () => {
     const withRunelight = runelightNextReact({
       config: runelightConfig,
+      enabled: true,
       previewEntries: {
         moduleId: "@app/runelight-preview-entries",
         outputFile: ".generated/runelight-preview-entries.ts",
@@ -252,8 +255,11 @@ describe("runelight Next React adapter", () => {
       runelightNextReact({
         config: {
           project: { sourceRoot: "components", entryRoot: "components/app/runelight" },
-          preview: {},
+          host: {
+            command: "next dev -H 127.0.0.1 -p {port}",
+          },
         },
+        enabled: true,
         root,
       })({})
 
@@ -279,12 +285,14 @@ export default defineRunelightConfig({
     sourceRoot: "src",
     entryRoot: "app/runelight",
   },
-  preview: {},
+  host: {
+    command: "next dev -H 127.0.0.1 -p {port}",
+  },
 })
 `,
       )
 
-      runelightNextReact({ root })({})
+      runelightNextReact({ enabled: true, root })({})
 
       const output = readFileSync(join(root, ".runelight/preview-entries.ts"), "utf8")
       expect(output).toContain('"src/components/Card.g.tsx"')
@@ -302,7 +310,7 @@ export default defineRunelightConfig({
       writeFileSync(join(root, "src/components/ui/Menu.g.tsx"), "export function Menu() { return null }\n")
       writeFileSync(join(root, "src/generated/Ignored.tsx"), "export default function Ignored() { return null }\n")
 
-      runelightNextReact({ config: runelightConfig, root })({})
+      runelightNextReact({ config: runelightConfig, enabled: true, root })({})
 
       const output = readFileSync(join(root, ".runelight/preview-entries.ts"), "utf8")
       expect(output).toContain('"src/components/ui/Menu.g.tsx": () => import("../src/components/ui/Menu.g?runelight-preview")')
@@ -330,8 +338,11 @@ export default defineRunelightConfig({
             sourceRoot: "src",
             entryRoot: "src/app/runelight",
           },
-          preview: {},
+          host: {
+            command: "next dev -H 127.0.0.1 -p {port}",
+          },
         },
+        enabled: true,
         root,
       })({})
 
@@ -345,7 +356,7 @@ export default defineRunelightConfig({
   })
 
   it("installs a webpack preview entry watcher for dev-time file additions", () => {
-    const config = runelightNextReact({ config: runelightConfig, root: "/repo" })({})
+    const config = runelightNextReact({ config: runelightConfig, enabled: true, root: "/repo" })({})
     const webpackConfig = config.webpack?.({ plugins: [] }, { dev: true })
 
     expect(
@@ -357,7 +368,7 @@ export default defineRunelightConfig({
 
   it("exposes a CommonJS entry for Next config loading", () => {
     const cjsEntry = require("../index.cjs") as typeof import("../src/index.js")
-    const config = cjsEntry.runelightNextReact({ config: runelightConfig, root: "/repo" })({})
+    const config = cjsEntry.runelightNextReact({ config: runelightConfig, enabled: true, root: "/repo" })({})
 
     expect(config.webpack?.({}, {})?.module?.rules?.[0]?.use?.[0]?.loader).toContain("loader.cjs")
     expect(config.turbopack?.rules?.["*.g.tsx"]?.loaders?.[0]?.loader).toContain("loader.cjs")
@@ -378,13 +389,15 @@ export default defineRunelightConfig({
     sourceRoot: "src",
     entryRoot: "app/runelight",
   },
-  preview: {},
+  host: {
+    command: "next dev -H 127.0.0.1 -p {port}",
+  },
 })
 `,
       )
 
       const cjsEntry = require("../index.cjs") as typeof import("../src/index.js")
-      cjsEntry.runelightNextReact({ root })({})
+      cjsEntry.runelightNextReact({ enabled: true, root })({})
 
       const output = readFileSync(join(root, ".runelight/preview-entries.ts"), "utf8")
       expect(output).toContain('"src/components/Card.g.tsx"')

@@ -53,11 +53,10 @@
     "dist"
   ],
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "runelight serve",
     "build": "vite build --config vite.lib.config.ts && tsc -p tsconfig.build.json && pnpm build:app",
     "build:app": "vite build",
     "runelight:check": "runelight check src",
-    "runelight:serve": "runelight serve",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -67,6 +66,7 @@
     "@runelight/core": "workspace:*"
   },
   "devDependencies": {
+    "@runelight/cli": "workspace:*",
     "@runelight/preview-react": "workspace:*",
     "@vitejs/plugin-react": "^5.1.2",
     "react": "^19.2.6",

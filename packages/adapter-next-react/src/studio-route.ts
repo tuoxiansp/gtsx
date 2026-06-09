@@ -71,7 +71,7 @@ async function resolveRunelightNextStudioAssetFilePath(
 }
 
 function isRunelightNextStudioEnabled(options: { enabled?: boolean }): boolean {
-  return options.enabled ?? process.env.NODE_ENV !== "production"
+  return options.enabled ?? process.env.RUNELIGHT_DEV === "1"
 }
 
 function normalizeRunelightNextStudioAssetPath(assetPath: string | string[]): string {

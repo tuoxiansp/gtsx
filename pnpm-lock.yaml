@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@runelight/cli':
+        specifier: workspace:*
+        version: link:packages/cli
       '@runelight/studio':
         specifier: workspace:*
         version: link:packages/studio
@@ -35,6 +38,9 @@ importers:
       '@runelight/adapter-vite-react':
         specifier: workspace:*
         version: link:../../packages/adapter-vite-react
+      '@runelight/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
       '@runelight/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -66,6 +72,9 @@ importers:
       '@runelight/adapter-vite-react':
         specifier: workspace:*
         version: link:../../packages/adapter-vite-react
+      '@runelight/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
       '@runelight/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -94,6 +103,9 @@ importers:
       '@runelight/adapter-vite-vue':
         specifier: workspace:*
         version: link:../../packages/adapter-vite-vue
+      '@runelight/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
       '@runelight/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -177,6 +189,16 @@ importers:
         specifier: ^3.5.25
         version: 3.5.35(typescript@6.0.3)
 
+  packages/cli:
+    dependencies:
+      '@runelight/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
   packages/core:
     dependencies:
       '@vue/compiler-dom':
@@ -254,6 +276,9 @@ importers:
 
   packages/studio:
     devDependencies:
+      '@runelight/cli':
+        specifier: workspace:*
+        version: link:../cli
       '@runelight/core':
         specifier: workspace:*
         version: link:../core

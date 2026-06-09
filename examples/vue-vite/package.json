@@ -3,13 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "runelight serve",
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "runelight:check": "runelight check src"
   },
   "dependencies": {
     "@runelight/adapter-vite-vue": "workspace:*",
+    "@runelight/cli": "workspace:*",
     "@runelight/core": "workspace:*",
     "@runelight/preview-vue": "workspace:*",
     "@runelight/studio": "workspace:*",

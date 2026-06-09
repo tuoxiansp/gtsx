@@ -6,5 +6,7 @@ export default defineRunelightConfig({
     entryRoot: "app/runelight",
     tsconfig: "tsconfig.app.json",
   },
-  preview: {},
+  host: {
+    command: "node -e \"process.stdout.write('server started')\"",
+  },
 })
