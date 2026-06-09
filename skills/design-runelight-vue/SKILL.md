@@ -7,7 +7,7 @@ description: Create and iterate product GUI design drafts for Vue Runelight proj
 
 Use this framework-specific skill when the user wants an AI-assisted product/UI design pass inside a Vue Runelight workspace. Setup installs this skill for Vue projects; for React projects use `design-runelight-react`.
 
-Maintenance note: keep the Design Loop and Quality Gate semantically aligned with the React design skill. Framework file contracts may differ; design judgment should not.
+Maintenance note: keep the Design Loop and Quality Gate semantically aligned with the React design skill. Framework file contracts may differ; design judgment should not. `DESIGN_REFERENCE.md` is intentionally byte-identical across both design skills (each skill must stay self-contained when copied into a target project); a repository test asserts the two copies never drift.
 
 ## User Flow
 
@@ -144,7 +144,7 @@ If any answer is clearly no, revise the frame before hand-off.
 
 ## Verification
 
-Use the project's normal preview route:
+Use the project's normal preview route. Runelight routes only activate under `runelight serve`, so use the package script that wraps it (setup records `dev: "runelight serve"` by default):
 
 ```sh
 pnpm dev
