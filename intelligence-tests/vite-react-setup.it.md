@@ -29,6 +29,7 @@ Validate these outcomes:
 - A production `vite build` succeeds when `runelight.config.ts` is missing from the production build context.
 - The production app can import and render a normal `.g.tsx` component.
 - The production output still renders the original app route and does not require `virtual:runelight/*`, bundle preview route code, expose a usable `/runelight` experience, or write `.runelight`/Runelight-generated preview registry files.
+- After explicitly setting `studio.exposeInProduction: true` in `runelight.config.ts`, a production `vite build` emits a usable `/runelight/` preview entry, `/runelight/studio/` Studio entry, `/runelight/studio/manifest`, and Studio assets without platform-specific rewrites. Serving the built output should allow Studio to discover frames and render preview iframes from the production bundle. Removing the setting should restore the default non-exposed production output.
 - The test does not write Runelight companion skills into the user's global skills directory. If global Runelight skills already exist, do not treat them as proof of success; inspect project-local `.agents/skills`.
 
 Clean up the temporary project, temporary design frame, and generated artifacts created only for this test.
