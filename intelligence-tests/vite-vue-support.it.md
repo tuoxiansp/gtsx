@@ -2,7 +2,7 @@
 
 Validate Runelight's Vue support in a fresh Vite Vue project.
 
-Create a temporary Vite Vue 3 app outside the repository workspace. Exercise the README installer flow: install or refresh only `skills/setup-runelight` from this checkout into the target project at `.agents/skills/setup-runelight`, then run that project-level setup skill. Setup should wire the local Runelight packages from this checkout, configure Vite with `@vitejs/plugin-vue` and `runelightViteVue()`, add `runelight.config.ts` with `project.sourceRoot` and `project.entryRoot`, and add a development-only `/runelight` branch that mounts `RunelightViteVuePreviewClient` with `createRunelightViteVuePreviewComponentLoader`.
+Create a temporary Vite Vue 3 app outside the repository workspace. Exercise the README installer flow: install or refresh only `skills/setup-runelight` from this checkout into the target project at `.agents/skills/setup-runelight`, then run that project-level setup skill. Setup should wire the local Runelight packages from this checkout, configure Vite with `@vitejs/plugin-vue` and `runelightViteVue()`, add `runelight.config.ts` with `project.sourceRoot`, `project.entryRoot`, and a `host.command` that `runelight serve` can wrap, and add a development-only `/runelight` branch that mounts `RunelightViteVuePreviewClient` with `createRunelightViteVuePreviewComponentLoader`.
 
 Add at least one `.g.vue` component under the selected source root. The file must use a normal Vue `<template>`, a normal `<script setup lang="ts">`, and a single direct `<g:frames>` block whose content is `export default { ... }`. Do not use nested `<g:frame>` tags. Include at least two frames where `props` and `scope` drive visible template branches.
 

@@ -4,7 +4,7 @@ Use this profile when a TypeScript React host has one browser-owned entry and br
 
 ## Contract
 
-1. Add `runelight.config.ts` with `project.sourceRoot`, `project.entryRoot`, `project.tsconfig`, routes, and preview commands.
+1. Add `runelight.config.ts` with `project.sourceRoot`, `project.entryRoot`, `project.tsconfig`, and a `host.command` that `runelight serve` can wrap.
 2. Add a bundler transform so every `.g.tsx` file runs through the Runelight React transform.
 3. Expose the project index and resolved config to the browser entry.
 4. Create the empty `${project.entryRoot}/design` directory. Do not add a `designRoot` config key or placeholder frames.
@@ -23,6 +23,6 @@ This setup path requires:
 - A bundler transform hook for `.g.tsx`.
 - A safe way to discover preview component modules.
 - A browser entry branch that preserves the existing app.
-- A dev server command that can bind a deterministic host and port.
+- A dev server command that can bind a deterministic host and accept the `{port}` placeholder, recorded as `host.command`.
 
 When these requirements are present, apply the contract above through the host's existing build and routing conventions.

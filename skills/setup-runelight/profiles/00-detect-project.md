@@ -5,8 +5,8 @@ Read this before choosing an integration profile.
 ## Model
 
 - Runelight Project = selected TypeScript project + `.g` protocol files.
-- Runelight Source Set = `.g.tsx` or `.g.vue` files in the selected TypeScript project and configured source roots.
-- Host = framework/runtime that renders that source set.
+- Runelight Scope = `.g.tsx` or `.g.vue` files in the selected TypeScript project and configured source roots.
+- Host = framework/runtime that renders that scope.
 - Host topology = client-only React, client+server React, or client-only Vue.
 - Adapter = package that makes the Host understand Runelight transforms and preview URLs.
 - Source discovery follows the selected TypeScript project plus configured source roots. Host setup does not widen the source scope accidentally.
@@ -22,7 +22,7 @@ Every successful integration needs:
 3. Project index / manifest built from the selected source set.
 4. Preview route that maps `entry`, `frame`, and `frameOverride` search params to the preview client.
 5. Studio route that serves the prebuilt `@runelight/studio` app and manifest.
-6. Stable `preview.serve`, `preview.url`, `preview.allUrl`, and optional `preview.studioUrl` commands for verification and capture.
+6. A `host.command` in `runelight.config.ts` so `runelight serve` and `runelight capture` can manage the Host lifecycle for verification and capture.
 
 ## Supported Project Scope
 
@@ -77,24 +77,24 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 - Install `@runelight/adapter-vite-react` only for Vite-compatible React client-only hosts.
 - Install `@runelight/adapter-vite-vue` only for Vite Vue 3 client-only hosts.
 - Install `@runelight/adapter-next-react` only for Next.js App Router.
-- Put selected root, selected local Runelight entry root, selected tsconfig, stable cache namespace, routes, and preview commands in `runelight.config.ts`.
+- Put selected source root, selected local Runelight entry root, selected tsconfig, stable cache namespace, and the Host dev command in `runelight.config.ts`. The valid keys are `project.{sourceRoot, entryRoot, namespace, tsconfig}`, `host.command`, and `studio.{exposeInProduction, manifestCacheTtlMs}`; routes are fixed at `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest` and are not configurable.
 - Use the package name or repo slug as `project.namespace`, not a file hash.
 - Choose `project.sourceRoot: "src"` when app source lives under `src`; choose `project.sourceRoot: "."` for root-level `app`, `pages`, `components`, or `lib`.
-- Choose `project.entryRoot` as the filesystem directory that owns the local `/runelight` entry: usually `app/runelight`, or `src/app/runelight` when the route tree lives under `src/app`. For client-only hosts without filesystem routes, still create and record this logical entry root during setup.
-- Generate `preview.serve` for the detected package manager and host. Do not hard-code `pnpm` in npm/yarn/bun projects.
-- Keep `preview.studioUrl`, `preview.url`, and `preview.allUrl` on the same host bound by `preview.serve`; when serving on `127.0.0.1`, use `127.0.0.1` in URLs instead of `localhost`.
+- Choose `project.entryRoot` as the filesystem directory that owns the local `/runelight` entry: usually `app/runelight`, or `src/app/runelight` when the route tree lives under `src/app`. For client-only hosts without filesystem routes, still create and record a logical entry root during setup: `app/runelight` at the project root by default, or `src/app/runelight` when the project keeps all authored source under `src`.
+- Generate `host.command` for the detected package manager and host using its exec form (`npx vite ...`, `pnpm exec next dev ...`). Do not hard-code `pnpm` in npm/yarn/bun projects, and do not point `host.command` at a package script that itself runs `runelight serve`.
+- `host.command` must bind a deterministic host (prefer `127.0.0.1`) and accept the `{port}` placeholder; `runelight serve` substitutes the Runelight-owned port and prints the serve and Studio URLs itself.
 
 ## Verification
 
 1. Run project typecheck.
 2. Run `runelight check` against the selected source root, a `.g.tsx` file, or a `.g.vue` file.
-3. Start the host dev server.
+3. Start the host dev server through `runelight serve` (or the package script that wraps it).
 4. Open `/runelight/studio`.
 5. Open `/runelight/studio#/design`.
 6. Confirm the manifest contains `.g.tsx` or `.g.vue` entries, including design frames from `${project.entryRoot}/design` when present. A setup-only project may legitimately have zero entries; Studio should show its empty state.
 7. If at least one protocol entry exists, open one `/runelight?...` preview URL.
 8. Confirm no `Missing entry`, `Unknown Runelight entry`, or `Unknown Runelight frame` errors.
-9. Run `runelight capture` when configured.
+9. Run `runelight capture` against one entry when at least one protocol entry exists.
 
 ## Report
 

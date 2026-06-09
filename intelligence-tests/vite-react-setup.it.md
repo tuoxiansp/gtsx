@@ -12,7 +12,7 @@ Validate these outcomes:
 - Setup does not install `authoring-runelight-vue`, `refactor-to-runelight-vue`, `design-runelight-vue`, or the deprecated unsplit `authoring-runelight`, `refactor-to-runelight`, and `design-runelight`.
 - The installed `design-runelight-react/DESIGN_REFERENCE.md` is an aesthetic reference only; it does not contain framework/package installation instructions such as `npm install`, `npx`, or design-stack defaults unrelated to the target project.
 - The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
-- `runelight.config.ts` records `project.sourceRoot` and `project.entryRoot`.
+- `runelight.config.ts` records `project.sourceRoot`, `project.entryRoot`, and a `host.command` with the `{port}` placeholder that `runelight serve` can wrap.
 - `${project.entryRoot}/design` exists after setup or dev-server startup.
 - Vite is configured with `runelightViteReact()` and does not statically import `runelight.config.ts` from `vite.config.*`.
 - The browser entry handles only the `/runelight` preview branch; Studio is served by the Vite adapter as a prebuilt app from the same dev server.

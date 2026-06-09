@@ -14,7 +14,7 @@ Validate these outcomes:
 - The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
 - Studio route files call `@runelight/adapter-next-react/studio-route` helpers and do not import React Studio source from `@runelight/studio/client`.
 - The Next config wrapper uses `runelightNextReact()` and does not statically import `runelight.config.ts`.
-- `runelight.config.ts` records `project.sourceRoot` and `project.entryRoot`.
+- `runelight.config.ts` records `project.sourceRoot`, `project.entryRoot`, and a `host.command` with the `{port}` placeholder that `runelight serve` can wrap.
 - `${project.entryRoot}/design` exists after setup or dev-server startup.
 - The original app route still renders.
 - `/runelight/studio/manifest` returns JSON without a 500.

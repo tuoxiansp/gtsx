@@ -4,7 +4,7 @@ Use this profile when the host owns server routes, server rendering, static rout
 
 ## Contract
 
-1. Add `runelight.config.ts` with selected TypeScript project, `project.entryRoot`, and server dev command.
+1. Add `runelight.config.ts` with the selected TypeScript project, `project.entryRoot`, and the server dev command recorded as `host.command` with the `{port}` placeholder.
 2. Add the framework/bundler transform hook for `.g.tsx`.
 3. Add `/runelight/studio/manifest` and return the manifest from `createStudioManifestProvider`.
 4. Add `/runelight/studio` and `/runelight/studio/assets/*` by serving the prebuilt app from `@runelight/studio/static-app`.
