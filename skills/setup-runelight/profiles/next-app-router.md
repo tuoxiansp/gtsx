@@ -194,6 +194,16 @@ export async function GET() {
 }
 ```
 
+## Production opt-in (optional)
+
+Development is the default. To expose `/runelight` and Studio in production:
+
+1. Set `runelightNextReact({ enabled: true })` in `next.config.*`.
+2. Pass `enabled: true` to `createRunelightNextStudioResponse` and related Studio route helpers when the project requires it.
+3. Remove dev-only `notFound()` guards on `/runelight` preview routes.
+
+`studio.exposeInProduction` in `runelight.config.ts` is for Vite adapters only — Next.js does not read it.
+
 ## Verify
 
 1. Run typecheck/build.

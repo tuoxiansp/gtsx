@@ -9,7 +9,7 @@ Use this profile when a TypeScript React host has one browser-owned entry and br
 3. Expose the project index and resolved config to the browser entry.
 4. Create the empty `${project.entryRoot}/design` directory. Do not add a `designRoot` config key or placeholder frames.
 5. In the browser entry, branch only on the `/runelight` preview path. Studio (`/runelight/studio`, `/runelight/studio/manifest`, `/runelight/studio/assets/*`) is served by the adapter or framework route helpers — not by the browser entry.
-6. Load preview components through adapter helpers. Do not hand-roll `entry`, `frame`, `frameOverrides`, module key normalization, boundary collection, or iframe protocol.
+6. Load preview components through adapter helpers. Do not hand-roll `entry`, `frame`, `frameOverride`, module key normalization, boundary collection, or iframe protocol.
 7. In upgrade/ensure mode, do not rewrite existing config, bundler glue, browser-entry branches, or preview helpers if they already pass verification; after package upgrades, migrate only glue proven incompatible by typecheck, adapter contracts, or runtime verification.
 8. Verify the original app route still renders.
 

@@ -63,7 +63,15 @@ Do not add a `routes` or `preview` block to `runelight.config.ts` — those shap
 
 By default, Runelight preview and Studio routes are development-only. Production builds do not require `runelight.config.ts` for normal app code.
 
-Set `studio.exposeInProduction: true` only when you intentionally want production `/runelight` and Studio surfaces (for example internal design review on a staging build). See [Troubleshooting](./troubleshooting.md) and adapter profiles in [`skills/setup-runelight`](../skills/setup-runelight/SKILL.md).
+### Vite (React / Vue)
+
+Set `studio.exposeInProduction: true` when you intentionally want production `/runelight` and Studio in the Vite build output. The Vite adapter reads this flag.
+
+### Next.js App Router
+
+`studio.exposeInProduction` is **not** read by `@runelight/adapter-next-react`. Production opt-in requires `runelightNextReact({ enabled: true })`, production-enabled Studio/preview route helpers, and removing dev-only `notFound()` guards on `/runelight` routes. See the [Next.js profile](../skills/setup-runelight/profiles/next-app-router.md).
+
+See [Troubleshooting — Production opt-in](./troubleshooting.md#production-opt-in).
 
 ## Related
 

@@ -134,6 +134,10 @@ declare module "virtual:runelight/config" {
 }
 ```
 
+## Production opt-in (optional)
+
+Set `studio.exposeInProduction: true` in `runelight.config.ts` when the Vite production build should emit usable `/runelight` and Studio routes. Default is off.
+
 ## Verify
 
 1. Run typecheck/build.

@@ -88,7 +88,11 @@ Follow [CLI serve lifecycle](../intelligence-tests/cli-serve-lifecycle.it.md) ex
 
 ## Production opt-in
 
-Default production builds hide `/runelight` and Studio. To expose them in production builds, set `studio.exposeInProduction: true` and follow adapter-specific production route guidance in setup profiles.
+Default production builds hide `/runelight` and Studio.
+
+**Vite React / Vue:** set `studio.exposeInProduction: true` in `runelight.config.ts`. The Vite adapter emits production preview and Studio assets when enabled.
+
+**Next.js App Router:** use `runelightNextReact({ enabled: true })`, pass `enabled: true` to Studio route helpers where required, and remove dev-only `notFound()` guards on preview routes. `studio.exposeInProduction` alone is not sufficient. See [next-app-router profile](../skills/setup-runelight/profiles/next-app-router.md).
 
 ## Related
 

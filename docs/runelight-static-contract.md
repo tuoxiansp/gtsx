@@ -146,12 +146,14 @@ Declared variants become environment controls in Studio. A root-level selection 
 | `opaque-vue-template-control-flow` | Template branch not traceable to props/scope/provide | Direct template expressions |
 | `unknown-vue-branch-coverage` | Frame values not static enough for template reachability | Static `scope` / `props` / `provide` literals |
 | `uncovered-vue-template-branch` | No frame makes a template branch reachable | Add frame values for that branch |
+| `missing-provider-variants` | `GVueProvideFrame` without key `variants` | Declare variants on `defineGInjectionKey` or remove marker |
+| `unknown-provider-variant` | Frame marks a variant not on the injection key | Use a declared variant name |
 | `missing-provider-variant-frames` | Injection variants not fully covered | `GVueProvideFrame` per variant |
 
-### Warnings (non-blocking)
+### Warnings (non-blocking, React)
 
 | Diagnostic | Meaning |
 |-----------|---------|
-| `unmarked-provider-variant-projection` | Child may need `GProviderFrame` for provider-derived props |
+| `unmarked-provider-variant-projection` | React child may need `GProviderFrame` for provider-derived props |
 
 The point is not to restrict how production React or Vue works. The point is to prevent Studio's map from drifting away from the component's real render surface.

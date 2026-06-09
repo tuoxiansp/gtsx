@@ -41,6 +41,7 @@ runelight capture src/Badge.g.tsx --all
 runelight capture src --all --out ./captures
 runelight capture src/Panel.g.tsx --viewport 1440x900 --port 4315
 runelight capture src/Panel.g.tsx --frame-override 'src/Child.g.tsx#default:admin'
+# Preview URLs use repeatable query param frameOverride=coordinate:frameName
 ```
 
 | Flag | Meaning |
