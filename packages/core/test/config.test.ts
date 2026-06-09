@@ -25,6 +25,7 @@ export default defineRunelightConfig({
     command: "pnpm dev --port {port}",
   },
   studio: {
+    exposeInProduction: true,
     manifestCacheTtlMs: 2500,
   },
 })
@@ -47,6 +48,7 @@ export default defineRunelightConfig({
         manifest: "/runelight/studio/manifest",
       })
       expect(resolveRunelightConfig(result.config!).studio.manifestCacheTtlMs).toBe(2500)
+      expect(resolveRunelightConfig(result.config!).studio.exposeInProduction).toBe(true)
     } finally {
       rmSync(root, { force: true, recursive: true })
     }
@@ -64,6 +66,7 @@ export default defineRunelightConfig({
     expect(resolved.routes.preview).toBe("/runelight")
     expect(resolved.routes.studio).toBe("/runelight/studio")
     expect(resolved.routes.manifest).toBe("/runelight/studio/manifest")
+    expect(resolved.studio.exposeInProduction).toBe(false)
     expect(resolved.studio.manifestCacheTtlMs).toBe(1000)
   })
 })

@@ -20,6 +20,7 @@ export function resolveRunelightConfig(config: RunelightConfig): ResolvedRunelig
     },
     routes: DEFAULT_RUNELIGHT_ROUTES,
     studio: {
+      exposeInProduction: config.studio?.exposeInProduction ?? false,
       manifestCacheTtlMs: config.studio?.manifestCacheTtlMs ?? DEFAULT_STUDIO_MANIFEST_CACHE_TTL_MS,
     },
   }

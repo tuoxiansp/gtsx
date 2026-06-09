@@ -24,6 +24,7 @@ export type RunelightRouteConfig = {
 export type RunelightScriptConfig = RunelightConfig
 
 export type RunelightStudioConfig = {
+  exposeInProduction?: boolean
   manifestCacheTtlMs?: number
 }
 

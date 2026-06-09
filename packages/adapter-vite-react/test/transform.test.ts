@@ -154,6 +154,102 @@ Card.frames = {
     }
   })
 
+  it("emits production preview and Studio assets only when explicitly configured", async () => {
+    const root = mkdtempSync(join(tmpdir(), "runelight-vite-production-expose-"))
+    const studioAppDirectory = join(root, "studio-app")
+    const previousRunelightDev = process.env.RUNELIGHT_DEV
+    delete process.env.RUNELIGHT_DEV
+
+    try {
+      mkdirSync(join(root, "src/components"), { recursive: true })
+      mkdirSync(join(studioAppDirectory, "assets"), { recursive: true })
+      writeFileSync(
+        join(root, "src/components/Card.g.tsx"),
+        ["export default function Card() { return null }", "Card.frames = { ready: { props: {} } }", ""].join("\n"),
+      )
+      writeFileSync(join(root, "src/preview.tsx"), "export function RunelightPreviewApp() { return null }\n")
+      writeFileSync(
+        join(studioAppDirectory, "index.html"),
+        '<!doctype html><div id="root"></div><script type="module" src="/runelight/studio/assets/studio.js"></script>',
+      )
+      writeFileSync(join(studioAppDirectory, "assets/studio.js"), "window.__runelightStudio = true")
+
+      const disabled = runelightViteReact({
+        config: runelightConfig,
+        root,
+        studioAppDirectory,
+      })
+      disabled.configResolved({ command: "build", root })
+
+      expect(disabled.resolveId("virtual:runelight/config")).toBeNull()
+      expect(disabled.transformIndexHtml()).toBeUndefined()
+
+      const enabled = runelightViteReact({
+        config: {
+          ...runelightConfig,
+          studio: {
+            exposeInProduction: true,
+          },
+        },
+        root,
+        studioAppDirectory,
+      })
+      enabled.configResolved({ command: "build", root })
+
+      const emitted: Array<{ fileName?: string; id?: string; source?: string | Buffer; type: "asset" | "chunk" }> = []
+      const context = {
+        emitFile(file: { fileName?: string; id?: string; source?: string | Buffer; type: "asset" | "chunk" }) {
+          emitted.push(file)
+          return `ref-${emitted.length}`
+        },
+        getFileName() {
+          return "assets/runelight-preview.js"
+        },
+      }
+
+      enabled.buildStart.call(context)
+
+      const previewEntryId = enabled.resolveId("virtual:runelight/production-preview-entry")
+      const previewEntry = enabled.load(previewEntryId)
+      expect(previewEntry?.code).toContain("RunelightPreviewApp")
+      expect(previewEntry?.code).toContain("src/preview.tsx")
+
+      await enabled.generateBundle.call(context, {}, {
+        "assets/runelight-preview.js": {
+          fileName: "assets/runelight-preview.js",
+          type: "chunk",
+          viteMetadata: {
+            importedCss: new Set(["assets/runelight-preview.css"]),
+          },
+        },
+      })
+
+      const emittedAssets = emitted.filter((file) => file.type === "asset")
+      expect(emittedAssets.map((file) => file.fileName).sort()).toEqual([
+        "runelight/index.html",
+        "runelight/studio/assets/studio.js",
+        "runelight/studio/index.html",
+        "runelight/studio/manifest",
+      ])
+      expect(String(emittedAssets.find((file) => file.fileName === "runelight/index.html")?.source)).toContain(
+        "/assets/runelight-preview.css",
+      )
+
+      const manifest = JSON.parse(String(emittedAssets.find((file) => file.fileName === "runelight/studio/manifest")?.source))
+      expect(manifest.routes.preview).toBe("/runelight/")
+      expect(manifest.routes.studio).toBe("/runelight/studio/")
+      expect(manifest.preview.urlTemplate).toBe("/runelight/?entry={entry}&frame={frame}{frameOverrides}")
+      expect(manifest.files.map((file: { path: string }) => file.path)).toEqual(["src/components/Card.g.tsx"])
+    } finally {
+      rmSync(root, { force: true, recursive: true })
+      if (previousRunelightDev === undefined) {
+        delete process.env.RUNELIGHT_DEV
+      } else {
+        process.env.RUNELIGHT_DEV = previousRunelightDev
+      }
+    }
+  })
+
   it("loads a low-level Runelight project index through a virtual module", () => {
     const fixtureRoot = resolve(import.meta.dirname, "../../core/test/fixtures/check-project")
     const plugin = runelightViteReact({ config: runelightConfig, root: fixtureRoot })

@@ -6,6 +6,9 @@ export default defineRunelightConfig({
     entryRoot: "app/runelight",
     namespace: "runelight-website",
   },
+  studio: {
+    exposeInProduction: true,
+  },
   host: {
     command: "pnpm exec vite --host 127.0.0.1 --port {port} --strictPort",
   },

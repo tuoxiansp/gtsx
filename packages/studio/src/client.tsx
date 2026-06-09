@@ -1593,7 +1593,7 @@ export function createStudioPreviewUrl(
   for (const override of options.frameOverrides ?? []) {
     params.append("frameOverride", `${override.coordinate}:${override.frameName}`)
   }
-  return `${manifest.routes.preview}?${params.toString()}`
+  return appendStudioPreviewSearchParams(manifest.routes.preview, params)
 }
 
 export function createStudioPreviewPoolUrl(manifest: StudioManifest): string {

@@ -188,11 +188,15 @@ export function studioUrlSearchFromSearchParams(searchParams: StudioRouteSearchP
 
 function previewConfigFromRoutes(routes: StudioManifestRouteConfig): StudioManifestPreviewConfig {
   return {
-    urlTemplate: `${routes.preview}?entry={entry}&frame={frame}{frameOverrides}`,
-    allUrlTemplate: `${routes.preview}?entry={entry}{frameOverrides}`,
+    urlTemplate: appendPreviewSearchTemplate(routes.preview, "entry={entry}&frame={frame}{frameOverrides}"),
+    allUrlTemplate: appendPreviewSearchTemplate(routes.preview, "entry={entry}{frameOverrides}"),
   }
 }
 
 function studioDesignPathPrefix(entryRoot: string): string {
   return `${runelightDesignRootFromEntryRoot(entryRoot)}/`
+}
+
+function appendPreviewSearchTemplate(url: string, template: string): string {
+  return `${url}${url.includes("?") ? "&" : "?"}${template}`
 }
