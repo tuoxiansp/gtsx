@@ -50,22 +50,16 @@ export default defineRunelightConfig({
     entryRoot: "app/runelight",
     namespace: "my-project",
   },
-  routes: {
-    preview: "/runelight",
-    studio: "/runelight/studio",
-    manifest: "/runelight/studio/manifest",
-  },
-  preview: {
-    serve: "npm run dev -- --hostname 127.0.0.1 --port {port}",
-    studioUrl: "http://127.0.0.1:{port}/runelight/studio",
-    url: "http://127.0.0.1:{port}/runelight?entry={entry}&frame={frame}{frameOverrides}",
-    allUrl: "http://127.0.0.1:{port}/runelight?entry={entry}{frameOverrides}",
+  host: {
+    command: "npm run dev -- --hostname 127.0.0.1 --port {port}",
   },
   studio: {
     manifestCacheTtlMs: 1000,
   },
 })
 ```
+
+`runelight serve` substitutes `{port}` in `host.command`. Routes are Runelight defaults — do not add a `routes` key. For npm use `npm run dev -- --hostname ...`; for pnpm use `pnpm dev --hostname 127.0.0.1 --port {port}`.
 
 ## Route Files
 

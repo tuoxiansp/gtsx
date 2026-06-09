@@ -34,6 +34,8 @@ Because every state is declared and type-checked, your agent can also verify its
 
 ## Get Started — One Prompt
 
+Runelight skills are installed **by your agent** (copied into the project), not via a one-shot `npx` installer. That keeps setup, Host detection, and verification inside the agent workflow.
+
 Paste this into your AI agent:
 
 ```
@@ -50,7 +52,7 @@ After refreshing that setup skill, run `setup-runelight` in this project now.
 Follow it through setup and verification.
 ```
 
-The agent detects your project, installs packages, wires Studio, and verifies everything works. ~5 minutes.
+The agent detects your project, installs packages, wires Studio, installs framework-specific companion skills, and verifies the integration.
 
 ## Supported Projects
 
@@ -82,7 +84,7 @@ Badge.frames = {
 } satisfies GFrames<BadgeProps>
 ```
 
-That `.frames` object is the component-level footprint - inert data that never runs in production and never appears in your bundle. Your agent writes it. The type checker keeps it in sync.
+`Component.frames` is static metadata for Studio and `runelight check`. Production render paths do not read frames; preview runtime is separate dev-only code loaded by adapters.
 
 Protocol types and helpers use the `G` prefix, such as `GFrames`, `createGScopeHook`, and `createGProvider`.
 
@@ -94,24 +96,36 @@ Rename `.g.tsx` → `.tsx` or `.g.vue` → `.vue`, delete frames, remove the Stu
 
 ## Docs
 
-**Using Runelight:**
+**Using Runelight (React):**
 
-- [Authoring Guide](docs/runelight-authoring-guide.md) — patterns for pure, stateful, and contextual components
-- [React Refactor Guide](docs/runelight-refactor-guide.md) — convert existing TSX into Runelight format
-- [Design Workspace](docs/runelight-design-workspace.md) — AI-assisted product design drafts in Studio
+- [Authoring Guide](docs/runelight-authoring-guide.md) — `.g.tsx` patterns
+- [Refactor Guide](docs/runelight-refactor-guide.md) — migrate TSX to `.g.tsx`
+- [Design Workspace](docs/runelight-design-workspace.md) — product design drafts in Studio
+
+**Using Runelight (Vue):**
+
+- [Vue Authoring Guide](docs/runelight-authoring-guide-vue.md) — `.g.vue` patterns
+- [Vue Refactor Guide](docs/runelight-refactor-guide-vue.md) — migrate SFCs to `.g.vue`
+
+**Reference:**
+
+- [CLI](docs/cli.md) — `check`, `serve`, `capture`, `init`, `diagnose`
+- [Configuration](docs/runelight-config.md) — `runelight.config.ts`
+- [Troubleshooting](docs/troubleshooting.md) — Studio, preview, Next.js layouts
+- [Testing](docs/testing.md) — unit tests and intelligence tests
 
 **Understanding Runelight:**
 
 - [Design](docs/runelight-design.md) — architecture, sidecar model, and guarantees
-- [.g Protocol](docs/g-protocol.md) — the source-level model behind frames, seams, and static checks
-- [Static Contract](docs/runelight-static-contract.md) — the type-level contract, JSX branch coverage, and provider variant model
+- [.g Protocol](docs/g-protocol.md) — frames, seams, and static checks
+- [Static Contract](docs/runelight-static-contract.md) — branch coverage and diagnostics
 
 **For AI agents:**
 
-- [Skills](skills/) — agent-executable workflows: [`setup-runelight`](skills/setup-runelight/SKILL.md), [`authoring-runelight-react`](skills/authoring-runelight-react/SKILL.md), [`authoring-runelight-vue`](skills/authoring-runelight-vue/SKILL.md), [`refactor-to-runelight-react`](skills/refactor-to-runelight-react/SKILL.md), [`refactor-to-runelight-vue`](skills/refactor-to-runelight-vue/SKILL.md), [`design-runelight-react`](skills/design-runelight-react/SKILL.md), [`design-runelight-vue`](skills/design-runelight-vue/SKILL.md)
+- [Skills index](skills/README.md) — [`setup-runelight`](skills/setup-runelight/SKILL.md), authoring, refactor, design, [`diagnose-runelight`](skills/diagnose-runelight/SKILL.md)
 
 ## Contributing
 
-pnpm workspace. `pnpm install && pnpm build && pnpm test && pnpm typecheck`.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Quick check: `pnpm install && pnpm build && pnpm test && pnpm typecheck`.
 
-Packages: `@runelight/cli` (the `runelight` command), `@runelight/core` (protocol, analysis, and config), `@runelight/studio` (prebuilt Studio app and manifests), `@runelight/adapter-vite-react` (Vite React adapter), `@runelight/adapter-next-react` (Next.js adapter), and `@runelight/adapter-vite-vue` (Vite Vue adapter). Repository examples live under [`examples/`](examples/), including `react-vite` and `vue-vite`; agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).
+Packages: `@runelight/cli`, `@runelight/core`, `@runelight/studio`, `@runelight/adapter-vite-react`, `@runelight/adapter-next-react`, `@runelight/adapter-vite-vue`. Examples: [`examples/`](examples/). Agent E2E specs: [`intelligence-tests/`](intelligence-tests/).

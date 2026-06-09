@@ -1,8 +1,8 @@
-# Runelight Authoring Guide
+# Runelight React Authoring Guide
 
-How to write Runelight components: React components in `.g.tsx` files that use the `.g` protocol, pass `runelight check`, and render correctly in Studio.
+How to write Runelight React components in `.g.tsx` files that use the `.g` protocol, pass `runelight check`, and render correctly in Studio.
 
-This is the human-readable companion to the React agent skill. The canonical reference for all React patterns lives in [skills/authoring-runelight-react/REFERENCE.md](../skills/authoring-runelight-react/REFERENCE.md). This guide covers the mental model and decision points.
+Agent workflow: [`authoring-runelight-react`](../skills/authoring-runelight-react/SKILL.md). Full patterns: [`REFERENCE.md`](../skills/authoring-runelight-react/REFERENCE.md). For Vue, see the [Vue authoring guide](./runelight-authoring-guide-vue.md).
 
 If converting existing TSX, start with the [Refactor Guide](./runelight-refactor-guide.md). If the project isn't wired for Runelight yet, run the [`setup-runelight`](../skills/setup-runelight/SKILL.md) skill.
 
@@ -123,7 +123,7 @@ Frames are static object literals attached to the component export.
 **Rules:**
 
 - Happy-path frame first, then edge states.
-- At least two frames (unless the component truly has one stable visual state).
+- At least two frames when multiple visual states exist (a single stable appearance may use one frame).
 - Static object literals only — no computed keys, no dynamic generation.
 - No secrets or customer data.
 - No-op functions for callbacks: `increment() {}`.
@@ -143,14 +143,4 @@ runelight check src/Badge.g.tsx    # single file
 runelight check src                # directory
 ```
 
-| Diagnostic | Fix |
-|-----------|-----|
-| `missing-frames` | Add `Component.frames = { ... } satisfies GFrames<…>` |
-| `non-static-frame-key` | Use literal frame keys |
-| `non-runelight-hook` | Wrap with `createGScopeHook`, call only the returned hook |
-| `scope-hook-frames-unsupported` | Move `.frames` from scope hook to component export |
-| `missing-provider-variant-frames` | Mark frames with `GProviderFrame` for every consumed provider variant |
-| `opaque-jsx-control-flow` | Rewrite branches as direct props/scope/context expressions |
-| `uncovered-jsx-branch` | Add a frame that makes the branch reachable |
-
-Full diagnostic list: [Static Contract — Diagnostics](./runelight-static-contract.md#diagnostics).
+Diagnostics and fixes: [Static Contract — Diagnostics](./runelight-static-contract.md#diagnostics).

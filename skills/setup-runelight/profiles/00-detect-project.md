@@ -20,9 +20,9 @@ Every successful integration needs:
 1. TypeScript Program and source-root scope for `.g.tsx` or `.g.vue` discovery.
 2. React or Vue transform for component boundaries.
 3. Project index / manifest built from the selected source set.
-4. Preview route that maps `entry`, `frame`, and `frameOverride` search params to the preview client.
+4. Preview route that maps `entry`, `frame`, and `frameOverrides` search params to the preview client.
 5. Studio route that serves the prebuilt `@runelight/studio` app and manifest.
-6. Stable `preview.serve`, `preview.url`, `preview.allUrl`, and optional `preview.studioUrl` commands for verification and capture.
+6. `host.command` in `runelight.config.ts` so `runelight serve` and `runelight capture` can start the Host on a deterministic port.
 
 ## Supported Project Scope
 
@@ -65,7 +65,7 @@ Before selecting write actions, check whether the project is already integrated:
 If any of these are present, classify the task as upgrade/ensure mode unless the user explicitly asked for a full reinstall. In upgrade/ensure mode:
 
 - Update Runelight packages, then audit whether the existing glue still matches the upgraded package contracts.
-- Preserve existing route files, config wrappers, browser-entry branches, URL conventions, preview commands, and local customizations.
+- Preserve existing route files, config wrappers, browser-entry branches, URL conventions, `host.command`, and local customizations.
 - Change glue only when typecheck, adapter exports/types, package examples/docs, generated-file errors, or runtime verification show that a version migration is required.
 - If the adapter package or wrapper must change, preserve the existing wrapper composition order and explain the change.
 - Ensure `runelight.config.ts` records `project.entryRoot`, then ensure `${project.entryRoot}/design` exists.
@@ -77,12 +77,13 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 - Install `@runelight/adapter-vite-react` only for Vite-compatible React client-only hosts.
 - Install `@runelight/adapter-vite-vue` only for Vite Vue 3 client-only hosts.
 - Install `@runelight/adapter-next-react` only for Next.js App Router.
-- Put selected root, selected local Runelight entry root, selected tsconfig, stable cache namespace, routes, and preview commands in `runelight.config.ts`.
+- Put selected source root, local Runelight entry root, tsconfig, namespace, and `host.command` in `runelight.config.ts`.
 - Use the package name or repo slug as `project.namespace`, not a file hash.
 - Choose `project.sourceRoot: "src"` when app source lives under `src`; choose `project.sourceRoot: "."` for root-level `app`, `pages`, `components`, or `lib`.
 - Choose `project.entryRoot` as the filesystem directory that owns the local `/runelight` entry: usually `app/runelight`, or `src/app/runelight` when the route tree lives under `src/app`. For client-only hosts without filesystem routes, still create and record this logical entry root during setup.
-- Generate `preview.serve` for the detected package manager and host. Do not hard-code `pnpm` in npm/yarn/bun projects.
-- Keep `preview.studioUrl`, `preview.url`, and `preview.allUrl` on the same host bound by `preview.serve`; when serving on `127.0.0.1`, use `127.0.0.1` in URLs instead of `localhost`.
+- Generate `host.command` for the detected package manager and host. Do not hard-code `pnpm` in npm/yarn/bun projects.
+- When verification URLs use `127.0.0.1`, bind `host.command` to `127.0.0.1` instead of `localhost`.
+- After setup, write or refresh `docs/agents/runelight.md` using [seeds/docs-agents-runelight.md](../seeds/docs-agents-runelight.md).
 
 ## Verification
 

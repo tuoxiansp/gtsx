@@ -116,7 +116,9 @@ For Next.js App Router, this means inherited layouts matter. A `/runelight` page
 
 This model gives Runelight a small, well-defined surface area:
 
-**Production code.** Frames are inert static data. The preview runtime is separate code loaded only by Studio. No production path reads frames. No bundle ships them.
+**Production code.** Frames are inert static data attached to components. Production render paths do not read them. The preview runtime is separate dev-only code loaded by adapters and Studio.
+
+For Studio canvas performance and preview pipeline notes, see [traces/2026-05-28-studio-canvas-performance-optimization.md](../traces/2026-05-28-studio-canvas-performance-optimization.md).
 
 **Build pipeline.** Adapters plug into your existing pipeline. `runelight serve` starts the configured Host command rather than introducing a parallel bundler or second app runtime.
 

@@ -144,11 +144,7 @@ If any answer is clearly no, revise the frame before hand-off.
 
 ## Verification
 
-Use the project's normal preview route:
-
-```sh
-pnpm dev
-```
+Start the project's dev server (for example `pnpm dev`, `npm run dev`, or `runelight serve`).
 
 Open:
 

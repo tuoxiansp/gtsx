@@ -1,6 +1,7 @@
 ---
 name: setup-runelight
 description: Install, upgrade, or ensure Runelight Studio in a TypeScript React project or TypeScript Vue 3 project. Use when a project asks for "install Runelight", "set up Runelight", "upgrade Runelight", or "update Runelight"; this bootstrap skill detects the host, wires the integration, and verifies end-to-end.
+disable-model-invocation: true
 ---
 
 # Install Or Upgrade Runelight In This Project
@@ -25,7 +26,7 @@ This file is the router. Read the detection profile first, then enter exactly on
 - In upgrade/ensure mode:
   - treat `@runelight/core`, `@runelight/studio`, and the selected adapter package as one compatibility group; align them to compatible current npm versions and update the lockfile;
   - run an upgrade compatibility audit before deciding glue code is still valid;
-  - preserve existing Runelight config, route files, framework config wrappers, browser entry branches, Studio URLs, preview URLs, and `.runelight/preview-entries.ts` import patterns unless the audit shows a package-version contract change requires a minimal migration;
+  - preserve existing Runelight config, route files, framework config wrappers, browser entry branches, Studio URLs, `host.command`, and `.runelight/preview-entries.ts` import patterns unless the audit shows a package-version contract change requires a minimal migration;
   - ensure the Runelight config records `project.entryRoot`, then create `${project.entryRoot}/design` if it is missing;
   - restart or ask the user to restart the dev server so adapter-generated files such as `.runelight/preview-entries.ts` can be refreshed;
   - verify `/runelight/studio`, `/runelight/studio#/design`, `/runelight/studio/manifest`, and at least one preview URL when entries exist.
@@ -38,7 +39,7 @@ When upgrade/ensure mode updates package versions, the agent must self-check whe
 - Inspect current and target Runelight package versions from `package.json`, lockfile, and installed package metadata when available.
 - Inspect the installed adapter exports, type errors, local docs, or examples that come with the package before assuming an old route/config shape still works.
 - Run typecheck and Runelight verification after the package update. Treat changed imports, missing exports, changed route helper signatures, manifest shape changes, or adapter-generated file errors as evidence that glue migration is required.
-- If migration is required, make the smallest compatible edit to the existing local glue. Preserve app-specific wrappers, route structure, preview commands, visual CSS setup, and custom providers unless they directly conflict with the new contract.
+- If migration is required, make the smallest compatible edit to the existing local glue. Preserve app-specific wrappers, route structure, `host.command`, visual CSS setup, and custom providers unless they directly conflict with the new contract.
 - Report the audit result: packages upgraded, whether glue was unchanged or migrated, which files changed, and the concrete reason for any glue edit.
 
 ## Global Rules
@@ -61,10 +62,12 @@ Fetch or copy companion skill directories from the Runelight source repository i
 
 | Project type | Project-level skills to install |
 | --- | --- |
-| React | `skills/authoring-runelight-react`, `skills/refactor-to-runelight-react`, `skills/design-runelight-react` |
-| Vue | `skills/authoring-runelight-vue`, `skills/refactor-to-runelight-vue`, `skills/design-runelight-vue` |
+| React | `skills/authoring-runelight-react`, `skills/refactor-to-runelight-react`, `skills/design-runelight-react`, `skills/diagnose-runelight` |
+| Vue | `skills/authoring-runelight-vue`, `skills/refactor-to-runelight-vue`, `skills/design-runelight-vue`, `skills/diagnose-runelight` |
 
 If a companion skill is already present, refresh it from the current Runelight source before relying on it. Do not install irrelevant framework skills.
+
+Also write or refresh `docs/agents/runelight.md` from [seeds/docs-agents-runelight.md](seeds/docs-agents-runelight.md) with the selected profile, paths, and `host.command`.
 
 ## After Setup
 
@@ -76,3 +79,4 @@ Route to sibling skills for component work:
 - `refactor-to-runelight-vue` — convert existing Vue SFCs into `.g.vue`.
 - `design-runelight-react` — create and iterate React `.g.tsx` design frames in Studio's design workspace.
 - `design-runelight-vue` — create and iterate Vue `.g.vue` design frames in Studio's design workspace.
+- `diagnose-runelight` — troubleshoot Studio, preview, layout, and config integration issues.

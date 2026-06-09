@@ -49,16 +49,8 @@ export default defineRunelightConfig({
     entryRoot: "app/runelight",
     namespace: "my-project",
   },
-  routes: {
-    preview: "/runelight",
-    studio: "/runelight/studio",
-    manifest: "/runelight/studio/manifest",
-  },
-  preview: {
-    serve: "npm run dev -- --host 127.0.0.1 --port {port}",
-    studioUrl: "http://127.0.0.1:{port}/runelight/studio",
-    url: "http://127.0.0.1:{port}/runelight?entry={entry}&frame={frame}{frameOverrides}",
-    allUrl: "http://127.0.0.1:{port}/runelight?entry={entry}{frameOverrides}",
+  host: {
+    command: "npm run dev -- --host 127.0.0.1 --port {port}",
   },
   studio: {
     manifestCacheTtlMs: 1000,
@@ -66,7 +58,9 @@ export default defineRunelightConfig({
 })
 ```
 
-If the project uses npm, `serve` needs `npm run dev -- --host ...`. For pnpm, prefer `pnpm dev --host ...`. Keep the selected host consistent with the URLs.
+`runelight serve` substitutes `{port}` in `host.command`. Routes (`/runelight`, `/runelight/studio`, `/runelight/studio/manifest`) are Runelight defaults — do not add a `routes` key.
+
+Use the detected package manager in `host.command`: npm needs `npm run dev -- --host ...`; pnpm can use `pnpm dev --host 127.0.0.1 --port {port}`. Keep the host binding consistent with verification URLs on `127.0.0.1`.
 
 ## Browser Entry
 

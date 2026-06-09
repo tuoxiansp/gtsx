@@ -193,6 +193,7 @@ export function PrimaryButton(props: ButtonProps) {
 
 PrimaryButton.frames = {
   ready: { props: { label: "Submit", variant: "primary" } },
+  longLabel: { props: { label: "Submit order", variant: "primary" } },
 } satisfies GFrames<ButtonProps>
 
 export default function GhostButton(props: ButtonProps) {
@@ -201,6 +202,7 @@ export default function GhostButton(props: ButtonProps) {
 
 GhostButton.frames = {
   ready: { props: { label: "Cancel", variant: "ghost" } },
+  longLabel: { props: { label: "Cancel order", variant: "ghost" } },
 } satisfies GFrames<ButtonProps>
 ```
 

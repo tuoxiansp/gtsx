@@ -13,10 +13,12 @@ Also add a Vue-native provide/inject case in the same temporary project. Define 
 Validate these outcomes:
 
 - Before setup runs, the project contains `.agents/skills/setup-runelight` and no other Runelight project-level skills.
-- Setup installs or refreshes only the Vue companion skills needed for this project: `authoring-runelight-vue`, `refactor-to-runelight-vue`, and `design-runelight-vue`.
+- Setup installs or refreshes only the Vue companion skills needed for this project: `authoring-runelight-vue`, `refactor-to-runelight-vue`, `design-runelight-vue`, and `diagnose-runelight`.
 - Setup does not install `authoring-runelight-react`, `refactor-to-runelight-react`, `design-runelight-react`, or the deprecated unsplit `authoring-runelight`, `refactor-to-runelight`, and `design-runelight`.
 - The installed `design-runelight-vue/DESIGN_REFERENCE.md` is an aesthetic reference only; it does not contain React/Next-specific implementation instructions, package installation commands, or design-stack defaults unrelated to the target Vue project.
 - The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
+- `runelight.config.ts` records `project.sourceRoot`, `project.entryRoot`, and `host.command` (no obsolete `preview` or `routes` keys).
+- `docs/agents/runelight.md` exists with integration facts from setup.
 - `runelight check` accepts the `.g.vue` entry and lists its frames.
 - `runelight check` reports `uncovered-vue-template-branch` when a Vue template branch has no matching frame, then accepts the component after the missing frame is added.
 - `/runelight/studio/manifest` returns JSON that includes the `.g.vue#default` coordinate and every frame from `<g:frames>`.

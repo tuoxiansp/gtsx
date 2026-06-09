@@ -120,22 +120,38 @@ Declared variants become environment controls in Studio. A root-level selection 
 
 ## Diagnostics
 
-All coverage and control-flow diagnostics are fatal (`runelight check` exits non-zero):
+### Fatal (React)
+
+`runelight check` exits non-zero:
+
+| Diagnostic | Meaning | Typical fix |
+|-----------|---------|-------------|
+| `missing-frames` | Exported component has no `Component.frames` | Add `Component.frames = { ... } satisfies GFrames<…>` |
+| `non-static-frame-key` | Frame key is not a string literal | Use literal keys only |
+| `non-runelight-hook` | Disallowed hook in `.g.tsx` component body | Wrap with `createGScopeHook`; use only `useGContext` and scope hooks |
+| `scope-hook-frames-unsupported` | `.frames` attached to a scope hook | Move `.frames` to the component export |
+| `missing-provider-variants` | `GProviderFrame` without provider `variants` | Declare `variants` on `createGProvider` or remove marker |
+| `unknown-provider-variant` | Frame marks a variant not declared on provider | Use a declared variant name |
+| `missing-provider-variant-frames` | Consumed provider variants not fully covered | Add `GProviderFrame` frames for each variant |
+| `opaque-jsx-control-flow` | JSX branch not traceable to props/scope/context | Direct conditionals over known inputs |
+| `unknown-jsx-branch-coverage` | Frame values affecting reachability are not static enough | Inline static literals for branch-driving values |
+| `uncovered-jsx-branch` | No frame makes a JSX branch reachable | Add a frame that reaches the branch |
+
+### Fatal (Vue)
+
+| Diagnostic | Meaning | Typical fix |
+|-----------|---------|-------------|
+| `missing-frames` | SFC missing `<g:frames>` or static keys | Add `<g:frames>` with `export default { ... }` |
+| `non-static-frame-key` | Frame key is not a string literal | Use literal keys only |
+| `opaque-vue-template-control-flow` | Template branch not traceable to props/scope/provide | Direct template expressions |
+| `unknown-vue-branch-coverage` | Frame values not static enough for template reachability | Static `scope` / `props` / `provide` literals |
+| `uncovered-vue-template-branch` | No frame makes a template branch reachable | Add frame values for that branch |
+| `missing-provider-variant-frames` | Injection variants not fully covered | `GVueProvideFrame` per variant |
+
+### Warnings (non-blocking)
 
 | Diagnostic | Meaning |
 |-----------|---------|
-| `opaque-jsx-control-flow` | A JSX branch cannot be traced to props/scope/context |
-| `unknown-jsx-branch-coverage` | Frame values affecting reachability are not static enough |
-| `uncovered-jsx-branch` | No frame makes a JSX branch reachable |
-| `opaque-vue-template-control-flow` | A Vue template branch cannot be traced to props/scope/provide |
-| `unknown-vue-branch-coverage` | Frame values affecting Vue template reachability are not static enough |
-| `uncovered-vue-template-branch` | No frame makes a Vue template branch reachable |
-| `missing-provider-variant-frames` | A consumed provider's variants are not fully covered |
-
-Projection hints are warnings (non-blocking):
-
-| Diagnostic | Meaning |
-|-----------|---------|
-| `unmarked-provider-variant-projection` | A child might need `GProviderFrame` markers for provider-derived props |
+| `unmarked-provider-variant-projection` | Child may need `GProviderFrame` for provider-derived props |
 
 The point is not to restrict how production React or Vue works. The point is to prevent Studio's map from drifting away from the component's real render surface.
