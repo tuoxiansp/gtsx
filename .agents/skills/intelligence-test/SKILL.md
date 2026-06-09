@@ -1,6 +1,6 @@
 ---
 name: intelligence-test
-description: Ask the agent to do agent-driven end-to-end validation for this gtsx repo. Use when the user mentions intelligence test, `.it.md`, agent-driven E2E, or wants confidence beyond unit/type/build checks.
+description: Ask the agent to do agent-driven end-to-end validation for this Runelight repo. Use when the user mentions intelligence test, `.it.md`, agent-driven E2E, or wants confidence beyond unit/type/build checks.
 ---
 
 # Intelligence Test

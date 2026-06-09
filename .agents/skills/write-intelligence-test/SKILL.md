@@ -1,6 +1,6 @@
 ---
 name: write-intelligence-test
-description: Write or revise `intelligence-tests/*.it.md` task cards for agent-driven end-to-end validation in this gtsx repo. Use when the user asks to add, edit, or design `.it.md` intelligence test scenarios or expected user experiences.
+description: Write or revise `intelligence-tests/*.it.md` task cards for agent-driven end-to-end validation in this Runelight repo. Use when the user asks to add, edit, or design `.it.md` intelligence test scenarios or expected user experiences.
 ---
 
 # Write Intelligence Test

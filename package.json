@@ -1,7 +1,7 @@
 {
   "name": "runelight-workspace",
   "private": true,
-  "description": "Preview and verify every React UI state with typed .g.tsx components.",
+  "description": "Preview and verify every UI state with typed .g.tsx and .g.vue components.",
   "license": "MIT",
   "type": "module",
   "repository": {

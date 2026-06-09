@@ -1,7 +1,7 @@
 {
   "name": "@runelight/core",
   "version": "0.0.8",
-  "description": "Core runtime for authoring and previewing Runelight React components.",
+  "description": "Core runtime for authoring and previewing Runelight React and Vue components.",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -16,6 +16,7 @@
   "keywords": [
     "runelight",
     "react",
+    "vue",
     "tsx",
     "component-preview",
     "agent"

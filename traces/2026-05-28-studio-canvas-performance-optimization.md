@@ -4,6 +4,8 @@ Date: 2026-05-28
 
 Scope: Runelight Studio canvas, yuckuolie Studio entry, preview iframe rendering, geometry cache, render queue, scroll/zoom interaction.
 
+> Historical note: the `examples/yuckuolie` integration target referenced throughout this trace has since been removed from the repository. The trace is kept as engineering memory; current examples live under `examples/react-vite` and `examples/vue-vite`.
+
 This trace records the performance and abstraction work done after the Studio canvas UX changes. It is meant as an engineering memory: what was broken, which abstractions were introduced, what decisions were made, how the behavior was verified, and what still deserves observation.
 
 ## Background
