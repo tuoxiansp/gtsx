@@ -3,9 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "pnpm --dir ../.. --filter @runelight/core --filter @runelight/cli --filter @runelight/studio --filter @runelight/adapter-vite-react build",
+    "predev": "pnpm --dir ../.. --filter @runelight/core --filter @runelight/preview-react --filter @runelight/cli --filter @runelight/studio --filter @runelight/adapter-vite-react build",
     "dev": "runelight serve",
-    "runelight:build": "pnpm --dir ../.. --filter @runelight/core --filter @runelight/cli --filter @runelight/studio --filter @runelight/adapter-vite-react build",
+    "prebuild": "pnpm --dir ../.. --filter @runelight/core --filter @runelight/preview-react --filter @runelight/cli --filter @runelight/studio --filter @runelight/adapter-vite-react build",
+    "runelight:build": "pnpm --dir ../.. --filter @runelight/core --filter @runelight/preview-react --filter @runelight/cli --filter @runelight/studio --filter @runelight/adapter-vite-react build",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "runelight:check": "runelight check src/app",
