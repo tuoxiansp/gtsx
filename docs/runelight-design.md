@@ -2,7 +2,7 @@
 
 How Runelight works - the architecture, the sidecar model, and what it does and doesn't touch in your project.
 
-For the type-level contract and branch coverage rules, see [Static Contract](./runelight-static-contract.md). For the design workspace, see [Design Workspace](./runelight-design-workspace.md).
+For the type-level contract and branch coverage rules, see [Static Contract](./runelight-static-contract.md). For the design workspace, see [Design Workspace](./runelight-design-workspace.md). For the command and configuration surface, see [CLI Reference](./runelight-cli.md) and [Configuration Reference](./runelight-configuration.md).
 
 ---
 
@@ -22,13 +22,13 @@ The protocol adds three things. All optional. All additive:
 2. **A static export.** React uses `Component.frames`; Vue uses a `<g:frames>` block with `export default { ... }`.
 3. **Seam helpers or frame scope.** React uses `createGScopeHook` and `createGProvider`. Vue preview can inject frame `props` and `scope` directly into the SFC template, and can provide native Vue injection keys from frame `provide` entries.
 
-Protocol types and helpers use the `G` prefix: `GFrames`, `GProviderFrame`, `createGScopeHook`, `createGProvider`, `useGContext`, `GVueFrames`, `GVueProvideFrame`, and `defineGInjectionKey`.
+Protocol names carry a `G` marker: `G`-prefixed types such as `GFrames`, `GProviderFrame`, `GVueFrames`, and `GVueProvideFrame`, and `createG*`/`useG*`/`defineG*` helpers such as `createGScopeHook`, `createGProvider`, `useGContext`, and `defineGInjectionKey`.
 
 None of these modify React. None change how your component renders in production.
 
 ## The Model
 
-Four primitives. No more.
+Four primitives.
 
 | Primitive | What it is |
 |-----------|-----------|
@@ -43,7 +43,7 @@ The invariant:
 
 Whatever your TypeScript Program already contains is what Runelight knows about. Runelight decides nothing about your project shape, folder layout, monorepo boundaries, or build configuration.
 
-One more concept worth naming: **the seam**. This is the single boundary where preview differs from production. In production, a scope hook calls your real hook. In preview, the same scope hook returns the frame-supplied value instead. The component itself never branches on "am I in preview?" — the substitution happens above it, at the seam.
+Beyond the four primitives, one boundary concept is worth naming: **the seam**. This is the single boundary where preview differs from production. In production, a scope hook calls your real hook. In preview, the same scope hook returns the frame-supplied value instead. The component itself never branches on "am I in preview?" — the substitution happens above it, at the seam.
 
 ## How It Works
 
@@ -52,6 +52,9 @@ One more concept worth naming: **the seam**. This is the single boundary where p
 A `.g.tsx` component in production is identical to any other React component:
 
 ```tsx
+import { createGScopeHook } from "@runelight/core"
+import { useRealCounterScope, type Props } from "./counter-scope"
+
 const useScope = createGScopeHook(useRealCounterScope)
 
 export default function Counter(props: Props) {
@@ -85,15 +88,15 @@ One boundary. One well-defined difference. Everything else is shared.
 Runelight is a dev sidecar for your existing Host, not a replacement runtime:
 
 ```
-┌──────────────────┐         ┌──────────────────┐
+┌──────────────────┐         ┌───────────────────┐
 │  Your App        │         │  Runelight Studio │
 │  routes          │         │  /runelight/studio│
 │  components      │         │  /runelight       │
-│  providers       │         │                  │
-│  data layer      │         │                  │
-└────────┬─────────┘         └────────┬─────────┘
-         │                            │
-         └──────────────┬─────────────┘
+│  providers       │         │                   │
+│  data layer      │         │                   │
+└────────┬─────────┘         └─────────┬─────────┘
+         │                             │
+         └──────────────┬──────────────┘
                         │
               ┌─────────▼─────────┐
               │ runelight serve   │
@@ -128,12 +131,21 @@ This model gives Runelight a small, well-defined surface area:
 
 ## Exit Path
 
-Removal is mechanical and gradual:
+Removal is mechanical and gradual.
+
+For React:
 
 1. Remove `Component.frames`. Components still work — they are ordinary TSX with an ignored static property.
 2. Replace `useScope()` with the underlying real hook. Components still work, behaving exactly as before.
 3. Rename `.g.tsx` → `.tsx`. TypeScript still compiles. Imports update once.
 4. Remove the Adapter from your build config. Your app still builds.
 5. Delete the `/runelight/studio` and `/runelight` routes. Your app still runs.
+
+For Vue:
+
+1. Delete the `<g:frames>` block. The SFC still works — it is an ordinary template, script, and styles.
+2. Replace `defineGInjectionKey` keys with plain `InjectionKey` values where used. `provide`/`inject` keeps working.
+3. Rename `.g.vue` → `.vue`. The SFC still compiles. Imports update once.
+4. Remove the Adapter from your Vite config and delete the `/runelight` browser-entry branch. Your app still builds and runs.
 
 What remains is what you started with: ordinary React or Vue components.

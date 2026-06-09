@@ -7,7 +7,7 @@ description: "Write, edit, or review Runelight React components in .g.tsx files.
 
 ## Core idea
 
-A Runelight React component is TSX in a `.g.tsx` file, the React/TSX format for the `.g` protocol. Protocol types and helpers use the `G` prefix, such as `GFrames`, `createGScopeHook`, and `createGProvider`.
+A Runelight React component is TSX in a `.g.tsx` file, the React/TSX format for the `.g` protocol. Protocol names carry a `G` marker: `G`-prefixed types such as `GFrames`, and `createG*`/`useG*` helpers such as `createGScopeHook` and `createGProvider`.
 
 Each exported component owns real visual TSX and carries static `Component.frames` declaring its visual states. The data flow:
 
