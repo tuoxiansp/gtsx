@@ -20,6 +20,7 @@ Validate these outcomes:
 - Starting `runelight serve` again after shutdown reuses the requested port or selects the expected next available Runelight-owned port without being blocked by a stale registry file.
 - When the underlying framework reports that another dev server is already running and prints a PID, Runelight's error output preserves the framework message and adds reliable guidance to inspect or stop the whole process group or the actual port owner.
 - A user following the printed guidance can identify the real listener even when the reported PID is only one process in a package-manager or framework launch chain.
+- With a foreground `runelight serve` running for the current project, `runelight capture` without `--port` attaches to that serve session by default. It should generate the requested screenshot, avoid starting a second Host command, avoid printing temporary-session startup text, and leave the foreground serve session running afterward.
 - `runelight capture` uses the same serve lifecycle behavior when it has to start a temporary preview server: it should fail with actionable diagnostics when the Host cannot become ready, and it should not leave a preview server running after success, failure, or interruption.
 
 Clean up every temporary project, serve session directory, generated capture artifact, and dev-server process created for this test. Do not kill unrelated user processes that were already running before the test started.

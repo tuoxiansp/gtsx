@@ -7,8 +7,13 @@ const port = readOption(process.argv.slice(2), "--port") ?? "0"
 
 appendFileSync(logFile, `${JSON.stringify({ action: "serve", port })}\n`)
 
-if (port === "4300") {
-  process.stderr.write("Port 4300 is already in use\n")
+const conflictPorts = (process.env.RUNELIGHT_TEST_CONFLICT_PORTS ?? "4300")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean)
+
+if (conflictPorts.includes(port)) {
+  process.stderr.write(`Port ${port} is already in use\n`)
   process.exit(1)
 }
 

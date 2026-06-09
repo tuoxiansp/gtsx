@@ -1,11 +1,13 @@
 import { spawn, spawnSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs"
-import { createServer } from "node:net"
+import { createServer as createHttpServer, type Server as HttpServer } from "node:http"
+import { createServer as createTcpServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
+import { capturePreviewPage } from "../src/browser-capture.js"
 import { expandUrl } from "../src/cli.js"
 import { runCLI } from "../src/cli.js"
 import {
@@ -16,6 +18,10 @@ import {
   runelightServeSessionProjectKey,
   writeRunelightServeSession,
 } from "../src/serve-session.js"
+
+vi.mock("../src/browser-capture.js", () => ({
+  capturePreviewPage: vi.fn(async () => undefined),
+}))
 
 const repositoryRoot = resolve(import.meta.dirname, "../../..")
 
@@ -79,21 +85,46 @@ describe("runelight CLI", () => {
   it("retries the next Runelight-owned port when the Host reports a port conflict", async () => {
     const cwd = join(import.meta.dirname, "fixtures/serve-retries-port")
     const logFile = join(cwd, "runelight-command-log.jsonl")
+    const sessionDir = mkdtempSync(join(tmpdir(), "runelight-cli-sessions-"))
+    const previousSessionDir = process.env.RUNELIGHT_SESSION_DIR
+    const previousConflictPorts = process.env.RUNELIGHT_TEST_CONFLICT_PORTS
+    const conflictPorts = Array.from({ length: 19 }, (_value, index) => String(4300 + index))
     rmSync(logFile, { force: true })
 
-    const result = await runCLI(["serve"], { cwd, stdout: "", stderr: "" })
-    const logs = readFileSync(logFile, "utf8")
-      .trim()
-      .split("\n")
-      .map((line) => JSON.parse(line))
-    const finalPort = [...logs].reverse().find((log) => log.action === "ready-check" && log.path === "/runelight/studio/manifest")?.port
+    process.env.RUNELIGHT_SESSION_DIR = sessionDir
+    process.env.RUNELIGHT_TEST_CONFLICT_PORTS = conflictPorts.join(",")
 
-    expect(result.exitCode).toBe(0)
-    expect(Number(finalPort)).toBeGreaterThan(4300)
-    expect(result.stdout).toContain(`Runelight serve: http://127.0.0.1:${finalPort}`)
-    expect(logs[0]).toEqual({ action: "serve", port: "4300" })
-    expect(logs).toContainEqual({ action: "ready-check", path: "/runelight/studio", port: finalPort })
-    expect(logs).toContainEqual({ action: "ready-check", path: "/runelight/studio/manifest", port: finalPort })
+    try {
+      const result = await runCLI(["serve"], { cwd, stdout: "", stderr: "" })
+      const logs = readFileSync(logFile, "utf8")
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line))
+      const finalPort = [...logs].reverse().find((log) => log.action === "ready-check" && log.path === "/runelight/studio/manifest")?.port
+      const serveAttempts = logs.filter((log) => log.action === "serve").map((log) => log.port)
+
+      expect(result.exitCode).toBe(0)
+      expect(serveAttempts.length).toBeGreaterThan(1)
+      expect(serveAttempts.slice(0, -1).every((port) => conflictPorts.includes(port))).toBe(true)
+      expect(finalPort).toBe(serveAttempts.at(-1))
+      expect(conflictPorts).not.toContain(finalPort)
+      expect(result.stdout).toContain(`Runelight serve: http://127.0.0.1:${finalPort}`)
+      expect(logs).toContainEqual({ action: "ready-check", path: "/runelight/studio", port: finalPort })
+      expect(logs).toContainEqual({ action: "ready-check", path: "/runelight/studio/manifest", port: finalPort })
+    } finally {
+      if (previousSessionDir === undefined) {
+        delete process.env.RUNELIGHT_SESSION_DIR
+      } else {
+        process.env.RUNELIGHT_SESSION_DIR = previousSessionDir
+      }
+      if (previousConflictPorts === undefined) {
+        delete process.env.RUNELIGHT_TEST_CONFLICT_PORTS
+      } else {
+        process.env.RUNELIGHT_TEST_CONFLICT_PORTS = previousConflictPorts
+      }
+      rmSync(sessionDir, { recursive: true, force: true })
+      rmSync(logFile, { force: true })
+    }
   })
 
   it("reports when the preview server exits before the Studio route is reachable", async () => {
@@ -611,6 +642,65 @@ describe("runelight CLI", () => {
     }
   })
 
+  it("captures through the current project's active serve session by default", async () => {
+    const cwd = join(import.meta.dirname, "fixtures/check-project")
+    const logFile = join(cwd, "runelight-command-log.jsonl")
+    const sessionDir = mkdtempSync(join(tmpdir(), "runelight-cli-sessions-"))
+    const previousSessionDir = process.env.RUNELIGHT_SESSION_DIR
+    const sessionId = createRunelightServeSessionId()
+    const projectKey = runelightServeSessionProjectKey(cwd)
+    const capturePreviewPageMock = vi.mocked(capturePreviewPage)
+    let server: Awaited<ReturnType<typeof startHealthyRunelightServer>> | undefined
+
+    rmSync(logFile, { force: true })
+    process.env.RUNELIGHT_SESSION_DIR = sessionDir
+    capturePreviewPageMock.mockClear()
+
+    try {
+      server = await startHealthyRunelightServer({ projectKey, sessionId })
+      writeRunelightServeSession(cwd, {
+        baseUrl: server.baseUrl,
+        hostPid: process.pid,
+        mode: "runelight-dev",
+        port: server.port,
+        sessionId,
+        startedAt: new Date().toISOString(),
+        supervisorPid: process.pid,
+      })
+
+      const result = await runCLI(["capture", "src/Badge.g.tsx", "--frame", "neutral", "--out", "attached.png"], {
+        cwd,
+        stdout: "",
+        stderr: "",
+      })
+
+      expect(result).toEqual({
+        exitCode: 0,
+        stdout: "Captured neutral to attached.png\n",
+        stderr: "",
+      })
+      expect(capturePreviewPageMock).toHaveBeenCalledTimes(1)
+      expect(capturePreviewPageMock).toHaveBeenCalledWith({
+        cwd,
+        out: "attached.png",
+        url: `${server.baseUrl}/runelight?entry=src%2FBadge.g.tsx%23default&frame=neutral&chrome=0`,
+        viewport: "1440x900",
+      })
+      expect(readRunelightServeSession(cwd)?.sessionId).toBe(sessionId)
+      expect(() => readFileSync(logFile, "utf8")).toThrow()
+    } finally {
+      capturePreviewPageMock.mockClear()
+      await server?.close()
+      if (previousSessionDir === undefined) {
+        delete process.env.RUNELIGHT_SESSION_DIR
+      } else {
+        process.env.RUNELIGHT_SESSION_DIR = previousSessionDir
+      }
+      rmSync(sessionDir, { recursive: true, force: true })
+      rmSync(logFile, { force: true })
+    }
+  })
+
   it("checks directory entries from the selected TypeScript project scope", async () => {
     const projectRoot = join(import.meta.dirname, "fixtures/ts-project-scope")
 
@@ -717,7 +807,7 @@ describe("runelight CLI", () => {
 
 function getFreePort(): Promise<string> {
   return new Promise((resolvePort, reject) => {
-    const server = createServer()
+    const server = createTcpServer()
     server.once("error", reject)
     server.listen(0, "127.0.0.1", () => {
       const address = server.address()
@@ -728,6 +818,51 @@ function getFreePort(): Promise<string> {
           reject(new Error("Unable to allocate a free port"))
         }
       })
+    })
+  })
+}
+
+async function startHealthyRunelightServer(identity: { projectKey: string; sessionId: string }): Promise<{
+  baseUrl: string
+  close(): Promise<void>
+  port: string
+}> {
+  const server = createHttpServer((request, response) => {
+    if (request.url === "/runelight/studio/manifest") {
+      response.writeHead(200, { "content-type": "application/json" })
+      response.end(JSON.stringify({ serveSession: identity }))
+      return
+    }
+
+    if (request.url?.startsWith("/runelight")) {
+      response.writeHead(200, { "content-type": "text/html" })
+      response.end("<!doctype html><main data-runelight-preview-capture-bounds>Attached preview</main>")
+      return
+    }
+
+    response.writeHead(404)
+    response.end("not found")
+  })
+
+  await new Promise<void>((resolveServer, reject) => {
+    server.on("error", reject)
+    server.listen(0, "127.0.0.1", resolveServer)
+  })
+  const address = server.address()
+  if (!address || typeof address === "string") throw new Error("Unable to read test server address.")
+
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    close: () => closeHttpServer(server),
+    port: String(address.port),
+  }
+}
+
+function closeHttpServer(server: HttpServer): Promise<void> {
+  return new Promise((resolveServer, reject) => {
+    server.close((error) => {
+      if (error) reject(error)
+      else resolveServer()
     })
   })
 }
