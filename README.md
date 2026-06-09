@@ -44,7 +44,8 @@ https://github.com/tuoxiansp/runelight:
 
 - skills/setup-runelight
 
-Install it as a project-level skill in this repository.
+Install it as a project-level skill in this repository
+(e.g. at .agents/skills/setup-runelight).
 
 After refreshing that setup skill, run `setup-runelight` in this project now.
 Follow it through setup and verification.
@@ -84,7 +85,7 @@ Badge.frames = {
 
 That `.frames` object is the component-level footprint - inert data that never runs in production and never appears in your bundle. Your agent writes it. The type checker keeps it in sync.
 
-Protocol types and helpers use the `G` prefix, such as `GFrames`, `createGScopeHook`, and `createGProvider`.
+Protocol names carry a `G` marker: `G`-prefixed types such as `GFrames`, and `createG*`/`useG*` helpers such as `createGScopeHook` and `createGProvider`.
 
 No preview wrappers in your components. No separate app shell to maintain. Your project remains a normal Vite, Next.js, or custom Host project; `@runelight/cli` starts that Host through `runelight serve`, and the framework adapter serves the prebuilt `@runelight/studio` app at `/runelight/studio`.
 
@@ -96,8 +97,12 @@ Rename `.g.tsx` → `.tsx` or `.g.vue` → `.vue`, delete frames, remove the Stu
 
 **Using Runelight:**
 
-- [Authoring Guide](docs/runelight-authoring-guide.md) — patterns for pure, stateful, and contextual components
+- [React Authoring Guide](docs/runelight-authoring-guide.md) — patterns for pure, stateful, and contextual React components
+- [Vue Authoring Guide](docs/runelight-vue-authoring-guide.md) — template-first patterns for `.g.vue` SFCs
 - [React Refactor Guide](docs/runelight-refactor-guide.md) — convert existing TSX into Runelight format
+- [Vue Refactor Guide](docs/runelight-vue-refactor-guide.md) — convert existing Vue SFCs into Runelight format
+- [CLI Reference](docs/runelight-cli.md) — `init`, `check`, `serve`, `capture`, and `strip`
+- [Configuration Reference](docs/runelight-configuration.md) — `runelight.config.ts` fields, defaults, and production exposure
 - [Design Workspace](docs/runelight-design-workspace.md) — AI-assisted product design drafts in Studio
 
 **Understanding Runelight:**
@@ -114,4 +119,4 @@ Rename `.g.tsx` → `.tsx` or `.g.vue` → `.vue`, delete frames, remove the Stu
 
 pnpm workspace. `pnpm install && pnpm build && pnpm test && pnpm typecheck`.
 
-Packages: `@runelight/cli` (the `runelight` command), `@runelight/core` (protocol, analysis, and config), `@runelight/studio` (prebuilt Studio app and manifests), `@runelight/adapter-vite-react` (Vite React adapter), `@runelight/adapter-next-react` (Next.js adapter), and `@runelight/adapter-vite-vue` (Vite Vue adapter). Repository examples live under [`examples/`](examples/), including `react-vite` and `vue-vite`; agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).
+Packages: `@runelight/cli` (the `runelight` command), `@runelight/core` (protocol, analysis, and config), `@runelight/studio` (prebuilt Studio app and manifests), `@runelight/adapter-vite-react` (Vite React adapter), `@runelight/adapter-next-react` (Next.js adapter), `@runelight/adapter-vite-vue` (Vite Vue adapter), and the adapter-internal preview runtimes `@runelight/preview-react` and `@runelight/preview-vue` (never installed directly by user projects). The product website lives in [`apps/website`](apps/website/). Repository examples live under [`examples/`](examples/), including `react-vite` and `vue-vite`; agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).
