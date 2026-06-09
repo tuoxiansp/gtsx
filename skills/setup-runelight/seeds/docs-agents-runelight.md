@@ -36,6 +36,5 @@ Installed under `.agents/skills/` for this framework:
 - `authoring-runelight-{react|vue}`
 - `refactor-to-runelight-{react|vue}`
 - `design-runelight-{react|vue}`
-- `diagnose-runelight`
 
-Human docs: repository `docs/`. Agent workflows: `skills/` or installed copies above.
+Human docs: `docs/`. Agent interface: installed skill copies above.

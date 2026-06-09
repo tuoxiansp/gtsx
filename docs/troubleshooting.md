@@ -1,6 +1,6 @@
 # Runelight Troubleshooting
 
-Common integration and Studio issues. For agent-driven diagnosis, use [`diagnose-runelight`](../skills/diagnose-runelight/SKILL.md).
+Common integration and Studio issues. Agents should read this file and project `docs/agents/runelight.md` (written by setup) before changing integration glue.
 
 ## Configuration
 

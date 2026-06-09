@@ -114,4 +114,4 @@ See [Troubleshooting](./troubleshooting.md) for full guidance. Quick checks:
 
 - **Frames don't appear in Studio?** Confirm `project.entryRoot` in `runelight.config.ts`, restart the dev server, reload Studio.
 - **Resolution errors?** Keep frames self-contained; inline fragile helpers.
-- **Project not Runelight-enabled?** Run [`setup-runelight`](../skills/setup-runelight/SKILL.md) or [`diagnose-runelight`](../skills/diagnose-runelight/SKILL.md).
+- **Project not Runelight-enabled?** Run [`setup-runelight`](../skills/setup-runelight/SKILL.md). See [Troubleshooting](./troubleshooting.md).

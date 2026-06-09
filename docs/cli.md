@@ -81,7 +81,7 @@ Prints project integration diagnostics (config, scope, adapter hints).
 runelight diagnose
 ```
 
-For interactive troubleshooting, use the [`diagnose-runelight`](../skills/diagnose-runelight/SKILL.md) skill.
+For integration issues, see [Troubleshooting](./troubleshooting.md).
 
 ## Environment
 

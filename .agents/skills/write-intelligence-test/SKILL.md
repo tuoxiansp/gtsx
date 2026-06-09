@@ -22,4 +22,4 @@ Intelligence tests can be heavier than unit tests. Prefer grouping related goals
 
 Keep the file short and direct. Trust the executing agent to choose commands and tools from the repo context.
 
-See [docs/testing.md](../../docs/testing.md). For skill authoring, see [skills/write-runelight-skill/SKILL.md](../../skills/write-runelight-skill/SKILL.md).
+See [docs/testing.md](../../docs/testing.md). For the docs vs skills boundary, see [CONTRIBUTING.md](../../CONTRIBUTING.md).

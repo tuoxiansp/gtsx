@@ -62,8 +62,8 @@ Fetch or copy companion skill directories from the Runelight source repository i
 
 | Project type | Project-level skills to install |
 | --- | --- |
-| React | `skills/authoring-runelight-react`, `skills/refactor-to-runelight-react`, `skills/design-runelight-react`, `skills/diagnose-runelight` |
-| Vue | `skills/authoring-runelight-vue`, `skills/refactor-to-runelight-vue`, `skills/design-runelight-vue`, `skills/diagnose-runelight` |
+| React | `skills/authoring-runelight-react`, `skills/refactor-to-runelight-react`, `skills/design-runelight-react` |
+| Vue | `skills/authoring-runelight-vue`, `skills/refactor-to-runelight-vue`, `skills/design-runelight-vue` |
 
 If a companion skill is already present, refresh it from the current Runelight source before relying on it. Do not install irrelevant framework skills.
 
@@ -79,4 +79,3 @@ Route to sibling skills for component work:
 - `refactor-to-runelight-vue` — convert existing Vue SFCs into `.g.vue`.
 - `design-runelight-react` — create and iterate React `.g.tsx` design frames in Studio's design workspace.
 - `design-runelight-vue` — create and iterate Vue `.g.vue` design frames in Studio's design workspace.
-- `diagnose-runelight` — troubleshoot Studio, preview, layout, and config integration issues.

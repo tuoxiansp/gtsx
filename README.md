@@ -122,7 +122,7 @@ Rename `.g.tsx` → `.tsx` or `.g.vue` → `.vue`, delete frames, remove the Stu
 
 **For AI agents:**
 
-- [Skills index](skills/README.md) — [`setup-runelight`](skills/setup-runelight/SKILL.md), authoring, refactor, design, [`diagnose-runelight`](skills/diagnose-runelight/SKILL.md)
+- [Agent skills](skills/) — [`setup-runelight`](skills/setup-runelight/SKILL.md), authoring, refactor, design (product interface for agents; not human tutorials)
 
 ## Contributing
 

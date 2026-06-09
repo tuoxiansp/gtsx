@@ -27,17 +27,29 @@ Monorepo packages:
 
 Examples: `examples/react-vite`, `examples/vue-vite`.
 
-## Documentation
+## Documentation vs agent interface
 
-| Audience | Location |
-|----------|----------|
-| Humans | `docs/` — protocol, guides, CLI, config |
-| Agents | `skills/` — executable workflows; install via README prompt |
-| Maintainers | `intelligence-tests/`, `traces/`, `.agents/skills/` |
+| Layer | Location | Role |
+|-------|----------|------|
+| Human docs | `docs/` | Protocol, guides, CLI, config, troubleshooting |
+| Agent interface | `skills/` | Product API for agents — each `SKILL.md` is a capability contract |
+| Repo maintainer agents | `.agents/skills/` | Intelligence-test authoring and E2E validation |
+| E2E specs | `intelligence-tests/` | Agent-driven acceptance criteria |
 
-When changing integration contracts, update **both** human docs (`docs/`) and agent skills (`skills/setup-runelight/profiles/`). Keep `runelight.config.ts` examples aligned with `packages/core/src/config-types.ts`.
+**Do not treat `skills/` as documentation.** Adding or changing a skill is an interface change (like adding a public API), not a doc edit. Human prose belongs in `docs/`; execution contracts belong in `skills/`.
 
-Agent skills are installed into user projects by copying directories — not via `npx skills add`. That is intentional so setup remains an agent workflow.
+When changing integration contracts, update human docs (`docs/`) and the affected skills (`skills/setup-runelight/profiles/`, etc.). Keep `runelight.config.ts` examples aligned with `packages/core/src/config-types.ts`.
+
+Skills are installed into user projects by agent copy (see README) — not via `npx skills add`. That keeps setup inside the agent workflow.
+
+### Agent skills (interface catalog)
+
+| Skill | Capability |
+|-------|------------|
+| `setup-runelight` | Install, upgrade, repair Host integration |
+| `authoring-runelight-react` / `-vue` | Write `.g.tsx` / `.g.vue` components |
+| `refactor-to-runelight-react` / `-vue` | Migrate existing components |
+| `design-runelight-react` / `-vue` | Studio design workspace frames |
 
 ## Pull requests
 
@@ -51,6 +63,4 @@ Agent skills are installed into user projects by copying directories — not via
 
 See [docs/testing.md](docs/testing.md). Agent-driven `.it.md` files validate setup and lifecycle behavior that unit tests do not cover.
 
-## Skills maintenance
-
-See [`skills/write-runelight-skill/SKILL.md`](skills/write-runelight-skill/SKILL.md) for skill structure conventions.
+New skills require the same care as new public APIs: clear `description` triggers, accurate config examples, and intelligence-test coverage when setup behavior changes.

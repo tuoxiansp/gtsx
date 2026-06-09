@@ -13,7 +13,7 @@ Also add a Vue-native provide/inject case in the same temporary project. Define 
 Validate these outcomes:
 
 - Before setup runs, the project contains `.agents/skills/setup-runelight` and no other Runelight project-level skills.
-- Setup installs or refreshes only the Vue companion skills needed for this project: `authoring-runelight-vue`, `refactor-to-runelight-vue`, `design-runelight-vue`, and `diagnose-runelight`.
+- Setup installs or refreshes only the Vue companion skills needed for this project: `authoring-runelight-vue`, `refactor-to-runelight-vue`, and `design-runelight-vue`.
 - Setup does not install `authoring-runelight-react`, `refactor-to-runelight-react`, `design-runelight-react`, or the deprecated unsplit `authoring-runelight`, `refactor-to-runelight`, and `design-runelight`.
 - The installed `design-runelight-vue/DESIGN_REFERENCE.md` is an aesthetic reference only; it does not contain React/Next-specific implementation instructions, package installation commands, or design-stack defaults unrelated to the target Vue project.
 - The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
