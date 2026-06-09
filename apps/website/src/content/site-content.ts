@@ -14,17 +14,19 @@ export type SiteContent = {
   cta: {
     label: string
     hint: string
+    installUrl: string
   }
   meta: {
-    hosts: string
-    year: string
+    byline: string
+    authorUrl: string
+    license: string
   }
 }
 
 export const siteContent = {
   productName: "Runelight",
   githubUrl: "https://github.com/tuoxiansp/runelight",
-  kicker: "Design · Codebase · Visible UI States",
+  kicker: "Design · Build · Assure",
   headline: {
     lead: "The missing workspace",
     emphasis: "for AI-era",
@@ -42,9 +44,11 @@ export const siteContent = {
   cta: {
     label: "View on GitHub",
     hint: "Install with one agent prompt · React & Vue",
+    installUrl: "https://github.com/tuoxiansp/runelight?tab=readme-ov-file#get-started--one-prompt",
   },
   meta: {
-    hosts: "TypeScript React · Vue 3",
-    year: "2026",
+    byline: "Made by tuoxiansp",
+    authorUrl: "https://github.com/tuoxiansp",
+    license: "MIT · 2026",
   },
 } satisfies SiteContent
