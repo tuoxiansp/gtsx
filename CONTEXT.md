@@ -45,12 +45,20 @@ The Runelight command surface that starts and coordinates Studio, capture, and r
 _Avoid_: hostless preview, separate app shell, framework replacement, framework autodetection as the core promise
 
 **Runelight Serve Session**:
-The local development session started by `runelight serve`. It wraps the project's **Host** command, enters **Runelight Dev Mode**, and makes Studio and capture available as capabilities of the running session.
-_Avoid_: Studio-only launch command, capture-only launch command, ordinary framework dev server
+The long-lived local development session started by `runelight serve`. It is owned by the foreground **Runelight Serve Supervisor**, enters **Runelight Dev Mode**, and makes Studio and capture available as capabilities of the running session.
+_Avoid_: Studio-only launch command, capture-only launch command, ordinary framework dev server, background launcher
+
+**Runelight Serve Supervisor**:
+The foreground CLI process that owns a **Runelight Serve Session**. It coordinates Host startup, session availability, logs, and shutdown so the user has one obvious process to watch and stop.
+_Avoid_: detached background owner, orphaned Host process, hidden dev server
+
+**Runelight Serve Port**:
+The localhost port selected and owned by the **Runelight Serve Supervisor** for a **Runelight Serve Session**. The wrapped **Host** must bind this port; if it cannot, the supervisor chooses another port or fails explicitly instead of accepting silent Host port drift.
+_Avoid_: Host-owned default port, silent port fallback, unverified actual port
 
 **Runelight Serve Session Registry**:
-The local runtime registry where active **Runelight Serve Sessions** publish their project identity, process id, port, and base URL. Other Runelight commands may attach to a registered session only after confirming that the process and **Runelight Route Space** are healthy.
-_Avoid_: trusted port file, project config, unchecked pid cache
+The local runtime registry where active **Runelight Serve Sessions** publish their project identity, process id, port, and base URL as discoverable hints. Other Runelight commands may attach to a registered session only after confirming that the process, project identity, and **Runelight Route Space** are healthy.
+_Avoid_: source of truth, trusted port file, project config, unchecked pid cache
 
 **Host Launch Instructions**:
 The project-owned declaration that tells the **Runelight-Owned Launch Layer** the underlying **Host** command to wrap. Project scripts should point at Runelight, while Runelight uses this declaration to start Vite, Next.js, or another supported Host in **Runelight Dev Mode**.

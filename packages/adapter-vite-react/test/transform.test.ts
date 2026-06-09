@@ -14,7 +14,7 @@ const runelightConfig = {
     entryRoot: "src/app/runelight",
   },
   host: {
-    command: "vite --host 127.0.0.1 --port {port}",
+    command: "vite --host 127.0.0.1 --port {port} --strictPort",
   },
 }
 
@@ -178,7 +178,7 @@ Card.frames = {
           entryRoot: "src/app/runelight",
         },
         host: {
-          command: "vite --host 127.0.0.1 --port {port}",
+          command: "vite --host 127.0.0.1 --port {port} --strictPort",
         },
       },
       root: fixtureRoot,
@@ -236,7 +236,7 @@ Card.frames = {
           entryRoot: "src/app/runelight",
         },
         host: {
-          command: "vite --host 127.0.0.1 --port {port}",
+          command: "vite --host 127.0.0.1 --port {port} --strictPort",
         },
       },
       root: fixtureRoot,
@@ -264,7 +264,7 @@ Card.frames = {
           entryRoot: "app/runelight",
         },
         host: {
-          command: "vite --host 127.0.0.1 --port {port}",
+          command: "vite --host 127.0.0.1 --port {port} --strictPort",
         },
       },
       root: fixtureRoot,
@@ -295,7 +295,7 @@ export default defineRunelightConfig({
     entryRoot: "app/runelight",
   },
   host: {
-    command: "vite --host 127.0.0.1 --port {port}",
+    command: "vite --host 127.0.0.1 --port {port} --strictPort",
   },
 })
 `,
@@ -322,7 +322,7 @@ export default defineRunelightConfig({
           entryRoot: "app/runelight",
         },
         host: {
-          command: "vite --host 127.0.0.1 --port {port}",
+          command: "vite --host 127.0.0.1 --port {port} --strictPort",
         },
       },
       root: fixtureRoot,

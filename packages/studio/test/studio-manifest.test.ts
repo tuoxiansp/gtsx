@@ -157,7 +157,7 @@ describe("Runelight Studio manifest", () => {
           namespace: "fixture-project",
         },
         host: {
-          command: "vite --host 127.0.0.1 --port {port}",
+          command: "vite --host 127.0.0.1 --port {port} --strictPort",
         },
         studio: {
           manifestCacheTtlMs: 60_000,
@@ -309,7 +309,7 @@ describe("Runelight Studio manifest", () => {
       })
       const manifest = createStudioManifestFromRunelightConfig(projectIndex, {
         project: { sourceRoot: "src", entryRoot: "src/app/runelight" },
-        host: { command: "vite --host 127.0.0.1 --port {port}" },
+        host: { command: "vite --host 127.0.0.1 --port {port} --strictPort" },
       })
 
       expect(manifest.design?.frames.map((frame) => frame.id)).toEqual(["src/app/runelight/design/checkout-flow.g.tsx#default:live"])

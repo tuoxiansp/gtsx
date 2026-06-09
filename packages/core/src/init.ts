@@ -74,7 +74,7 @@ export default defineRunelightConfig({
     namespace: "my-project",
   },
   host: {
-    command: "vite --host 127.0.0.1 --port {port}",
+    command: "vite --host 127.0.0.1 --port {port} --strictPort",
   },
   studio: {
     manifestCacheTtlMs: 1000,

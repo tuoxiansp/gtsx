@@ -51,6 +51,7 @@ export type StudioManifest = {
   version: 1
   cache?: StudioManifestCacheConfig
   design?: StudioDesignManifest
+  serveSession?: StudioManifestServeSession
   routes: StudioManifestRouteConfig
   preview: StudioManifestPreviewConfig
   files: StudioManifestFile[]
@@ -67,6 +68,11 @@ export type CreateStudioManifestOptions = {
 
 export type StudioManifestCacheConfig = {
   namespace?: string
+}
+
+export type StudioManifestServeSession = {
+  projectKey?: string
+  sessionId?: string
 }
 
 type ProjectIndexFileWithSourceHash = RunelightProjectIndex["files"][number] & {
@@ -86,10 +92,13 @@ const DEFAULT_PREVIEW: StudioManifestPreviewConfig = {
 }
 
 export function createStudioManifest(projectIndex: RunelightProjectIndex, options: CreateStudioManifestOptions = {}): StudioManifest {
+  const serveSession = serveSessionFromEnvironment()
+
   return {
     version: 1,
     ...(options.cache ? { cache: options.cache } : {}),
     ...(options.design && options.design.frames.length > 0 ? { design: options.design } : {}),
+    ...(serveSession ? { serveSession } : {}),
     routes: { ...DEFAULT_ROUTES, ...options.routes },
     preview: { ...DEFAULT_PREVIEW, ...options.preview },
     files: projectIndex.files.map((projectFile) => {
@@ -103,6 +112,17 @@ export function createStudioManifest(projectIndex: RunelightProjectIndex, option
       }
     }),
     diagnostics: [...projectIndex.diagnostics, ...(options.diagnostics ?? [])],
+  }
+}
+
+function serveSessionFromEnvironment(): StudioManifestServeSession | undefined {
+  const projectKey = process.env.RUNELIGHT_PROJECT_KEY
+  const sessionId = process.env.RUNELIGHT_SESSION_ID
+  if (!projectKey && !sessionId) return undefined
+
+  return {
+    ...(projectKey ? { projectKey } : {}),
+    ...(sessionId ? { sessionId } : {}),
   }
 }
 

@@ -41,6 +41,10 @@ describe("Runelight preview commands", () => {
         action: "ready-check",
         path: "/runelight/studio",
       },
+      {
+        action: "ready-check",
+        path: "/runelight/studio/manifest",
+      },
     ])
   })
 
@@ -73,6 +77,10 @@ describe("Runelight preview commands", () => {
       {
         action: "ready-check",
         path: "/runelight/studio",
+      },
+      {
+        action: "ready-check",
+        path: "/runelight/studio/manifest",
       },
     ])
   })

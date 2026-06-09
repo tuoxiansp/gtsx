@@ -1,6 +1,7 @@
 export type SiteContent = {
   productName: string
   githubUrl: string
+  kicker: string
   headline: {
     lead: string
     emphasis: string
@@ -23,10 +24,11 @@ export type SiteContent = {
 export const siteContent = {
   productName: "Runelight",
   githubUrl: "https://github.com/tuoxiansp/runelight",
+  kicker: "Design · Codebase · Visible UI States",
   headline: {
-    lead: "Every visual",
-    emphasis: "branch",
-    tail: "on one screen.",
+    lead: "The missing workspace",
+    emphasis: "for AI-era",
+    tail: "UI development.",
   },
   story: {
     steps: [
@@ -34,7 +36,8 @@ export const siteContent = {
       { label: "typed frames", detail: "Auth, empty, admin — named branches, type-checked." },
       { label: "/runelight/studio", detail: "Every component, every state — rendered at once." },
     ],
-    payoff: "Design, build, and review agent-built UI without clicking through your app.",
+    payoff:
+      "A GUI workflow where design intent, component code, and agent output stay connected in one place.",
   },
   cta: {
     label: "View on GitHub",

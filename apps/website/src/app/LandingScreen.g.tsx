@@ -53,7 +53,7 @@ LandingHeader.frames = {
 export function LandingHero() {
   return (
     <section className="landing-hero">
-      <p className="landing-kicker">The visual workspace for agent-built apps</p>
+      <p className="landing-kicker">{siteContent.kicker}</p>
       <h1 className="landing-headline">
         <span>{siteContent.headline.lead}</span>
         <span className="landing-headline-emphasis">{siteContent.headline.emphasis}</span>

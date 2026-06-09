@@ -7,6 +7,6 @@ export default defineRunelightConfig({
     namespace: "runelight-studio",
   },
   host: {
-    command: "pnpm exec vite --host 127.0.0.1 --port {port}",
+    command: "pnpm exec vite --host 127.0.0.1 --port {port} --strictPort",
   },
 })
