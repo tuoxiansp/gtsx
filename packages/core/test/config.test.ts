@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest"
 import { loadRunelightConfig, resolveRunelightConfig } from "../src/config.js"
 
 describe("runelight config", () => {
-  it("loads project, Host, and Studio settings", () => {
+  it("loads project, Host, and internal Studio settings", () => {
     const root = mkdtempSync(join(tmpdir(), "runelight-config-"))
     try {
       writeFileSync(
@@ -26,7 +26,6 @@ export default defineRunelightConfig({
   },
   studio: {
     exposeInProduction: true,
-    manifestCacheTtlMs: 2500,
   },
 })
 `,
@@ -47,14 +46,13 @@ export default defineRunelightConfig({
         studio: "/runelight/studio",
         manifest: "/runelight/studio/manifest",
       })
-      expect(resolveRunelightConfig(result.config!).studio.manifestCacheTtlMs).toBe(2500)
       expect(resolveRunelightConfig(result.config!).studio.exposeInProduction).toBe(true)
     } finally {
       rmSync(root, { force: true, recursive: true })
     }
   })
 
-  it("defaults source root, routes, and Studio cache ttl", () => {
+  it("defaults source root, routes, and internal Studio settings", () => {
     const resolved = resolveRunelightConfig({
       host: {
         command: "pnpm dev --port {port}",
@@ -67,6 +65,5 @@ export default defineRunelightConfig({
     expect(resolved.routes.studio).toBe("/runelight/studio")
     expect(resolved.routes.manifest).toBe("/runelight/studio/manifest")
     expect(resolved.studio.exposeInProduction).toBe(false)
-    expect(resolved.studio.manifestCacheTtlMs).toBe(1000)
   })
 })

@@ -30,7 +30,7 @@ Validate these outcomes:
 - The production app can import and render a normal `.g.tsx` component.
 - The original app route returns normally in production, while `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest` are not usable production surfaces unless the project explicitly opts in to production Runelight.
 - No `.runelight/preview-entries.ts` is required or written during production build or production startup.
-- After explicitly opting the project into production Runelight, for example by setting `studio.exposeInProduction: true` in `runelight.config.ts` and enabling the generated Next Studio/preview route helpers for production, a production `next build` and `next start` should expose usable `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest` routes. Studio should discover frames and render preview iframes from the production server. Removing the opt-in should restore the default non-exposed production behavior.
+- In a controlled fixture that uses the repository's internal production opt-in hook, a production `next build` and `next start` should expose usable `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest` routes. Studio should discover frames and render preview iframes from the production server. Removing the opt-in should restore the default non-exposed production behavior. Do not turn this fixture-only hook into user-facing setup guidance.
 - The test does not write Runelight companion skills into the user's global skills directory. If global Runelight skills already exist, do not treat them as proof of success; inspect project-local `.agents/skills`.
 
 Clean up the temporary project, temporary design frame, and generated artifacts created only for this test.

@@ -3,7 +3,6 @@ export {
   DEFAULT_RUNELIGHT_ENTRY_ROOT,
   DEFAULT_RUNELIGHT_SOURCE_ROOT,
   DEFAULT_RUNELIGHT_ROUTES,
-  DEFAULT_STUDIO_MANIFEST_CACHE_TTL_MS,
   runelightDesignRootFromEntryRoot,
   normalizeRunelightPath,
   requireRunelightEntryRoot,

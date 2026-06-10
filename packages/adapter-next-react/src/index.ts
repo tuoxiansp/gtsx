@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url"
 import { loadRunelightConfig, resolveRunelightConfig } from "@runelight/core/config"
 import { runelightDesignRootFromEntryRoot, normalizeRunelightPath } from "@runelight/core/config-model"
 import type { RunelightConfig } from "@runelight/core"
+import { isRunelightNextRouteEnabled } from "./route-enablement.js"
 
 type WebpackRule = {
   enforce?: string
@@ -41,7 +42,6 @@ type NextConfigLike = {
 
 type RunelightNextReactOptions = {
   config?: RunelightConfig
-  enabled?: boolean
   previewEntries?: false | RunelightNextPreviewEntriesOptions
   sourceRoot?: string
   root?: string
@@ -68,7 +68,6 @@ const previewEntriesPluginName = "RunelightNextPreviewEntriesPlugin"
 const previewEntriesWatcherDebounceMs = 50
 const globalPreviewEntryWatcherSymbol = Symbol.for("runelight.next.preview-entry.watchers")
 const previewImportQuery = "runelight-preview"
-const runelightDevEnvName = "RUNELIGHT_DEV"
 
 type GlobalPreviewEntryWatcher = typeof globalThis & {
   [globalPreviewEntryWatcherSymbol]?: Map<string, { close(): void }>
@@ -78,7 +77,7 @@ export function runelightNextReact(
   options: RunelightNextReactOptions = {},
 ): <Config extends NextConfigLike>(nextConfig?: Config) => Config & NextConfigLike {
   const root = options.root ?? process.cwd()
-  const runelightDevEnabled = options.enabled ?? isRunelightDevMode()
+  const runelightDevEnabled = isRunelightNextRouteEnabled({ config: options.config, cwd: root })
 
   const loaderPath = resolve(dirname(fileURLToPath(import.meta.url)), "../loader.cjs")
   const transformPath = resolveRunelightReactTransform(root)
@@ -118,10 +117,6 @@ export function runelightNextReact(
       ),
     } as Config & NextConfigLike
   }
-}
-
-function isRunelightDevMode(): boolean {
-  return process.env[runelightDevEnvName] === "1"
 }
 
 function withRunelightTurbopackConfig(

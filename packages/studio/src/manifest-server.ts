@@ -17,9 +17,7 @@ export function createStudioManifestProvider(options: CreateStudioManifestProvid
   const config = options.config ?? loadRequiredRunelightConfig(cwd)
   const resolved = resolveRunelightConfig(config)
   const entryRoot = requireRunelightEntryRoot(resolved)
-  const buildProjectIndex = createCachedRunelightProjectIndexBuilder({
-    ttlMs: resolved.studio.manifestCacheTtlMs,
-  })
+  const buildProjectIndex = createCachedRunelightProjectIndexBuilder()
 
   return () => {
     const projectIndex = buildProjectIndex({

@@ -102,7 +102,7 @@ Rename `.g.tsx` → `.tsx` or `.g.vue` → `.vue`, delete frames, remove the Stu
 - [React Refactor Guide](docs/runelight-refactor-guide.md) — convert existing TSX into Runelight format
 - [Vue Refactor Guide](docs/runelight-vue-refactor-guide.md) — convert existing Vue SFCs into Runelight format
 - [CLI Reference](docs/runelight-cli.md) — `init`, `check`, `serve`, `capture`, and `strip`
-- [Configuration Reference](docs/runelight-configuration.md) — `runelight.config.ts` fields, defaults, and production exposure
+- [Configuration Reference](docs/runelight-configuration.md) — `runelight.config.ts` fields, defaults, and production behavior
 - [Design Workspace](docs/runelight-design-workspace.md) — AI-assisted product design drafts in Studio
 
 **Understanding Runelight:**

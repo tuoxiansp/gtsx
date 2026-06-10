@@ -15,11 +15,11 @@ Do not install `@runelight/preview-react` directly.
 ## Configuration
 
 - Wrap config with `runelightNextReact` from `@runelight/adapter-next-react`.
-- Use `runelightNextReact()` without statically importing the Runelight config from `next.config.*`; the adapter loads the Runelight config only when preview entries are enabled.
+- Use `runelightNextReact()` without statically importing the Runelight config from `next.config.*`; the adapter loads the Runelight config only when Runelight preview entries are active.
 - `.g.tsx` files are production React components. Do not move normal app imports away from `.g.tsx`; isolate only preview routes, generated preview entries, Studio route helpers, and config loading from production.
 - `@runelight/studio` ships a prebuilt Studio app. Next route files should call `@runelight/adapter-next-react/studio-route` helpers instead of importing `@runelight/studio/client`.
-- The Next preview/studio integration is development-only by default. It must not mutate production `next build`, production server startup, Docker standalone output, or read/write `.runelight` at production runtime unless the project explicitly opts in to production exposure with `runelightNextReact({ enabled: true, ... })` and enabled Studio/preview route helpers.
-- The adapter generates `.runelight/preview-entries.ts` and wires webpack/Turbopack for preview imports when preview entries are enabled. Do not add a custom `.g.tsx` Turbopack loader in app code.
+- The Next preview/studio integration is development-only by default. It must not mutate production `next build`, production server startup, Docker standalone output, or read/write `.runelight` at production runtime during normal setup.
+- The adapter generates `.runelight/preview-entries.ts` and wires webpack/Turbopack for preview imports when Runelight preview entries are active. Do not add a custom `.g.tsx` Turbopack loader in app code.
 - Record the local Runelight route entry directory in `project.entryRoot`. Design frames live in `${project.entryRoot}/design`; do not add a `designRoot` config key.
 - During setup, create the empty `${project.entryRoot}/design` directory. Do not add placeholder frames; the first `design-runelight-react` request writes the first `.g.tsx` frame.
 - In upgrade/ensure mode, do not rewrite `next.config.*`, Runelight config, or `app/runelight/*` if they already exist and pass verification; only update packages and add missing design-directory support.
@@ -126,18 +126,16 @@ type RunelightPreviewPageProps = {
 }
 
 export default async function RunelightPreviewPage(props: RunelightPreviewPageProps) {
-  if (process.env.NODE_ENV === "production") notFound()
+  const previewRoute = await import("@runelight/adapter-next-react/preview-route")
+  if (!previewRoute.isRunelightNextPreviewRouteEnabled()) notFound()
 
   const searchParams = await props.searchParams
-  const [{ createRunelightNextPreviewSsrScripts, readRunelightNextPreviewProps }, { RunelightPreviewClient }] = await Promise.all([
-    import("@runelight/adapter-next-react/preview-route"),
-    import("./preview-client"),
-  ])
-  const previewProps = readRunelightNextPreviewProps(searchParams)
+  const { RunelightPreviewClient } = await import("./preview-client")
+  const previewProps = previewRoute.readRunelightNextPreviewProps(searchParams)
 
   return (
     <>
-      {createRunelightNextPreviewSsrScripts(previewProps).map((scriptProps) => (
+      {previewRoute.createRunelightNextPreviewSsrScripts(previewProps).map((scriptProps) => (
         <Script key={scriptProps.id} {...scriptProps} />
       ))}
       <div className="contents">
@@ -195,7 +193,7 @@ export async function GET() {
 
 1. Run typecheck/build.
 2. Run `runelight check`.
-3. Start the dev server through `runelight serve` (or the package script that wraps it). Runelight routes only activate when the Host runs with `RUNELIGHT_DEV=1`, which `runelight serve` sets, unless the project explicitly opts in to production exposure.
+3. Start the dev server through `runelight serve` (or the package script that wraps it). Runelight routes activate when the Host runs with `RUNELIGHT_DEV=1`, which `runelight serve` sets.
 4. Open `/runelight/studio/manifest`.
 5. Open `/runelight/studio`.
 6. If a `.g.tsx` entry exists, open one `/runelight?...` preview URL.

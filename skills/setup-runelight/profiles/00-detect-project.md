@@ -77,7 +77,7 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 - Install `@runelight/adapter-vite-react` only for Vite-compatible React client-only hosts.
 - Install `@runelight/adapter-vite-vue` only for Vite Vue 3 client-only hosts.
 - Install `@runelight/adapter-next-react` only for Next.js App Router.
-- Put selected source root, selected local Runelight entry root, selected tsconfig, stable cache namespace, and the Host dev command in `runelight.config.ts`. The valid keys are `project.{sourceRoot, entryRoot, namespace, tsconfig}`, `host.command`, and `studio.{exposeInProduction, manifestCacheTtlMs}`; routes are fixed at `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest` and are not configurable.
+- Put selected source root, selected local Runelight entry root, selected tsconfig, stable cache namespace, and the Host dev command in `runelight.config.ts`. The valid keys are `project.{sourceRoot, entryRoot, namespace, tsconfig}` and `host.command`; routes are fixed at `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest` and are not configurable.
 - Use the package name or repo slug as `project.namespace`, not a file hash.
 - Choose `project.sourceRoot: "src"` when app source lives under `src`; choose `project.sourceRoot: "."` for root-level `app`, `pages`, `components`, or `lib`.
 - Choose `project.entryRoot` as the filesystem directory that owns the local `/runelight` entry: usually `app/runelight`, or `src/app/runelight` when the route tree lives under `src/app`. For client-only hosts without filesystem routes, still create and record a logical entry root during setup: `app/runelight` at the project root by default, or `src/app/runelight` when the project keeps all authored source under `src`.

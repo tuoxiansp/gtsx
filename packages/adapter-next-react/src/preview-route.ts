@@ -1,4 +1,5 @@
 import { RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT, runelightPreviewSsrBootstrapScriptId } from "@runelight/core/preview-protocol"
+import { isRunelightNextRouteEnabled, type RunelightNextRouteEnablementOptions } from "./route-enablement.js"
 
 export type RunelightNextPreviewSearchParams = Record<string, string | string[] | undefined> | URLSearchParams | undefined
 
@@ -36,6 +37,10 @@ export function readRunelightNextPreviewProps(searchParams: RunelightNextPreview
     sessionId: params.get("sessionId"),
     staticMode: params.get("static") === "1",
   }
+}
+
+export function isRunelightNextPreviewRouteEnabled(options: RunelightNextRouteEnablementOptions = {}): boolean {
+  return isRunelightNextRouteEnabled(options)
 }
 
 export function createRunelightNextPreviewSsrScripts(

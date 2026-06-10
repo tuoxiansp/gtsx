@@ -36,13 +36,6 @@ In Vue projects, import from `@runelight/core/define-config` instead of the `@ru
 
 `runelight serve` substitutes `{port}`, sets `RUNELIGHT_DEV=1` in the Host environment, and prints the serve and Studio URLs.
 
-## `studio`
-
-| Key | Default | Meaning |
-| --- | --- | --- |
-| `exposeInProduction` | `false` | Opt in to building usable `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest` surfaces into production output. See below. |
-| `manifestCacheTtlMs` | `1000` | How long the Studio manifest provider caches the project index. |
-
 ## Routes
 
 Routes are fixed and not configurable:
@@ -53,13 +46,6 @@ Routes are fixed and not configurable:
 | `/runelight/studio` | Prebuilt Studio app (`/runelight/studio/assets/*` for assets) |
 | `/runelight/studio/manifest` | Project manifest JSON |
 
-## Production Exposure
+## Production Behavior
 
-By default, Runelight is development-only: production builds do not require `runelight.config.ts`, do not bundle preview code, and do not expose `/runelight*` routes.
-
-Projects can explicitly opt in to shipping Studio in production:
-
-- **Vite (React or Vue):** set `studio.exposeInProduction: true`. A production `vite build` then emits a `/runelight/` preview entry, a `/runelight/studio/` Studio entry, the manifest, and Studio assets into the build output.
-- **Next.js App Router:** pass `runelightNextReact({ enabled: true })` in `next.config.*` and enable the Studio/preview route helpers for production, so `next build` and `next start` expose the routes.
-
-Removing the opt-in restores the default non-exposed production behavior. Frames in `.g` files are inert static data either way; production exposure only controls whether the Studio and preview surfaces are built and served.
+By default, Runelight is development-only: production builds should not require `runelight.config.ts`, should not bundle preview route code, and should not expose usable `/runelight*` routes. Frames in `.g` files are inert static data either way.

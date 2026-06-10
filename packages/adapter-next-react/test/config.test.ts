@@ -9,6 +9,7 @@ import { RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT, runelightPreviewSsrBootstrapScr
 import { runelightNextReact } from "../src/index.js"
 import {
   createRunelightNextPreviewSsrScripts,
+  isRunelightNextPreviewRouteEnabled,
   readRunelightNextPreviewProps,
   shouldInstallRunelightNextPreviewSsrScripts,
 } from "../src/preview-route.js"
@@ -28,6 +29,12 @@ const runelightConfig = {
     command: "next dev -H 127.0.0.1 -p {port}",
   },
 }
+const productionRunelightConfig = {
+  ...runelightConfig,
+  studio: {
+    exposeInProduction: true,
+  },
+}
 
 function withNodeEnv<T>(nodeEnv: string, run: () => T): T {
   const previous = process.env.NODE_ENV
@@ -39,6 +46,20 @@ function withNodeEnv<T>(nodeEnv: string, run: () => T): T {
       delete process.env.NODE_ENV
     } else {
       process.env.NODE_ENV = previous
+    }
+  }
+}
+
+function withRunelightDevEnv<T>(run: () => T): T {
+  const previous = process.env.RUNELIGHT_DEV
+  process.env.RUNELIGHT_DEV = "1"
+  try {
+    return run()
+  } finally {
+    if (previous === undefined) {
+      delete process.env.RUNELIGHT_DEV
+    } else {
+      process.env.RUNELIGHT_DEV = previous
     }
   }
 }
@@ -81,15 +102,14 @@ describe("runelight Next React adapter", () => {
       )
       writeFileSync(join(studioAppDirectory, "assets/studio.js"), "window.__runelightStudio = true")
 
-      const htmlResponse = await createRunelightNextStudioResponse({ enabled: true, studioAppDirectory })
+      const htmlResponse = await createRunelightNextStudioResponse({ config: productionRunelightConfig, studioAppDirectory })
       const assetResponse = await createRunelightNextStudioAssetResponse(["studio.js"], {
-        enabled: true,
+        config: productionRunelightConfig,
         studioAppDirectory,
       })
       const manifestResponse = await createRunelightNextStudioManifestResponse({
-        config: runelightConfig,
+        config: productionRunelightConfig,
         cwd: root,
-        enabled: true,
       })
       const manifest = await manifestResponse.json()
 
@@ -111,6 +131,25 @@ describe("runelight Next React adapter", () => {
     }
   })
 
+  it("turns on Studio and preview route helpers from the internal Studio exposure config", async () => {
+    const root = mkdtempSync(join(tmpdir(), "runelight-next-studio-config-exposed-"))
+    const studioAppDirectory = join(root, "studio-app")
+    try {
+      mkdirSync(studioAppDirectory, { recursive: true })
+      writeFileSync(join(studioAppDirectory, "index.html"), "<!doctype html><div>Studio</div>")
+
+      const htmlResponse = await createRunelightNextStudioResponse({
+        config: productionRunelightConfig,
+        studioAppDirectory,
+      })
+
+      expect(htmlResponse.status).toBe(200)
+      expect(isRunelightNextPreviewRouteEnabled({ config: productionRunelightConfig })).toBe(true)
+    } finally {
+      rmSync(root, { force: true, recursive: true })
+    }
+  })
+
   it("keeps Studio route helpers disabled in production by default", async () => {
     await withNodeEnv("production", async () => {
       const response = await createRunelightNextStudioResponse()
@@ -119,17 +158,36 @@ describe("runelight Next React adapter", () => {
     })
   })
 
-  it("can explicitly enable production preview entries for projects that want to ship Runelight routes", () => {
-    withNodeEnv("production", () => {
-      const config = runelightNextReact({ config: runelightConfig, enabled: true, root: "/repo" })({})
+  it("enables preview entries under Runelight dev mode", () => {
+    withRunelightDevEnv(() => {
+      const config = runelightNextReact({ config: runelightConfig, root: "/repo" })({})
 
       expect(config.webpack?.({}, {})?.module?.rules?.[0]?.use?.[0]?.loader).toContain("loader.cjs")
       expect(config.turbopack?.resolveAlias?.["@runelight/adapter-next-react/preview-entries"]).toBe("./.runelight/preview-entries.ts")
     })
   })
 
+  it("enables production preview entries from the internal Studio exposure config", () => {
+    const root = mkdtempSync(join(tmpdir(), "runelight-next-production-exposed-"))
+    try {
+      withNodeEnv("production", () => {
+        const config = runelightNextReact({
+          config: productionRunelightConfig,
+          root,
+        })({})
+
+        expect(config.webpack?.({}, {})?.resolve?.alias?.["@runelight/adapter-next-react/preview-entries"]).toBe(
+          join(root, ".runelight/preview-entries.ts"),
+        )
+        expect(existsSync(join(root, ".runelight/preview-entries.ts"))).toBe(true)
+      })
+    } finally {
+      rmSync(root, { force: true, recursive: true })
+    }
+  })
+
   it("adds webpack and turbopack rules for .g.tsx files", () => {
-    const withRunelight = runelightNextReact({ config: runelightConfig, enabled: true, root: "/repo" })
+    const withRunelight = runelightNextReact({ config: productionRunelightConfig, root: "/repo" })
     const config = withRunelight({
       allowedDevOrigins: ["127.0.0.1"],
     })
@@ -166,7 +224,7 @@ describe("runelight Next React adapter", () => {
   })
 
   it("preserves user webpack config and prepends existing turbopack rules", () => {
-    const withRunelight = runelightNextReact({ config: runelightConfig, enabled: true, root: "/repo" })
+    const withRunelight = runelightNextReact({ config: productionRunelightConfig, root: "/repo" })
     const config = withRunelight({
       webpack(current, _context) {
         current.module = { rules: [{ test: /other/ }] }
@@ -208,8 +266,7 @@ describe("runelight Next React adapter", () => {
 
   it("preserves user aliases and supports a custom preview entries module id", () => {
     const withRunelight = runelightNextReact({
-      config: runelightConfig,
-      enabled: true,
+      config: productionRunelightConfig,
       previewEntries: {
         moduleId: "@app/runelight-preview-entries",
         outputFile: ".generated/runelight-preview-entries.ts",
@@ -258,8 +315,10 @@ describe("runelight Next React adapter", () => {
           host: {
             command: "next dev -H 127.0.0.1 -p {port}",
           },
+          studio: {
+            exposeInProduction: true,
+          },
         },
-        enabled: true,
         root,
       })({})
 
@@ -288,11 +347,14 @@ export default defineRunelightConfig({
   host: {
     command: "next dev -H 127.0.0.1 -p {port}",
   },
+  studio: {
+    exposeInProduction: true,
+  },
 })
 `,
       )
 
-      runelightNextReact({ enabled: true, root })({})
+      runelightNextReact({ root })({})
 
       const output = readFileSync(join(root, ".runelight/preview-entries.ts"), "utf8")
       expect(output).toContain('"src/components/Card.g.tsx"')
@@ -310,7 +372,7 @@ export default defineRunelightConfig({
       writeFileSync(join(root, "src/components/ui/Menu.g.tsx"), "export function Menu() { return null }\n")
       writeFileSync(join(root, "src/generated/Ignored.tsx"), "export default function Ignored() { return null }\n")
 
-      runelightNextReact({ config: runelightConfig, enabled: true, root })({})
+      runelightNextReact({ config: productionRunelightConfig, root })({})
 
       const output = readFileSync(join(root, ".runelight/preview-entries.ts"), "utf8")
       expect(output).toContain('"src/components/ui/Menu.g.tsx": () => import("../src/components/ui/Menu.g?runelight-preview")')
@@ -341,8 +403,10 @@ export default defineRunelightConfig({
           host: {
             command: "next dev -H 127.0.0.1 -p {port}",
           },
+          studio: {
+            exposeInProduction: true,
+          },
         },
-        enabled: true,
         root,
       })({})
 
@@ -356,7 +420,7 @@ export default defineRunelightConfig({
   })
 
   it("installs a webpack preview entry watcher for dev-time file additions", () => {
-    const config = runelightNextReact({ config: runelightConfig, enabled: true, root: "/repo" })({})
+    const config = withRunelightDevEnv(() => runelightNextReact({ config: runelightConfig, root: "/repo" })({}))
     const webpackConfig = config.webpack?.({ plugins: [] }, { dev: true })
 
     expect(
@@ -368,7 +432,7 @@ export default defineRunelightConfig({
 
   it("exposes a CommonJS entry for Next config loading", () => {
     const cjsEntry = require("../index.cjs") as typeof import("../src/index.js")
-    const config = cjsEntry.runelightNextReact({ config: runelightConfig, enabled: true, root: "/repo" })({})
+    const config = cjsEntry.runelightNextReact({ config: productionRunelightConfig, root: "/repo" })({})
 
     expect(config.webpack?.({}, {})?.module?.rules?.[0]?.use?.[0]?.loader).toContain("loader.cjs")
     expect(config.turbopack?.rules?.["*.g.tsx"]?.loaders?.[0]?.loader).toContain("loader.cjs")
@@ -392,12 +456,51 @@ export default defineRunelightConfig({
   host: {
     command: "next dev -H 127.0.0.1 -p {port}",
   },
+  studio: {
+    exposeInProduction: true,
+  },
 })
 `,
       )
 
       const cjsEntry = require("../index.cjs") as typeof import("../src/index.js")
-      cjsEntry.runelightNextReact({ enabled: true, root })({})
+      cjsEntry.runelightNextReact({ root })({})
+
+      const output = readFileSync(join(root, ".runelight/preview-entries.ts"), "utf8")
+      expect(output).toContain('"src/components/Card.g.tsx"')
+    } finally {
+      rmSync(root, { force: true, recursive: true })
+    }
+  })
+
+  it("enables production preview entries from the CommonJS entry internal config", () => {
+    const root = mkdtempSync(join(tmpdir(), "runelight-next-cjs-production-config-"))
+    try {
+      mkdirSync(join(root, "src/components"), { recursive: true })
+      writeFileSync(join(root, "src/components/Card.g.tsx"), "export default function Card() { return null }\n")
+      writeFileSync(
+        join(root, "runelight.config.ts"),
+        `import { defineRunelightConfig } from "@runelight/core/define-config"
+
+export default defineRunelightConfig({
+  project: {
+    sourceRoot: "src",
+    entryRoot: "app/runelight",
+  },
+  host: {
+    command: "next dev -H 127.0.0.1 -p {port}",
+  },
+  studio: {
+    exposeInProduction: true,
+  },
+})
+`,
+      )
+
+      withNodeEnv("production", () => {
+        const cjsEntry = require("../index.cjs") as typeof import("../src/index.js")
+        cjsEntry.runelightNextReact({ root })({})
+      })
 
       const output = readFileSync(join(root, ".runelight/preview-entries.ts"), "utf8")
       expect(output).toContain('"src/components/Card.g.tsx"')

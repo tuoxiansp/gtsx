@@ -2,17 +2,13 @@ import { readFileSync, statSync } from "node:fs"
 import { extname, resolve } from "node:path"
 
 import type { RunelightConfig } from "@runelight/core"
+import { isRunelightNextRouteEnabled, type RunelightNextRouteEnablementOptions } from "./route-enablement.js"
 
-export type RunelightNextStudioResponseOptions = {
-  enabled?: boolean
+export type RunelightNextStudioResponseOptions = RunelightNextRouteEnablementOptions & {
   studioAppDirectory?: string
 }
 
-export type RunelightNextStudioManifestResponseOptions = {
-  config?: RunelightConfig
-  cwd?: string
-  enabled?: boolean
-}
+export type RunelightNextStudioManifestResponseOptions = RunelightNextRouteEnablementOptions
 
 type StudioManifestServerModule = {
   createStudioManifestProvider(options?: { config?: RunelightConfig; cwd?: string }): () => unknown
@@ -35,7 +31,7 @@ export async function createRunelightNextStudioAssetResponse(
   assetPath: string | string[],
   options: RunelightNextStudioResponseOptions = {},
 ): Promise<Response> {
-  if (!isRunelightNextStudioEnabled(options)) return notFoundResponse()
+  if (!isRunelightNextRouteEnabled(options)) return notFoundResponse()
 
   const normalizedAssetPath = normalizeRunelightNextStudioAssetPath(assetPath)
   const filePath = await resolveRunelightNextStudioAssetFilePath(normalizedAssetPath, options)
@@ -54,7 +50,7 @@ export async function createRunelightNextStudioAssetResponse(
 export async function createRunelightNextStudioManifestResponse(
   options: RunelightNextStudioManifestResponseOptions = {},
 ): Promise<Response> {
-  if (!isRunelightNextStudioEnabled(options)) return notFoundResponse()
+  if (!isRunelightNextRouteEnabled(options)) return notFoundResponse()
 
   const { createStudioManifestProvider } = await import(studioManifestServerModuleId) as StudioManifestServerModule
   return Response.json(createStudioManifestProvider({ config: options.config, cwd: options.cwd })())
@@ -68,10 +64,6 @@ async function resolveRunelightNextStudioAssetFilePath(
 
   const { resolveRunelightStudioAppAssetPath } = await import(studioStaticAppModuleId) as StudioStaticAppModule
   return resolveRunelightStudioAppAssetPath(assetPath)
-}
-
-function isRunelightNextStudioEnabled(options: { enabled?: boolean }): boolean {
-  return options.enabled ?? process.env.RUNELIGHT_DEV === "1"
 }
 
 function normalizeRunelightNextStudioAssetPath(assetPath: string | string[]): string {

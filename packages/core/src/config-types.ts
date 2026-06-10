@@ -25,7 +25,6 @@ export type RunelightScriptConfig = RunelightConfig
 
 export type RunelightStudioConfig = {
   exposeInProduction?: boolean
-  manifestCacheTtlMs?: number
 }
 
 export type ResolvedRunelightConfig = {

@@ -12,7 +12,6 @@ const defaultRunelightRoutes = {
   studio: "/runelight/studio",
   manifest: "/runelight/studio/manifest",
 }
-const defaultStudioManifestCacheTtlMs = 1000
 const ignoredPreviewEntryDirs = new Set(["node_modules", "dist", ".next", ".git", ".runelight"])
 const previewEntriesPluginName = "RunelightNextPreviewEntriesPlugin"
 const previewEntriesWatcherDebounceMs = 50
@@ -22,7 +21,7 @@ const runelightDevEnvName = "RUNELIGHT_DEV"
 
 function runelightNextReact(options = {}) {
   const root = options.root ?? process.cwd()
-  const runelightDevEnabled = options.enabled ?? process.env[runelightDevEnvName] === "1"
+  const runelightDevEnabled = isRunelightNextRouteEnabled(root, options)
 
   const loaderPath = resolve(__dirname, "loader.cjs")
   const transformPath = require.resolve("@runelight/core/react-transform", {
@@ -64,6 +63,12 @@ function runelightNextReact(options = {}) {
       ),
     }
   }
+}
+
+function isRunelightNextRouteEnabled(root, options) {
+  if (process.env[runelightDevEnvName] === "1") return true
+
+  return resolveOptionalNextRunelightConfig(root, options.config)?.studio.exposeInProduction === true
 }
 
 function withRunelightTurbopackConfig(turbopack, loaderPath, root, transformPath, previewEntries) {
@@ -118,6 +123,15 @@ function resolveNextRunelightConfig(root, config) {
 
   const message = loaded.diagnostics.map((diagnostic) => diagnostic.message).filter(Boolean).join("\n")
   throw new Error(message || "Missing runelight.config.ts for Next adapter.")
+}
+
+function resolveOptionalNextRunelightConfig(root, config) {
+  if (config) return resolveRunelightConfig(config)
+
+  const loaded = loadRunelightConfig(root)
+  if (!loaded.config) return undefined
+
+  return resolveRunelightConfig(loaded.config)
 }
 
 function loadRunelightConfig(cwd) {
@@ -185,7 +199,7 @@ function loadCommonJSConfig(configPath) {
 }
 
 function requireRunelightConfigDependency(specifier) {
-  if (specifier === "@runelight/core") return { defineRunelightConfig }
+  if (specifier === "@runelight/core" || specifier === "@runelight/core/define-config") return { defineRunelightConfig }
   throw new Error(`Unsupported config import: ${specifier}`)
 }
 
@@ -212,7 +226,7 @@ function resolveRunelightConfig(config) {
     },
     routes: defaultRunelightRoutes,
     studio: {
-      manifestCacheTtlMs: config.studio?.manifestCacheTtlMs ?? defaultStudioManifestCacheTtlMs,
+      exposeInProduction: config.studio?.exposeInProduction ?? false,
     },
   }
 }

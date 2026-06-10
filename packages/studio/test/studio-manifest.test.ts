@@ -159,9 +159,6 @@ describe("Runelight Studio manifest", () => {
         host: {
           command: "vite --host 127.0.0.1 --port {port} --strictPort",
         },
-        studio: {
-          manifestCacheTtlMs: 60_000,
-        },
       },
     })
     const manifest = getManifest()
