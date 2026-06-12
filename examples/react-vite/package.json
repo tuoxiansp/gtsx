@@ -4,13 +4,14 @@
   "type": "module",
   "scripts": {
     "dev": "runelight serve",
-    "runelight:check": "runelight check src/frames",
-    "runelight:capture": "runelight capture src/frames --all --out ../../snapshots/examples",
+    "runelight:check": "runelight check",
+    "runelight:capture": "runelight capture src/frames --out ../../snapshots/examples",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@runelight/adapter-vite-react": "workspace:*",
     "@runelight/cli": "workspace:*",
+    "@runelight/react": "workspace:*",
     "@runelight/studio": "workspace:*",
     "@vitejs/plugin-react": "^5.1.2",
     "react": "^19.2.6",

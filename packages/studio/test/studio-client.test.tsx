@@ -1,7 +1,9 @@
 import { join } from "node:path"
-import type { GBoundaryTreeNode } from "@runelight/core"
+import type { GBoundaryTreeNode } from "@runelight/core/preview-protocol"
+import { isGPreviewSessionMessage } from "@runelight/core/preview-protocol"
 import { renderToStaticMarkup } from "react-dom/server"
 import { buildRunelightProjectIndex } from "@runelight/core/project-index"
+import { runelightReactContract } from "@runelight/react/contract"
 import { describe, expect, it, vi } from "vitest"
 
 import {
@@ -24,6 +26,7 @@ import {
   computeStudioColumnLayout,
   createStudioCanvasTransformFromUrl,
   createStudioPreviewPoolUrl,
+  createStudioPreviewUrl,
   createStudioPreviewGeometryCacheStore,
   createStudioPreviewMessageFlush,
   createStudioPreviewRenderCompletionSource,
@@ -37,7 +40,6 @@ import {
   defaultStudioCanvasTransform,
   defaultStudioPreviewRenderQueueMaximumConcurrentRenderTasksDuringCanvasMovement,
   defaultStudioPreviewRenderQueueMinimumVisibleRenderTasksDuringCanvasMovement,
-  isGPreviewProtocolMessage,
   isStudioPreviewPoolDisabled,
   isStudioPreviewPoolDebugEnabled,
   isStudioPreviewQueueDebugEnabled,
@@ -72,7 +74,7 @@ import {
   studioPreviewRenderTargetFromUrl,
   visibleStudioCanvasCardEntriesByColumnIndex,
   visibleQueuedStudioPreviewSessionIds,
-} from "../src/index.js"
+} from "../src/client-api.js"
 import ComponentCard from "../src/components/ComponentCard.g.js"
 import LazyPreviewFrame from "../src/components/LazyPreviewFrame.g.js"
 import PreviewFrameSheet from "../src/components/PreviewFrameSheet.g.js"
@@ -127,9 +129,10 @@ const tsProjectScopeRoot = join(import.meta.dirname, "../../core/test/fixtures/t
 type CreateStudioManifestOptions = NonNullable<Parameters<typeof createStudioManifest>[1]>
 
 function buildStudioManifest(
-  options: { cwd: string; sourceRoot?: string; tsconfigPath?: string } & CreateStudioManifestOptions,
+  options: { cwd: string; sourceRoot: string; tsconfigPath?: string } & CreateStudioManifestOptions,
 ) {
   const projectIndex = buildRunelightProjectIndex({
+    contracts: [runelightReactContract],
     cwd: options.cwd,
     sourceRoot: options.sourceRoot,
     tsconfigPath: options.tsconfigPath,
@@ -137,9 +140,7 @@ function buildStudioManifest(
   return createStudioManifest(projectIndex, {
     cache: options.cache,
     design: options.design,
-    preview: options.preview,
-    routes: options.routes,
-    diagnostics: options.diagnostics,
+    additionalDiagnostics: options.additionalDiagnostics,
   })
 }
 
@@ -250,7 +251,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("renders root components in the first column by default", () => {
-    const manifest = buildStudioManifest({ cwd: examplesRoot, sourceRoot: "src/frames", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: examplesRoot, sourceRoot: "src/frames" })
     const expectedRootCoordinates = [
       "src/frames/language/PrimitiveProps.g.tsx#default",
       "src/frames/stateful/DashboardShell.g.tsx#default",
@@ -265,10 +266,9 @@ describe("Runelight Studio shell", () => {
   })
 
   it("keeps design convention files out of the components workspace", () => {
-    const projectIndex = buildRunelightProjectIndex({ cwd: tsProjectScopeRoot, sourceRoot: "src" })
+    const projectIndex = buildRunelightProjectIndex({ contracts: [runelightReactContract], cwd: tsProjectScopeRoot, sourceRoot: "src" })
     const manifest = createStudioManifest(projectIndex, {
       design: discoverStudioDesignManifest(projectIndex, "src/app/runelight"),
-      routes: { preview: "/runelight" },
     })
     const expectedRootCoordinates = ["src/Included.g.tsx#default"]
 
@@ -407,7 +407,6 @@ describe("Runelight Studio shell", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       sourceRoot: "src",
-      routes: { preview: "/runelight" },
       cache: { namespace: "fixture-project" },
     })
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="component:src/UserCard.g.tsx#default" />)
@@ -417,7 +416,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("names the Studio package's outer visual root as Studio", () => {
-    const manifest = buildStudioManifest({ cwd: studioRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: studioRoot, sourceRoot: "src" })
     const roots = rootStudioManifestComponents(manifest)
 
     expect(roots.map((component) => component.componentName)).toContain("Studio")
@@ -425,7 +424,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("renders the canvas without the component index sidebar", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="file:src/MultiExport.g.tsx" />)
 
     expect(html).not.toContain("Runelight component index")
@@ -437,7 +436,6 @@ describe("Runelight Studio shell", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       sourceRoot: "src",
-      routes: { preview: "/runelight" },
       design: {
         frames: [
           {
@@ -461,7 +459,7 @@ describe("Runelight Studio shell", () => {
     })
 
     const html = renderToStaticMarkup(
-      <StudioShell manifest={manifest} urlSearch="view=design&rootEnv=ThemeProvider:dark&debug=pool" />,
+      <StudioShell manifest={manifest} urlSearch="view=design&rootProviderVariant=ThemeProvider:dark&debug=pool" />,
     )
 
     expect(html).toContain('data-runelight-studio-design-workspace="true"')
@@ -481,7 +479,6 @@ describe("Runelight Studio shell", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       sourceRoot: "src",
-      routes: { preview: "/runelight" },
       design: {
         frames: [
           {
@@ -546,7 +543,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("renders card title and frame labels as screen-stable canvas chrome", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -861,7 +858,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("uses the fixed preview scale for every component card in the canvas", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const state = createStudioWorkspaceState(manifest, "file:src/MultiExport.g.tsx")
     const html = renderToStaticMarkup(
       <StudioWorkspaceView
@@ -1083,7 +1080,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("clips component hit targets to the preview viewport", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -1117,7 +1114,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("highlights the selected component frame collection as one target", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -1155,7 +1152,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("does not render component-local provider variant controls on cards", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -1177,7 +1174,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("dims provider variant mismatches while keeping every frame visible", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -1295,7 +1292,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("uses an empty measured boundary instead of a full viewport fallback for ready empty components", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -1440,7 +1437,6 @@ describe("Runelight Studio shell", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       sourceRoot: "src",
-      routes: { preview: "/runelight" },
     })
     const html = renderToStaticMarkup(<StudioShell manifest={manifest} selection="file:src/MultiExport.g.tsx" />)
 
@@ -2821,12 +2817,24 @@ describe("Runelight Studio shell", () => {
   })
 
   it("creates stable pooled iframe URLs and render targets for preview slots", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
+    const component = rootStudioManifestComponents(manifest).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
+    if (!component) throw new Error("Missing UserCard component")
 
     expect(createStudioPreviewPoolUrl(manifest)).toBe("/runelight?chrome=0&pool=1")
+    const previewUrl = createStudioPreviewUrl(manifest, component, "ready", "session-1", {
+      static: true,
+      frameOverrides: [{ coordinate: "src/Child.g.tsx#default", frameName: "open:error" }],
+    })
+    expect(previewUrl).toBe(
+      "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0&sessionId=session-1&static=1&frameOverride=src%252FChild.g.tsx%2523default%3Aopen%253Aerror",
+    )
+    expect(studioPreviewRenderTargetFromUrl(previewUrl, "fallback-session")).toMatchObject({
+      frameOverrides: [["src/Child.g.tsx#default", "open:error"]],
+    })
     expect(
       studioPreviewRenderTargetFromUrl(
-        "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0&sessionId=session-1&static=1&frameOverride=src%2FChild.g.tsx%23default%3Aopen",
+        "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0&sessionId=session-1&static=1&frameOverride=src%252FChild.g.tsx%2523default%3Aopen",
         "fallback-session",
       ),
     ).toEqual({
@@ -2874,7 +2882,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("uses cached preview geometry for component frame previews", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -2909,7 +2917,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("invalidates preview cache keys when the component source hash changes", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const component = manifest.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === "src/UserCard.g.tsx#default")
     if (!component) throw new Error("Missing UserCard fixture")
 
@@ -2919,7 +2927,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("derives geometry cache keys for every manifest frame and canvas viewport", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const expectedKeys = manifest.files.flatMap((file) =>
       file.components.flatMap((component) =>
         component.frames.flatMap((frame) =>
@@ -3076,7 +3084,6 @@ describe("Runelight Studio shell", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       sourceRoot: "src",
-      routes: { preview: "/runelight" },
       cache: { namespace: "test-cache-namespace" },
     })
 
@@ -3084,7 +3091,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("derives a stable fallback namespace from the Studio manifest shape", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const namespace = studioPreviewIndexedDBNamespace(manifest)
     const renamedManifest = {
       ...manifest,
@@ -3099,7 +3106,6 @@ describe("Runelight Studio shell", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       sourceRoot: "src",
-      routes: { preview: "/runelight" },
     })
     const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
 
@@ -3123,7 +3129,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("uses fixed viewport presets instead of content-height sizing", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const workspace = changeStudioViewportPreset(
       createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
       "src/UserCard.g.tsx#default",
@@ -3152,7 +3158,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("applies the floating viewport preset to every canvas component", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const workspace = {
       ...createStudioWorkspaceState(manifest, "file:src/MultiExport.g.tsx"),
       canvasViewportPreset: "phone" as const,
@@ -3289,7 +3295,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("can disable the Studio preview iframe pool from debug URL params", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
 
     expect(renderToStaticMarkup(<StudioShell manifest={manifest} urlSearch="debug=pool" />)).toContain(
       'data-runelight-preview-iframe-pool="true"',
@@ -3303,7 +3309,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("stores viewport as a single canvas-level preset across drilldown columns", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const parentState = selectStudioComponent(
       createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
       manifest,
@@ -3350,7 +3356,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("uses component bounds height instead of viewport position for canvas card layout", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const state = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
 
     const html = renderToStaticMarkup(
@@ -3428,7 +3434,6 @@ describe("Runelight Studio shell", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       sourceRoot: "src",
-      routes: { preview: "/runelight" },
     })
     const state = createStudioWorkspaceState(manifest, "file:src/MultiExport.g.tsx")
 
@@ -3663,9 +3668,23 @@ describe("Runelight Studio shell", () => {
   })
 
   it("keeps pooled iframe handshake messages out of session frame state", () => {
-    expect(isGPreviewProtocolMessage({ type: "runelight:pool-ready", protocolVersion: 1 })).toBe(false)
-    expect(isGPreviewProtocolMessage({ type: "runelight:ready", protocolVersion: 1, sessionId: "session-1" })).toBe(true)
-    expect(isGPreviewProtocolMessage({ type: "runelight:ready", protocolVersion: 1 })).toBe(false)
+    expect(isGPreviewSessionMessage({ type: "runelight:pool-ready", protocolVersion: 1 })).toBe(false)
+    expect(isGPreviewSessionMessage({ type: "runelight:ready", protocolVersion: 1, sessionId: "session-1" })).toBe(true)
+    expect(isGPreviewSessionMessage({ type: "runelight:ready", protocolVersion: 1 })).toBe(false)
+    expect(
+      isGPreviewSessionMessage({
+        type: "runelight:render",
+        protocolVersion: 1,
+        sessionId: "session-1",
+        target: {
+          chrome: "0",
+          entry: "src/UserCard.g.tsx#default",
+          frameName: "ready",
+          sessionId: "session-1",
+          staticMode: true,
+        },
+      }),
+    ).toBe(false)
   })
 
   it("keeps pooled iframe borrow identity stable across render target and size updates", () => {
@@ -4200,6 +4219,7 @@ describe("Runelight Studio shell", () => {
     const component = {
       coordinate: "src/Home.g.tsx#default",
       filePath: "src/Home.g.tsx",
+      sourceHash: "home-source",
       exportName: "default",
       componentName: "Home",
       mode: "scope",
@@ -4279,6 +4299,7 @@ describe("Runelight Studio shell", () => {
     const component = {
       coordinate: "src/UserPanel.g.tsx#default",
       filePath: "src/UserPanel.g.tsx",
+      sourceHash: "user-panel-source",
       exportName: "default",
       componentName: "UserPanel",
       mode: "pure",
@@ -4326,8 +4347,7 @@ describe("Runelight Studio shell", () => {
     ])
     expect(studioPreviewFrameOverridesForProviderVariantContext({
       diagnostics: [],
-      files: [{ components: [component], diagnostics: [], groupId: "src/UserPanel.g.tsx", path: "src/UserPanel.g.tsx" }],
-      preview: { urlTemplate: "/runelight" },
+      files: [{ components: [component], diagnostics: [], path: "src/UserPanel.g.tsx", sourceHash: "user-panel-source" }],
       routes: { manifest: "/runelight/studio/manifest", preview: "/runelight", studio: "/runelight/studio" },
       version: 1,
     }, {
@@ -4364,22 +4384,41 @@ describe("Runelight Studio shell", () => {
     expect(studioProviderVariantSelectionContextForPath(overridden, [coordinate])).toEqual({ ThemeProvider: "dark" })
 
     const params = createStudioWorkspaceUrlSearchParams(undefined, overridden)
-    expect(params.getAll("rootEnv")).toEqual(["ThemeProvider:light"])
-    expect(params.getAll("env")).toEqual([`${coordinate}:ThemeProvider:dark`])
+    expect(params.getAll("rootProviderVariant")).toEqual(["ThemeProvider:light"])
+    expect(params.getAll("providerVariant")).toEqual([`${coordinate}:ThemeProvider:dark`])
 
     const restored = createStudioWorkspaceStateFromUrl(manifest, params).workspace
     expect(studioProviderVariantContextForPath(restored, [coordinate])).toEqual({ ThemeProvider: "dark" })
 
     const inherited = changeStudioComponentProviderVariant(overridden, [coordinate], "ThemeProvider", "dark")
     expect(inherited.selectedProviderVariantsByPath).toEqual({})
-    expect(createStudioWorkspaceUrlSearchParams(undefined, inherited).getAll("env")).toEqual([])
+    expect(createStudioWorkspaceUrlSearchParams(undefined, inherited).getAll("providerVariant")).toEqual([])
     expect(studioProviderVariantContextForPath(inherited, [coordinate])).toEqual({ ThemeProvider: "light" })
     expect(studioProviderVariantSelectionContextForPath(inherited, [coordinate])).toEqual({})
     expect(studioProviderVariantAxes(rootComponent, studioProviderVariantSelectionContextForPath(inherited, [coordinate]))[0]?.selectedVariant).toBeUndefined()
   })
 
+  it("escapes provider variant URL values without changing the path or provider keys", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
+    const coordinate = "src/UserCard.g.tsx#default"
+    const workspace = {
+      ...createStudioWorkspaceState(manifest, `component:${coordinate}`),
+      rootProviderVariants: { ThemeProvider: "theme:light" },
+      selectedProviderVariantsByPath: {
+        [coordinate]: { ThemeProvider: "theme:dark" },
+      },
+    }
+
+    const params = createStudioWorkspaceUrlSearchParams(undefined, workspace)
+
+    expect(params.getAll("rootProviderVariant")).toEqual(["ThemeProvider:theme%3Alight"])
+    expect(params.getAll("providerVariant")).toEqual([`${coordinate}:ThemeProvider:theme%3Adark`])
+    const restored = createStudioWorkspaceStateFromUrl(manifest, params).workspace
+    expect(studioProviderVariantContextForPath(restored, [coordinate])).toEqual({ ThemeProvider: "theme:dark" })
+  })
+
   it("projects provider variant selection into preview frame overrides", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const workspace = changeStudioRootProviderVariant(
       createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
       "ThemeProvider",
@@ -4391,8 +4430,8 @@ describe("Runelight Studio shell", () => {
       { coordinate: "src/UserCard.g.tsx#default", frameName: "ready" },
     ])
     expect(previewSources(html)).toEqual([
-      "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=loading&chrome=0&sessionId=src%2FUserCard.g.tsx%23default%3Aloading&static=1&frameOverride=src%2FUserCard.g.tsx%23default%3Aready",
-      "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0&sessionId=src%2FUserCard.g.tsx%23default%3Aready&static=1&frameOverride=src%2FUserCard.g.tsx%23default%3Aready",
+      "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=loading&chrome=0&sessionId=src%2FUserCard.g.tsx%23default%3Aloading&static=1&frameOverride=src%252FUserCard.g.tsx%2523default%3Aready",
+      "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0&sessionId=src%2FUserCard.g.tsx%23default%3Aready&static=1&frameOverride=src%252FUserCard.g.tsx%2523default%3Aready",
     ])
   })
 
@@ -4468,7 +4507,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("renders the selected frame in the component iframe URL", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const state = changeStudioComponentFrame(
       createStudioWorkspaceState(manifest, "component:src/Badge.g.tsx#default"),
       "src/Badge.g.tsx#default",
@@ -4484,7 +4523,7 @@ describe("Runelight Studio shell", () => {
   })
 
   it("keeps ancestor preview URLs stable when selected child frames change", () => {
-    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src", routes: { preview: "/runelight" } })
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const parentState = selectStudioComponent(
       createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default"),
       manifest,
@@ -4960,20 +4999,18 @@ function buildLargeStudioManifest(count: number) {
       studio: "/runelight/studio",
       manifest: "/runelight/studio/manifest",
     },
-    preview: {
-      urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
-    },
     files: Array.from({ length: count }, (_, index) => {
       const paddedIndex = index.toString().padStart(3, "0")
       const path = `src/Card${paddedIndex}.g.tsx`
       const coordinate = `${path}#default`
       return {
         path,
-        groupId: `file:${path}`,
+        sourceHash: `source-${paddedIndex}`,
         components: [
           {
             coordinate,
             filePath: path,
+            sourceHash: `source-${paddedIndex}`,
             exportName: "default",
             componentName: `Card${paddedIndex}`,
             mode: "scope",

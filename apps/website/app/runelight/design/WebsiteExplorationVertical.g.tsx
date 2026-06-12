@@ -1,4 +1,4 @@
-import type { GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
 
 import { WebsiteBrowserShell } from "./browser-shell"
 

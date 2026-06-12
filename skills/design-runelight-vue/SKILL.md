@@ -29,7 +29,7 @@ The user talks to the local agent. The agent edits local Vue design frames. Stud
 - Treat adapter outputs as generated. Do not put design drafts under generated folders.
 - A design frame is not formal component coverage. It usually shows one strong happy path; production states are modeled later by component frames.
 - Avoid production composables, stores, routers, queries, and hookful providers inside design frames. If an interaction state matters for the visual direction, create another design frame or model the chosen state through static template values or frame `scope`.
-- Use Vue frame `props` and `scope`. Do not use `bindings`, and do not use React-style `providers`.
+- Use Vue frame `props` and `scope`; use `providers` only for explicit Vue injection keys. Do not use `bindings`.
 
 ## Reference Scope
 

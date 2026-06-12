@@ -6,7 +6,7 @@ const vm = require("node:vm")
 
 const defaultPreviewEntriesModuleId = "@runelight/adapter-next-react/preview-entries"
 const defaultPreviewEntriesOutputFile = ".runelight/preview-entries.ts"
-const defaultRunelightSourceRoot = "src"
+const runelightHostPortPlaceholder = "{port}"
 const defaultRunelightRoutes = {
   preview: "/runelight",
   studio: "/runelight/studio",
@@ -24,7 +24,7 @@ function runelightNextReact(options = {}) {
   const runelightDevEnabled = isRunelightNextRouteEnabled(root, options)
 
   const loaderPath = resolve(__dirname, "loader.cjs")
-  const transformPath = require.resolve("@runelight/core/react-transform", {
+  const transformPath = require.resolve("@runelight/react/contract", {
     paths: [root, process.cwd()],
   })
   const previewEntries = runelightDevEnabled ? resolvePreviewEntriesOptions(root, options) : undefined
@@ -44,7 +44,7 @@ function runelightNextReact(options = {}) {
         resolvedConfig.resolve ??= {}
         resolvedConfig.resolve.alias = {
           ...(resolvedConfig.resolve.alias ?? {}),
-          ...(previewEntries ? { [previewEntries.moduleId]: previewEntries.outputPath } : {}),
+          ...(previewEntries ? { [defaultPreviewEntriesModuleId]: previewEntries.outputPath } : {}),
         }
         installRunelightNextPreviewEntriesPlugin(resolvedConfig, root, previewEntries)
         resolvedConfig.module.rules.unshift({
@@ -81,7 +81,7 @@ function withRunelightTurbopackConfig(turbopack, loaderPath, root, transformPath
     ...turbopack,
     resolveAlias: {
       ...(turbopack?.resolveAlias ?? {}),
-      ...(previewEntries ? { [previewEntries.moduleId]: toTurbopackResolveAliasPath(root, previewEntries.outputPath) } : {}),
+      ...(previewEntries ? { [defaultPreviewEntriesModuleId]: toTurbopackResolveAliasPath(root, previewEntries.outputPath) } : {}),
     },
     rules: {
       ...rules,
@@ -100,18 +100,17 @@ function resolvePreviewEntriesOptions(root, options) {
 
   const previewEntries = typeof options.previewEntries === "object" ? options.previewEntries : {}
   const resolvedConfig = resolveNextRunelightConfig(root, options.config)
-  const entryRoot = previewEntries.entryRoot ?? resolvedConfig?.project.entryRoot
+  const entryRoot = resolvedConfig?.project.entryRoot
   if (!entryRoot) {
     throw new Error(
-      "Missing project.entryRoot in runelight.config.ts. Run setup-runelight again so the local /runelight entry directory is recorded.",
+      'Missing project.entryRoot in runelight.config.ts. Record the local /runelight entry directory, for example project: { entryRoot: "app/runelight" }.',
     )
   }
 
   return {
     entryRoot: normalizeRunelightPath(entryRoot),
-    moduleId: previewEntries.moduleId ?? defaultPreviewEntriesModuleId,
     outputPath: resolve(root, previewEntries.outputFile ?? defaultPreviewEntriesOutputFile),
-    sourceRoot: previewEntries.sourceRoot ?? options.sourceRoot ?? resolvedConfig?.project.sourceRoot ?? defaultRunelightSourceRoot,
+    sourceRoot: resolvedConfig.project.sourceRoot,
   }
 }
 
@@ -153,6 +152,9 @@ function loadRunelightConfig(cwd) {
 
   try {
     const config = configPath.endsWith(".ts") ? loadTypeScriptConfig(configPath) : loadCommonJSConfig(configPath)
+    const diagnostics = validateLoadedRunelightConfig(config)
+    if (diagnostics.length > 0) return { diagnostics }
+
     return { config, diagnostics: [] }
   } catch (error) {
     return {
@@ -199,7 +201,7 @@ function loadCommonJSConfig(configPath) {
 }
 
 function requireRunelightConfigDependency(specifier) {
-  if (specifier === "@runelight/core" || specifier === "@runelight/core/define-config") return { defineRunelightConfig }
+  if (specifier === "@runelight/core") return { defineRunelightConfig }
   throw new Error(`Unsupported config import: ${specifier}`)
 }
 
@@ -208,19 +210,17 @@ function defineRunelightConfig(config) {
 }
 
 function readDefaultExport(exportsValue) {
-  const config = exportsValue.default ?? exportsValue
-  if (!config.host) {
-    throw new Error("Missing host configuration in runelight.config.ts.")
-  }
-  return config
+  return exportsValue.default ?? exportsValue
 }
 
 function resolveRunelightConfig(config) {
+  assertRunelightConfig(config)
+
   return {
     host: config.host ?? {},
     project: {
-      sourceRoot: config.project?.sourceRoot ?? defaultRunelightSourceRoot,
-      ...(config.project?.entryRoot ? { entryRoot: normalizeRunelightPath(config.project.entryRoot) } : {}),
+      entryRoot: normalizeRunelightPath(config.project.entryRoot),
+      sourceRoot: normalizeRunelightPath(config.project.sourceRoot),
       ...(config.project?.namespace ? { namespace: config.project.namespace } : {}),
       ...(config.project?.tsconfig ? { tsconfig: config.project.tsconfig } : {}),
     },
@@ -229,6 +229,58 @@ function resolveRunelightConfig(config) {
       exposeInProduction: config.studio?.exposeInProduction ?? false,
     },
   }
+}
+
+function validateLoadedRunelightConfig(config) {
+  const diagnostics = []
+  if (!Array.isArray(config?.contracts) || config.contracts.length === 0) {
+    diagnostics.push({
+      stage: "adapter-configuration",
+      code: "missing-contracts",
+      message: 'Add a Runelight contract to runelight.config.ts, for example contracts: ["@runelight/react/contract"].',
+    })
+  } else if (!config.contracts.every(isNonEmptyString)) {
+    diagnostics.push({
+      stage: "adapter-configuration",
+      code: "invalid-contracts",
+      message: 'contracts in runelight.config.ts must be string specifiers, for example contracts: ["@runelight/react/contract"].',
+    })
+  }
+  if (!config?.project || !isNonEmptyString(config.project.entryRoot)) {
+    diagnostics.push({
+      stage: "adapter-configuration",
+      code: "missing-entry-root",
+      message: 'Add project.entryRoot to runelight.config.ts, for example project: { entryRoot: "app/runelight" }.',
+    })
+  }
+  if (!config?.project || !isNonEmptyString(config.project.sourceRoot)) {
+    diagnostics.push({
+      stage: "adapter-configuration",
+      code: "missing-source-root",
+      message: 'Add project.sourceRoot to runelight.config.ts, for example project: { sourceRoot: "src" } or project: { sourceRoot: "." }.',
+    })
+  }
+  if (config?.host?.command !== undefined && !isRunelightHostCommandWithPortPlaceholder(config.host.command)) {
+    diagnostics.push({
+      stage: "adapter-configuration",
+      code: "invalid-host-command",
+      message: "host.command in runelight.config.ts must include the {port} placeholder so Runelight can choose and substitute the Host port.",
+    })
+  }
+  return diagnostics
+}
+
+function assertRunelightConfig(config) {
+  const diagnostics = validateLoadedRunelightConfig(config)
+  if (diagnostics.length > 0) throw new Error(diagnostics.map((diagnostic) => diagnostic.message).join("\n"))
+}
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0
+}
+
+function isRunelightHostCommandWithPortPlaceholder(command) {
+  return isNonEmptyString(command) && command.includes(runelightHostPortPlaceholder)
 }
 
 function writeRunelightNextPreviewEntries(root, options) {
@@ -411,27 +463,27 @@ function createRunelightNextPreviewEntriesModule(root, outputPath, files) {
     return `  ${JSON.stringify(filePath)}: () => import(${JSON.stringify(toGeneratedImportSpecifier(outputPath, absoluteFilePath, previewImportQuery))}),`
   })
 
-  return `import type { RunelightPreviewComponent } from "@runelight/adapter-next-react/preview"
+  return `import type { RunelightReactPreviewComponent } from "@runelight/adapter-next-react/preview"
 
-export type RunelightPreviewModule = Record<string, unknown>
-export type RunelightPreviewEntryLoader = () => Promise<RunelightPreviewModule>
-export type RunelightPreviewEntryLoaders = Record<string, RunelightPreviewEntryLoader>
+type RunelightNextPreviewModule = Record<string, unknown>
+type RunelightNextPreviewEntryLoader = () => Promise<RunelightNextPreviewModule>
+type RunelightNextPreviewEntryLoaders = Record<string, RunelightNextPreviewEntryLoader>
 
-export const runelightPreviewEntryLoaders = {
+const runelightNextPreviewEntryLoaders = {
 ${entries.join("\n")}
-} satisfies RunelightPreviewEntryLoaders
+} satisfies RunelightNextPreviewEntryLoaders
 
-export async function loadRunelightPreviewComponent(entry: string): Promise<RunelightPreviewComponent | undefined> {
-  const { file, exportName } = parseRunelightPreviewEntry(entry)
-  const loader = (runelightPreviewEntryLoaders as RunelightPreviewEntryLoaders)[file]
+export async function loadRunelightNextPreviewComponent(entry: string): Promise<RunelightReactPreviewComponent | undefined> {
+  const { file, exportName } = parseRunelightNextPreviewEntry(entry)
+  const loader = (runelightNextPreviewEntryLoaders as RunelightNextPreviewEntryLoaders)[file]
   if (!loader) return undefined
 
   const moduleValue = await loader()
   const component = moduleValue[exportName]
-  return typeof component === "function" ? (component as RunelightPreviewComponent) : undefined
+  return typeof component === "function" ? (component as RunelightReactPreviewComponent) : undefined
 }
 
-export function parseRunelightPreviewEntry(entry: string): { file: string; exportName: string } {
+function parseRunelightNextPreviewEntry(entry: string): { file: string; exportName: string } {
   const [file, exportName] = entry.split("#", 2)
   return { file, exportName: exportName || "default" }
 }

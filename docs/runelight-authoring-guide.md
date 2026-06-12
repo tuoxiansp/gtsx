@@ -56,7 +56,7 @@ When in doubt, start with Pure. Introduce scope or providers only when props alo
 The simplest frame. Every preview state is described by props:
 
 ```tsx
-import type { GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
 
 type BadgeProps = {
   tone: "neutral" | "warning"
@@ -79,7 +79,7 @@ When the UI depends on application state, wrap your production hook:
 
 ```tsx
 import { useState } from "react"
-import { createGScopeHook, type GFrames } from "@runelight/core"
+import { createGScopeHook, type GFrames } from "@runelight/react/runtime"
 
 type CounterProps = { title: string }
 type CounterScope = { count: number; increment: () => void }

@@ -1,7 +1,4 @@
-import {
-  type GFrames,
-  type GProviderFrame,
-} from "@runelight/core"
+import type { GFrames, GProviderFrame } from "@runelight/react/runtime"
 
 import { LoginProvider } from "./MissingProviderVariant.g"
 

@@ -1,9 +1,4 @@
-import {
-  createGProvider,
-  createGScopeHook,
-  type GFrames,
-  type GProviderFrame,
-} from "@runelight/core"
+import { createGProvider, createGScopeHook, type GFrames, type GProviderFrame } from "@runelight/react/runtime"
 
 export type Props = {
   userId: string

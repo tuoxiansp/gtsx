@@ -1,4 +1,5 @@
-import type { GBoundaryRect, GBoundaryTreeNode } from "@runelight/core"
+import type { GBoundaryRect } from "@runelight/core/boundary-rect"
+import type { GBoundaryTreeNode } from "@runelight/core/preview-protocol"
 
 const emptyStudioBoundaryRect: GBoundaryRect = { x: 0, y: 0, width: 1, height: 1 }
 

@@ -11,9 +11,20 @@ import {
   createGPreviewResizeMessage,
   createGPreviewTreeMessage,
   createGPreviewValuesMessage,
-  runelightPreviewSsrBootstrapScriptId,
+  decodeRunelightPreviewFrameOverride,
+  encodeRunelightPreviewFrameOverride,
+  isGPreviewPoolReadyMessage,
+  isGPreviewRenderAcceptedMessage,
+  isGPreviewRenderMessage,
+  isGPreviewRenderTarget,
+  isGPreviewSessionMessage,
+  normalizeRunelightPreviewFrameOverride,
+  readRunelightPreviewFrameOverridesFromSearchParams,
+  RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT_ID,
   type GBoundaryTreeNode,
-} from "../src/index.js"
+  type GPreviewRenderTarget,
+  type GRuntimeValuesSnapshot,
+} from "../src/preview-protocol.js"
 
 const tree = [
   {
@@ -28,6 +39,22 @@ const tree = [
     ],
   },
 ] satisfies GBoundaryTreeNode[]
+
+const values = {
+  boundaryId: "runelight-boundary:2",
+  props: { type: "object", constructorName: "Object", entries: [] },
+  scope: { type: "undefined" },
+  providerValues: [{ providerName: "ThemeRunelightProvider", value: { type: "string", value: "dark" } }],
+} satisfies GRuntimeValuesSnapshot
+
+const renderTarget = {
+  frameName: "ready",
+  frameOverrides: [["src/Child.g.tsx#default", "open"]],
+  chrome: "0",
+  entry: "src/Card.g.tsx#default",
+  sessionId: "src/Card.g.tsx#default:ready",
+  staticMode: true,
+} satisfies GPreviewRenderTarget
 
 describe("Runelight preview iframe protocol", () => {
   it("creates versioned preview messages with session IDs", () => {
@@ -66,47 +93,23 @@ describe("Runelight preview iframe protocol", () => {
       boundaryId: "runelight-boundary:2",
     })
     expect(
-      createGPreviewValuesMessage("session-1", {
-        boundaryId: "runelight-boundary:2",
-        props: { type: "object", constructorName: "Object", entries: [] },
-        scope: { type: "undefined" },
-        providerValues: [{ providerName: "ThemeRunelightProvider", value: { type: "string", value: "dark" } }],
-      }),
+      createGPreviewValuesMessage("session-1", values),
     ).toEqual({
       type: "runelight:values",
       protocolVersion: 1,
       sessionId: "session-1",
-      values: {
-        boundaryId: "runelight-boundary:2",
-        props: { type: "object", constructorName: "Object", entries: [] },
-        scope: { type: "undefined" },
-        providerValues: [{ providerName: "ThemeRunelightProvider", value: { type: "string", value: "dark" } }],
-      },
+      values,
     })
   })
 
   it("creates pooled iframe render control messages", () => {
     expect(
-      createGPreviewRenderMessage({
-        frameName: "ready",
-        frameOverrides: [["src/Child.g.tsx#default", "open"]],
-        chrome: "0",
-        entry: "src/Card.g.tsx#default",
-        sessionId: "src/Card.g.tsx#default:ready",
-        staticMode: true,
-      }),
+      createGPreviewRenderMessage(renderTarget),
     ).toEqual({
       type: "runelight:render",
       protocolVersion: 1,
       sessionId: "src/Card.g.tsx#default:ready",
-      target: {
-        frameName: "ready",
-        frameOverrides: [["src/Child.g.tsx#default", "open"]],
-        chrome: "0",
-        entry: "src/Card.g.tsx#default",
-        sessionId: "src/Card.g.tsx#default:ready",
-        staticMode: true,
-      },
+      target: renderTarget,
     })
 
     expect(createGPreviewPoolReadyMessage()).toEqual({
@@ -121,8 +124,122 @@ describe("Runelight preview iframe protocol", () => {
     })
   })
 
+  it("identifies pooled iframe render control messages", () => {
+    expect(isGPreviewRenderTarget(renderTarget)).toBe(true)
+    expect(isGPreviewRenderMessage(createGPreviewRenderMessage(renderTarget))).toBe(true)
+    expect(isGPreviewPoolReadyMessage(createGPreviewPoolReadyMessage())).toBe(true)
+    expect(isGPreviewRenderAcceptedMessage(createGPreviewRenderAcceptedMessage("src/Card.g.tsx#default:ready"))).toBe(true)
+
+    expect(isGPreviewRenderTarget({ ...renderTarget, sessionId: null })).toBe(false)
+    expect(isGPreviewRenderTarget({ ...renderTarget, staticMode: "1" })).toBe(false)
+    expect(isGPreviewRenderTarget({ ...renderTarget, frameOverrides: [["src/Child.g.tsx#default"]] })).toBe(false)
+    expect(
+      isGPreviewRenderMessage({
+        type: "runelight:render",
+        protocolVersion: 1,
+        sessionId: "session-1",
+        target: { ...renderTarget, sessionId: "session-2" },
+      }),
+    ).toBe(false)
+    expect(isGPreviewPoolReadyMessage({ type: "runelight:pool-ready" })).toBe(false)
+    expect(isGPreviewRenderAcceptedMessage({ type: "runelight:render-accepted", protocolVersion: 1 })).toBe(false)
+  })
+
+  it("identifies session messages without accepting pooled control messages", () => {
+    expect(isGPreviewSessionMessage({ type: "runelight:ready", protocolVersion: 1, sessionId: "session-1" })).toBe(true)
+    expect(isGPreviewSessionMessage(createGPreviewTreeMessage("session-1", tree))).toBe(true)
+    expect(isGPreviewSessionMessage(createGPreviewResizeMessage("session-1", { width: 320, height: 240 }))).toBe(true)
+    expect(isGPreviewSessionMessage(createGPreviewErrorMessage("session-1", new Error("render failed")))).toBe(true)
+    expect(isGPreviewSessionMessage(createGPreviewRequestValuesMessage("session-1", "runelight-boundary:2"))).toBe(true)
+    expect(isGPreviewSessionMessage(createGPreviewValuesMessage("session-1", values))).toBe(true)
+    expect(isGPreviewSessionMessage({ type: "runelight:ready", protocolVersion: 1 })).toBe(false)
+    expect(isGPreviewSessionMessage({ type: "runelight:pool-ready", protocolVersion: 1 })).toBe(false)
+    expect(
+      isGPreviewSessionMessage({
+        type: "runelight:render",
+        protocolVersion: 1,
+        sessionId: "session-1",
+        target: {
+          chrome: "0",
+          entry: "src/Card.g.tsx#default",
+          frameName: "ready",
+          sessionId: "session-1",
+          staticMode: true,
+        },
+      }),
+    ).toBe(false)
+  })
+
+  it("rejects malformed session message payloads", () => {
+    expect(
+      isGPreviewSessionMessage({
+        type: "runelight:tree",
+        protocolVersion: 1,
+        sessionId: "session-1",
+        tree: [{ id: "runelight-boundary:0", coordinate: "src/Card.g.tsx#default" }],
+      }),
+    ).toBe(false)
+    expect(
+      isGPreviewSessionMessage({
+        type: "runelight:resize",
+        protocolVersion: 1,
+        sessionId: "session-1",
+        size: { width: "320", height: 240 },
+      }),
+    ).toBe(false)
+    expect(
+      isGPreviewSessionMessage({
+        type: "runelight:error",
+        protocolVersion: 1,
+        sessionId: "session-1",
+        error: { message: 404 },
+      }),
+    ).toBe(false)
+    expect(
+      isGPreviewSessionMessage({
+        type: "runelight:request-values",
+        protocolVersion: 1,
+        sessionId: "session-1",
+        boundaryId: 2,
+      }),
+    ).toBe(false)
+    expect(
+      isGPreviewSessionMessage({
+        type: "runelight:values",
+        protocolVersion: 1,
+        sessionId: "session-1",
+        values: {
+          boundaryId: "runelight-boundary:2",
+          props: { type: "object" },
+          providerValues: [],
+        },
+      }),
+    ).toBe(false)
+  })
+
+  it("escapes frame override parts before joining them with the preview delimiter", () => {
+    const override = encodeRunelightPreviewFrameOverride("src/Child.g.tsx#default", "open:error")
+
+    expect(override).toBe("src%2FChild.g.tsx%23default:open%3Aerror")
+    expect(decodeRunelightPreviewFrameOverride(override)).toEqual(["src/Child.g.tsx#default", "open:error"])
+    expect(normalizeRunelightPreviewFrameOverride("src/Child.g.tsx#default:open:error")).toBe(
+      "src%2FChild.g.tsx%23default:open%3Aerror",
+    )
+  })
+
+  it("keeps reading legacy unescaped frame overrides", () => {
+    const params = new URLSearchParams("frameOverride=src%2FChild.g.tsx%23default%3Aopen&frameOverride=userId:user_1")
+
+    expect(readRunelightPreviewFrameOverridesFromSearchParams(params)).toEqual(
+      new Map([
+        ["src/Child.g.tsx#default", "open"],
+        ["userId", "user_1"],
+      ]),
+    )
+  })
+
   it("exposes the framework-neutral SSR preview bootstrap script", () => {
-    expect(runelightPreviewSsrBootstrapScriptId).toBe("runelight-preview-ssr-bootstrap")
+    expect(RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT_ID).toBe("runelight-preview-ssr-bootstrap")
     expect(RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT).toContain("runelight:render")
     expect(RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT).toContain("runelight:render-accepted")
     expect(RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT).toContain("runelight:pool-ready")

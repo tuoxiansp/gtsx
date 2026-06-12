@@ -1,9 +1,11 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node"],
-    "rootDir": ".",
-    "noEmit": true
+    "types": ["node", "vitest/globals"],
+    "noEmit": true,
+    "paths": {
+      "@runelight/core/cli": ["../core/src/cli.ts"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "test/**/*.ts"]
 }

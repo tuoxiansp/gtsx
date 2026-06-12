@@ -14,7 +14,7 @@
   "homepage": "https://runelight.ai",
   "packageManager": "pnpm@10.11.0",
   "scripts": {
-    "build": "pnpm -r build",
+    "build": "pnpm -r --workspace-concurrency=1 build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
   },

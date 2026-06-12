@@ -43,7 +43,7 @@ Minimal React frame:
 ```tsx
 "use client"
 
-import type { GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
 
 export default function CheckoutFlow() {
   return <main>{/* visual draft */}</main>
@@ -110,6 +110,6 @@ You see the result in Studio and react: "adjust this", "try a different approach
 
 ## When It Doesn't Work
 
-- **Frames don't appear in Studio?** Confirm `project.entryRoot` is set in `runelight.config.ts`, then make sure the adapter-generated preview entries have refreshed and reload Studio.
+- **Frames don't appear in Studio?** Confirm `project.entryRoot` is set in `runelight.config.ts`, then restart the dev server and reload Studio.
 - **Resolution errors?** Keep frames self-contained. If a sibling helper file can't be resolved in preview, inline the dependency.
 - **Project not Runelight-enabled?** Run `setup-runelight` first.

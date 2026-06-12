@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GFrames } from "@runelight/core"
+import { createGScopeHook, type GFrames } from "@runelight/react/runtime"
 
 import {
   previewSessionId,
@@ -550,18 +550,15 @@ StudioDesignWorkspace.frames = {
           studio: "/runelight/studio",
           manifest: "/runelight/studio/manifest",
         },
-        preview: {
-          urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
-          allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
-        },
         files: [
           {
             path: "app/runelight/design/DesignHost.g.tsx",
-            groupId: "file:app/runelight/design/DesignHost.g.tsx",
+            sourceHash: "design-host-source",
             components: [
               {
                 coordinate: "app/runelight/design/DesignHost.g.tsx#default",
                 filePath: "app/runelight/design/DesignHost.g.tsx",
+                sourceHash: "design-host-source",
                 exportName: "default",
                 componentName: "DesignHost",
                 mode: "pure",

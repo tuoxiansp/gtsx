@@ -1,9 +1,9 @@
-import type { GPreviewProtocolMessage } from "@runelight/core"
+import type { GPreviewSessionMessage } from "@runelight/core/preview-protocol"
 
 import type { StudioPreviewFrameState } from "./client"
 
 export type StudioPreviewMessageFlushItem = {
-  message: GPreviewProtocolMessage
+  message: GPreviewSessionMessage
 }
 
 export type StudioPreviewMessageFlush<T extends StudioPreviewMessageFlushItem> = {
@@ -41,14 +41,14 @@ export function createStudioPreviewMessageFlush<T extends StudioPreviewMessageFl
 }
 
 function isStudioPreviewCompletionMessage(
-  message: GPreviewProtocolMessage,
-): message is Extract<GPreviewProtocolMessage, { type: "runelight:error" | "runelight:ready" }> {
+  message: GPreviewSessionMessage,
+): message is Extract<GPreviewSessionMessage, { type: "runelight:error" | "runelight:ready" }> {
   return message.type === "runelight:ready" || message.type === "runelight:error"
 }
 
 function studioPreviewCompletionMessageAlreadyObserved(
   frameState: StudioPreviewFrameState | undefined,
-  message: Extract<GPreviewProtocolMessage, { type: "runelight:error" | "runelight:ready" }>,
+  message: Extract<GPreviewSessionMessage, { type: "runelight:error" | "runelight:ready" }>,
 ): boolean {
   if (!frameState) return false
   if (message.type === "runelight:ready") return frameState.ready === true && !frameState.error
@@ -57,7 +57,7 @@ function studioPreviewCompletionMessageAlreadyObserved(
 }
 
 function studioPreviewCompletionMessageKey(
-  message: Extract<GPreviewProtocolMessage, { type: "runelight:error" | "runelight:ready" }>,
+  message: Extract<GPreviewSessionMessage, { type: "runelight:error" | "runelight:ready" }>,
 ): string {
   if (message.type === "runelight:ready") return `${message.sessionId}\n${message.type}`
   return `${message.sessionId}\n${message.type}\n${message.error.message}\n${message.error.stack ?? ""}`

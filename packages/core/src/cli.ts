@@ -4,17 +4,22 @@ import { realpathSync, statSync } from "node:fs"
 import { dirname, join, relative, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { analyzeEntry, type RunelightAnalysisResult, type RunelightDiagnostic } from "./analyzer.js"
-import { capturePreviewPage } from "./browser-capture.js"
 import { loadRunelightConfig } from "./config.js"
-import { initRunelight } from "./init.js"
+import { resolveRunelightConfig, runelightDesignRootFromEntryRoot } from "./config-model.js"
+import {
+  resolveRunelightContractReferences,
+  type RunelightEntryAnalysisResult,
+  type RunelightContract,
+  type RunelightDiagnostic,
+} from "./contract.js"
 import { buildRunelightProjectIndex } from "./project-index.js"
 import { discoverRunelightProgramFiles, findNearestTSConfig } from "./project-scope.js"
-import { runScriptAdapter } from "./script-adapter.js"
+import { normalizeRunelightPreviewFrameOverride } from "./preview-protocol.js"
 import { runelightServeSessionPreviewUrl } from "./serve-session.js"
 import { acquireRunelightServeSession, runServeSupervisor, type HostStdioMode } from "./serve-supervisor.js"
 
 export type CLIContext = {
+  captureBackend?: RunelightCaptureBackend
   cwd: string
   hostStdio?: HostStdioMode
   stdout: string
@@ -22,6 +27,17 @@ export type CLIContext = {
   signal?: AbortSignal
   writeStderr?: (chunk: string) => void
   writeStdout?: (chunk: string) => void
+}
+
+export type RunelightCaptureOptions = {
+  cwd: string
+  url: string
+  viewport: string
+  out: string
+}
+
+export type RunelightCaptureBackend = {
+  capturePreviewPage(options: RunelightCaptureOptions): Promise<void>
 }
 
 export type CLIResult = {
@@ -42,14 +58,17 @@ type EntryResolution = {
   diagnostics: RunelightDiagnostic[]
 }
 
+type ContractResolution = {
+  contracts: RunelightContract[]
+  diagnostics: RunelightDiagnostic[]
+}
+
 const HELP = `runelight
 
 Usage:
-  runelight init [--dry-run]
-  runelight check [-p <tsconfig-or-dir>] <entry.g.tsx|entry.g.vue[#export]|dir> [--json]
+  runelight check [-p <tsconfig-or-dir>] [entry[#export]|dir] [--json]
   runelight serve [-p <tsconfig-or-dir>] [--port <port>]
-  runelight capture [-p <tsconfig-or-dir>] <entry.g.tsx|entry.g.vue[#export]|dir> [--frame <name>|--all] [--frame-override <entry#export:frame>] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
-  runelight strip [--check]
+  runelight capture [-p <tsconfig-or-dir>] <entry[#export]|dir> [--frame <name>] [--frame-override <entry#export:frame>] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
 `
 
 export async function runCLI(args: string[], context: CLIContext): Promise<CLIResult> {
@@ -64,36 +83,52 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
   args = projectSelection.args
   const cwd = projectSelection.cwd
 
-  if (args[0] === "init") {
-    return initRunelight({
-      cwd,
-      dryRun: args.includes("--dry-run"),
-    })
-  }
-
   if (args[0] === "check") {
-    const entry = args[1]
+    const commandArgs = parseCommandArguments(args, {
+      booleanOptions: ["--json"],
+      maxPositionals: 1,
+    })
+    if (commandArgs.diagnostics.length > 0) return diagnosticsResult(commandArgs.diagnostics)
+
+    const contractResolution = await resolveCLIContracts(cwd)
+    if (contractResolution.diagnostics.length > 0) return diagnosticsResult(contractResolution.diagnostics)
+    const contracts = contractResolution.contracts
+    const entry = commandArgs.positionals[0]
+
     if (!entry) {
-      return { exitCode: 1, stdout: context.stdout, stderr: "Missing entry for runelight check.\n" }
+      const config = loadRunelightConfig(cwd)
+      if (!config.config) return diagnosticsResult(config.diagnostics)
+      const resolvedConfig = resolveRunelightConfig(config.config)
+
+      return checkResolvedEntries(
+        cwd,
+        discoverConfiguredRunelightProjectEntryCoordinates(cwd, resolvedConfig.project.sourceRoot, resolvedConfig.project.entryRoot, projectSelection.tsconfigPath, contracts),
+        {
+          aggregateJson: true,
+          contracts,
+          fallbackFile: "configured Runelight project",
+          json: args.includes("--json"),
+          stderr: context.stderr,
+        },
+      )
     }
 
     if (isDirectory(cwd, entry)) {
-      if (args.includes("--json")) {
-        return { exitCode: 1, stdout: context.stdout, stderr: "Directory JSON output is not supported yet.\n" }
-      }
-
-      return checkResolvedEntries(cwd, discoverRunelightEntryCoordinates(cwd, entry, projectSelection.tsconfigPath), {
+      return checkResolvedEntries(cwd, discoverRunelightEntryCoordinates(cwd, entry, projectSelection.tsconfigPath, contracts), {
+        aggregateJson: true,
+        contracts,
         fallbackFile: entry,
-        json: false,
+        json: args.includes("--json"),
         stderr: context.stderr,
       })
     }
 
-    if (projectSelection.tsconfigPath && !isEntryInRunelightScope(cwd, entry, projectSelection.tsconfigPath)) {
+    if (projectSelection.tsconfigPath && !isEntryInRunelightScope(cwd, entry, projectSelection.tsconfigPath, contracts)) {
       return entryOutsideProjectScopeResult(entry)
     }
 
-    return checkResolvedEntries(cwd, resolveRunelightEntryCoordinates(cwd, entry, projectSelection.tsconfigPath), {
+    return checkResolvedEntries(cwd, resolveRunelightEntryCoordinates(cwd, entry, projectSelection.tsconfigPath, contracts), {
+      contracts,
       fallbackFile: entry,
       json: args.includes("--json"),
       stderr: context.stderr,
@@ -101,12 +136,22 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
   }
 
   if (args[0] === "serve") {
+    const commandArgs = parseCommandArguments(args, {
+      maxPositionals: 0,
+      valueOptions: ["--port"],
+    })
+    if (commandArgs.diagnostics.length > 0) return diagnosticsResult(commandArgs.diagnostics)
+
+    const portOption = resolvePortOption(args)
+    if (portOption.diagnostic) return diagnosticsResult([portOption.diagnostic])
+
     const config = loadRunelightConfig(cwd)
     if (!config.config) return diagnosticsResult(config.diagnostics)
     if (!config.config.host?.command) {
       return diagnosticsResult([
         {
           stage: "adapter-configuration",
+          severity: "error",
           code: "missing-host-command",
           message: "Add host.command to runelight.config.ts so runelight serve can wrap the project's Host.",
         },
@@ -115,7 +160,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
 
     return runServeSupervisor(config.config.host.command, cwd, {
       hostStdio: context.hostStdio,
-      port: readOption(args, "--port"),
+      port: portOption.port,
       signal: context.signal,
       stderr: context.stderr,
       writeStderr: context.writeStderr,
@@ -124,27 +169,48 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
   }
 
   if (args[0] === "capture") {
-    const entry = args[1]
-    if (!entry) return { exitCode: 1, stdout: context.stdout, stderr: "Missing entry for runelight capture.\n" }
+    if (args.includes("--all")) {
+      return diagnosticsResult([
+        {
+          stage: "browser-capture",
+          severity: "error",
+          code: "unsupported-capture-all-option",
+          message: "Omit --frame to capture all frames; --all is no longer a Runelight capture option.",
+        },
+      ])
+    }
+
+    const commandArgs = parseCommandArguments(args, {
+      maxPositionals: 1,
+      valueOptions: ["--frame", "--frame-override", "--out", "--port", "--viewport"],
+    })
+    if (commandArgs.diagnostics.length > 0) return diagnosticsResult(commandArgs.diagnostics)
+
+    const entry = commandArgs.positionals[0]
+    if (!entry) {
+      return diagnosticsStderrResult(context.stdout, [
+        {
+          stage: "adapter-configuration",
+          severity: "error",
+          code: "missing-capture-entry",
+          message: "Pass an entry file or directory to runelight capture.",
+        },
+      ])
+    }
+    const portOption = resolvePortOption(args)
+    if (portOption.diagnostic) return diagnosticsResult([portOption.diagnostic])
+
+    const contractResolution = await resolveCLIContracts(cwd)
+    if (contractResolution.diagnostics.length > 0) return diagnosticsResult(contractResolution.diagnostics)
+    const contracts = contractResolution.contracts
 
     if (isDirectory(cwd, entry)) {
-      if (!args.includes("--all")) {
-        return diagnosticsResult([
-          {
-            stage: "browser-capture",
-            code: "directory-capture-requires-all",
-            message: "Directory capture requires --all so each entry can render a contact sheet.",
-            file: entry,
-          },
-        ])
-      }
-
-      const resolvedEntries = discoverRunelightEntryCoordinates(cwd, entry, projectSelection.tsconfigPath)
+      const resolvedEntries = discoverRunelightEntryCoordinates(cwd, entry, projectSelection.tsconfigPath, contracts)
       if (resolvedEntries.entries.length === 0) {
-        return diagnosticsResult(nonEmptyDiagnostics(resolvedEntries.diagnostics, entry))
+        return diagnosticsResult(nonEmptyDiagnostics(resolvedEntries.diagnostics, entry, contracts))
       }
 
-      const checks = resolvedEntries.entries.map((candidate) => analyzeEntry({ cwd, entry: candidate }))
+      const checks = resolvedEntries.entries.map((candidate) => analyzeEntryWithContracts(contracts, cwd, candidate))
       if (hasErrorDiagnostics(resolvedEntries.diagnostics) || checks.some((check) => hasErrorDiagnostics(check.diagnostics))) {
         return {
           exitCode: 1,
@@ -161,17 +227,21 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
         return diagnosticsResult([
           {
             stage: "browser-capture",
+            severity: "error",
             code: "directory-output-must-be-directory",
             message: "Directory capture writes one PNG per entry, so --out must be a directory.",
           },
         ])
       }
 
-      const port = readOption(args, "--port")
       const viewport = readOption(args, "--viewport") ?? "1440x900"
+      const viewportDiagnostic = validateCaptureViewport(viewport)
+      if (viewportDiagnostic) return diagnosticsResult([viewportDiagnostic])
       const frameOverrides = readOptions(args, "--frame-override")
+      const captureBackend = context.captureBackend
+      if (!captureBackend) return missingCaptureBackendResult()
       const serveSession = await acquireRunelightServeSession(cwd, config.config.host?.command, {
-        port,
+        port: portOption.port,
         stderr: context.stderr,
       })
       if (serveSession.exitCode !== 0 || !serveSession.baseUrl) return serveSession
@@ -180,7 +250,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
         const outputs: string[] = []
         for (const candidate of resolvedEntries.entries) {
           const outPath = outForDirectoryContactSheet(out, candidate)
-          await capturePreviewPage({
+          await captureBackend.capturePreviewPage({
             cwd,
             url: runelightServeSessionPreviewUrl(serveSession.baseUrl, {
               all: true,
@@ -197,6 +267,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
         return diagnosticsResult([
           {
             stage: "browser-capture",
+            severity: "error",
             code: "browser-capture-failed",
             message: error instanceof Error ? error.message : String(error),
           },
@@ -206,18 +277,19 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       }
     }
 
-    if (projectSelection.tsconfigPath && !isEntryInRunelightScope(cwd, entry, projectSelection.tsconfigPath)) {
+    if (projectSelection.tsconfigPath && !isEntryInRunelightScope(cwd, entry, projectSelection.tsconfigPath, contracts)) {
       return entryOutsideProjectScopeResult(entry)
     }
 
-    const resolvedEntry = resolveRunelightEntryCoordinates(cwd, entry, projectSelection.tsconfigPath)
+    const resolvedEntry = resolveRunelightEntryCoordinates(cwd, entry, projectSelection.tsconfigPath, contracts)
     if (resolvedEntry.entries.length === 0) {
-      return diagnosticsResult(nonEmptyDiagnostics(resolvedEntry.diagnostics, entry))
+      return diagnosticsResult(nonEmptyDiagnostics(resolvedEntry.diagnostics, entry, contracts))
     }
     if (resolvedEntry.entries.length > 1) {
       return diagnosticsResult([
         {
           stage: "contract-extraction",
+          severity: "error",
           code: "ambiguous-entry-coordinate",
           message: `${entry} contains multiple Runelight component exports; pass one explicit coordinate such as ${resolvedEntry.entries[0]}.`,
           file: entry,
@@ -226,7 +298,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     }
 
     const selectedEntry = resolvedEntry.entries[0] ?? entry
-    const check = analyzeEntry({ cwd, entry: selectedEntry })
+    const check = analyzeEntryWithContracts(contracts, cwd, selectedEntry)
     if (hasErrorDiagnostics(check.diagnostics)) {
       return { exitCode: 1, stdout: formatCheckResult(check), stderr: context.stderr }
     }
@@ -234,26 +306,31 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     const config = loadRunelightConfig(cwd)
     if (!config.config) return diagnosticsResult(config.diagnostics)
 
-    const port = readOption(args, "--port")
     const viewport = readOption(args, "--viewport") ?? "1440x900"
-    const out = readOption(args, "--out") ?? "runelight-capture.png"
-    const captureAllFrames = args.includes("--all")
-    const selectedFrame = readOption(args, "--frame") ?? check.frames[0]?.name
+    const viewportDiagnostic = validateCaptureViewport(viewport)
+    if (viewportDiagnostic) return diagnosticsResult([viewportDiagnostic])
+    const selectedFrame = readOption(args, "--frame")
+    const captureAllFrames = selectedFrame === undefined
+    const out = readOption(args, "--out") ?? (captureAllFrames ? "runelight-captures" : "runelight-capture.png")
     const frameOverrides = readOptions(args, "--frame-override")
 
-    if (!captureAllFrames && !selectedFrame) {
+    if (selectedFrame !== undefined && !check.frames.some((frame) => frame.name === selectedFrame)) {
       return diagnosticsResult([
         {
           stage: "contract-extraction",
-          code: "missing-frames",
-          message: `No frames found for ${entry}.`,
+          severity: "error",
+          code: "missing-frame",
+          message: `No frame named ${selectedFrame} found for ${entry}.`,
           file: entry,
         },
       ])
     }
 
+    const captureBackend = context.captureBackend
+    if (!captureBackend) return missingCaptureBackendResult()
+
     const serveSession = await acquireRunelightServeSession(cwd, config.config.host?.command, {
-      port,
+      port: portOption.port,
       stderr: context.stderr,
     })
     if (serveSession.exitCode !== 0 || !serveSession.baseUrl) return serveSession
@@ -267,7 +344,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     try {
       if (captureAllFrames) {
         const outPath = outForEntryContactSheet(out, selectedEntry)
-        await capturePreviewPage({
+        await captureBackend.capturePreviewPage({
           cwd,
           url: captureUrl,
           viewport,
@@ -276,7 +353,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
         return { exitCode: 0, stdout: `${serveSession.stdout}Captured ${selectedEntry} contact sheet to ${outPath}\n`, stderr: context.stderr }
       }
 
-      await capturePreviewPage({
+      await captureBackend.capturePreviewPage({
         cwd,
         url: captureUrl,
         viewport,
@@ -287,6 +364,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       return diagnosticsResult([
         {
           stage: "browser-capture",
+          severity: "error",
           code: "browser-capture-failed",
           message: error instanceof Error ? error.message : String(error),
         },
@@ -296,22 +374,25 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     }
   }
 
-  if (args[0] === "strip") {
-    const config = loadRunelightConfig(cwd)
-    if (!config.config) return diagnosticsResult(config.diagnostics)
+  return diagnosticsStderrResult(context.stdout, [
+    {
+      stage: "adapter-configuration",
+      severity: "error",
+      code: "unknown-command",
+      message: `Unknown command ${args[0] ?? ""}.`,
+    },
+  ])
+}
 
-    const adapter = await runScriptAdapter(config.config, "strip", {
-      cwd,
-      check: args.includes("--check"),
-    })
-    return adapterResult(adapter)
-  }
-
-  return {
-    exitCode: 1,
-    stdout: context.stdout,
-    stderr: `Unknown command: ${args[0] ?? ""}\n`,
-  }
+function missingCaptureBackendResult(): CLIResult {
+  return diagnosticsResult([
+    {
+      stage: "browser-capture",
+      severity: "error",
+      code: "missing-capture-backend",
+      message: "Provide a capture backend when calling runCLI capture programmatically. The @runelight/cli binary injects the Playwright backend by default.",
+    },
+  ])
 }
 
 function resolveProjectSelection(args: string[], cwd: string): ProjectSelection {
@@ -348,6 +429,7 @@ function resolveProjectSelection(args: string[], cwd: string): ProjectSelection 
       diagnostics: [
         {
           stage: "typescript",
+          severity: "error",
           code: "missing-project-option-value",
           message: "Missing value for -p/--project.",
         },
@@ -367,6 +449,7 @@ function resolveProjectSelection(args: string[], cwd: string): ProjectSelection 
       diagnostics: [
         {
           stage: "typescript",
+          severity: "error",
           code: "missing-tsconfig",
           message: `Could not resolve a TypeScript project from ${projectValue}.`,
         },
@@ -390,6 +473,41 @@ function resolveConfiguredTSConfig(cwd: string): string | undefined {
   return statOrUndefined(tsconfigPath)?.isFile() ? tsconfigPath : undefined
 }
 
+async function resolveCLIContracts(cwd: string): Promise<ContractResolution> {
+  const config = loadRunelightConfig(cwd)
+  if (!config.config) return { contracts: [], diagnostics: config.diagnostics }
+
+  try {
+    const contracts = await resolveRunelightContractReferences(config.config.contracts, { cwd })
+    if (contracts.length === 0) {
+      return {
+        contracts,
+        diagnostics: [
+          {
+            stage: "adapter-configuration",
+            severity: "error",
+            code: "missing-contracts",
+            message: 'Add a Runelight contract to runelight.config.ts, for example contracts: ["@runelight/react/contract"].',
+          },
+        ],
+      }
+    }
+    return { contracts, diagnostics: [] }
+  } catch (error) {
+    return {
+      contracts: [],
+      diagnostics: [
+        {
+          stage: "adapter-configuration",
+          severity: "error",
+          code: "invalid-contracts",
+          message: error instanceof Error ? error.message : String(error),
+        },
+      ],
+    }
+  }
+}
+
 function isDirectory(cwd: string, target: string): boolean {
   try {
     return statSync(resolve(cwd, target)).isDirectory()
@@ -406,26 +524,62 @@ function statOrUndefined(path: string) {
   }
 }
 
-function resolveRunelightEntryCoordinates(cwd: string, entry: string, tsconfigPath?: string): EntryResolution {
+function resolveRunelightEntryCoordinates(
+  cwd: string,
+  entry: string,
+  tsconfigPath: string | undefined,
+  contracts: readonly RunelightContract[],
+): EntryResolution {
   if (hasExplicitExportCoordinate(entry)) {
     return { entries: [entry], diagnostics: [] }
   }
 
-  return discoverRunelightFileEntryCoordinates(cwd, entry, tsconfigPath)
+  return discoverRunelightFileEntryCoordinates(cwd, entry, tsconfigPath, contracts)
 }
 
-function discoverRunelightEntryCoordinates(cwd: string, targetDirectory: string, tsconfigPath?: string): EntryResolution {
-  const index = buildRunelightProjectIndex({ cwd, sourceRoot: targetDirectory, tsconfigPath })
+function discoverRunelightEntryCoordinates(
+  cwd: string,
+  targetDirectory: string,
+  tsconfigPath: string | undefined,
+  contracts: readonly RunelightContract[],
+): EntryResolution {
+  const index = buildRunelightProjectIndex({ contracts, cwd, sourceRoot: targetDirectory, tsconfigPath })
   return {
     entries: index.files.flatMap((file) => file.components.map((component) => component.coordinate)),
     diagnostics: index.files.filter((file) => file.components.length === 0).flatMap((file) => file.diagnostics),
   }
 }
 
-function discoverRunelightFileEntryCoordinates(cwd: string, entry: string, tsconfigPath?: string): EntryResolution {
+function discoverConfiguredRunelightProjectEntryCoordinates(
+  cwd: string,
+  sourceRoot: string,
+  entryRoot: string,
+  tsconfigPath: string | undefined,
+  contracts: readonly RunelightContract[],
+): EntryResolution {
+  const index = buildRunelightProjectIndex({
+    additionalSourceRoots: [runelightDesignRootFromEntryRoot(entryRoot)],
+    contracts,
+    cwd,
+    sourceRoot,
+    tsconfigPath,
+  })
+  return {
+    entries: index.files.flatMap((file) => file.components.map((component) => component.coordinate)),
+    diagnostics: index.files.filter((file) => file.components.length === 0).flatMap((file) => file.diagnostics),
+  }
+}
+
+function discoverRunelightFileEntryCoordinates(
+  cwd: string,
+  entry: string,
+  tsconfigPath: string | undefined,
+  contracts: readonly RunelightContract[],
+): EntryResolution {
   const file = normalizeProjectPath(entryFile(entry))
   const sourceRoot = dirname(file)
   const index = buildRunelightProjectIndex({
+    contracts,
     cwd,
     sourceRoot: sourceRoot === "." ? "." : sourceRoot,
     tsconfigPath,
@@ -438,6 +592,7 @@ function discoverRunelightFileEntryCoordinates(cwd: string, entry: string, tscon
       diagnostics: [
         {
           stage: "contract-extraction",
+          severity: "error",
           code: "entry-not-found",
           message: `Runelight entry does not exist: ${entry}.`,
           file: entry,
@@ -460,9 +615,14 @@ function normalizeProjectPath(filePath: string): string {
   return filePath.split(sep).join("/")
 }
 
-function isEntryInRunelightScope(cwd: string, entry: string, tsconfigPath: string): boolean {
-  const file = entryFile(entry)
-  return discoverRunelightProgramFiles({ cwd, root: ".", tsconfigPath }).includes(file)
+function isEntryInRunelightScope(cwd: string, entry: string, tsconfigPath: string, contracts: readonly RunelightContract[]): boolean {
+  const file = normalizeProjectPath(entryFile(entry))
+  const contract = contracts.find((candidate) => candidate.isEntryFile(file))
+  if (!contract) return false
+
+  const programFiles = discoverRunelightProgramFiles({ cwd, root: ".", tsconfigPath })
+  if (programFiles.includes(file)) return true
+  return !contract.isTypeScriptProgramFile?.(file) && Boolean(statOrUndefined(resolve(cwd, file))?.isFile())
 }
 
 function entryFile(entry: string): string {
@@ -473,6 +633,7 @@ function entryOutsideProjectScopeResult(entry: string): CLIResult {
   return diagnosticsResult([
     {
       stage: "typescript",
+      severity: "error",
       code: "entry-outside-project-scope",
       message: `${entryFile(entry)} is not in the selected TypeScript project scope.`,
       file: entryFile(entry),
@@ -480,21 +641,53 @@ function entryOutsideProjectScopeResult(entry: string): CLIResult {
   ])
 }
 
+function analyzeEntryWithContracts(contracts: readonly RunelightContract[], cwd: string, entry: string): RunelightEntryAnalysisResult {
+  const filePath = normalizeProjectPath(entryFile(entry))
+  const contract = contracts.find((candidate) => candidate.isEntryFile(filePath))
+  if (contract) return contract.analyzeEntry({ cwd, entry })
+
+  return {
+    entry,
+    mode: "unknown",
+    defaultExport: false,
+    frames: [],
+    providers: {},
+    diagnostics: [
+      {
+        stage: "contract-extraction",
+        severity: "error",
+        code: "missing-entry-contract",
+        message: `No Runelight contract is configured for ${filePath}.`,
+        file: filePath,
+      },
+    ],
+  }
+}
+
 function checkResolvedEntries(
   cwd: string,
   resolution: EntryResolution,
-  options: { fallbackFile: string; json: boolean; stderr: string },
+  options: { aggregateJson?: boolean; contracts: readonly RunelightContract[]; fallbackFile: string; json: boolean; stderr: string },
 ): CLIResult {
   if (resolution.entries.length === 0) {
-    return diagnosticsResult(nonEmptyDiagnostics(resolution.diagnostics, options.fallbackFile))
+    const diagnostics = nonEmptyDiagnostics(resolution.diagnostics, options.fallbackFile, options.contracts)
+    if (options.json && options.aggregateJson) {
+      return {
+        exitCode: hasErrorDiagnostics(diagnostics) ? 1 : 0,
+        stdout: `${JSON.stringify({ entries: [], diagnostics }, null, 2)}\n`,
+        stderr: options.stderr,
+      }
+    }
+
+    return diagnosticsResult(diagnostics)
   }
 
-  const results = resolution.entries.map((candidate) => analyzeEntry({ cwd, entry: candidate }))
+  const results = resolution.entries.map((candidate) => analyzeEntryWithContracts(options.contracts, cwd, candidate))
   const diagnostics = [...resolution.diagnostics, ...results.flatMap((result) => result.diagnostics)]
   const hasErrors = hasErrorDiagnostics(diagnostics)
   if (options.json) {
     const stdout =
-      results.length === 1 && resolution.diagnostics.length === 0
+      !options.aggregateJson && results.length === 1 && resolution.diagnostics.length === 0
         ? `${JSON.stringify(results[0], null, 2)}\n`
         : `${JSON.stringify({ entries: results, diagnostics }, null, 2)}\n`
 
@@ -512,17 +705,87 @@ function checkResolvedEntries(
   }
 }
 
-function nonEmptyDiagnostics(diagnostics: RunelightDiagnostic[], target: string): RunelightDiagnostic[] {
+function nonEmptyDiagnostics(
+  diagnostics: RunelightDiagnostic[],
+  target: string,
+  contracts: readonly RunelightContract[],
+): RunelightDiagnostic[] {
   if (diagnostics.length > 0) return diagnostics
 
+  const contractList = contracts.length > 0 ? ` Loaded contracts: ${contracts.map((contract) => contract.id).join(", ")}.` : ""
   return [
     {
       stage: "contract-extraction",
+      severity: "error",
       code: "no-entries-found",
-      message: `No .g.tsx or .g.vue entries found under ${target}.`,
+      message: `No Runelight entries found under ${target}.${contractList}`,
       file: target,
     },
   ]
+}
+
+function parseCommandArguments(
+  args: string[],
+  options: { booleanOptions?: readonly string[]; maxPositionals: number; valueOptions?: readonly string[] },
+): { diagnostics: RunelightDiagnostic[]; positionals: string[] } {
+  const booleanOptions = new Set(options.booleanOptions ?? [])
+  const valueOptions = new Set(options.valueOptions ?? [])
+  const diagnostics: RunelightDiagnostic[] = []
+  const positionals: string[] = []
+
+  for (let index = 1; index < args.length; index += 1) {
+    const arg = args[index] ?? ""
+
+    if (isOptionToken(arg)) {
+      if (booleanOptions.has(arg)) continue
+      if (valueOptions.has(arg)) {
+        const value = args[index + 1]
+        if (value === undefined || isOptionToken(value)) {
+          diagnostics.push(missingOptionValueDiagnostic(arg))
+          continue
+        }
+        index += 1
+        continue
+      }
+
+      diagnostics.push({
+        stage: "adapter-configuration",
+        severity: "error",
+        code: "unknown-option",
+        message: `Unknown option ${arg}.`,
+      })
+      continue
+    }
+
+    positionals.push(arg)
+  }
+
+  for (const argument of positionals.slice(options.maxPositionals)) {
+    diagnostics.push({
+      stage: "adapter-configuration",
+      severity: "error",
+      code: "unexpected-argument",
+      message: `Unexpected argument ${argument}.`,
+    })
+  }
+
+  return {
+    diagnostics,
+    positionals: positionals.slice(0, options.maxPositionals),
+  }
+}
+
+function missingOptionValueDiagnostic(optionName: string): RunelightDiagnostic {
+  return {
+    stage: "adapter-configuration",
+    severity: "error",
+    code: "missing-option-value",
+    message: `Missing value for ${optionName}.`,
+  }
+}
+
+function isOptionToken(value: string): boolean {
+  return value === "--" || /^-{1,2}[A-Za-z]/.test(value)
 }
 
 function readOption(args: string[], optionName: string): string | undefined {
@@ -540,6 +803,41 @@ function readOptions(args: string[], optionName: string): string[] {
   return values
 }
 
+function resolvePortOption(args: string[]): { diagnostic?: RunelightDiagnostic; port?: string } {
+  if (!args.includes("--port")) return {}
+
+  const port = readOption(args, "--port")
+  if (isValidPort(port)) return { port }
+
+  return {
+    diagnostic: {
+      stage: "adapter-configuration",
+      severity: "error",
+      code: "invalid-port",
+      message: `Invalid port ${port ?? "<missing>"}. Use a TCP port from 1 to 65535.`,
+    },
+  }
+}
+
+function isValidPort(port: string | undefined): port is string {
+  if (!port || !/^[1-9]\d*$/.test(port)) return false
+
+  const value = Number(port)
+  return Number.isSafeInteger(value) && value >= 1 && value <= 65_535
+}
+
+function validateCaptureViewport(viewport: string): RunelightDiagnostic | undefined {
+  const match = /^([1-9]\d*)x([1-9]\d*)$/.exec(viewport)
+  if (match) return undefined
+
+  return {
+    stage: "browser-capture",
+    severity: "error",
+    code: "invalid-viewport",
+    message: `Invalid viewport ${viewport}. Use WIDTHxHEIGHT, for example 1440x900.`,
+  }
+}
+
 function outForEntryContactSheet(out: string, entry: string): string {
   if (out.endsWith(".png")) return out
 
@@ -554,7 +852,7 @@ function outForDirectoryContactSheet(out: string, entry: string): string {
 function outputPathForEntry(entry: string): string {
   const coordinate = parseEntryCoordinate(entry)
   const suffix = coordinate.exportName === "default" ? ".png" : `.${sanitizeFilePathSegment(coordinate.exportName)}.png`
-  return coordinate.file.replace(/\.g\.(?:tsx|vue)$/, suffix)
+  return coordinate.file.replace(/\.g\.[^/.]+$/, suffix)
 }
 
 function parseEntryCoordinate(entry: string): { file: string; exportName: string } {
@@ -571,7 +869,7 @@ export function expandUrl(template: string, params: { entry: string; frameName: 
     entry: params.entry,
     frame: params.frameName,
     port: params.port,
-    frameOverrides: params.frameOverrides?.map((frameOverride) => `&frameOverride=${encodeURIComponent(frameOverride)}`).join("") ?? "",
+    frameOverrides: params.frameOverrides?.map((frameOverride) => `&frameOverride=${encodeURIComponent(normalizeRunelightPreviewFrameOverride(frameOverride))}`).join("") ?? "",
   }
   return template.replace(/\{([a-zA-Z]+)\}/g, (_match, key: string) => {
     if (key === "frameOverrides") return replacements.frameOverrides
@@ -581,10 +879,17 @@ export function expandUrl(template: string, params: { entry: string; frameName: 
 
 function diagnosticsResult(diagnostics: RunelightDiagnostic[]): CLIResult {
   return {
-    exitCode:
-      !hasErrorDiagnostics(diagnostics) || diagnostics.some((diagnostic) => diagnostic.code.startsWith("missing-strip-script")) ? 0 : 1,
+    exitCode: hasErrorDiagnostics(diagnostics) ? 1 : 0,
     stdout: formatDiagnostics(diagnostics),
     stderr: "",
+  }
+}
+
+function diagnosticsStderrResult(stdout: string, diagnostics: RunelightDiagnostic[]): CLIResult {
+  return {
+    exitCode: hasErrorDiagnostics(diagnostics) ? 1 : 0,
+    stdout,
+    stderr: formatDiagnostics(diagnostics),
   }
 }
 
@@ -602,17 +907,7 @@ function hasErrorDiagnostics(diagnostics: RunelightDiagnostic[]): boolean {
   return diagnostics.some((diagnostic) => diagnostic.severity !== "warning")
 }
 
-function adapterResult(adapter: Awaited<ReturnType<typeof runScriptAdapter>>): CLIResult {
-  if (adapter.diagnostics.length > 0) return diagnosticsResult(adapter.diagnostics)
-
-  return {
-    exitCode: adapter.exitCode,
-    stdout: adapter.stdout,
-    stderr: adapter.stderr,
-  }
-}
-
-function formatCheckResult(result: RunelightAnalysisResult): string {
+function formatCheckResult(result: RunelightEntryAnalysisResult): string {
   const lines = [`Runelight ${result.mode} entry: ${result.entry}`]
   for (const frame of result.frames) {
     lines.push(`- ${frame.name}`)

@@ -16,7 +16,7 @@ Validate these outcomes:
 - `${project.entryRoot}/design` exists after setup or dev-server startup.
 - Vite is configured with `runelightViteReact()` and does not statically import `runelight.config.ts` from `vite.config.*`.
 - The browser entry handles only the `/runelight` preview branch; Studio is served by the Vite adapter as a prebuilt app from the same dev server.
-- Runelight browser-entry branches are guarded by `import.meta.env.DEV` and use dynamic imports for preview and `virtual:runelight/*`.
+- Runelight browser-entry branches are guarded by `__RUNELIGHT_DEV__` and use dynamic imports for preview and `virtual:runelight/preview-config`.
 - The preview loader uses `project.sourceRoot` and a static `import.meta.glob` for `${project.entryRoot}/design/**/*.g.tsx`.
 - The original app route still renders.
 - `/runelight/studio` renders Studio and shows discovered component frames.
@@ -28,7 +28,7 @@ Validate these outcomes:
 - Setup does not rely on multiple guessed design globs.
 - A production `vite build` succeeds when `runelight.config.ts` is missing from the production build context.
 - The production app can import and render a normal `.g.tsx` component.
-- The production output still renders the original app route and does not require `virtual:runelight/*`, bundle preview route code, expose a usable `/runelight` experience, or write `.runelight`/Runelight-generated preview registry files.
+- The production output still renders the original app route and does not require `virtual:runelight/preview-config`, bundle preview route code, expose a usable `/runelight` experience, or write `.runelight`/Runelight-generated preview registry files.
 - In a controlled fixture that uses the repository's internal production opt-in hook, a production `vite build` emits a usable `/runelight/` preview entry, `/runelight/studio/` Studio entry, `/runelight/studio/manifest`, and Studio assets without platform-specific rewrites. Serving the built output should allow Studio to discover frames and render preview iframes from the production bundle. Removing the opt-in should restore the default non-exposed production output. Do not turn this fixture-only hook into user-facing setup guidance.
 - The test does not write Runelight companion skills into the user's global skills directory. If global Runelight skills already exist, do not treat them as proof of success; inspect project-local `.agents/skills`.
 

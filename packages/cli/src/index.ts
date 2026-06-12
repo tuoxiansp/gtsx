@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
 import { runCLI } from "@runelight/core/cli"
+import { playwrightBrowserCaptureBackend } from "./browser-capture.js"
 
 const abortController = new AbortController()
 process.once("SIGINT", () => abortController.abort())
 process.once("SIGTERM", () => abortController.abort())
 
 const result = await runCLI(process.argv.slice(2), {
+  captureBackend: playwrightBrowserCaptureBackend,
   cwd: process.cwd(),
   hostStdio: "inherit",
   signal: abortController.signal,

@@ -7,12 +7,12 @@ import runelightConfig from "./runelight.config"
 export default defineConfig({
   base: "/runelight/studio/",
   optimizeDeps: {
-    exclude: ["@runelight/core"],
+    exclude: ["@runelight/core", "@runelight/react"],
   },
   plugins: [runelightViteReact({ config: runelightConfig }), react()],
   build: {
     copyPublicDir: false,
-    emptyOutDir: false,
+    emptyOutDir: true,
     outDir: "dist/studio",
     rollupOptions: {
       output: {

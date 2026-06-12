@@ -9,5 +9,11 @@
     "paths": {},
     "noEmit": false
   },
-  "include": ["src"]
+  "include": [
+    "src/index.ts",
+    "src/preview-entries.ts",
+    "src/preview.tsx",
+    "src/preview-route.ts",
+    "src/studio-route.ts"
+  ]
 }

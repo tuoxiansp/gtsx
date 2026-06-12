@@ -5,15 +5,16 @@ import { join, resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { buildRunelightProjectIndex } from "@runelight/core/project-index"
+import { runelightReactContract } from "@runelight/react/contract"
 import { runCLI } from "../../core/src/cli.js"
-import { createStudioManifest } from "../src/index.js"
+import { createStudioManifest } from "../src/manifest.js"
 import { resolveRunelightStudioAppAssetPath } from "../src/static-app.js"
 
 const repositoryRoot = resolve(import.meta.dirname, "../../..")
 const studioRoot = join(repositoryRoot, "packages/studio")
 
-function buildStudioManifest(options: { cwd: string; sourceRoot?: string }) {
-  return createStudioManifest(buildRunelightProjectIndex(options))
+function buildStudioManifest(options: { cwd: string; sourceRoot: string }) {
+  return createStudioManifest(buildRunelightProjectIndex({ ...options, contracts: [runelightReactContract] }))
 }
 
 describe("Studio package", () => {
@@ -73,10 +74,6 @@ describe("Studio package", () => {
   it("builds a Studio manifest for its own UI frames", () => {
     const manifest = buildStudioManifest({ cwd: studioRoot, sourceRoot: "src" })
 
-    expect(manifest.preview).toEqual({
-      urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
-      allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
-    })
     expect(manifest.files.map((file) => file.path)).toEqual([
       "src/components/BufferedPreviewIframe.g.tsx",
       "src/components/ComponentBoundsHitTarget.g.tsx",

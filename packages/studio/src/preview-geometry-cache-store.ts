@@ -1,6 +1,6 @@
 "use client"
 
-import type { GPreviewProtocolMessage } from "@runelight/core"
+import type { GPreviewSessionMessage } from "@runelight/core/preview-protocol"
 
 import type { StudioManifest, StudioManifestComponent } from "./manifest"
 import {
@@ -16,7 +16,7 @@ import {
 import { readStudioPreviewIndexedDBCache, writeStudioPreviewIndexedDBCache } from "./preview-cache-indexeddb"
 
 export type StudioPreviewGeometryCacheMessage = {
-  message: GPreviewProtocolMessage
+  message: GPreviewSessionMessage
   target: Pick<StudioPreviewTarget, "cacheKey">
 }
 

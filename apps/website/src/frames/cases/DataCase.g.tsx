@@ -1,4 +1,4 @@
-import { createGScopeHook, type GFrames } from "@runelight/core"
+import { createGScopeHook, type GFrames } from "@runelight/react/runtime"
 
 type DataCaseProps = {
   title: string

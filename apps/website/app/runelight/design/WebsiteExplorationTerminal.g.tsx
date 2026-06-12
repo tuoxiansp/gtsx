@@ -1,4 +1,4 @@
-import type { GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
 
 import { WebsiteBrowserShell } from "./browser-shell"
 
@@ -12,9 +12,9 @@ export default function WebsiteExplorationTerminal() {
 
       <section className="wd-terminal-body">
         <p>
-          <span className="wd-terminal-prompt">agent@repo</span> runelight init --react
+          <span className="wd-terminal-prompt">agent@repo</span> runelight serve
         </p>
-        <p className="wd-terminal-muted">→ wiring /runelight/studio</p>
+        <p className="wd-terminal-muted">→ serving /runelight/studio through the project Host</p>
         <p className="wd-terminal-muted">→ declaring .g frames beside components</p>
         <p className="wd-terminal-out">
           <strong>Every UI state on one screen.</strong>

@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from "node:child_process"
 import { createServer } from "node:net"
 
+import { isRunelightHostCommandWithPortPlaceholder } from "./config-model.js"
 import { expandCommand } from "./script-adapter.js"
 import {
   acquireRunelightServeLock,
@@ -289,6 +290,9 @@ export async function acquireRunelightServeSession(
       stop() {},
     }
   }
+  if (!isRunelightHostCommandWithPortPlaceholder(hostCommand)) {
+    return invalidHostCommandResult({ stop: true })
+  }
 
   const serveLock = acquireRunelightServeLock(cwd)
   if (!serveLock.acquired) {
@@ -361,6 +365,13 @@ async function startHostServer(
       exitCode: 1,
       stdout: "",
       stderr: "[adapter-configuration] missing-host-command: Missing host.command in runelight.config.ts.\n",
+      stop() {},
+      waitForExit: async () => 1,
+    }
+  }
+  if (!isRunelightHostCommandWithPortPlaceholder(serveCommand)) {
+    return {
+      ...invalidHostCommandResult({ stop: false }),
       stop() {},
       waitForExit: async () => 1,
     }
@@ -455,6 +466,17 @@ async function startHostServer(
     stderr,
     stop,
     waitForExit: () => waitForStoppedHostExit(exitPromise, () => stopPromise),
+  }
+}
+
+function invalidHostCommandResult(options: { stop: true }): ServeSupervisorResult & { stop(): void }
+function invalidHostCommandResult(options: { stop: false }): ServeSupervisorResult
+function invalidHostCommandResult(options: { stop: boolean }): ServeSupervisorResult & { stop?(): void } {
+  return {
+    exitCode: 1,
+    stdout: "",
+    stderr: "[adapter-configuration] invalid-host-command: host.command in runelight.config.ts must include the {port} placeholder.\n",
+    ...(options.stop ? { stop() {} } : {}),
   }
 }
 

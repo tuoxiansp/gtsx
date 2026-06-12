@@ -1,20 +1,20 @@
 import {
   createRunelightVitePreviewComponentLoader,
   RunelightVitePreviewClient,
-  readRunelightPreviewRouteParams,
-  type RunelightPreviewModule,
+  readRunelightReactPreviewRouteParams,
+  type RunelightReactPreviewModule,
 } from "@runelight/adapter-vite-react/preview"
-import runelightConfig from "virtual:runelight/config"
+import previewConfig from "virtual:runelight/preview-config"
 
-const modules = import.meta.glob<RunelightPreviewModule>(["./components/**/*.g.tsx", "/app/runelight/design/**/*.g.tsx"], {
+const modules = import.meta.glob<RunelightReactPreviewModule>(["/src/components/**/*.g.tsx", "/app/runelight/design/**/*.g.tsx"], {
   query: "?runelight-preview",
 })
 const loadStudioPreviewComponent = createRunelightVitePreviewComponentLoader(modules, {
-  sourceRoot: runelightConfig.project.sourceRoot,
+  sourceRoot: previewConfig.project.sourceRoot,
 })
 
 export function RunelightPreviewApp() {
-  const params = readRunelightPreviewRouteParams(new URLSearchParams(window.location.search))
+  const params = readRunelightReactPreviewRouteParams(new URLSearchParams(window.location.search))
 
   return (
     <RunelightVitePreviewClient

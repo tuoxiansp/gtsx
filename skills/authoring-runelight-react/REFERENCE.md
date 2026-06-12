@@ -7,7 +7,7 @@ Complete patterns for Runelight React components in `.g.tsx` files, the React/TS
 Every preview state described by props alone.
 
 ```tsx
-import type { GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
 
 type AlertProps = {
   severity: "info" | "warning" | "error"
@@ -40,7 +40,7 @@ Component depends on application state (hooks, stores, queries, routers).
 
 ```tsx
 import { useState } from "react"
-import { createGScopeHook, type GFrames } from "@runelight/core"
+import { createGScopeHook, type GFrames } from "@runelight/react/runtime"
 
 type SearchProps = { placeholder: string }
 
@@ -92,7 +92,7 @@ Key points:
 Multi-state components where each frame represents one branch.
 
 ```tsx
-import { createGScopeHook, type GFrames } from "@runelight/core"
+import { createGScopeHook, type GFrames } from "@runelight/react/runtime"
 
 type Props = { resourceId: string }
 
@@ -143,7 +143,7 @@ Component reads shared context (theme, locale, auth, feature flags).
 
 ```tsx
 import React from "react"
-import { createGProvider, useGContext, type GFrames, type GProviderFrame } from "@runelight/core"
+import { createGProvider, useGContext, type GFrames, type GProviderFrame } from "@runelight/react/runtime"
 
 type ThemeValue = { mode: "light" | "dark"; accent: string }
 
@@ -183,7 +183,7 @@ Key points:
 One `.g.tsx` file, multiple components, each with its own coordinate.
 
 ```tsx
-import type { GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
 
 type ButtonProps = { label: string; variant: "primary" | "ghost" }
 
@@ -211,7 +211,7 @@ Coordinates: `src/Buttons.g.tsx#default`, `src/Buttons.g.tsx#PrimaryButton`.
 The scope hook accepts props when state depends on prop values.
 
 ```tsx
-import { createGScopeHook, type GFrames } from "@runelight/core"
+import { createGScopeHook, type GFrames } from "@runelight/react/runtime"
 
 type Props = { userId: string }
 type Scope = { name: string; online: boolean }
@@ -240,7 +240,7 @@ Internal state and external context together. The scope hook receives provider v
 
 ```tsx
 import React from "react"
-import { createGProvider, createGScopeHook, type GFrames, type GProviderFrame } from "@runelight/core"
+import { createGProvider, createGScopeHook, type GFrames, type GProviderFrame } from "@runelight/react/runtime"
 
 type AuthValue = { role: "admin" | "viewer" }
 
@@ -291,7 +291,7 @@ Page.frames = {
 A `.g.tsx` component rendering another `.g.tsx` component. The parent imports the child directly — no special composition API needed.
 
 ```tsx
-import type { GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
 import Badge from "./Badge.g"
 
 type NotificationProps = {
@@ -321,7 +321,7 @@ The child (`Badge.g`) has its own frames for isolated preview. The parent's fram
 When JSX is produced inside a collection callback, the collection must come from props, Runelight scope, or Runelight provider context. The item parameter then becomes part of that source for branch coverage.
 
 ```tsx
-import type { GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
 
 type Row = { id: string; label: string; visible: boolean }
 type Props = { rows: Row[] }
@@ -347,7 +347,7 @@ Avoid moving the predicate into a helper such as `shouldShow(row)`. That hides t
 A child component may receive plain props that were shaped by a parent provider variant. It does not need to read the provider just to preserve that environment axis in Studio.
 
 ```tsx
-import type { GFrames, GProviderFrame } from "@runelight/core"
+import type { GFrames, GProviderFrame } from "@runelight/react/runtime"
 import { UserSignProvider } from "./environment.g"
 
 type Props = { userName: string }
@@ -433,5 +433,5 @@ scope: { count: 0, increment() {}, reset() {} }
 | `.frames` on the scope hook | Move to the component export |
 | Template literals as frame keys | Use plain string literals |
 | Missing `satisfies GFrames<…>` | Always add for type safety |
-| Importing from `"/runelight/runtime"` | Import from `"@runelight/core"` |
+| Importing from `"/runelight/runtime"` | Import from `"@runelight/react/runtime"` |
 | Frames depending on runtime values | Frames must be statically evaluable |

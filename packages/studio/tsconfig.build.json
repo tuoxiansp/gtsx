@@ -9,6 +9,9 @@
     "noEmit": false,
     "paths": {}
   },
-  "include": ["src"],
-  "exclude": ["src/preview.tsx", "src/vite-env.d.ts"]
+  "include": [
+    "src/manifest.ts",
+    "src/manifest-server.ts",
+    "src/static-app.ts"
+  ]
 }

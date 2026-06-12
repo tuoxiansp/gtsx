@@ -6,7 +6,7 @@ module.exports = function runelightNextReactLoader(source, inputSourceMap) {
   const callback = this.async()
   const options = readLoaderOptions(this)
   const root = typeof options.root === "string" ? options.root : process.cwd()
-  const transformModule = typeof options.transformPath === "string" ? pathToFileURL(options.transformPath).href : "@runelight/core/react-transform"
+  const transformModule = typeof options.transformPath === "string" ? pathToFileURL(options.transformPath).href : "@runelight/react/contract"
   const filePath = this.resourcePath
   const previewQuery = typeof options.previewQuery === "string" ? options.previewQuery : "runelight-preview"
   const isPreviewImport = hasResourceQuery(this.resourceQuery, previewQuery)
@@ -14,7 +14,7 @@ module.exports = function runelightNextReactLoader(source, inputSourceMap) {
   const code = Buffer.isBuffer(source) ? source.toString("utf8") : String(source)
 
   import(transformModule).then(
-    ({ transformRunelightReactModule, transpileRunelightReactModuleCode }) => {
+    ({ transformRunelightReactModule, transpileRunelightReactPreviewModule }) => {
       try {
         const transformed = transformRunelightReactModule({
           code,
@@ -24,8 +24,8 @@ module.exports = function runelightNextReactLoader(source, inputSourceMap) {
         })
         const output = transformed?.code ?? code
         const finalOutput =
-          isPreviewImport && shouldTranspilePreview && typeof transpileRunelightReactModuleCode === "function"
-            ? transpileRunelightReactModuleCode({ code: output, filePath })
+          isPreviewImport && shouldTranspilePreview && typeof transpileRunelightReactPreviewModule === "function"
+            ? transpileRunelightReactPreviewModule({ code: output, filePath })
             : output
         callback(null, finalOutput, inputSourceMap)
       } catch (error) {

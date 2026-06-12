@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { createServer as createHttpServer, type Server as HttpServer } from "node:http"
 import { createServer as createTcpServer } from "node:net"
 import { tmpdir } from "node:os"
@@ -7,9 +7,7 @@ import { join, resolve } from "node:path"
 
 import { describe, expect, it, vi } from "vitest"
 
-import { capturePreviewPage } from "../src/browser-capture.js"
-import { expandUrl } from "../src/cli.js"
-import { runCLI } from "../src/cli.js"
+import { expandUrl, runCLI } from "../src/cli.js"
 import {
   acquireRunelightServeLock,
   createRunelightServeSessionId,
@@ -18,10 +16,6 @@ import {
   runelightServeSessionProjectKey,
   writeRunelightServeSession,
 } from "../src/serve-session.js"
-
-vi.mock("../src/browser-capture.js", () => ({
-  capturePreviewPage: vi.fn(async () => undefined),
-}))
 
 const repositoryRoot = resolve(import.meta.dirname, "../../..")
 
@@ -38,17 +32,63 @@ describe("runelight CLI", () => {
     })
 
     expect(result, `${result.stdout}\n${result.stderr}`).toMatchObject({ status: 0 })
-    expect(result.stdout).toContain("runelight check [-p <tsconfig-or-dir>] <entry.g.tsx|entry.g.vue[#export]|dir>")
+    expect(result.stdout).toContain("runelight check [-p <tsconfig-or-dir>] [entry[#export]|dir]")
   })
 
   it("prints help for the public command surface", async () => {
     const result = await runCLI(["--help"], { cwd: process.cwd(), stdout: "", stderr: "" })
 
-    expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain("runelight check [-p <tsconfig-or-dir>] <entry.g.tsx|entry.g.vue[#export]|dir>")
+    expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0)
+    expect(result.stdout).toContain("runelight check [-p <tsconfig-or-dir>] [entry[#export]|dir]")
     expect(result.stdout).toContain("runelight serve [-p <tsconfig-or-dir>] [--port <port>]")
     expect(result.stdout).toContain("--frame-override <entry#export:frame>")
-    expect(result.stdout).toContain("runelight capture [-p <tsconfig-or-dir>] <entry.g.tsx|entry.g.vue[#export]|dir>")
+    expect(result.stdout).toContain("runelight capture [-p <tsconfig-or-dir>] <entry[#export]|dir>")
+    expect(result.stdout).not.toContain("runelight init")
+    expect(result.stdout).not.toContain("runelight strip")
+  })
+
+  it("rejects unknown command options before loading project config", async () => {
+    const result = await runCLI(["check", "src", "--wat"], { cwd: process.cwd(), stdout: "", stderr: "" })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("unknown-option")
+    expect(result.stdout).toContain("--wat")
+    expect(result.stdout).not.toContain("missing-config")
+  })
+
+  it("reports unknown commands as diagnostics on stderr", async () => {
+    const result = await runCLI(["dance"], { cwd: process.cwd(), stdout: "", stderr: "" })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toBe("")
+    expect(result.stderr).toContain("[adapter-configuration] unknown-command:")
+    expect(result.stderr).toContain("dance")
+  })
+
+  it("checks the configured project by default and reports missing config when none exists", async () => {
+    const result = await runCLI(["check"], { cwd: process.cwd(), stdout: "", stderr: "" })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("[adapter-configuration] missing-config:")
+    expect(result.stderr).toBe("")
+  })
+
+  it("reports missing capture entries as diagnostics on stderr", async () => {
+    const result = await runCLI(["capture"], { cwd: process.cwd(), stdout: "", stderr: "" })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toBe("")
+    expect(result.stderr).toContain("[adapter-configuration] missing-capture-entry:")
+    expect(result.stderr).not.toContain("missing-config")
+  })
+
+  it("rejects unexpected positional arguments before loading project config", async () => {
+    const result = await runCLI(["serve", "extra"], { cwd: process.cwd(), stdout: "", stderr: "" })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("unexpected-argument")
+    expect(result.stdout).toContain("extra")
+    expect(result.stdout).not.toContain("missing-config")
   })
 
   it("serves the project Studio URL without requiring a component entry", async () => {
@@ -70,6 +110,15 @@ describe("runelight CLI", () => {
     ])
   })
 
+  it("rejects invalid serve ports before loading project config", async () => {
+    const result = await runCLI(["serve", "--port", "wide"], { cwd: process.cwd(), stdout: "", stderr: "" })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("invalid-port")
+    expect(result.stdout).toContain("1 to 65535")
+    expect(result.stdout).not.toContain("missing-config")
+  })
+
   it("reports missing Host command for project-level serve", async () => {
     const result = await runCLI(["serve"], {
       cwd: join(import.meta.dirname, "fixtures/missing-studio-url"),
@@ -80,6 +129,36 @@ describe("runelight CLI", () => {
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toContain("missing-host-command")
     expect(result.stdout).toContain("Add host.command")
+  })
+
+  it("reports Host commands that do not accept a Runelight-owned port", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-invalid-host-command-"))
+    try {
+      writeFileSync(
+        join(cwd, "runelight.config.ts"),
+        `import { defineRunelightConfig } from "@runelight/core"
+
+export default defineRunelightConfig({
+  contracts: ["@runelight/react/contract"],
+  project: {
+    sourceRoot: "src",
+    entryRoot: "app/runelight",
+  },
+  host: {
+    command: "pnpm dev",
+  },
+})
+`,
+      )
+
+      const result = await runCLI(["serve"], { cwd, stdout: "", stderr: "" })
+
+      expect(result.exitCode).toBe(1)
+      expect(result.stdout).toContain("invalid-host-command")
+      expect(result.stdout).toContain("{port}")
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
   })
 
   it("retries the next Runelight-owned port when the Host reports a port conflict", async () => {
@@ -649,12 +728,13 @@ describe("runelight CLI", () => {
     const previousSessionDir = process.env.RUNELIGHT_SESSION_DIR
     const sessionId = createRunelightServeSessionId()
     const projectKey = runelightServeSessionProjectKey(cwd)
-    const capturePreviewPageMock = vi.mocked(capturePreviewPage)
+    const captureBackend = {
+      capturePreviewPage: vi.fn(async () => undefined),
+    }
     let server: Awaited<ReturnType<typeof startHealthyRunelightServer>> | undefined
 
     rmSync(logFile, { force: true })
     process.env.RUNELIGHT_SESSION_DIR = sessionDir
-    capturePreviewPageMock.mockClear()
 
     try {
       server = await startHealthyRunelightServer({ projectKey, sessionId })
@@ -669,6 +749,7 @@ describe("runelight CLI", () => {
       })
 
       const result = await runCLI(["capture", "src/Badge.g.tsx", "--frame", "neutral", "--out", "attached.png"], {
+        captureBackend,
         cwd,
         stdout: "",
         stderr: "",
@@ -679,8 +760,8 @@ describe("runelight CLI", () => {
         stdout: "Captured neutral to attached.png\n",
         stderr: "",
       })
-      expect(capturePreviewPageMock).toHaveBeenCalledTimes(1)
-      expect(capturePreviewPageMock).toHaveBeenCalledWith({
+      expect(captureBackend.capturePreviewPage).toHaveBeenCalledTimes(1)
+      expect(captureBackend.capturePreviewPage).toHaveBeenCalledWith({
         cwd,
         out: "attached.png",
         url: `${server.baseUrl}/runelight?entry=src%2FBadge.g.tsx%23default&frame=neutral&chrome=0`,
@@ -689,7 +770,6 @@ describe("runelight CLI", () => {
       expect(readRunelightServeSession(cwd)?.sessionId).toBe(sessionId)
       expect(() => readFileSync(logFile, "utf8")).toThrow()
     } finally {
-      capturePreviewPageMock.mockClear()
       await server?.close()
       if (previousSessionDir === undefined) {
         delete process.env.RUNELIGHT_SESSION_DIR
@@ -701,12 +781,217 @@ describe("runelight CLI", () => {
     }
   })
 
+  it("captures an entry contact sheet when no frame is specified", async () => {
+    const cwd = join(import.meta.dirname, "fixtures/check-project")
+    const logFile = join(cwd, "runelight-command-log.jsonl")
+    const sessionDir = mkdtempSync(join(tmpdir(), "runelight-cli-sessions-"))
+    const previousSessionDir = process.env.RUNELIGHT_SESSION_DIR
+    const sessionId = createRunelightServeSessionId()
+    const projectKey = runelightServeSessionProjectKey(cwd)
+    const captureBackend = {
+      capturePreviewPage: vi.fn(async () => undefined),
+    }
+    let server: Awaited<ReturnType<typeof startHealthyRunelightServer>> | undefined
+
+    rmSync(logFile, { force: true })
+    process.env.RUNELIGHT_SESSION_DIR = sessionDir
+
+    try {
+      server = await startHealthyRunelightServer({ projectKey, sessionId })
+      writeRunelightServeSession(cwd, {
+        baseUrl: server.baseUrl,
+        hostPid: process.pid,
+        mode: "runelight-dev",
+        port: server.port,
+        sessionId,
+        startedAt: new Date().toISOString(),
+        supervisorPid: process.pid,
+      })
+
+      const result = await runCLI(["capture", "src/Badge.g.tsx", "--out", "contact-sheets"], {
+        captureBackend,
+        cwd,
+        stdout: "",
+        stderr: "",
+      })
+
+      expect(result).toEqual({
+        exitCode: 0,
+        stdout: "Captured src/Badge.g.tsx#default contact sheet to contact-sheets/Badge.png\n",
+        stderr: "",
+      })
+      expect(captureBackend.capturePreviewPage).toHaveBeenCalledTimes(1)
+      expect(captureBackend.capturePreviewPage).toHaveBeenCalledWith({
+        cwd,
+        out: "contact-sheets/Badge.png",
+        url: `${server.baseUrl}/runelight?entry=src%2FBadge.g.tsx%23default`,
+        viewport: "1440x900",
+      })
+      expect(readRunelightServeSession(cwd)?.sessionId).toBe(sessionId)
+      expect(() => readFileSync(logFile, "utf8")).toThrow()
+    } finally {
+      await server?.close()
+      if (previousSessionDir === undefined) {
+        delete process.env.RUNELIGHT_SESSION_DIR
+      } else {
+        process.env.RUNELIGHT_SESSION_DIR = previousSessionDir
+      }
+      rmSync(sessionDir, { recursive: true, force: true })
+      rmSync(logFile, { force: true })
+    }
+  })
+
+  it("captures directory contact sheets when no frame is specified", async () => {
+    const cwd = join(import.meta.dirname, "fixtures/check-project")
+    const logFile = join(cwd, "runelight-command-log.jsonl")
+    const sessionDir = mkdtempSync(join(tmpdir(), "runelight-cli-sessions-"))
+    const previousSessionDir = process.env.RUNELIGHT_SESSION_DIR
+    const sessionId = createRunelightServeSessionId()
+    const projectKey = runelightServeSessionProjectKey(cwd)
+    const captureBackend = {
+      capturePreviewPage: vi.fn(async () => undefined),
+    }
+    let server: Awaited<ReturnType<typeof startHealthyRunelightServer>> | undefined
+
+    rmSync(logFile, { force: true })
+    process.env.RUNELIGHT_SESSION_DIR = sessionDir
+
+    try {
+      server = await startHealthyRunelightServer({ projectKey, sessionId })
+      writeRunelightServeSession(cwd, {
+        baseUrl: server.baseUrl,
+        hostPid: process.pid,
+        mode: "runelight-dev",
+        port: server.port,
+        sessionId,
+        startedAt: new Date().toISOString(),
+        supervisorPid: process.pid,
+      })
+
+      const result = await runCLI(["capture", "src/corpus", "--out", "contact-sheets"], {
+        captureBackend,
+        cwd,
+        stdout: "",
+        stderr: "",
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("Captured src/corpus/Badge.g.tsx#default contact sheet to contact-sheets/src/corpus/Badge.png")
+      expect(result.stdout).toContain(
+        "Captured src/corpus/StatusPanel.g.tsx#default contact sheet to contact-sheets/src/corpus/StatusPanel.png",
+      )
+      expect(captureBackend.capturePreviewPage).toHaveBeenCalledTimes(2)
+      expect(captureBackend.capturePreviewPage).toHaveBeenCalledWith({
+        cwd,
+        out: "contact-sheets/src/corpus/Badge.png",
+        url: `${server.baseUrl}/runelight?entry=src%2Fcorpus%2FBadge.g.tsx%23default`,
+        viewport: "1440x900",
+      })
+      expect(captureBackend.capturePreviewPage).toHaveBeenCalledWith({
+        cwd,
+        out: "contact-sheets/src/corpus/StatusPanel.png",
+        url: `${server.baseUrl}/runelight?entry=src%2Fcorpus%2FStatusPanel.g.tsx%23default`,
+        viewport: "1440x900",
+      })
+      expect(readRunelightServeSession(cwd)?.sessionId).toBe(sessionId)
+      expect(() => readFileSync(logFile, "utf8")).toThrow()
+    } finally {
+      await server?.close()
+      if (previousSessionDir === undefined) {
+        delete process.env.RUNELIGHT_SESSION_DIR
+      } else {
+        process.env.RUNELIGHT_SESSION_DIR = previousSessionDir
+      }
+      rmSync(sessionDir, { recursive: true, force: true })
+      rmSync(logFile, { force: true })
+    }
+  })
+
+  it("rejects the removed capture --all option", async () => {
+    const result = await runCLI(["capture", "src/Badge.g.tsx", "--all"], {
+      cwd: process.cwd(),
+      stdout: "",
+      stderr: "",
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("unsupported-capture-all-option")
+    expect(result.stdout).toContain("Omit --frame")
+  })
+
+  it("rejects invalid capture viewport values before using a capture backend", async () => {
+    const cwd = join(import.meta.dirname, "fixtures/check-project")
+    const captureBackend = {
+      capturePreviewPage: vi.fn(async () => undefined),
+    }
+
+    const result = await runCLI(["capture", "src/Badge.g.tsx", "--viewport", "wide"], {
+      captureBackend,
+      cwd,
+      stdout: "",
+      stderr: "",
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("invalid-viewport")
+    expect(result.stdout).toContain("1440x900")
+    expect(captureBackend.capturePreviewPage).not.toHaveBeenCalled()
+  })
+
+  it("rejects invalid capture ports before loading project config or using a capture backend", async () => {
+    const captureBackend = {
+      capturePreviewPage: vi.fn(async () => undefined),
+    }
+
+    const result = await runCLI(["capture", "src/Badge.g.tsx", "--port", "0"], {
+      captureBackend,
+      cwd: process.cwd(),
+      stdout: "",
+      stderr: "",
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("invalid-port")
+    expect(result.stdout).toContain("1 to 65535")
+    expect(result.stdout).not.toContain("missing-config")
+    expect(captureBackend.capturePreviewPage).not.toHaveBeenCalled()
+  })
+
+  it("rejects command options that are missing values", async () => {
+    const result = await runCLI(["capture", "src/Badge.g.tsx", "--frame"], {
+      cwd: process.cwd(),
+      stdout: "",
+      stderr: "",
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("missing-option-value")
+    expect(result.stdout).toContain("--frame")
+    expect(result.stdout).not.toContain("missing-config")
+  })
+
+  it("requires a capture backend for programmatic capture", async () => {
+    const cwd = join(import.meta.dirname, "fixtures/check-project")
+    const logFile = join(cwd, "runelight-command-log.jsonl")
+    rmSync(logFile, { force: true })
+
+    const result = await runCLI(["capture", "src/Badge.g.tsx", "--frame", "neutral"], {
+      cwd,
+      stdout: "",
+      stderr: "",
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("missing-capture-backend")
+    expect(() => readFileSync(logFile, "utf8")).toThrow()
+  })
+
   it("checks directory entries from the selected TypeScript project scope", async () => {
     const projectRoot = join(import.meta.dirname, "fixtures/ts-project-scope")
 
     const result = await runCLI(["check", "-p", projectRoot, "."], { cwd: process.cwd(), stdout: "", stderr: "" })
 
-    expect(result.exitCode).toBe(0)
+    expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0)
     expect(result.stdout).toContain("Runelight pure entry: src/Included.g.tsx")
     expect(result.stdout).not.toContain("stories/Outside.g.tsx")
   })
@@ -721,6 +1006,35 @@ describe("runelight CLI", () => {
     expect(result.stdout).not.toContain("stories/Outside.g.tsx")
   })
 
+  it("prints aggregate JSON for directory checks", async () => {
+    const projectRoot = join(import.meta.dirname, "fixtures/ts-project-scope")
+
+    const result = await runCLI(["check", ".", "--json"], { cwd: projectRoot, stdout: "", stderr: "" })
+    const payload = JSON.parse(result.stdout)
+
+    expect(result.exitCode).toBe(0)
+    expect(payload).toMatchObject({
+      diagnostics: [],
+      entries: expect.arrayContaining([
+        expect.objectContaining({
+          entry: "src/Included.g.tsx#default",
+        }),
+      ]),
+    })
+    expect(payload.entries.map((entry: { entry: string }) => entry.entry)).not.toContain("stories/Outside.g.tsx#default")
+  })
+
+  it("checks configured source and design entries when no check target is specified", async () => {
+    const projectRoot = join(import.meta.dirname, "fixtures/check-project")
+
+    const result = await runCLI(["check"], { cwd: projectRoot, stdout: "", stderr: "" })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("Runelight pure entry: src/Badge.g.tsx#default")
+    expect(result.stdout).toContain("Runelight pure entry: app/runelight/design/DesignSketch.g.tsx#default")
+    expect(result.stdout).toContain("non-runelight-hook")
+  })
+
   it("uses project.tsconfig from runelight.config.ts when the root TypeScript config only contains references", async () => {
     const projectRoot = join(import.meta.dirname, "fixtures/config-tsconfig-scope")
 
@@ -728,6 +1042,20 @@ describe("runelight CLI", () => {
 
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain("Runelight pure entry: src/Included.g.tsx")
+  })
+
+  it("lets explicit -p override project.tsconfig from runelight.config.ts", async () => {
+    const projectRoot = join(import.meta.dirname, "fixtures/config-tsconfig-scope")
+
+    const result = await runCLI(["check", "-p", "tsconfig.json", "src"], {
+      cwd: projectRoot,
+      stdout: "",
+      stderr: "",
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("no-entries-found")
+    expect(result.stdout).not.toContain("Runelight pure entry: src/Included.g.tsx")
   })
 
   it("checks named-only component files without requiring a default export", async () => {
@@ -748,6 +1076,18 @@ describe("runelight CLI", () => {
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain("Runelight pure entry: src/MultiExport.g.tsx#NamedBadge")
     expect(result.stdout).toContain("Runelight pure entry: src/MultiExport.g.tsx#default")
+  })
+
+  it("accepts check options before the entry", async () => {
+    const projectRoot = join(import.meta.dirname, "fixtures/check-project")
+
+    const result = await runCLI(["check", "--json", "src/Badge.g.tsx"], { cwd: projectRoot, stdout: "", stderr: "" })
+    const payload = JSON.parse(result.stdout)
+
+    expect(result.exitCode).toBe(0)
+    expect(payload).toMatchObject({
+      entry: "src/Badge.g.tsx#default",
+    })
   })
 
   it("still requires a default export when the explicit default coordinate is requested", async () => {
@@ -800,7 +1140,7 @@ describe("runelight CLI", () => {
         frameOverrides: ["src/frames/stateful/NotificationBell.g.tsx#default:expanded"],
       }),
     ).toBe(
-      "http://localhost:4321/runelight?entry=src%2Fframes%2Fstateful%2FDashboardShell.g.tsx&frame=stagingReview&frameOverride=src%2Fframes%2Fstateful%2FNotificationBell.g.tsx%23default%3Aexpanded",
+      "http://localhost:4321/runelight?entry=src%2Fframes%2Fstateful%2FDashboardShell.g.tsx&frame=stagingReview&frameOverride=src%252Fframes%252Fstateful%252FNotificationBell.g.tsx%2523default%3Aexpanded",
     )
   })
 })

@@ -4,7 +4,7 @@ import { defineConfig } from "vite"
 
 export default defineConfig({
   optimizeDeps: {
-    exclude: ["@runelight/core"],
+    exclude: ["@runelight/core", "@runelight/react"],
   },
   plugins: [runelightViteReact(), react()],
 })

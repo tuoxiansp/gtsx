@@ -7,18 +7,19 @@ Use this profile for Vite React TypeScript apps and Vite-compatible client-only 
 Install:
 
 - `@runelight/core`
+- `@runelight/react`
 - `@runelight/studio`
 - `@runelight/adapter-vite-react`
 
-Do not install `@runelight/preview-react` directly.
+The adapter uses `@runelight/react/preview` internally; user projects should not install legacy preview packages.
 
 ## Configuration
 
 - Configure `runelightViteReact` from `@runelight/adapter-vite-react`.
 - Use `runelightViteReact()` without statically importing the Runelight config from `vite.config.*`; the adapter keeps the `.g.tsx` component transform active for both dev and build, and loads the Runelight config only when dev-only virtual Runelight modules are loaded.
-- `.g.tsx` files are production React components. Do not move normal app imports away from `.g.tsx`; isolate only preview routes, `virtual:runelight/*`, and generated preview registries from production bundles.
+- `.g.tsx` files are production React components. Do not move normal app imports away from `.g.tsx`; isolate only preview routes, `virtual:runelight/preview-config`, and generated preview registries from production bundles.
 - The Vite adapter serves the prebuilt Studio app at `/runelight/studio` and `/runelight/studio/assets/*`; the browser entry should not import `@runelight/studio`.
-- Production `vite build` must not require the Runelight config, resolve `virtual:runelight/*`, include preview route code, expose a usable `/runelight` experience, or read/write Runelight-generated preview files.
+- Production app behavior must remain unchanged: normal `vite build` must not require the Runelight config, resolve `virtual:runelight/preview-config`, include preview route code, expose a usable `/runelight` experience, or read/write Runelight-generated preview files.
 - If the root `tsconfig.json` is a references container, set `project.tsconfig` to the app config that includes React files, usually `tsconfig.app.json`.
 - Configure `host.command` as the direct framework dev command that `runelight serve` wraps, with `{port}` as the port placeholder. Do not point `host.command` at a package script that itself runs `runelight serve`.
 - Record the local Runelight entry directory in `project.entryRoot`. Design frames live in `${project.entryRoot}/design`; do not add a `designRoot` config key. `app/runelight` at the project root is the default for client-only Vite hosts; `src/app/runelight` is also valid when the project keeps all authored source under `src`.
@@ -45,6 +46,7 @@ export default defineConfig({
 import { defineRunelightConfig } from "@runelight/core"
 
 export default defineRunelightConfig({
+  contracts: ["@runelight/react/contract"],
   project: {
     sourceRoot: "src",
     entryRoot: "app/runelight",
@@ -56,19 +58,20 @@ export default defineRunelightConfig({
 })
 ```
 
-Use the detected package manager's exec form in `host.command`: `npx vite ...` for npm, `pnpm exec vite ...` for pnpm. `runelight serve` substitutes `{port}` with the Runelight-owned port, sets `RUNELIGHT_DEV=1`, and prints the serve and Studio URLs. Routes are fixed at `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest`; they are not configurable. The config file is loaded by the Runelight CLI in Node, so importing `defineRunelightConfig` from `@runelight/core` is fine in React projects where React is installed.
+Use the detected package manager's exec form in `host.command`: `npx vite ...` for npm, `pnpm exec vite ...` for pnpm. `runelight serve` substitutes `{port}` with the Runelight-owned port, sets `RUNELIGHT_DEV=1`, and prints the serve and Studio URLs. Routes are fixed at `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest`; they are not configurable.
 
-Recommended `package.json` scripts (also created by `runelight init`):
+Recommended `package.json` scripts:
 
 ```json
 {
   "scripts": {
     "dev": "runelight serve",
-    "runelight:check": "runelight check src",
-    "runelight:capture": "runelight capture src --all"
+    "runelight:check": "runelight check"
   }
 }
 ```
+
+Do not add a default `runelight:capture` script during setup. Capture has side effects and writes image files, so run it explicitly against a concrete entry or directory when needed.
 
 ## Browser Entry
 
@@ -94,7 +97,7 @@ const root = createRoot(document.getElementById("root")!)
 void renderApp()
 
 async function renderApp() {
-  if (import.meta.env.DEV && window.location.pathname === "/runelight") {
+  if (__RUNELIGHT_DEV__ && window.location.pathname === "/runelight") {
     const { RunelightPreviewApp } = await import("./preview")
     root.render(<RunelightPreviewApp />)
     return
@@ -110,45 +113,49 @@ async function renderApp() {
 import {
   createRunelightVitePreviewComponentLoader,
   RunelightVitePreviewClient,
-  readRunelightPreviewRouteParams,
-  type RunelightPreviewModule,
+  readRunelightReactPreviewRouteParams,
+  type RunelightReactPreviewModule,
 } from "@runelight/adapter-vite-react/preview"
-import runelightConfig from "virtual:runelight/config"
+import previewConfig from "virtual:runelight/preview-config"
 
-const modules = import.meta.glob<RunelightPreviewModule>(["./**/*.g.tsx", "/app/runelight/design/**/*.g.tsx"], {
+const modules = import.meta.glob<RunelightReactPreviewModule>(["/src/**/*.g.tsx", "/app/runelight/design/**/*.g.tsx"], {
   query: "?runelight-preview",
 })
 const loadPreviewComponent = createRunelightVitePreviewComponentLoader(modules, {
-  sourceRoot: runelightConfig.project.sourceRoot,
+  sourceRoot: previewConfig.project.sourceRoot,
 })
 
 export function RunelightPreviewApp() {
-  const params = readRunelightPreviewRouteParams(new URLSearchParams(window.location.search))
+  const params = readRunelightReactPreviewRouteParams(new URLSearchParams(window.location.search))
 
   return <RunelightVitePreviewClient {...params} loadComponent={loadPreviewComponent} />
 }
 ```
 
-The `?runelight-preview` glob query lets the adapter apply the preview-specific transform to preview-loaded modules. If setup selected `project.entryRoot: "src/app/runelight"`, write the static glob as `"/src/app/runelight/design/**/*.g.tsx"` instead. Do not include multiple candidate design globs.
+The `?runelight-preview` glob query lets the adapter apply the preview-specific transform to preview-loaded modules. Generate these glob strings from the selected config: one root-anchored source glob for `project.sourceRoot`, and one root-anchored design glob for `${project.entryRoot}/design`. For example, `project.sourceRoot: "src"` becomes `"/src/**/*.g.tsx"`, and `project.entryRoot: "src/app/runelight"` becomes `"/src/app/runelight/design/**/*.g.tsx"`. Do not include multiple candidate design globs.
 
 `src/vite-env.d.ts`:
 
 ```ts
 /// <reference types="vite/client" />
 
-declare module "virtual:runelight/config" {
-  import type { ResolvedRunelightConfig } from "@runelight/core"
-
-  const config: ResolvedRunelightConfig
+declare module "virtual:runelight/preview-config" {
+  const config: {
+    project: {
+      sourceRoot: string
+    }
+  }
   export default config
 }
+
+declare const __RUNELIGHT_DEV__: boolean
 ```
 
 ## Verify
 
 1. Run typecheck/build.
 2. Run `runelight check`.
-3. Start the dev server through `runelight serve` (or the package script that wraps it). Runelight routes only activate when the Host runs with `RUNELIGHT_DEV=1`, which `runelight serve` sets.
+3. Start the dev server through `runelight serve` (or the package script that wraps it). Runelight routes only activate when the Host runs with `RUNELIGHT_DEV=1`, which `runelight serve` sets and the adapter exposes to the browser entry as `__RUNELIGHT_DEV__`.
 4. Open `/` and confirm the original app still renders.
 5. Open `/runelight/studio`.
 6. If a `.g.tsx` entry exists, open one `/runelight?...` preview URL and run capture.

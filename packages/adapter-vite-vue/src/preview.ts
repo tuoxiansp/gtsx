@@ -4,14 +4,14 @@ export {
   parseRunelightVuePreviewEntry,
   readRunelightVuePreviewRouteParams,
   useRunelightVueFrame,
-} from "@runelight/preview-vue"
+} from "@runelight/vue/preview"
 
 import {
   isRunelightVuePreviewComponent,
   parseRunelightVuePreviewEntry,
   type RunelightVuePreviewComponent,
   type RunelightVuePreviewModule,
-} from "@runelight/preview-vue"
+} from "@runelight/vue/preview"
 
 export type {
   RunelightVuePreviewFrame,
@@ -19,13 +19,17 @@ export type {
   RunelightVuePreviewComponentLoader,
   RunelightVuePreviewModule,
   RunelightVuePreviewRouteParams,
-} from "@runelight/preview-vue"
+} from "@runelight/vue/preview"
 
 export type RunelightViteVuePreviewEntryModules = Record<string, () => Promise<RunelightVuePreviewModule>>
 
+export type RunelightViteVuePreviewComponentLoaderOptions = {
+  sourceRoot?: string
+}
+
 export function createRunelightViteVuePreviewComponentLoader(
   modules: RunelightViteVuePreviewEntryModules,
-  options: { sourceRoot?: string } = {},
+  options: RunelightViteVuePreviewComponentLoaderOptions = {},
 ): (entry: string) => Promise<RunelightVuePreviewComponent | undefined> {
   const sourceRoot = normalizeSourceRoot(options.sourceRoot ?? "src")
   const modulesByEntryFile = normalizeVitePreviewEntryModules(modules, sourceRoot)

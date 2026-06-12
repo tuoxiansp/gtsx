@@ -120,7 +120,7 @@ Use `props.userId` when it helps distinguish public input from local scope. Use 
 
 ## Native Provide / Inject
 
-Use frame `provide` only when the component already consumes native Vue injection. Prefer `props` or `scope` for ordinary component state.
+Use frame `providers` only when the component already consumes native Vue injection. Prefer `props` or `scope` for ordinary component state.
 
 ```vue
 <template>
@@ -139,22 +139,22 @@ const auth = inject(authKey)!
 
 <g:frames lang="ts">
 import { authKey } from "./auth"
-import type { GVueFrames, GVueProvideFrame } from "@runelight/core/vue"
+import type { GVueFrames, GVueProviderFrame } from "@runelight/vue/runtime"
 
 export default {
   admin: {
     props: {},
-    provide: [[authKey, { role: "admin" }]],
-  } satisfies GVueProvideFrame<typeof authKey, "admin">,
+    providers: [[authKey, { role: "admin" }]],
+  } satisfies GVueProviderFrame<typeof authKey, "admin">,
   viewer: {
     props: {},
-    provide: [[authKey, { role: "viewer" }]],
-  } satisfies GVueProvideFrame<typeof authKey, "viewer">,
+    providers: [[authKey, { role: "viewer" }]],
+  } satisfies GVueProviderFrame<typeof authKey, "viewer">,
 } satisfies GVueFrames<Record<string, never>, never, [typeof authKey]>
 </g:frames>
 ```
 
-The `provide` value is the runtime preview value. The `GVueProvideFrame` marker is type-level metadata that tells Studio and `runelight check` which finite injection variant the frame covers.
+The `providers` entry is the runtime preview value. The `GVueProviderFrame` marker is type-level metadata that tells Studio and `runelight check` which finite injection variant the frame covers.
 
 ## Frame Names
 

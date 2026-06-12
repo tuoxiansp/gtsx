@@ -4,164 +4,166 @@ import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
+import type { RunelightContract } from "../src/contract.js"
 import { buildRunelightProjectIndex, createCachedRunelightProjectIndexBuilder } from "../src/project-index.js"
 
-const fixtureRoot = join(import.meta.dirname, "fixtures/check-project")
-const tsProjectScopeRoot = join(import.meta.dirname, "fixtures/ts-project-scope")
-const examplesRoot = join(import.meta.dirname, "../../../examples/react-vite")
-
 describe("Runelight project index", () => {
-  it("describes the selected Runelight project without Studio route or preview concerns", () => {
-    const index = buildRunelightProjectIndex({ cwd: fixtureRoot, sourceRoot: "src/corpus" })
-
-    expect(index).toEqual({
-      version: 1,
-      files: [
-        {
-          path: "src/corpus/Badge.g.tsx",
-          sourceHash: expect.any(String),
-          components: [
-            {
-              coordinate: "src/corpus/Badge.g.tsx#default",
-              filePath: "src/corpus/Badge.g.tsx",
-              sourceHash: expect.any(String),
-              exportName: "default",
-              componentName: "Badge",
-              mode: "pure",
-              frames: [
-                { kind: "pure", name: "neutral" },
-                { kind: "pure", name: "success" },
-              ],
-              providers: {},
-              diagnostics: [],
-            },
-          ],
-          diagnostics: [],
-        },
-        {
-          path: "src/corpus/StatusPanel.g.tsx",
-          sourceHash: expect.any(String),
-          components: [
-            {
-              coordinate: "src/corpus/StatusPanel.g.tsx#default",
-              filePath: "src/corpus/StatusPanel.g.tsx",
-              sourceHash: expect.any(String),
-              exportName: "default",
-              componentName: "StatusPanel",
-              mode: "pure",
-              frames: [
-                { kind: "pure", name: "loading" },
-                { kind: "pure", name: "error" },
-              ],
-              providers: {},
-              diagnostics: [],
-            },
-          ],
-          diagnostics: [],
-        },
-      ],
-      diagnostics: [],
-    })
-    expect(JSON.stringify(index)).not.toContain("/runelight/studio")
-    expect(JSON.stringify(index)).not.toContain("urlTemplate")
-  })
-
-  it("follows the selected TypeScript project scope", () => {
-    const index = buildRunelightProjectIndex({
-      cwd: tsProjectScopeRoot,
-      tsconfigPath: join(tsProjectScopeRoot, "tsconfig.json"),
-    })
-
-    expect(index.files.map((file) => file.path)).toEqual([
-      "src/app/runelight/design/Sketch.g.tsx",
-      "src/Child.g.tsx",
-      "src/Included.g.tsx",
-    ])
-  })
-
-  it("can include route design roots outside the selected source root", () => {
-    const cwd = mkdtempSync(join(tmpdir(), "runelight-route-design-index-"))
+  it("indexes files through injected contracts", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-core-index-"))
 
     try {
       mkdirSync(join(cwd, "src"), { recursive: true })
-      mkdirSync(join(cwd, "app/runelight/design"), { recursive: true })
-      writeFileSync(
-        join(cwd, "src/Card.g.tsx"),
-        ["export default function Card() { return null }", "Card.frames = { ready: { props: {} } }", ""].join("\n"),
-      )
-      writeFileSync(
-        join(cwd, "app/runelight/design/Sketch.g.tsx"),
-        ["export default function Sketch() { return null }", "Sketch.frames = { live: { props: {} } }", ""].join("\n"),
-      )
+      writeFileSync(join(cwd, "src/Card.g.fake"), "fake source\n")
 
       const index = buildRunelightProjectIndex({
-        additionalRoots: ["app/runelight/design"],
+        contracts: [fakeContract("fake")],
         cwd,
         sourceRoot: "src",
       })
 
-      expect(index.files.map((file) => file.path)).toEqual(["app/runelight/design/Sketch.g.tsx", "src/Card.g.tsx"])
+      expect(index.files).toHaveLength(1)
+      expect(index.files[0]).toMatchObject({
+        path: "src/Card.g.fake",
+        sourceHash: expect.any(String),
+        components: [
+          {
+            coordinate: "src/Card.g.fake#default",
+            filePath: "src/Card.g.fake",
+            sourceHash: expect.any(String),
+            exportName: "default",
+            componentName: "Card",
+            mode: "pure",
+            frames: [{ kind: "pure", name: "ready" }],
+            providers: {},
+            diagnostics: [],
+          },
+        ],
+        diagnostics: [],
+      })
+      expect(index.diagnostics).toEqual([])
     } finally {
       rmSync(cwd, { force: true, recursive: true })
     }
   })
 
-  it("records static Runelight component dependencies from TypeScript path aliases", () => {
+  it("reports missing contracts", () => {
     const index = buildRunelightProjectIndex({
-      cwd: tsProjectScopeRoot,
-      tsconfigPath: join(tsProjectScopeRoot, "tsconfig.json"),
+      contracts: [],
+      cwd: ".",
+      sourceRoot: "src",
     })
-    const included = index.files
-      .flatMap((file) => file.components)
-      .find((component) => component.coordinate === "src/Included.g.tsx#default")
 
-    expect(included?.dependencies).toEqual(["src/Child.g.tsx#default"])
+    expect(index).toMatchObject({
+      version: 1,
+      files: [],
+      diagnostics: [
+        {
+          stage: "adapter-configuration",
+          code: "missing-contracts",
+        },
+      ],
+    })
   })
 
-  it("records static Runelight component dependencies from JSX imports", () => {
-    const index = buildRunelightProjectIndex({ cwd: examplesRoot, sourceRoot: "src/frames" })
-    const dashboard = index.files
-      .flatMap((file) => file.components)
-      .find((component) => component.coordinate === "src/frames/stateful/DashboardShell.g.tsx#default")
+  it("reports duplicate contract ids", () => {
+    const index = buildRunelightProjectIndex({
+      contracts: [fakeContract("fake"), fakeContract("fake", "Duplicate")],
+      cwd: ".",
+      sourceRoot: "src",
+    })
 
-    expect(dashboard?.dependencies).toEqual(["src/frames/stateful/NotificationBell.g.tsx#default"])
+    expect(index).toMatchObject({
+      version: 1,
+      files: [],
+      diagnostics: [
+        {
+          stage: "adapter-configuration",
+          code: "duplicate-contracts",
+          message: expect.stringContaining("fake"),
+        },
+      ],
+    })
   })
 
-  it("records static Runelight component dependencies through local JSX aliases", () => {
-    const index = buildRunelightProjectIndex({ cwd: fixtureRoot, sourceRoot: "src" })
-    const aliasImportedDependency = index.files
-      .flatMap((file) => file.components)
-      .find((component) => component.coordinate === "src/AliasImportedDependency.g.tsx#default")
+  it("includes contract ids in the short-lived cache key", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-core-index-cache-"))
 
-    expect(aliasImportedDependency?.dependencies).toEqual(["src/HookDependencyChild.g.tsx#HookDependencyChild"])
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      writeFileSync(join(cwd, "src/Card.g.fake"), "fake source\n")
+      const buildProjectIndex = createCachedRunelightProjectIndexBuilder({ ttlMs: 60_000 })
+      const first = buildProjectIndex({ contracts: [fakeContract("a")], cwd, sourceRoot: "src" })
+      const second = buildProjectIndex({ contracts: [fakeContract("a")], cwd, sourceRoot: "src" })
+      const differentContract = buildProjectIndex({ contracts: [fakeContract("b")], cwd, sourceRoot: "src" })
+
+      expect(second).toBe(first)
+      expect(differentContract).not.toBe(first)
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
   })
 
-  it("indexes local functions exported from a list when they declare frames", () => {
-    const index = buildRunelightProjectIndex({ cwd: fixtureRoot, sourceRoot: "src" })
-    const exportList = index.files.find((file) => file.path === "src/ExportList.g.tsx")
+  it("preserves contract order in the short-lived cache key", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-core-index-cache-order-"))
 
-    expect(exportList?.components.map((component) => component.coordinate)).toEqual([
-      "src/ExportList.g.tsx#ExportListBadge",
-    ])
-    expect(exportList?.diagnostics).toEqual([])
-  })
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      writeFileSync(join(cwd, "src/Card.g.fake"), "fake source\n")
+      const buildProjectIndex = createCachedRunelightProjectIndexBuilder({ ttlMs: 60_000 })
+      const first = buildProjectIndex({
+        contracts: [fakeContract("a", "First"), fakeContract("b", "Second")],
+        cwd,
+        sourceRoot: "src",
+      })
+      const reordered = buildProjectIndex({
+        contracts: [fakeContract("b", "Second"), fakeContract("a", "First")],
+        cwd,
+        sourceRoot: "src",
+      })
 
-  it("can reuse a project index briefly for high-frequency Studio route reads", () => {
-    const buildProjectIndex = createCachedRunelightProjectIndexBuilder({ ttlMs: 60_000 })
-    const first = buildProjectIndex({ cwd: fixtureRoot, sourceRoot: "src/corpus" })
-    const second = buildProjectIndex({ cwd: fixtureRoot, sourceRoot: "src/corpus" })
-    const differentScope = buildProjectIndex({ cwd: fixtureRoot, sourceRoot: "src" })
-
-    expect(second).toBe(first)
-    expect(differentScope).not.toBe(first)
-  })
-
-  it("shares the cached project index across provider instances", () => {
-    const firstProvider = createCachedRunelightProjectIndexBuilder({ ttlMs: 60_000 })
-    const secondProvider = createCachedRunelightProjectIndexBuilder({ ttlMs: 60_000 })
-    const first = firstProvider({ cwd: fixtureRoot, sourceRoot: "src/corpus" })
-    const second = secondProvider({ cwd: fixtureRoot, sourceRoot: "src/corpus" })
-
-    expect(second).toBe(first)
+      expect(first.files[0]?.components[0]?.componentName).toBe("First")
+      expect(reordered.files[0]?.components[0]?.componentName).toBe("Second")
+      expect(reordered).not.toBe(first)
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
   })
 })
+
+function fakeContract(id: string, componentName = "Card"): RunelightContract {
+  return {
+    id,
+    isEntryFile(filePath) {
+      return filePath.endsWith(".g.fake")
+    },
+    analyzeEntry({ entry }) {
+      return {
+        entry,
+        mode: "pure",
+        defaultExport: true,
+        frames: [{ kind: "pure", name: "ready" }],
+        providers: {},
+        diagnostics: [],
+      }
+    },
+    indexFile({ cwd: _cwd, file }) {
+      const analysis = this.analyzeEntry({ cwd: _cwd, entry: `${file.filePath}#default` })
+      return {
+        components: [
+          {
+            coordinate: analysis.entry,
+            filePath: file.filePath,
+            sourceHash: file.sourceHash,
+            exportName: "default",
+            componentName,
+            mode: analysis.mode,
+            frames: analysis.frames,
+            providers: analysis.providers,
+            diagnostics: analysis.diagnostics,
+          },
+        ],
+        diagnostics: analysis.diagnostics,
+      }
+    },
+  }
+}

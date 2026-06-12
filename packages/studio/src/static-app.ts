@@ -1,10 +1,9 @@
-import { existsSync } from "node:fs"
 import { dirname, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const studioAppDistDirectoryName = "studio"
 
-export function runelightStudioAppDirectory(): string {
+export function resolveRunelightStudioAppDirectory(): string {
   const moduleDirectory = dirname(fileURLToPath(import.meta.url))
 
   if (moduleDirectory.endsWith(`${sep}src`)) {
@@ -16,11 +15,7 @@ export function runelightStudioAppDirectory(): string {
 
 export function resolveRunelightStudioAppAssetPath(assetPath = "index.html"): string {
   const normalizedAssetPath = normalizeStudioAppAssetPath(assetPath)
-  return resolve(runelightStudioAppDirectory(), normalizedAssetPath)
-}
-
-export function hasRunelightStudioAppAsset(assetPath = "index.html"): boolean {
-  return existsSync(resolveRunelightStudioAppAssetPath(assetPath))
+  return resolve(resolveRunelightStudioAppDirectory(), normalizedAssetPath)
 }
 
 function normalizeStudioAppAssetPath(assetPath: string): string {

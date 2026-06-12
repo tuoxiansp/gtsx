@@ -1,6 +1,7 @@
 export type RunelightConfig = {
+  contracts: readonly string[]
   host?: RunelightHostConfig
-  project?: RunelightProjectConfig
+  project: RunelightProjectConfig
   studio?: RunelightStudioConfig
 }
 
@@ -9,9 +10,9 @@ export type RunelightHostConfig = {
 }
 
 export type RunelightProjectConfig = {
-  entryRoot?: string
+  entryRoot: string
   namespace?: string
-  sourceRoot?: string
+  sourceRoot: string
   tsconfig?: string
 }
 
@@ -21,15 +22,13 @@ export type RunelightRouteConfig = {
   manifest: string
 }
 
-export type RunelightScriptConfig = RunelightConfig
-
 export type RunelightStudioConfig = {
   exposeInProduction?: boolean
 }
 
 export type ResolvedRunelightConfig = {
   host: RunelightHostConfig
-  project: Required<Pick<RunelightProjectConfig, "sourceRoot">> & Pick<RunelightProjectConfig, "entryRoot" | "namespace" | "tsconfig">
+  project: Required<Pick<RunelightProjectConfig, "entryRoot" | "sourceRoot">> & Pick<RunelightProjectConfig, "namespace" | "tsconfig">
   routes: RunelightRouteConfig
   studio: Required<RunelightStudioConfig>
 }

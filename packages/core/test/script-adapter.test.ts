@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, rmSync } from "node:fs"
+import { readFileSync, rmSync } from "node:fs"
 import { createServer } from "node:http"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
@@ -48,7 +48,7 @@ describe("Runelight preview commands", () => {
     ])
   })
 
-  it("does not pass component frame overrides to the project-level serve command", async () => {
+  it("rejects component frame overrides on the project-level serve command", async () => {
     const port = await getFreePort()
     const result = await runCLI(
       [
@@ -67,38 +67,17 @@ describe("Runelight preview commands", () => {
       },
     )
 
-    expect(result.exitCode).toBe(0)
-    expect(readLog(serveProjectLogFile)).toEqual([
-      {
-        action: "serve",
-        args: ["--port", port],
-        runelightDev: "1",
-      },
-      {
-        action: "ready-check",
-        path: "/runelight/studio",
-      },
-      {
-        action: "ready-check",
-        path: "/runelight/studio/manifest",
-      },
-    ])
-  })
-
-  it("does not require a strip command while strip integration is not configured", async () => {
-    const result = await runCLI(["strip", "--check"], {
-      cwd: checkProjectRoot,
-      stdout: "",
-      stderr: "",
-    })
-
-    expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain("missing-strip-script")
-    expect(existsSync(checkProjectLogFile)).toBe(false)
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("unknown-option")
+    expect(result.stdout).toContain("--frame-override")
+    expect(() => readLog(serveProjectLogFile)).toThrow()
   })
 
   it("starts a temporary Runelight dev host before capturing a contact sheet", async () => {
-    const result = await runCLI(["capture", "src/Badge.g.tsx", "--all"], {
+    const result = await runCLI(["capture", "src/Badge.g.tsx"], {
+      captureBackend: {
+        capturePreviewPage: async () => undefined,
+      },
       cwd: checkProjectRoot,
       stdout: "",
       stderr: "",

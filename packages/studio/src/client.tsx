@@ -1,16 +1,20 @@
 import {
   G_PREVIEW_PROTOCOL_VERSION,
-  computeRunelightFrameGridLayout,
   createGPreviewRequestValuesMessage,
-  type GPreviewRenderTarget,
-  type GBoundaryRect,
+  decodeRunelightPreviewFrameOverride,
+  encodeRunelightPreviewFrameOverride,
   type GBoundaryTreeNode,
-  type GRuntimeValuesSnapshot,
-  type GPreviewProtocolMessage,
+  type GPreviewRenderTarget,
   type GPreviewRequestValuesMessage,
-  type RunelightFrameGridItemLayout,
-  type RunelightFrameGridLayout,
-} from "@runelight/core"
+  type GPreviewSessionMessage,
+  type GRuntimeValuesSnapshot,
+} from "@runelight/core/preview-protocol"
+import type { GBoundaryRect } from "@runelight/core/boundary-rect"
+import {
+  computeRunelightPreviewFrameGridLayout,
+  type RunelightPreviewFrameGridItemLayout,
+  type RunelightPreviewFrameGridLayout,
+} from "@runelight/core/frame-grid-layout"
 import type { StudioManifest, StudioManifestComponent } from "./manifest"
 import { findStudioBoundaryNode, studioBoundaryRectForCoordinate } from "./boundary-tree"
 import { previewFrameLayoutWidth } from "./preview-frame-layout"
@@ -72,9 +76,9 @@ export type StudioColumnLayoutMeasurement = {
   previewFrameRectsBySessionId?: Record<string, StudioCanvasScreenRect>
 }
 
-export type StudioFrameGridItemLayout = RunelightFrameGridItemLayout
+export type StudioFrameGridItemLayout = RunelightPreviewFrameGridItemLayout
 
-export type StudioFrameGridLayout = RunelightFrameGridLayout
+export type StudioFrameGridLayout = RunelightPreviewFrameGridLayout
 
 export type StudioCanvasWheelInput = {
   clientX: number
@@ -170,7 +174,7 @@ const studioRootSelectionId = "roots"
 
 export function applyStudioPreviewMessage(
   state: StudioPreviewFrameState,
-  message: GPreviewProtocolMessage,
+  message: GPreviewSessionMessage,
 ): StudioPreviewFrameState {
   if (message.protocolVersion !== G_PREVIEW_PROTOCOL_VERSION || message.sessionId !== state.expectedSessionId) {
     return state
@@ -213,7 +217,7 @@ export function applyStudioPreviewMessage(
 
 export function applyStudioPreviewMessageToFrameStates(
   frameStates: Record<string, StudioPreviewFrameState>,
-  message: GPreviewProtocolMessage,
+  message: GPreviewSessionMessage,
   activeSessionIds: Set<string>,
 ): Record<string, StudioPreviewFrameState> {
   if (!activeSessionIds.has(message.sessionId)) return frameStates
@@ -644,7 +648,7 @@ export function createStudioWorkspaceUrlSearchParams(
     params.append("path", coordinate)
   }
 
-  appendStudioProviderVariantContextUrlParams(params, "rootEnv", workspace.rootProviderVariants)
+  appendStudioProviderVariantContextUrlParams(params, "rootProviderVariant", workspace.rootProviderVariants)
   appendStudioProviderVariantPathUrlParams(params, workspace.selectedProviderVariantsByPath)
 
   for (const coordinate of workspace.selectedCoordinatePath) {
@@ -679,7 +683,7 @@ function appendStudioProviderVariantPathUrlParams(
     left.localeCompare(right),
   )) {
     for (const [providerName, variant] of Object.entries(context).sort(([left], [right]) => left.localeCompare(right))) {
-      params.append("env", `${pathKey}:${providerName}:${formatStudioProviderVariantUrlValue(variant)}`)
+      params.append("providerVariant", `${pathKey}:${providerName}:${formatStudioProviderVariantUrlValue(variant)}`)
     }
   }
 }
@@ -822,7 +826,7 @@ function selectedViewportPresetsFromUrl(
 
 function rootProviderVariantsFromUrl(params: URLSearchParams): StudioProviderVariantContext {
   const rootProviderVariants: StudioProviderVariantContext = {}
-  for (const value of params.getAll("rootEnv")) {
+  for (const value of params.getAll("rootProviderVariant")) {
     const parsed = parseStudioProviderVariantValue(value)
     if (parsed) rootProviderVariants[parsed.providerName] = parsed.variant
   }
@@ -836,7 +840,7 @@ function selectedProviderVariantsFromUrl(
   const selectedPathKeys = new Set(selectedCoordinatePath.map((_, index) => studioProviderVariantPathKey(selectedCoordinatePath.slice(0, index + 1))))
   const selectedProviderVariantsByPath: Record<string, StudioProviderVariantContext> = {}
 
-  for (const value of params.getAll("env")) {
+  for (const value of params.getAll("providerVariant")) {
     const parsed = parseStudioProviderVariantPathValue(value)
     if (!parsed || (selectedPathKeys.size > 0 && !selectedPathKeys.has(parsed.pathKey))) continue
     selectedProviderVariantsByPath[parsed.pathKey] = {
@@ -1019,11 +1023,15 @@ function setStudioProviderVariantContextValue(
 }
 
 function formatStudioProviderVariantUrlValue(variant: string): string {
-  return variant
+  return encodeURIComponent(variant)
 }
 
 function parseStudioProviderVariantUrlValue(variant: string): string {
-  return variant
+  try {
+    return decodeURIComponent(variant)
+  } catch {
+    return variant
+  }
 }
 
 export function initialStudioUrlSearchParams(selection: string | undefined, urlSearch: string | undefined): URLSearchParams {
@@ -1369,7 +1377,7 @@ export function computeStudioFrameGridLayout(input: {
   minScale?: number
   previewScale?: number
 }): StudioFrameGridLayout {
-  return computeRunelightFrameGridLayout(input)
+  return computeRunelightPreviewFrameGridLayout(input)
 }
 
 export function applyStudioCardSelectionAction(
@@ -1591,7 +1599,10 @@ export function createStudioPreviewUrl(
   })
   if (options.static) params.set("static", "1")
   for (const override of options.frameOverrides ?? []) {
-    params.append("frameOverride", `${override.coordinate}:${override.frameName}`)
+    params.append(
+      "frameOverride",
+      encodeRunelightPreviewFrameOverride(override.coordinate, override.frameName),
+    )
   }
   return appendStudioPreviewSearchParams(manifest.routes.preview, params)
 }
@@ -1600,11 +1611,14 @@ export function createStudioPreviewPoolUrl(manifest: StudioManifest): string {
   return appendStudioPreviewSearchParams(manifest.routes.preview, new URLSearchParams({ chrome: "0", pool: "1" }))
 }
 
-export function studioPreviewRenderTargetFromUrl(previewUrl: string, fallbackSessionId: string): GPreviewRenderTarget {
+export function studioPreviewRenderTargetFromUrl(
+  previewUrl: string,
+  fallbackSessionId: string,
+): GPreviewRenderTarget {
   const url = new URL(previewUrl, "http://runelight.local")
   const frameOverrides = url.searchParams.getAll("frameOverride").flatMap((value) => {
-    const separatorIndex = value.lastIndexOf(":")
-    return separatorIndex > 0 ? ([[value.slice(0, separatorIndex), value.slice(separatorIndex + 1)]] as [string, string][]) : []
+    const override = decodeRunelightPreviewFrameOverride(value)
+    return override ? [override] : []
   })
 
   return {
@@ -1636,7 +1650,7 @@ export function studioPreviewCacheKey(
   frameName: string,
   viewportPreset: StudioViewportPreset,
 ): string {
-  return `${viewportPreset}\n${component.sourceHash ?? "no-source-hash"}\n${component.coordinate}\n${frameName}`
+  return `${viewportPreset}\n${component.sourceHash}\n${component.coordinate}\n${frameName}`
 }
 
 export function studioPreviewFrameSize(
@@ -1729,30 +1743,6 @@ function studioPreviewTarget(
     size: studioPreviewFrameSize(viewportPreset, undefined) as { width: number; height: number },
     title: `${component.componentName} ${frameName} preview`,
   }
-}
-
-export function isGPreviewProtocolMessage(value: unknown): value is GPreviewProtocolMessage {
-  const messageType = (value as { type?: unknown }).type
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof messageType === "string" &&
-    isGPreviewSessionMessageType(messageType) &&
-    (value as { protocolVersion?: unknown }).protocolVersion === G_PREVIEW_PROTOCOL_VERSION &&
-    typeof (value as { sessionId?: unknown }).sessionId === "string"
-  )
-}
-
-function isGPreviewSessionMessageType(type: string): type is GPreviewProtocolMessage["type"] {
-  return (
-    type === "runelight:ready" ||
-    type === "runelight:tree" ||
-    type === "runelight:resize" ||
-    type === "runelight:error" ||
-    type === "runelight:request-values" ||
-    type === "runelight:values" ||
-    type === "runelight:render"
-  )
 }
 
 export function resolveStudioSelection(

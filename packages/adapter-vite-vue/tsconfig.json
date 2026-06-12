@@ -4,13 +4,13 @@
     "noEmit": true,
     "types": ["node"],
     "paths": {
-      "@runelight/preview-vue": ["../preview-vue/src/index.ts"],
+      "@runelight/vue/runtime": ["../vue/src/index.ts"],
+      "@runelight/vue/contract": ["../vue/src/contract.ts"],
+      "@runelight/vue/preview": ["../vue/src/preview.ts"],
       "@runelight/core": ["../core/src/index.ts"],
       "@runelight/core/config": ["../core/src/config.ts"],
-      "@runelight/core/config-model": ["../core/src/config-model.ts"],
-      "@runelight/core/config-types": ["../core/src/config-types.ts"],
-      "@runelight/core/project-index": ["../core/src/project-index.ts"],
-      "@runelight/core/vue-transform": ["../core/src/vue-transform.ts"]
+      "@runelight/core/contract": ["../core/src/contract.ts"],
+      "@runelight/core/project-index": ["../core/src/project-index.ts"]
     }
   },
   "include": ["src", "test/**/*.ts"]

@@ -1,7 +1,14 @@
 "use client"
 
 import React from "react"
-import { createGPreviewRenderMessage, type GPreviewRenderTarget } from "@runelight/core"
+import {
+  createGPreviewRenderMessage,
+  isGPreviewPoolReadyMessage,
+  isGPreviewRenderAcceptedMessage,
+  isGPreviewSessionMessage,
+  type GPreviewSessionMessage,
+  type GPreviewRenderTarget,
+} from "@runelight/core/preview-protocol"
 
 import { studioPreviewRenderTargetFromUrl } from "./client"
 import type { StudioPreviewFrameSlot } from "./preview-frame-slot"
@@ -418,7 +425,7 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
 
   React.useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (isStudioPreviewPoolReadyMessage(event.data)) {
+      if (isGPreviewPoolReadyMessage(event.data)) {
         const entry = entriesRef.current.find((candidate) => candidate.frame.contentWindow === event.source)
         if (!entry) return
 
@@ -430,7 +437,7 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
         return
       }
 
-      if (isStudioPreviewRenderAcceptedMessage(event.data)) {
+      if (isGPreviewRenderAcceptedMessage(event.data)) {
         const entry = entriesRef.current.find((candidate) => candidate.frame.contentWindow === event.source)
         if (!entry || entry.pendingInput?.slot.sessionId !== event.data.sessionId) return
 
@@ -968,32 +975,10 @@ export function studioPreviewIframeBorrowInputNeedsRender(
   )
 }
 
-function isStudioPreviewPoolReadyMessage(value: unknown): boolean {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    (value as { type?: unknown }).type === "runelight:pool-ready" &&
-    (value as { protocolVersion?: unknown }).protocolVersion === 1
-  )
-}
-
-function isStudioPreviewRenderAcceptedMessage(value: unknown): value is { sessionId: string; type: "runelight:render-accepted" } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    (value as { type?: unknown }).type === "runelight:render-accepted" &&
-    (value as { protocolVersion?: unknown }).protocolVersion === 1 &&
-    typeof (value as { sessionId?: unknown }).sessionId === "string"
-  )
-}
-
-function isStudioPreviewSessionCompletionMessage(value: unknown): value is { sessionId: string; type: "runelight:ready" | "runelight:error" } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    ((value as { type?: unknown }).type === "runelight:ready" || (value as { type?: unknown }).type === "runelight:error") &&
-    typeof (value as { sessionId?: unknown }).sessionId === "string"
-  )
+function isStudioPreviewSessionCompletionMessage(
+  value: unknown,
+): value is Extract<GPreviewSessionMessage, { type: "runelight:ready" | "runelight:error" }> {
+  return isGPreviewSessionMessage(value) && (value.type === "runelight:ready" || value.type === "runelight:error")
 }
 
 function snapshotStudioPreviewIframePoolStats(

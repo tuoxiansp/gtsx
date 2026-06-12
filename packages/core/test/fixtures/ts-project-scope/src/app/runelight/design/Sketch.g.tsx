@@ -1,4 +1,4 @@
-import type { GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
 
 export default function Sketch() {
   return null

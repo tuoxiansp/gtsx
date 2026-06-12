@@ -1,8 +1,4 @@
-import {
-  useGContext,
-  type GFrames,
-  type GProviderFrame,
-} from "@runelight/core"
+import { useGContext, type GFrames, type GProviderFrame } from "@runelight/react/runtime"
 
 import UnmarkedProviderProjectionChild from "./UnmarkedProviderProjectionChild.g"
 import { LoginProvider } from "./MissingProviderVariant.g"

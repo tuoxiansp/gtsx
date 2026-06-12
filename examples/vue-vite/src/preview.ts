@@ -6,14 +6,14 @@ import {
   RunelightViteVuePreviewClient,
   type RunelightVuePreviewModule,
 } from "@runelight/adapter-vite-vue/preview"
-import runelightConfig from "virtual:runelight/config"
+import previewConfig from "virtual:runelight/preview-config"
 
 const modules = import.meta.glob<RunelightVuePreviewModule>(
-  ["./components/**/*.g.vue", "./app/runelight/design/**/*.g.vue"],
-  { query: "?runelight-vue-preview" },
+  ["/src/**/*.g.vue", "/src/app/runelight/design/**/*.g.vue"],
+  { query: "?runelight-preview" },
 )
 const loadExamplePreviewComponent = createRunelightViteVuePreviewComponentLoader(modules, {
-  sourceRoot: runelightConfig.project.sourceRoot,
+  sourceRoot: previewConfig.project.sourceRoot,
 })
 
 export function createRunelightVuePreviewApp() {

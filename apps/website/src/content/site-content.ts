@@ -26,11 +26,11 @@ export type SiteContent = {
 export const siteContent = {
   productName: "Runelight",
   githubUrl: "https://github.com/tuoxiansp/runelight",
-  kicker: "Design · Build · Assure",
+  kicker: "For agent-built apps",
   headline: {
-    lead: "The missing workspace",
-    emphasis: "for AI-era",
-    tail: "UI development.",
+    lead: "Every component.",
+    emphasis: "Every state.",
+    tail: "One screen.",
   },
   story: {
     steps: [
@@ -38,8 +38,7 @@ export const siteContent = {
       { label: "typed frames", detail: "Auth, empty, admin — named branches, type-checked." },
       { label: "/runelight/studio", detail: "Every component, every state — rendered at once." },
     ],
-    payoff:
-      "A GUI workflow where design intent, component code, and agent output stay connected in one place.",
+    payoff: "Typed, checked, and maintained by your agent. Review on one URL.",
   },
   cta: {
     label: "View on GitHub",

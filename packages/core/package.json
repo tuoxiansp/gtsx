@@ -1,7 +1,7 @@
 {
   "name": "@runelight/core",
   "version": "0.0.8",
-  "description": "Core runtime for authoring and previewing Runelight React and Vue components.",
+  "description": "Framework-neutral protocol, config, contract injection, and tooling for Runelight.",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -15,9 +15,8 @@
   "homepage": "https://github.com/tuoxiansp/runelight#readme",
   "keywords": [
     "runelight",
-    "react",
-    "vue",
-    "tsx",
+    "protocol",
+    "analysis",
     "component-preview",
     "agent"
   ],
@@ -37,85 +36,48 @@
       "import": "./dist/config.js",
       "default": "./dist/config.js"
     },
-    "./config-model": {
-      "types": "./dist/config-model.d.ts",
-      "import": "./dist/config-model.js",
-      "default": "./dist/config-model.js"
+    "./contract": {
+      "types": "./dist/contract.d.ts",
+      "import": "./dist/contract.js",
+      "default": "./dist/contract.js"
     },
-    "./config-types": {
-      "types": "./dist/config-types.d.ts",
-      "import": "./dist/config-types.js",
-      "default": "./dist/config-types.js"
+    "./boundary-rect": {
+      "types": "./dist/boundary-rect.d.ts",
+      "import": "./dist/boundary-rect.js",
+      "default": "./dist/boundary-rect.js"
+    },
+    "./frame-grid-layout": {
+      "types": "./dist/frame-grid-layout.d.ts",
+      "import": "./dist/frame-grid-layout.js",
+      "default": "./dist/frame-grid-layout.js"
     },
     "./cli": {
       "types": "./dist/cli.d.ts",
       "import": "./dist/cli.js",
       "default": "./dist/cli.js"
     },
-    "./define-config": {
-      "types": "./dist/define-config.d.ts",
-      "import": "./dist/define-config.js",
-      "default": "./dist/define-config.js"
+    "./runtime-values": {
+      "types": "./dist/runtime-values.d.ts",
+      "import": "./dist/runtime-values.js",
+      "default": "./dist/runtime-values.js"
     },
     "./preview-protocol": {
       "types": "./dist/preview-protocol.d.ts",
       "import": "./dist/preview-protocol.js",
       "default": "./dist/preview-protocol.js"
-    },
-    "./react-transform": {
-      "types": "./dist/react-transform.d.ts",
-      "import": "./dist/react-transform.js",
-      "default": "./dist/react-transform.js"
-    },
-    "./vue": {
-      "types": "./dist/vue.d.ts",
-      "import": "./dist/vue.js",
-      "default": "./dist/vue.js"
-    },
-    "./vue-analyzer": {
-      "types": "./dist/vue-analyzer.d.ts",
-      "import": "./dist/vue-analyzer.js",
-      "default": "./dist/vue-analyzer.js"
-    },
-    "./vue-transform": {
-      "types": "./dist/vue-transform.d.ts",
-      "import": "./dist/vue-transform.js",
-      "default": "./dist/vue-transform.js"
     }
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "pnpm clean && tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "peerDependencies": {
-    "react": ">=18",
-    "vue": ">=3"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "vue": {
-      "optional": true
-    }
-  },
   "dependencies": {
-    "@vue/compiler-dom": "^3.5.35",
-    "playwright": "^1.60.0",
-    "react-tracked": "^2.0.1",
-    "scheduler": "^0.27.0",
     "typescript": "^6.0.3"
-  },
-  "devDependencies": {
-    "@types/react-test-renderer": "^19.1.0",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "react-test-renderer": "^19.2.6",
-    "vue": "^3.5.25"
   },
   "publishConfig": {
     "access": "public"

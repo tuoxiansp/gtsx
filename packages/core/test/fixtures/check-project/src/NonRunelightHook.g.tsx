@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react"
-import type { GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
 
 type Props = {
   label: string

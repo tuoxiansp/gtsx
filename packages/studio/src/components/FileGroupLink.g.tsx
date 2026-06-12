@@ -1,4 +1,4 @@
-import type { GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
 
 import { studioPreviewCacheKey, type StudioPreviewCacheEntry } from "../client"
 import type { StudioManifest, StudioManifestFile } from "../manifest"
@@ -96,11 +96,12 @@ FileGroupLink.frames = {
     props: {
       file: {
         path: "src/UserCard.g.tsx",
-        groupId: "file:src/UserCard.g.tsx",
+        sourceHash: "user-card-source",
         components: [
           {
             coordinate: "src/UserCard.g.tsx#default",
             filePath: "src/UserCard.g.tsx",
+            sourceHash: "user-card-source",
             exportName: "default",
             componentName: "UserCard",
             mode: "scope",
@@ -117,10 +118,6 @@ FileGroupLink.frames = {
           preview: "/runelight",
           studio: "/runelight/studio",
           manifest: "/runelight/studio/manifest",
-        },
-        preview: {
-          urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
-          allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
         },
         files: [],
         diagnostics: [],

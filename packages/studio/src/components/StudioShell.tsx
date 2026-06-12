@@ -1,7 +1,11 @@
 "use client"
 
 import React from "react"
-import type { GPreviewProtocolMessage } from "@runelight/core"
+import {
+  isGPreviewPoolReadyMessage,
+  isGPreviewSessionMessage,
+  type GPreviewSessionMessage,
+} from "@runelight/core/preview-protocol"
 
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import {
@@ -14,7 +18,6 @@ import {
   currentStudioDesignPreviewTargets,
   currentStudioPreviewTargets,
   initialStudioUrlSearchParams,
-  isGPreviewProtocolMessage,
   isStudioPreviewPoolDisabled,
   isStudioPreviewPoolDebugEnabled,
   isStudioPreviewQueueDebugEnabled,
@@ -211,8 +214,8 @@ function useStudioShellScope(props: StudioShellLoadedProps, view: StudioShellVie
     }
 
     const handleMessage = (event: MessageEvent) => {
-      const message = event.data as GPreviewProtocolMessage
-      if (!isGPreviewProtocolMessage(message)) return
+      const message = event.data as GPreviewSessionMessage
+      if (!isGPreviewSessionMessage(message)) return
 
       const target = targetsBySessionId.get(message.sessionId)
       if (!target) return
@@ -567,7 +570,7 @@ function StudioShellPreviewPoolPrewarmer(props: {
   React.useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.source !== frameRef.current?.contentWindow) return
-      if (!isStudioShellPreviewPoolReadyMessage(event.data)) return
+      if (!isGPreviewPoolReadyMessage(event.data)) return
       onReadyRef.current()
     }
 
@@ -592,15 +595,6 @@ function StudioShellPreviewPoolPrewarmer(props: {
       tabIndex={-1}
       title="Preview host preloader"
     />
-  )
-}
-
-function isStudioShellPreviewPoolReadyMessage(value: unknown): boolean {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    (value as { type?: unknown }).type === "runelight:pool-ready" &&
-    (value as { protocolVersion?: unknown }).protocolVersion === 1
   )
 }
 
@@ -837,7 +831,7 @@ function shouldHydrateStudioPreviewCacheBeforeLayout(manifest: StudioManifest): 
 
 function dispatchStudioPreviewTiming(
   target: StudioPreviewTarget,
-  message: GPreviewProtocolMessage,
+  message: GPreviewSessionMessage,
   mountedAt: number | undefined,
 ) {
   if (message.type !== "runelight:ready" && message.type !== "runelight:error") return

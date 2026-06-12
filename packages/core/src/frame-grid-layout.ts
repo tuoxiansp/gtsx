@@ -1,11 +1,11 @@
-export type RunelightStudioViewportPreset = "desktop" | "phone" | "tablet"
+export type RunelightPreviewViewportPreset = "desktop" | "phone" | "tablet"
 
-export type RunelightFrameGridItemLayout = {
+export type RunelightPreviewFrameGridItemLayout = {
   height: number
   width: number
 }
 
-export type RunelightFrameGridLayout = {
+export type RunelightPreviewFrameGridLayout = {
   frameChromeHeight: number
   cellHeight: number
   cellWidth: number
@@ -17,50 +17,50 @@ export type RunelightFrameGridLayout = {
   width: number
 }
 
-export const runelightStudioCanvasFixedFramePreviewScale = 0.45
-export const runelightStudioCanvasScreenStableChromeMinimumScale = 0.75
-export const runelightStudioComponentFrameGridGap = 14
-export const runelightStudioComponentCardTitleScreenGap = 8
-export const runelightStudioComponentCardTitleScreenHeight = 9
-export const runelightStudioComponentFrameLabelScreenGap = 5
-export const runelightStudioComponentFrameLabelScreenMinHeight = 13
-export const runelightStudioComponentCardTitleGap = runelightStudioCanvasScreenStableChromeReservedLength(
-  runelightStudioComponentCardTitleScreenGap,
+export const runelightPreviewFixedFrameScale = 0.45
+export const runelightPreviewScreenStableChromeMinimumScale = 0.75
+export const runelightPreviewFrameGridGap = 14
+export const runelightPreviewCardTitleScreenGap = 8
+export const runelightPreviewCardTitleScreenHeight = 9
+export const runelightPreviewFrameLabelScreenGap = 5
+export const runelightPreviewFrameLabelScreenMinHeight = 13
+export const runelightPreviewCardTitleGap = runelightPreviewScreenStableChromeReservedLength(
+  runelightPreviewCardTitleScreenGap,
 )
-export const runelightStudioComponentCardTitleHeight = runelightStudioCanvasScreenStableChromeReservedLength(
-  runelightStudioComponentCardTitleScreenHeight,
+export const runelightPreviewCardTitleHeight = runelightPreviewScreenStableChromeReservedLength(
+  runelightPreviewCardTitleScreenHeight,
 )
-export const runelightStudioComponentFrameLabelGap = runelightStudioCanvasScreenStableChromeReservedLength(
-  runelightStudioComponentFrameLabelScreenGap,
+export const runelightPreviewFrameLabelGap = runelightPreviewScreenStableChromeReservedLength(
+  runelightPreviewFrameLabelScreenGap,
 )
-export const runelightStudioComponentFrameLabelMinHeight = runelightStudioCanvasScreenStableChromeReservedLength(
-  runelightStudioComponentFrameLabelScreenMinHeight,
+export const runelightPreviewFrameLabelMinHeight = runelightPreviewScreenStableChromeReservedLength(
+  runelightPreviewFrameLabelScreenMinHeight,
 )
-export const runelightStudioComponentFrameChromeHeight =
-  runelightStudioComponentFrameLabelGap + runelightStudioComponentFrameLabelMinHeight
-export const runelightStudioComponentFrameGridMinScale = 0.18
-export const runelightStudioComponentFrameMismatchBorderOutset = 2
+export const runelightPreviewFrameChromeHeight =
+  runelightPreviewFrameLabelGap + runelightPreviewFrameLabelMinHeight
+export const runelightPreviewFrameGridMinScale = 0.18
+export const runelightPreviewFrameMismatchBorderOutset = 2
 
-export function runelightStudioCanvasScreenStableChromeReservedLength(screenLength: number): number {
-  return Math.ceil(screenLength / runelightStudioCanvasScreenStableChromeMinimumScale)
+export function runelightPreviewScreenStableChromeReservedLength(screenLength: number): number {
+  return Math.ceil(screenLength / runelightPreviewScreenStableChromeMinimumScale)
 }
 
-export function runelightStudioFrameGridMaxSide(
-  viewportPreset: RunelightStudioViewportPreset,
+export function runelightPreviewFrameGridMaxSide(
+  viewportPreset: RunelightPreviewViewportPreset,
   frameCount: number,
 ): number {
   const base = viewportPreset === "desktop" ? 860 : viewportPreset === "phone" ? 680 : 760
   return frameCount <= 1 ? Math.min(base, 720) : base
 }
 
-export function computeRunelightFrameGridLayout(input: {
+export function computeRunelightPreviewFrameGridLayout(input: {
   frameChromeHeight?: number
   gap?: number
-  items: RunelightFrameGridItemLayout[]
+  items: RunelightPreviewFrameGridItemLayout[]
   maxSide?: number
   minScale?: number
   previewScale?: number
-}): RunelightFrameGridLayout {
+}): RunelightPreviewFrameGridLayout {
   const gap = input.gap ?? 14
   const frameChromeHeight = input.frameChromeHeight ?? 20
   const maxSide = input.maxSide ?? 760
@@ -69,7 +69,7 @@ export function computeRunelightFrameGridLayout(input: {
   const itemCount = items.length
   const maxItemWidth = Math.max(1, ...items.map((item) => item.width))
   const maxItemHeight = Math.max(1, ...items.map((item) => item.height))
-  let bestLayout: RunelightFrameGridLayout | undefined
+  let bestLayout: RunelightPreviewFrameGridLayout | undefined
   let bestScore = Number.POSITIVE_INFINITY
 
   for (let columns = 1; columns <= itemCount; columns += 1) {

@@ -31,7 +31,7 @@ Does it render visible DOM?
 Does it own visual states worth previewing?
   no → SKIP
 
-Can those states be represented by props, frame scope, or native provide values?
+Can those states be represented by props, frame scope, or injection values?
   no → SKIP
 
 Would the .g.vue just wrap the old SFC?
@@ -65,7 +65,7 @@ Unlike React, the production `<script setup>` usually stays as-is — preview is
 
 ## Native Injection
 
-For SFCs that call `inject(key)`: import the same injection key inside `<g:frames lang="ts">`, supply runtime values through `provide: [[key, value]]`, and mark meaningful finite axes (role, theme, locale, auth state) with `defineGInjectionKey` variants plus `GVueProvideFrame` markers.
+For SFCs that call `inject(key)`: import the same injection key inside `<g:frames lang="ts">`, supply runtime values through `providers: [[key, value]]`, and mark meaningful finite axes (role, theme, locale, auth state) with `defineGInjectionKey` variants plus `GVueProviderFrame` markers.
 
 ## Child Components
 
@@ -85,7 +85,7 @@ These are never valid refactor outputs:
 - **Orchestration in `.g.vue`:** route/provider/layout wrappers converted into UI models
 - **Bulk generation:** sweeping a directory and creating `.g.vue` for every file
 - **Opaque branches:** structural directives driven by helper predicates or uninspectable computed state
-- **`bindings`:** Vue frames use `props`, `scope`, and native `provide`
+- **`bindings`:** Vue frames use `props`, `scope`, and `providers`
 
 ## Done When
 
@@ -94,7 +94,7 @@ These are never valid refactor outputs:
 - [ ] Imports point at the `.g.vue` module (or a barrel re-exports it)
 - [ ] Frames enumerate meaningful visual states (happy-path first, at least two)
 - [ ] Stateful frames use concrete `scope` values
-- [ ] Injection frames use `provide` and, when variant axes matter, `GVueProvideFrame`
+- [ ] Injection frames use `providers` and, when variant axes matter, `GVueProviderFrame`
 - [ ] The old `.vue` file no longer owns the migrated visual branches
 - [ ] `runelight check` passes
 - [ ] Project typecheck passes

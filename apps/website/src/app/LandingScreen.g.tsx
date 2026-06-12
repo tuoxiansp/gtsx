@@ -1,4 +1,4 @@
-import type { GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
 
 import { captureAssets } from "../assets/captures"
 import { siteContent } from "../content/site-content"
@@ -56,8 +56,8 @@ export function LandingHero() {
       <p className="landing-kicker">{siteContent.kicker}</p>
       <h1 className="landing-headline">
         <span>{siteContent.headline.lead}</span>
-        <span className="landing-headline-emphasis">{siteContent.headline.emphasis}</span>
-        <span>{siteContent.headline.tail}</span>
+        <span>{siteContent.headline.emphasis}</span>
+        <span className="landing-headline-emphasis">{siteContent.headline.tail}</span>
       </h1>
       <p className="landing-payoff">{siteContent.story.payoff}</p>
     </section>

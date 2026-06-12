@@ -1,6 +1,11 @@
-import type { GBoundaryRect } from "./runtime.js"
-
 const clippingOverflowValues = new Set(["auto", "clip", "hidden", "scroll"])
+
+export type GBoundaryRect = {
+  x: number
+  y: number
+  width: number
+  height: number
+}
 
 export function readGBoundaryElementRect(element: HTMLElement): GBoundaryRect | undefined {
   const ownRect = element.getBoundingClientRect()

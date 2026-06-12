@@ -7,18 +7,19 @@ Use this profile for Next.js App Router TypeScript projects. The setup-runelight
 Install:
 
 - `@runelight/core`
+- `@runelight/react`
 - `@runelight/studio`
 - `@runelight/adapter-next-react`
 
-Do not install `@runelight/preview-react` directly.
+The adapter uses `@runelight/react/preview` internally; user projects should not install legacy preview packages.
 
 ## Configuration
 
 - Wrap config with `runelightNextReact` from `@runelight/adapter-next-react`.
 - Use `runelightNextReact()` without statically importing the Runelight config from `next.config.*`; the adapter loads the Runelight config only when Runelight preview entries are active.
 - `.g.tsx` files are production React components. Do not move normal app imports away from `.g.tsx`; isolate only preview routes, generated preview entries, Studio route helpers, and config loading from production.
-- `@runelight/studio` ships a prebuilt Studio app. Next route files should call `@runelight/adapter-next-react/studio-route` helpers instead of importing `@runelight/studio/client`.
-- The Next preview/studio integration is development-only by default. It must not mutate production `next build`, production server startup, Docker standalone output, or read/write `.runelight` at production runtime during normal setup.
+- `@runelight/studio` ships a prebuilt Studio app. Next route files should call `@runelight/adapter-next-react/studio-route` helpers; app code should not import React Studio source.
+- The Next preview/studio integration is development-only. Normal setup must not change production app behavior, expose usable `/runelight*` production routes, or read/write `.runelight` at production runtime.
 - The adapter generates `.runelight/preview-entries.ts` and wires webpack/Turbopack for preview imports when Runelight preview entries are active. Do not add a custom `.g.tsx` Turbopack loader in app code.
 - Record the local Runelight route entry directory in `project.entryRoot`. Design frames live in `${project.entryRoot}/design`; do not add a `designRoot` config key.
 - During setup, create the empty `${project.entryRoot}/design` directory. Do not add placeholder frames; the first `design-runelight-react` request writes the first `.g.tsx` frame.
@@ -45,6 +46,7 @@ export default runelightNextReact()(nextConfig)
 import { defineRunelightConfig } from "@runelight/core"
 
 export default defineRunelightConfig({
+  contracts: ["@runelight/react/contract"],
   project: {
     sourceRoot: ".",
     entryRoot: "app/runelight",
@@ -112,7 +114,7 @@ The `/runelight` preview route must load those visual pieces too. This route is 
 ```tsx
 "use client"
 
-export { RunelightNextPreviewClient as RunelightPreviewClient } from "@runelight/adapter-next-react/preview"
+export { RunelightNextPreviewClient } from "@runelight/adapter-next-react/preview"
 ```
 
 `app/runelight/page.tsx`:
@@ -130,7 +132,7 @@ export default async function RunelightPreviewPage(props: RunelightPreviewPagePr
   if (!previewRoute.isRunelightNextPreviewRouteEnabled()) notFound()
 
   const searchParams = await props.searchParams
-  const { RunelightPreviewClient } = await import("./preview-client")
+  const { RunelightNextPreviewClient } = await import("./preview-client")
   const previewProps = previewRoute.readRunelightNextPreviewProps(searchParams)
 
   return (
@@ -139,7 +141,7 @@ export default async function RunelightPreviewPage(props: RunelightPreviewPagePr
         <Script key={scriptProps.id} {...scriptProps} />
       ))}
       <div className="contents">
-        <RunelightPreviewClient {...previewProps} />
+        <RunelightNextPreviewClient {...previewProps} />
       </div>
     </>
   )

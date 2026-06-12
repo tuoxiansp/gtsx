@@ -1,7 +1,8 @@
 "use client"
 
 import React from "react"
-import type { GBoundaryRect, GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
+import type { GBoundaryRect } from "@runelight/core/boundary-rect"
 
 import {
   clipPreviewBoundaryRectToViewport,
@@ -347,6 +348,7 @@ ComponentCard.frames = {
       component: {
         coordinate: "src/UserCard.g.tsx#default",
         filePath: "src/UserCard.g.tsx",
+        sourceHash: "user-card-source",
         exportName: "default",
         componentName: "UserCard",
         mode: "scope",
@@ -386,10 +388,6 @@ ComponentCard.frames = {
           preview: "/runelight",
           studio: "/runelight/studio",
           manifest: "/runelight/studio/manifest",
-        },
-        preview: {
-          urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
-          allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
         },
         files: [],
         diagnostics: [],

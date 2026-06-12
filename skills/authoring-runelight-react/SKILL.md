@@ -22,7 +22,7 @@ For existing TSX conversions, use `refactor-to-runelight-react` first, then retu
 ## Quick start
 
 ```tsx
-import type { GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
 
 export default function Badge(props: { tone: "ok" | "warn"; label: string }) {
   return <span data-tone={props.tone}>{props.label}</span>
@@ -81,7 +81,7 @@ Verify: `runelight check src/Badge.g.tsx`
 runelight check <file.g.tsx|dir>         # validate contracts
 runelight check -p tsconfig.app.json .   # explicit project
 runelight serve                          # start Studio server
-runelight capture <file.g.tsx> --all     # screenshot all frames
+runelight capture <file.g.tsx>           # screenshot all frames
 ```
 
 ## Reference

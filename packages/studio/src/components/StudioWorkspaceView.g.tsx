@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GFrames } from "@runelight/core"
+import { createGScopeHook, type GFrames } from "@runelight/react/runtime"
 
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import {
@@ -1071,18 +1071,15 @@ Studio.frames = {
           studio: "/runelight/studio",
           manifest: "/runelight/studio/manifest",
         },
-        preview: {
-          urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
-          allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
-        },
         files: [
           {
             path: "src/MultiExport.g.tsx",
-            groupId: "file:src/MultiExport.g.tsx",
+            sourceHash: "multi-export-source",
             components: [
               {
                 coordinate: "src/MultiExport.g.tsx#NamedBadge",
                 filePath: "src/MultiExport.g.tsx",
+                sourceHash: "multi-export-source",
                 exportName: "NamedBadge",
                 componentName: "NamedBadge",
                 mode: "pure",
@@ -1104,6 +1101,7 @@ Studio.frames = {
               {
                 coordinate: "src/MultiExport.g.tsx#NamedBadge",
                 filePath: "src/MultiExport.g.tsx",
+                sourceHash: "multi-export-source",
                 exportName: "NamedBadge",
                 componentName: "NamedBadge",
                 mode: "pure",
@@ -1155,18 +1153,15 @@ Studio.frames = {
           studio: "/runelight/studio",
           manifest: "/runelight/studio/manifest",
         },
-        preview: {
-          urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
-          allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
-        },
         files: [
           {
             path: "src/UserCard.g.tsx",
-            groupId: "file:src/UserCard.g.tsx",
+            sourceHash: "user-card-source",
             components: [
               {
                 coordinate: "src/UserCard.g.tsx#default",
                 filePath: "src/UserCard.g.tsx",
+                sourceHash: "user-card-source",
                 exportName: "default",
                 componentName: "UserCard",
                 mode: "pure",
@@ -1197,6 +1192,7 @@ Studio.frames = {
               {
                 coordinate: "src/UserCard.g.tsx#default",
                 filePath: "src/UserCard.g.tsx",
+                sourceHash: "user-card-source",
                 exportName: "default",
                 componentName: "UserCard",
                 mode: "pure",

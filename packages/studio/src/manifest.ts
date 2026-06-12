@@ -1,6 +1,9 @@
-import { runelightDesignRootFromEntryRoot, requireRunelightEntryRoot, resolveRunelightConfig } from "@runelight/core/config-model"
-import type { RunelightConfig, RunelightDiagnostic } from "@runelight/core"
-import type { RunelightProjectIndex, RunelightProjectIndexComponent } from "@runelight/core/project-index"
+import {
+  runelightDesignRootFromEntryRoot,
+  type ResolvedRunelightConfig,
+  type RunelightDiagnostic,
+} from "@runelight/core"
+import type { RunelightProjectIndex } from "@runelight/core/project-index"
 
 export type StudioManifestRouteConfig = {
   preview: string
@@ -8,28 +11,37 @@ export type StudioManifestRouteConfig = {
   manifest: string
 }
 
-export type StudioManifestPreviewConfig = {
-  urlTemplate: string
-  allUrlTemplate?: string
+export type StudioManifestProviderVariantSelection = string | string[]
+
+export type StudioManifestFrame = {
+  kind: "pure" | "scope"
+  name: string
+  providerVariants?: Record<string, StudioManifestProviderVariantSelection>
+  providers?: string[]
+}
+
+export type StudioManifestProvider = {
+  name: string
+  frames: string[]
+  variants?: string[]
 }
 
 export type StudioManifestComponent = {
   coordinate: string
   filePath: string
-  sourceHash?: string
+  sourceHash: string
   exportName: string
   componentName: string
-  mode: RunelightProjectIndexComponent["mode"]
-  frames: RunelightProjectIndexComponent["frames"]
-  providers: RunelightProjectIndexComponent["providers"]
-  dependencies?: RunelightProjectIndexComponent["dependencies"]
+  mode: "pure" | "scope" | "unknown"
+  frames: StudioManifestFrame[]
+  providers: Record<string, StudioManifestProvider>
+  dependencies?: string[]
   diagnostics: RunelightDiagnostic[]
 }
 
 export type StudioManifestFile = {
   path: string
-  sourceHash?: string
-  groupId: string
+  sourceHash: string
   components: StudioManifestComponent[]
   diagnostics: RunelightDiagnostic[]
 }
@@ -53,21 +65,18 @@ export type StudioManifest = {
   design?: StudioDesignManifest
   serveSession?: StudioManifestServeSession
   routes: StudioManifestRouteConfig
-  preview: StudioManifestPreviewConfig
   files: StudioManifestFile[]
   diagnostics: RunelightDiagnostic[]
 }
 
 export type CreateStudioManifestOptions = {
-  routes?: Partial<StudioManifestRouteConfig>
-  preview?: Partial<StudioManifestPreviewConfig>
-  cache?: Partial<StudioManifestCacheConfig>
+  cache?: StudioManifestCacheConfig
   design?: StudioDesignManifest
-  diagnostics?: RunelightDiagnostic[]
+  additionalDiagnostics?: RunelightDiagnostic[]
 }
 
 export type StudioManifestCacheConfig = {
-  namespace?: string
+  namespace: string
 }
 
 export type StudioManifestServeSession = {
@@ -76,8 +85,7 @@ export type StudioManifestServeSession = {
 }
 
 type ProjectIndexFileWithSourceHash = RunelightProjectIndex["files"][number] & {
-  sourceHash?: string
-  components: Array<RunelightProjectIndexComponent & { sourceHash?: string }>
+  components: Array<RunelightProjectIndex["files"][number]["components"][number]>
 }
 
 const DEFAULT_ROUTES: StudioManifestRouteConfig = {
@@ -86,32 +94,26 @@ const DEFAULT_ROUTES: StudioManifestRouteConfig = {
   manifest: "/runelight/studio/manifest",
 }
 
-const DEFAULT_PREVIEW: StudioManifestPreviewConfig = {
-  urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
-  allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
-}
-
 export function createStudioManifest(projectIndex: RunelightProjectIndex, options: CreateStudioManifestOptions = {}): StudioManifest {
   const serveSession = serveSessionFromEnvironment()
+  const cache = normalizeStudioManifestCache(options.cache)
 
   return {
     version: 1,
-    ...(options.cache ? { cache: options.cache } : {}),
+    ...(cache ? { cache } : {}),
     ...(options.design && options.design.frames.length > 0 ? { design: options.design } : {}),
     ...(serveSession ? { serveSession } : {}),
-    routes: { ...DEFAULT_ROUTES, ...options.routes },
-    preview: { ...DEFAULT_PREVIEW, ...options.preview },
+    routes: DEFAULT_ROUTES,
     files: projectIndex.files.map((projectFile) => {
       const file = projectFile as ProjectIndexFileWithSourceHash
       return {
         path: file.path,
         sourceHash: file.sourceHash,
-        groupId: `file:${file.path}`,
         components: file.components,
         diagnostics: file.diagnostics,
       }
     }),
-    diagnostics: [...projectIndex.diagnostics, ...(options.diagnostics ?? [])],
+    diagnostics: [...projectIndex.diagnostics, ...(options.additionalDiagnostics ?? [])],
   }
 }
 
@@ -126,20 +128,22 @@ function serveSessionFromEnvironment(): StudioManifestServeSession | undefined {
   }
 }
 
-export function createStudioManifestFromRunelightConfig(
+function normalizeStudioManifestCache(cache: StudioManifestCacheConfig | undefined): StudioManifestCacheConfig | undefined {
+  const namespace = cache?.namespace.trim()
+  return namespace ? { namespace } : undefined
+}
+
+export function createStudioManifestFromResolvedConfig(
   projectIndex: RunelightProjectIndex,
-  config: RunelightConfig,
-  options: Pick<CreateStudioManifestOptions, "design" | "diagnostics"> = {},
+  config: ResolvedRunelightConfig,
+  options: Pick<CreateStudioManifestOptions, "design" | "additionalDiagnostics"> = {},
 ): StudioManifest {
-  const resolved = resolveRunelightConfig(config)
-  const entryRoot = requireRunelightEntryRoot(resolved)
+  const entryRoot = config.project.entryRoot
 
   return createStudioManifest(projectIndex, {
-    ...(resolved.project.namespace ? { cache: { namespace: resolved.project.namespace } } : {}),
+    ...(config.project.namespace ? { cache: { namespace: config.project.namespace } } : {}),
     design: options.design ?? discoverStudioDesignManifest(projectIndex, entryRoot),
-    diagnostics: options.diagnostics,
-    preview: previewConfigFromRoutes(resolved.routes),
-    routes: resolved.routes,
+    additionalDiagnostics: options.additionalDiagnostics,
   })
 }
 
@@ -166,37 +170,6 @@ export function discoverStudioDesignManifest(projectIndex: RunelightProjectIndex
   return { frames }
 }
 
-export function studioDesignRoots(entryRoot: string): string[] {
-  return [runelightDesignRootFromEntryRoot(entryRoot)]
-}
-
-export type StudioRouteSearchParams = Record<string, string | string[] | undefined> | URLSearchParams | undefined
-
-export function studioUrlSearchFromSearchParams(searchParams: StudioRouteSearchParams): string {
-  if (searchParams instanceof URLSearchParams) return searchParams.toString()
-
-  const params = new URLSearchParams()
-  for (const [key, value] of Object.entries(searchParams ?? {})) {
-    if (Array.isArray(value)) {
-      for (const item of value) params.append(key, item)
-    } else if (value !== undefined) {
-      params.set(key, value)
-    }
-  }
-  return params.toString()
-}
-
-function previewConfigFromRoutes(routes: StudioManifestRouteConfig): StudioManifestPreviewConfig {
-  return {
-    urlTemplate: appendPreviewSearchTemplate(routes.preview, "entry={entry}&frame={frame}{frameOverrides}"),
-    allUrlTemplate: appendPreviewSearchTemplate(routes.preview, "entry={entry}{frameOverrides}"),
-  }
-}
-
 function studioDesignPathPrefix(entryRoot: string): string {
   return `${runelightDesignRootFromEntryRoot(entryRoot)}/`
-}
-
-function appendPreviewSearchTemplate(url: string, template: string): string {
-  return `${url}${url.includes("?") ? "&" : "?"}${template}`
 }

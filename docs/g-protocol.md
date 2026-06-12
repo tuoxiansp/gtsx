@@ -33,7 +33,7 @@ Different frameworks expose the same protocol through different source shapes.
 A `.g.tsx` file is ordinary TSX with static visual-state data attached to exported components:
 
 ```tsx
-import type { GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
 
 export default function Badge(props: { tone: "neutral" | "warning"; label: string }) {
   return <span data-tone={props.tone}>{props.label}</span>
@@ -123,8 +123,7 @@ Supported frame fields:
 | --- | --- |
 | `props` | Values passed as component props. In Vue preview they are also exposed through `props` and direct prop-key variables. |
 | `scope` | State supplied at a protocol seam. React scope hooks read this value; Vue preview exposes it as template-visible scope for the selected frame. |
-| `providers` | React provider seam values for context-dependent components. React provider helpers consume these values directly. |
-| `provide` | Vue-native provide entries: `[[injectionKey, value]]`. Vue preview calls `provide(injectionKey, value)` before rendering the frame. |
+| `providers` | Runelight provider/injection seam values. React entries are G providers; Vue entries are native injection keys, and Vue preview calls `provide(injectionKey, value)` before rendering the frame. |
 
 Frame data should be static and inspectable: object literals with statically enumerable keys. Protocol consumers should not need to execute application code to discover the frame list.
 
@@ -162,7 +161,7 @@ Vue context uses native `provide` / `inject`. Runelight adds a typed key helper 
 
 ```ts
 // auth.ts
-import { defineGInjectionKey } from "@runelight/core/vue"
+import { defineGInjectionKey } from "@runelight/vue/runtime"
 
 export const authKey = defineGInjectionKey<{ role: "admin" | "viewer" }>({
   variants: ["admin", "viewer"] as const,
@@ -180,22 +179,22 @@ const auth = inject(authKey)!
 </script>
 ```
 
-Frames import the same key and use a Vue-shaped `provide` field:
+Frames import the same key and use the Runelight `providers` field:
 
 ```vue
 <g:frames lang="ts">
 import { authKey } from "./auth"
-import type { GVueFrames, GVueProvideFrame } from "@runelight/core/vue"
+import type { GVueFrames, GVueProviderFrame } from "@runelight/vue/runtime"
 
 export default {
   admin: {
     props: {},
-    provide: [[authKey, { role: "admin" }]],
-  } satisfies GVueProvideFrame<typeof authKey, "admin">,
+    providers: [[authKey, { role: "admin" }]],
+  } satisfies GVueProviderFrame<typeof authKey, "admin">,
   viewer: {
     props: {},
-    provide: [[authKey, { role: "viewer" }]],
-  } satisfies GVueProvideFrame<typeof authKey, "viewer">,
+    providers: [[authKey, { role: "viewer" }]],
+  } satisfies GVueProviderFrame<typeof authKey, "viewer">,
 } satisfies GVueFrames<Record<string, never>, never, [typeof authKey]>
 </g:frames>
 ```
@@ -206,7 +205,7 @@ export default {
 
 The check is intentionally narrow. It does not prove every possible state combination. It prevents reachable visual branches from escaping the declared frame set.
 
-React diagnostics inspect JSX branches, scope seams, and provider variants. Vue diagnostics inspect SFC frame enumeration, previewability, declared injection-key variants, and template directive reachability. Vue branch analysis is template-first: `v-if`, `v-else-if`, `v-else`, `v-show`, `v-for`, and dynamic component `:is` checks are derived from template expressions over frame `props`, `scope`, and injected `provide` values, not from arbitrary `<script setup>` execution.
+React diagnostics inspect JSX branches, scope seams, and provider variants. Vue diagnostics inspect SFC frame enumeration, previewability, declared injection-key variants, and template directive reachability. Vue branch analysis is template-first: `v-if`, `v-else-if`, `v-else`, `v-show`, `v-for`, and dynamic component `:is` checks are derived from template expressions over frame `props`, `scope`, and injected `providers` values, not from arbitrary `<script setup>` execution.
 
 For branch-coverage rules and diagnostics, see [.g Static Contract](./runelight-static-contract.md).
 

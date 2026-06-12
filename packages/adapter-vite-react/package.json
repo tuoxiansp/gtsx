@@ -36,17 +36,21 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "pnpm clean && tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@runelight/preview-react": "workspace:*"
+    "@runelight/react": "workspace:*"
   },
   "peerDependencies": {
     "react": ">=18",
     "vite": ">=5",
     "@runelight/core": "workspace:*",
     "@runelight/studio": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^8.0.14"
   }
 }

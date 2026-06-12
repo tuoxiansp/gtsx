@@ -1,4 +1,4 @@
-import { createGProvider, createGScopeHook, useGContext, type GFrames, type GProviderFrame } from "@runelight/core"
+import { createGProvider, createGScopeHook, useGContext, type GFrames, type GProviderFrame } from "@runelight/react/runtime"
 
 import Child from "./Child.g"
 import defaultImportedStatic, {

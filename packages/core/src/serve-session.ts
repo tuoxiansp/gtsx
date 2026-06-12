@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { normalizeRunelightPreviewFrameOverride } from "./preview-protocol.js"
 
 export const RUNELIGHT_DEV_ENV = "RUNELIGHT_DEV"
 export const RUNELIGHT_PROJECT_KEY_ENV = "RUNELIGHT_PROJECT_KEY"
@@ -209,7 +210,7 @@ export function runelightServeSessionPreviewUrl(
   if (!params.all && params.frameName) searchParams.set("frame", params.frameName)
   if (!params.all) searchParams.set("chrome", "0")
   for (const frameOverride of params.frameOverrides ?? []) {
-    searchParams.append("frameOverride", frameOverride)
+    searchParams.append("frameOverride", normalizeRunelightPreviewFrameOverride(frameOverride))
   }
   return `${baseUrl.replace(/\/+$/, "")}/runelight?${searchParams.toString()}`
 }

@@ -7,9 +7,11 @@ declare module "virtual:runelight/project-index" {
   export default projectIndex
 }
 
-declare module "virtual:runelight/config" {
-  import type { ResolvedRunelightConfig } from "@runelight/core"
-
-  const config: ResolvedRunelightConfig
+declare module "virtual:runelight/preview-config" {
+  const config: {
+    project: {
+      sourceRoot: string
+    }
+  }
   export default config
 }

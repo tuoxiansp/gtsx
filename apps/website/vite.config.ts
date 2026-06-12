@@ -9,7 +9,7 @@ export default defineConfig({
     strictPort: true,
   },
   optimizeDeps: {
-    exclude: ["@runelight/core"],
+    exclude: ["@runelight/core", "@runelight/react"],
   },
   plugins: [runelightViteReact(), react()],
 })

@@ -6,12 +6,13 @@
     "paths": {
       "@runelight/adapter-next-react/preview-entries": ["./src/preview-entries.ts"],
       "@runelight/adapter-next-react/preview-route": ["./src/preview-route.ts"],
-      "@runelight/preview-react": ["../preview-react/src/index.tsx"],
+      "@runelight/react/runtime": ["../react/src/index.ts"],
+      "@runelight/react/contract": ["../react/src/contract.ts"],
+      "@runelight/react/preview": ["../react/src/preview.tsx"],
       "@runelight/core": ["../core/src/index.ts"],
       "@runelight/core/config": ["../core/src/config.ts"],
-      "@runelight/core/config-model": ["../core/src/config-model.ts"],
-      "@runelight/core/preview-protocol": ["../core/src/preview-protocol.ts"],
-      "@runelight/core/react-transform": ["../core/src/react-transform.ts"]
+      "@runelight/core/contract": ["../core/src/contract.ts"],
+      "@runelight/core/preview-protocol": ["../core/src/preview-protocol.ts"]
     }
   },
   "include": ["src", "test/**/*.ts"]

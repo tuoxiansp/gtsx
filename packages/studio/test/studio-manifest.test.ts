@@ -3,9 +3,15 @@ import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
 import { describe, expect, it } from "vitest"
 
+import { resolveRunelightConfig } from "@runelight/core"
 import { buildRunelightProjectIndex } from "@runelight/core/project-index"
-import { createStudioManifest, createStudioManifestFromRunelightConfig, studioUrlSearchFromSearchParams } from "../src/index.js"
-import { createStudioManifestProvider, discoverStudioDesignManifest } from "../src/manifest-server.js"
+import { runelightReactContract } from "@runelight/react/contract"
+import {
+  createStudioManifest,
+  createStudioManifestFromResolvedConfig,
+  discoverStudioDesignManifest,
+} from "../src/manifest.js"
+import { createStudioManifestProvider } from "../src/manifest-server.js"
 
 const fixtureRoot = join(import.meta.dirname, "../../core/test/fixtures/check-project")
 const tsProjectScopeRoot = join(import.meta.dirname, "../../core/test/fixtures/ts-project-scope")
@@ -16,10 +22,11 @@ const examplesRoot = join(repositoryRoot, "examples/react-vite")
 type CreateStudioManifestOptions = NonNullable<Parameters<typeof createStudioManifest>[1]>
 
 function buildStudioManifest(
-  options: { additionalRoots?: string[]; cwd: string; sourceRoot?: string; tsconfigPath?: string } & CreateStudioManifestOptions,
+  options: { additionalSourceRoots?: string[]; cwd: string; sourceRoot: string; tsconfigPath?: string } & CreateStudioManifestOptions,
 ) {
   const projectIndex = buildRunelightProjectIndex({
-    additionalRoots: options.additionalRoots,
+    additionalSourceRoots: options.additionalSourceRoots,
+    contracts: [runelightReactContract],
     cwd: options.cwd,
     sourceRoot: options.sourceRoot,
     tsconfigPath: options.tsconfigPath,
@@ -27,9 +34,7 @@ function buildStudioManifest(
   return createStudioManifest(projectIndex, {
     cache: options.cache,
     design: options.design,
-    preview: options.preview,
-    routes: options.routes,
-    diagnostics: options.diagnostics,
+    additionalDiagnostics: options.additionalDiagnostics,
   })
 }
 
@@ -45,7 +50,6 @@ describe("Runelight Studio manifest", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
       sourceRoot: "src/corpus",
-      preview: { urlTemplate: "https://preview.test/runelight?entry={entry}&frame={frame}&port={port}" },
     })
 
     expect(manifest).toEqual({
@@ -55,15 +59,10 @@ describe("Runelight Studio manifest", () => {
         studio: "/runelight/studio",
         manifest: "/runelight/studio/manifest",
       },
-      preview: {
-        urlTemplate: "https://preview.test/runelight?entry={entry}&frame={frame}&port={port}",
-        allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
-      },
       files: [
         {
           path: "src/corpus/Badge.g.tsx",
           sourceHash: expect.any(String),
-          groupId: "file:src/corpus/Badge.g.tsx",
           components: [
             {
               coordinate: "src/corpus/Badge.g.tsx#default",
@@ -85,7 +84,6 @@ describe("Runelight Studio manifest", () => {
         {
           path: "src/corpus/StatusPanel.g.tsx",
           sourceHash: expect.any(String),
-          groupId: "file:src/corpus/StatusPanel.g.tsx",
           components: [
             {
               coordinate: "src/corpus/StatusPanel.g.tsx#default",
@@ -109,32 +107,37 @@ describe("Runelight Studio manifest", () => {
     })
   })
 
-  it("assembles Studio route and grouping concerns from a Runelight project index", () => {
-    const projectIndex = buildRunelightProjectIndex({ cwd: fixtureRoot, sourceRoot: "src/corpus" })
+  it("uses fixed Studio routes from a Runelight project index", () => {
+    const projectIndex = buildRunelightProjectIndex({ contracts: [runelightReactContract], cwd: fixtureRoot, sourceRoot: "src/corpus" })
 
-    const manifest = createStudioManifest(projectIndex, {
-      preview: {
-        urlTemplate: "https://preview.test/runelight?entry={entry}&frame={frame}",
-      },
-      routes: {
-        studio: "/custom/studio",
-      },
-    })
+    const manifest = createStudioManifest(projectIndex)
 
     expect(manifest.routes).toEqual({
       preview: "/runelight",
-      studio: "/custom/studio",
+      studio: "/runelight/studio",
       manifest: "/runelight/studio/manifest",
     })
-    expect(manifest.preview).toEqual({
-      urlTemplate: "https://preview.test/runelight?entry={entry}&frame={frame}",
-      allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
-    })
-    expect(manifest.files.map((file) => file.groupId)).toEqual([
-      "file:src/corpus/Badge.g.tsx",
-      "file:src/corpus/StatusPanel.g.tsx",
-    ])
     expect(manifest.diagnostics).toEqual(projectIndex.diagnostics)
+  })
+
+  it("appends additional diagnostics to project index diagnostics", () => {
+    const projectIndex = buildRunelightProjectIndex({ contracts: [runelightReactContract], cwd: fixtureRoot, sourceRoot: "src/corpus" })
+
+    const manifest = createStudioManifest(projectIndex, {
+      additionalDiagnostics: [
+        {
+          stage: "adapter-configuration",
+          severity: "warning",
+          code: "studio-test-diagnostic",
+          message: "Studio test diagnostic.",
+        },
+      ],
+    })
+
+    expect(manifest.diagnostics).toEqual([
+      ...projectIndex.diagnostics,
+      expect.objectContaining({ code: "studio-test-diagnostic" }),
+    ])
   })
 
   it("carries a configured cache namespace into the browser manifest", () => {
@@ -147,10 +150,21 @@ describe("Runelight Studio manifest", () => {
     expect(manifest.cache).toEqual({ namespace: "fixture-project" })
   })
 
-  it("creates a cached Studio manifest provider from runelight config", () => {
-    const getManifest = createStudioManifestProvider({
+  it("omits blank cache namespaces from the browser manifest", () => {
+    const manifest = buildStudioManifest({
+      cwd: fixtureRoot,
+      sourceRoot: "src/corpus",
+      cache: { namespace: "  " },
+    })
+
+    expect(manifest.cache).toBeUndefined()
+  })
+
+  it("creates a cached Studio manifest provider from runelight config", async () => {
+    const getManifest = await createStudioManifestProvider({
       cwd: fixtureRoot,
       config: {
+        contracts: ["@runelight/react/contract"],
         project: {
           sourceRoot: "src/corpus",
           entryRoot: "app/runelight",
@@ -169,11 +183,11 @@ describe("Runelight Studio manifest", () => {
       studio: "/runelight/studio",
       manifest: "/runelight/studio/manifest",
     })
-    expect(manifest.preview).toEqual({
-      urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
-      allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
-    })
-    expect(manifest.files.map((file) => file.path)).toEqual(["src/corpus/Badge.g.tsx", "src/corpus/StatusPanel.g.tsx"])
+    expect(manifest.files.map((file) => file.path)).toEqual([
+      "app/runelight/design/DesignSketch.g.tsx",
+      "src/corpus/Badge.g.tsx",
+      "src/corpus/StatusPanel.g.tsx",
+    ])
   })
 
   it("discovers local design frames under the configured route entry", () => {
@@ -198,7 +212,7 @@ describe("Runelight Studio manifest", () => {
         join(cwd, "components/app/runelight/design/nested/beta.g.tsx"),
         ["export function BetaDesign() { return null }", "BetaDesign.frames = { live: { props: {} } }", ""].join("\n"),
       )
-      const projectIndex = buildRunelightProjectIndex({ cwd, sourceRoot: "components" })
+      const projectIndex = buildRunelightProjectIndex({ contracts: [runelightReactContract], cwd, sourceRoot: "components" })
 
       expect(discoverStudioDesignManifest(projectIndex, "components/app/runelight")).toEqual({
         frames: [
@@ -256,11 +270,12 @@ describe("Runelight Studio manifest", () => {
         ["export default function Card() { return null }", "Card.frames = { ready: { props: {} } }", ""].join("\n"),
       )
       const manifest = buildStudioManifest({
-        additionalRoots: ["src/app/runelight/design"],
+        additionalSourceRoots: ["src/app/runelight/design"],
         cwd,
         design: discoverStudioDesignManifest(
           buildRunelightProjectIndex({
-            additionalRoots: ["src/app/runelight/design"],
+            additionalSourceRoots: ["src/app/runelight/design"],
+            contracts: [runelightReactContract],
             cwd,
             sourceRoot: "src",
           }),
@@ -300,14 +315,16 @@ describe("Runelight Studio manifest", () => {
         ["export default function Card() { return null }", "Card.frames = { ready: { props: {} } }", ""].join("\n"),
       )
       const projectIndex = buildRunelightProjectIndex({
-        additionalRoots: ["src/app/runelight/design"],
+        additionalSourceRoots: ["src/app/runelight/design"],
+        contracts: [runelightReactContract],
         cwd,
         sourceRoot: "src",
       })
-      const manifest = createStudioManifestFromRunelightConfig(projectIndex, {
+      const manifest = createStudioManifestFromResolvedConfig(projectIndex, resolveRunelightConfig({
+        contracts: ["@runelight/react/contract"],
         project: { sourceRoot: "src", entryRoot: "src/app/runelight" },
         host: { command: "vite --host 127.0.0.1 --port {port} --strictPort" },
-      })
+      }))
 
       expect(manifest.design?.frames.map((frame) => frame.id)).toEqual(["src/app/runelight/design/checkout-flow.g.tsx#default:live"])
     } finally {
@@ -315,19 +332,10 @@ describe("Runelight Studio manifest", () => {
     }
   })
 
-  it("serializes Studio route search params without losing repeated values", () => {
-    expect(
-      studioUrlSearchFromSearchParams({
-        canvasX: "12",
-        debug: ["pool", "layout"],
-        selection: "component:src/Card.g.tsx#default",
-      }),
-    ).toBe("canvasX=12&debug=pool&debug=layout&selection=component%3Asrc%2FCard.g.tsx%23default")
-  })
-
   it("builds files from the selected TypeScript project scope", () => {
     const manifest = buildStudioManifest({
       cwd: tsProjectScopeRoot,
+      sourceRoot: "src",
       tsconfigPath: join(tsProjectScopeRoot, "tsconfig.json"),
     })
 
@@ -339,7 +347,7 @@ describe("Runelight Studio manifest", () => {
   })
 
   it("builds files from the nearest TypeScript project scope by default", () => {
-    const manifest = buildStudioManifest({ cwd: tsProjectScopeRoot })
+    const manifest = buildStudioManifest({ cwd: tsProjectScopeRoot, sourceRoot: "src" })
 
     expect(manifest.files.map((file) => file.path)).toEqual([
       "src/app/runelight/design/Sketch.g.tsx",
@@ -411,20 +419,12 @@ describe("Runelight Studio manifest", () => {
     expect(manifestKeys).not.toContain("children")
   })
 
-  it("returns configured preview URL templates for repository examples", () => {
+  it("returns repository example entries", () => {
     const manifest = buildStudioManifest({
       cwd: examplesRoot,
       sourceRoot: "src/frames",
-      preview: {
-        urlTemplate: "http://localhost:{port}/runelight?entry={entry}&frame={frame}{frameOverrides}",
-        allUrlTemplate: "http://localhost:{port}/runelight?entry={entry}{frameOverrides}",
-      },
     })
 
-    expect(manifest.preview).toEqual({
-      urlTemplate: "http://localhost:{port}/runelight?entry={entry}&frame={frame}{frameOverrides}",
-      allUrlTemplate: "http://localhost:{port}/runelight?entry={entry}{frameOverrides}",
-    })
     expect(manifest.files.map((file) => file.path)).toEqual([
       "src/frames/language/PrimitiveProps.g.tsx",
       "src/frames/stateful/DashboardShell.g.tsx",
@@ -435,20 +435,10 @@ describe("Runelight Studio manifest", () => {
     ])
   })
 
-  it("exposes server-safe manifest and browser Studio entrypoints", () => {
+  it("exposes server-safe manifest and static Studio entrypoints", () => {
     const packageJson = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"))
 
     expect(packageJson.exports).toEqual({
-      ".": {
-        types: "./dist/index.d.ts",
-        import: "./dist/index.js",
-        default: "./dist/index.js",
-      },
-      "./client": {
-        types: "./dist/client-entry.d.ts",
-        import: "./dist/client.js",
-        default: "./dist/client.js",
-      },
       "./manifest": {
         types: "./dist/manifest.d.ts",
         import: "./dist/manifest.js",
@@ -468,6 +458,10 @@ describe("Runelight Studio manifest", () => {
     expect(packageJson.private).toBeUndefined()
     expect(packageJson.files).toEqual(["dist"])
     expect(packageJson.dependencies).toBeUndefined()
+    expect(packageJson.peerDependencies).toEqual({
+      "@runelight/core": "workspace:*",
+    })
+    expect(packageJson.peerDependenciesMeta).toBeUndefined()
   })
 
 

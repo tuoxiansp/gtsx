@@ -1,6 +1,6 @@
 "use client"
 
-import type { GBoundaryTreeNode } from "@runelight/core"
+import type { GBoundaryTreeNode } from "@runelight/core/preview-protocol"
 
 import type { StudioManifest } from "./manifest"
 import type { StudioPreviewCacheEntry, StudioPreviewFrameState } from "./client"

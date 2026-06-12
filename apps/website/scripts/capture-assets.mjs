@@ -22,7 +22,7 @@ const singleFrameCaptures = []
 function runContactSheetCapture(capture) {
   execFileSync(
     "pnpm",
-    ["exec", "runelight", "capture", capture.entry, "--all", "--out", capture.out, "--viewport", capture.viewport, "--port", String(port)],
+    ["exec", "runelight", "capture", capture.entry, "--out", capture.out, "--viewport", capture.viewport, "--port", String(port)],
     { cwd, stdio: "inherit" },
   )
 }

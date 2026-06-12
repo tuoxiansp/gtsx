@@ -20,9 +20,9 @@ The protocol adds three things. All optional. All additive:
 
 1. **A naming convention.** The `.g.tsx` extension marks React/TSX files; `.g.vue` marks Vue SFC files.
 2. **A static export.** React uses `Component.frames`; Vue uses a `<g:frames>` block with `export default { ... }`.
-3. **Seam helpers or frame scope.** React uses `createGScopeHook` and `createGProvider`. Vue preview can inject frame `props` and `scope` directly into the SFC template, and can provide native Vue injection keys from frame `provide` entries.
+3. **Seam helpers or frame scope.** React uses `createGScopeHook` and `createGProvider`. Vue preview can inject frame `props` and `scope` directly into the SFC template, and can provide native Vue injection keys from frame `providers` entries.
 
-Protocol names carry a `G` marker: `G`-prefixed types such as `GFrames`, `GProviderFrame`, `GVueFrames`, and `GVueProvideFrame`, and `createG*`/`useG*`/`defineG*` helpers such as `createGScopeHook`, `createGProvider`, `useGContext`, and `defineGInjectionKey`.
+Protocol names carry a `G` marker: `G`-prefixed types such as `GFrames`, `GProviderFrame`, `GVueFrames`, and `GVueProviderFrame`, and `createG*`/`useG*`/`defineG*` helpers such as `createGScopeHook`, `createGProvider`, `useGContext`, and `defineGInjectionKey`.
 
 None of these modify React. None change how your component renders in production.
 
@@ -52,7 +52,7 @@ Beyond the four primitives, one boundary concept is worth naming: **the seam**. 
 A `.g.tsx` component in production is identical to any other React component:
 
 ```tsx
-import { createGScopeHook } from "@runelight/core"
+import { createGScopeHook } from "@runelight/react/runtime"
 import { useRealCounterScope, type Props } from "./counter-scope"
 
 const useScope = createGScopeHook(useRealCounterScope)

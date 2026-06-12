@@ -1,17 +1,18 @@
 import { readFileSync, statSync } from "node:fs"
-import { extname, resolve } from "node:path"
+import { extname } from "node:path"
 
 import type { RunelightConfig } from "@runelight/core"
-import { isRunelightNextRouteEnabled, type RunelightNextRouteEnablementOptions } from "./route-enablement.js"
+import { isRunelightNextRouteEnabled } from "./route-enablement.js"
 
-export type RunelightNextStudioResponseOptions = RunelightNextRouteEnablementOptions & {
-  studioAppDirectory?: string
+export type RunelightNextStudioResponseOptions = {
+  config?: RunelightConfig
+  cwd?: string
 }
 
-export type RunelightNextStudioManifestResponseOptions = RunelightNextRouteEnablementOptions
+export type RunelightNextStudioManifestResponseOptions = RunelightNextStudioResponseOptions
 
 type StudioManifestServerModule = {
-  createStudioManifestProvider(options?: { config?: RunelightConfig; cwd?: string }): () => unknown
+  createStudioManifestProvider(options?: { config?: RunelightConfig; cwd?: string }): Promise<() => unknown>
 }
 
 type StudioStaticAppModule = {
@@ -34,7 +35,7 @@ export async function createRunelightNextStudioAssetResponse(
   if (!isRunelightNextRouteEnabled(options)) return notFoundResponse()
 
   const normalizedAssetPath = normalizeRunelightNextStudioAssetPath(assetPath)
-  const filePath = await resolveRunelightNextStudioAssetFilePath(normalizedAssetPath, options)
+  const filePath = await resolveRunelightNextStudioAssetFilePath(normalizedAssetPath)
   const fileStat = statIfFile(filePath)
   if (!fileStat) return new Response("Runelight Studio asset not found.", { status: 404 })
 
@@ -53,15 +54,11 @@ export async function createRunelightNextStudioManifestResponse(
   if (!isRunelightNextRouteEnabled(options)) return notFoundResponse()
 
   const { createStudioManifestProvider } = await import(studioManifestServerModuleId) as StudioManifestServerModule
-  return Response.json(createStudioManifestProvider({ config: options.config, cwd: options.cwd })())
+  const createManifest = await createStudioManifestProvider({ config: options.config, cwd: options.cwd })
+  return Response.json(createManifest())
 }
 
-async function resolveRunelightNextStudioAssetFilePath(
-  assetPath: string,
-  options: Pick<RunelightNextStudioResponseOptions, "studioAppDirectory">,
-): Promise<string> {
-  if (options.studioAppDirectory) return resolve(options.studioAppDirectory, assetPath)
-
+async function resolveRunelightNextStudioAssetFilePath(assetPath: string): Promise<string> {
   const { resolveRunelightStudioAppAssetPath } = await import(studioStaticAppModuleId) as StudioStaticAppModule
   return resolveRunelightStudioAppAssetPath(assetPath)
 }

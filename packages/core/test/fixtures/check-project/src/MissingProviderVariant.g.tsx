@@ -1,9 +1,4 @@
-import {
-  createGProvider,
-  useGContext,
-  type GFrames,
-  type GProviderFrame,
-} from "@runelight/core"
+import { createGProvider, useGContext, type GFrames, type GProviderFrame } from "@runelight/react/runtime"
 
 type LoginState =
   | { kind: "login"; name: string }

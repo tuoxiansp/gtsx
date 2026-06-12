@@ -1,34 +1,34 @@
 import {
-  runelightStudioComponentCardTitleGap,
-  runelightStudioComponentCardTitleHeight,
-  runelightStudioComponentCardTitleScreenGap,
-  runelightStudioComponentCardTitleScreenHeight,
-  runelightStudioComponentFrameChromeHeight,
-  runelightStudioComponentFrameGridGap,
-  runelightStudioComponentFrameGridMinScale,
-  runelightStudioComponentFrameLabelGap,
-  runelightStudioComponentFrameLabelMinHeight,
-  runelightStudioComponentFrameLabelScreenGap,
-  runelightStudioComponentFrameLabelScreenMinHeight,
-  runelightStudioComponentFrameMismatchBorderOutset,
-  runelightStudioFrameGridMaxSide,
-} from "@runelight/core"
+  runelightPreviewCardTitleGap,
+  runelightPreviewCardTitleHeight,
+  runelightPreviewCardTitleScreenGap,
+  runelightPreviewCardTitleScreenHeight,
+  runelightPreviewFrameChromeHeight,
+  runelightPreviewFrameGridGap,
+  runelightPreviewFrameGridMinScale,
+  runelightPreviewFrameLabelGap,
+  runelightPreviewFrameLabelMinHeight,
+  runelightPreviewFrameLabelScreenGap,
+  runelightPreviewFrameLabelScreenMinHeight,
+  runelightPreviewFrameMismatchBorderOutset,
+  runelightPreviewFrameGridMaxSide,
+} from "@runelight/core/frame-grid-layout"
 
 import type { StudioViewportPreset } from "./client"
 
 export function studioFrameGridMaxSide(viewportPreset: StudioViewportPreset, frameCount: number): number {
-  return runelightStudioFrameGridMaxSide(viewportPreset, frameCount)
+  return runelightPreviewFrameGridMaxSide(viewportPreset, frameCount)
 }
 
-export const studioComponentFrameGridGap = runelightStudioComponentFrameGridGap
-export const studioComponentCardTitleScreenGap = runelightStudioComponentCardTitleScreenGap
-export const studioComponentCardTitleScreenHeight = runelightStudioComponentCardTitleScreenHeight
-export const studioComponentFrameLabelScreenGap = runelightStudioComponentFrameLabelScreenGap
-export const studioComponentFrameLabelScreenMinHeight = runelightStudioComponentFrameLabelScreenMinHeight
-export const studioComponentCardTitleGap = runelightStudioComponentCardTitleGap
-export const studioComponentCardTitleHeight = runelightStudioComponentCardTitleHeight
-export const studioComponentFrameLabelGap = runelightStudioComponentFrameLabelGap
-export const studioComponentFrameLabelMinHeight = runelightStudioComponentFrameLabelMinHeight
-export const studioComponentFrameChromeHeight = runelightStudioComponentFrameChromeHeight
-export const studioComponentFrameGridMinScale = runelightStudioComponentFrameGridMinScale
-export const studioComponentFrameMismatchBorderOutset = runelightStudioComponentFrameMismatchBorderOutset
+export const studioComponentFrameGridGap = runelightPreviewFrameGridGap
+export const studioComponentCardTitleScreenGap = runelightPreviewCardTitleScreenGap
+export const studioComponentCardTitleScreenHeight = runelightPreviewCardTitleScreenHeight
+export const studioComponentFrameLabelScreenGap = runelightPreviewFrameLabelScreenGap
+export const studioComponentFrameLabelScreenMinHeight = runelightPreviewFrameLabelScreenMinHeight
+export const studioComponentCardTitleGap = runelightPreviewCardTitleGap
+export const studioComponentCardTitleHeight = runelightPreviewCardTitleHeight
+export const studioComponentFrameLabelGap = runelightPreviewFrameLabelGap
+export const studioComponentFrameLabelMinHeight = runelightPreviewFrameLabelMinHeight
+export const studioComponentFrameChromeHeight = runelightPreviewFrameChromeHeight
+export const studioComponentFrameGridMinScale = runelightPreviewFrameGridMinScale
+export const studioComponentFrameMismatchBorderOutset = runelightPreviewFrameMismatchBorderOutset

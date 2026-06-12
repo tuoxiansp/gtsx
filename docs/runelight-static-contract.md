@@ -57,7 +57,7 @@ For this to work, render-producing control flow must stay first-order over the k
 
 Opaque shapes are valid React. They are not valid `.g.tsx` protocol shape. `runelight check` reports them as diagnostics - the component must be refactored into inspectable expressions before coverage can be verified.
 
-For Vue SFCs, the same principle applies to template directives. Branches driven by `v-if`, `v-else-if`, `v-show`, `v-for`, and dynamic component `:is` are inspectable when their expressions refer directly to frame `props`, frame `scope`, or native `inject(key)` bindings backed by frame `provide` entries.
+For Vue SFCs, the same principle applies to template directives. Branches driven by `v-if`, `v-else-if`, `v-show`, `v-for`, and dynamic component `:is` are inspectable when their expressions refer directly to frame `props`, frame `scope`, or native `inject(key)` bindings backed by frame `providers` entries.
 
 ### Frame values follow the same rule
 
@@ -68,9 +68,9 @@ Literal props, scope values, provider values, and const declarations initialized
 Some features need type-level markers because the runtime value alone does not name the intended finite environment axis:
 
 - React provider variants use `createGProvider(..., { variants })` plus `GProviderFrame`.
-- Vue injection variants use `defineGInjectionKey(..., { variants })` plus `GVueProvideFrame`.
+- Vue injection variants use `defineGInjectionKey(..., { variants })` plus `GVueProviderFrame`.
 
-The frame still carries the runtime value with `providers` or `provide`; the marker tells Studio and `runelight check` which named variant the frame covers. Provider/injection variant axes are not inferred from arbitrary runtime values.
+The frame still carries the runtime value with `providers`; the marker tells Studio and `runelight check` which named variant the frame covers. Provider/injection variant axes are not inferred from arbitrary runtime values.
 
 ## Provider Variants
 
@@ -150,7 +150,7 @@ These report drift between the declared frame set and the component's reachable 
 | `opaque-jsx-control-flow` | React | A JSX branch cannot be traced to props/scope/context |
 | `unknown-jsx-branch-coverage` | React | Frame values affecting reachability are not static enough |
 | `uncovered-jsx-branch` | React | No frame makes a JSX branch reachable |
-| `opaque-vue-template-control-flow` | Vue | A Vue template branch cannot be traced to props/scope/provide |
+| `opaque-vue-template-control-flow` | Vue | A Vue template branch cannot be traced to props/scope/providers |
 | `unknown-vue-branch-coverage` | Vue | Frame values affecting Vue template reachability are not static enough |
 | `uncovered-vue-template-branch` | Vue | No frame makes a Vue template branch reachable |
 | `missing-provider-variant-frames` | React, Vue | A consumed provider's variants are not fully covered |

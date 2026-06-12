@@ -1,8 +1,8 @@
 "use client"
 
-import { RunelightReactPreviewClient, type RunelightReactPreviewClientProps } from "@runelight/preview-react"
+import { RunelightReactPreviewClient, type RunelightReactPreviewClientProps } from "@runelight/react/preview"
 
-export type { RunelightPreviewFrame, RunelightPreviewComponent, RunelightPreviewModule } from "@runelight/preview-react"
+export type { RunelightReactPreviewFrame, RunelightReactPreviewComponent, RunelightReactPreviewModule } from "@runelight/react/preview"
 
 export type RunelightNextPreviewClientProps = Omit<RunelightReactPreviewClientProps, "loadComponent">
 
@@ -11,6 +11,6 @@ export function RunelightNextPreviewClient(props: RunelightNextPreviewClientProp
 }
 
 async function loadRunelightNextPreviewComponent(entry: string) {
-  const { loadRunelightPreviewComponent } = await import("@runelight/adapter-next-react/preview-entries")
-  return loadRunelightPreviewComponent(entry)
+  const { loadRunelightNextPreviewComponent: loadComponent } = await import("@runelight/adapter-next-react/preview-entries")
+  return loadComponent(entry)
 }

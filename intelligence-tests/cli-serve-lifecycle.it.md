@@ -6,7 +6,7 @@ Use a temporary project or fixture that exercises a realistic Host command chain
 
 Validate these outcomes:
 
-- `runelight --help` and the relevant command help expose the current public CLI surface for `init`, `check`, `serve`, `capture`, and `strip`, and do not advertise commands that are not implemented.
+- `runelight --help` and the relevant command help expose the current public CLI surface for `check`, `serve`, and `capture`, and do not advertise commands that are not implemented.
 - `runelight serve` starts the configured Host command, prints the local Runelight serve URL and Studio URL, and makes `/runelight/studio/manifest` reachable with the expected project/session identity.
 - Studio is usable from the printed URL, and interacting with Studio does not depend on hidden terminal state after startup.
 - Pressing `Ctrl-C` in the terminal exits foreground `runelight serve` with interrupt semantics and removes the active serve session registry and lock for that project.

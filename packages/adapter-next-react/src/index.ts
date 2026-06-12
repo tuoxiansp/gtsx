@@ -3,8 +3,7 @@ import { createRequire } from "node:module"
 import { dirname, relative, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 import { loadRunelightConfig, resolveRunelightConfig } from "@runelight/core/config"
-import { runelightDesignRootFromEntryRoot, normalizeRunelightPath } from "@runelight/core/config-model"
-import type { RunelightConfig } from "@runelight/core"
+import { runelightDesignRootFromEntryRoot, normalizeRunelightPath, type RunelightConfig } from "@runelight/core"
 import { isRunelightNextRouteEnabled } from "./route-enablement.js"
 
 type WebpackRule = {
@@ -40,23 +39,18 @@ type NextConfigLike = {
   [key: string]: any
 }
 
-type RunelightNextReactOptions = {
+export type RunelightNextReactOptions = {
   config?: RunelightConfig
   previewEntries?: false | RunelightNextPreviewEntriesOptions
-  sourceRoot?: string
   root?: string
 }
 
-type RunelightNextPreviewEntriesOptions = {
-  entryRoot?: string
-  moduleId?: string
+export type RunelightNextPreviewEntriesOptions = {
   outputFile?: string
-  sourceRoot?: string
 }
 
 type ResolvedRunelightNextPreviewEntriesOptions = {
   entryRoot: string
-  moduleId: string
   outputPath: string
   sourceRoot: string
 }
@@ -98,7 +92,7 @@ export function runelightNextReact(
         resolvedConfig.resolve ??= {}
         resolvedConfig.resolve.alias = {
           ...(resolvedConfig.resolve.alias ?? {}),
-          ...(previewEntries ? { [previewEntries.moduleId]: previewEntries.outputPath } : {}),
+          ...(previewEntries ? { [defaultPreviewEntriesModuleId]: previewEntries.outputPath } : {}),
         }
         installRunelightNextPreviewEntriesPlugin(resolvedConfig, root, previewEntries)
         resolvedConfig.module.rules.unshift({
@@ -135,7 +129,7 @@ function withRunelightTurbopackConfig(
     ...turbopack,
     resolveAlias: {
       ...(turbopack?.resolveAlias ?? {}),
-      ...(previewEntries ? { [previewEntries.moduleId]: toTurbopackResolveAliasPath(root, previewEntries.outputPath) } : {}),
+      ...(previewEntries ? { [defaultPreviewEntriesModuleId]: toTurbopackResolveAliasPath(root, previewEntries.outputPath) } : {}),
     },
     rules: {
       ...rules,
@@ -153,7 +147,7 @@ function prependRule(
 }
 
 function resolveRunelightReactTransform(root: string): string {
-  return createRequire(import.meta.url).resolve("@runelight/core/react-transform", {
+  return createRequire(import.meta.url).resolve("@runelight/react/contract", {
     paths: [root, process.cwd()],
   })
 }
@@ -166,18 +160,17 @@ function resolvePreviewEntriesOptions(
 
   const previewEntries = typeof options.previewEntries === "object" ? options.previewEntries : {}
   const resolvedConfig = resolveNextRunelightConfig(root, options.config)
-  const entryRoot = previewEntries.entryRoot ?? resolvedConfig?.project.entryRoot
+  const entryRoot = resolvedConfig?.project.entryRoot
   if (!entryRoot) {
     throw new Error(
-      "Missing project.entryRoot in runelight.config.ts. Run setup-runelight again so the local /runelight entry directory is recorded.",
+      'Missing project.entryRoot in runelight.config.ts. Record the local /runelight entry directory, for example project: { entryRoot: "app/runelight" }.',
     )
   }
 
   return {
     entryRoot: normalizeRunelightPath(entryRoot),
-    moduleId: previewEntries.moduleId ?? defaultPreviewEntriesModuleId,
     outputPath: resolve(root, previewEntries.outputFile ?? defaultPreviewEntriesOutputFile),
-    sourceRoot: previewEntries.sourceRoot ?? options.sourceRoot ?? resolvedConfig?.project.sourceRoot ?? "src",
+    sourceRoot: resolvedConfig.project.sourceRoot,
   }
 }
 
@@ -381,27 +374,27 @@ function createRunelightNextPreviewEntriesModule(root: string, outputPath: strin
     return `  ${JSON.stringify(filePath)}: () => import(${JSON.stringify(toGeneratedImportSpecifier(outputPath, absoluteFilePath, previewImportQuery))}),`
   })
 
-  return `import type { RunelightPreviewComponent } from "@runelight/adapter-next-react/preview"
+  return `import type { RunelightReactPreviewComponent } from "@runelight/adapter-next-react/preview"
 
-export type RunelightPreviewModule = Record<string, unknown>
-export type RunelightPreviewEntryLoader = () => Promise<RunelightPreviewModule>
-export type RunelightPreviewEntryLoaders = Record<string, RunelightPreviewEntryLoader>
+type RunelightNextPreviewModule = Record<string, unknown>
+type RunelightNextPreviewEntryLoader = () => Promise<RunelightNextPreviewModule>
+type RunelightNextPreviewEntryLoaders = Record<string, RunelightNextPreviewEntryLoader>
 
-export const runelightPreviewEntryLoaders = {
+const runelightNextPreviewEntryLoaders = {
 ${entries.join("\n")}
-} satisfies RunelightPreviewEntryLoaders
+} satisfies RunelightNextPreviewEntryLoaders
 
-export async function loadRunelightPreviewComponent(entry: string): Promise<RunelightPreviewComponent | undefined> {
-  const { file, exportName } = parseRunelightPreviewEntry(entry)
-  const loader = (runelightPreviewEntryLoaders as RunelightPreviewEntryLoaders)[file]
+export async function loadRunelightNextPreviewComponent(entry: string): Promise<RunelightReactPreviewComponent | undefined> {
+  const { file, exportName } = parseRunelightNextPreviewEntry(entry)
+  const loader = (runelightNextPreviewEntryLoaders as RunelightNextPreviewEntryLoaders)[file]
   if (!loader) return undefined
 
   const moduleValue = await loader()
   const component = moduleValue[exportName]
-  return typeof component === "function" ? (component as RunelightPreviewComponent) : undefined
+  return typeof component === "function" ? (component as RunelightReactPreviewComponent) : undefined
 }
 
-export function parseRunelightPreviewEntry(entry: string): { file: string; exportName: string } {
+function parseRunelightNextPreviewEntry(entry: string): { file: string; exportName: string } {
   const [file, exportName] = entry.split("#", 2)
   return { file, exportName: exportName || "default" }
 }

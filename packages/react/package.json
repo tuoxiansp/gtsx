@@ -1,0 +1,70 @@
+{
+  "name": "@runelight/react",
+  "version": "0.0.8",
+  "description": "React runtime, preview, and contract modules for Runelight components.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuoxiansp/runelight.git",
+    "directory": "packages/react"
+  },
+  "bugs": {
+    "url": "https://github.com/tuoxiansp/runelight/issues"
+  },
+  "homepage": "https://github.com/tuoxiansp/runelight#readme",
+  "keywords": [
+    "runelight",
+    "react",
+    "tsx",
+    "component-preview",
+    "agent"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    "./runtime": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./preview": {
+      "types": "./dist/preview.d.ts",
+      "import": "./dist/preview.js",
+      "default": "./dist/preview.js"
+    },
+    "./contract": {
+      "types": "./dist/contract.d.ts",
+      "import": "./dist/contract.js",
+      "default": "./dist/contract.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "pnpm clean && tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@runelight/core": "workspace:*",
+    "react-tracked": "^2.0.1",
+    "scheduler": "^0.27.0",
+    "typescript": "^6.0.3"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "@types/react-test-renderer": "^19.1.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-test-renderer": "^19.2.6",
+    "vitest": "^4.1.7"
+  }
+}

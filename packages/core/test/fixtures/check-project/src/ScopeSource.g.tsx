@@ -1,8 +1,4 @@
-import {
-  createGProvider,
-  createGScopeHook,
-  type GFrames,
-} from "@runelight/core"
+import { createGProvider, createGScopeHook, type GFrames } from "@runelight/react/runtime"
 
 type ImportedScope = {
   label: string

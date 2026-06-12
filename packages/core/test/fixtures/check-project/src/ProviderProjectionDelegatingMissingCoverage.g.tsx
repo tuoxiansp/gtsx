@@ -1,7 +1,4 @@
-import {
-  useGContext,
-  type GFrames,
-} from "@runelight/core"
+import { useGContext, type GFrames } from "@runelight/react/runtime"
 
 import ProviderVariantProjection from "./ProviderVariantProjection.g"
 import { LoginProvider } from "./MissingProviderVariant.g"

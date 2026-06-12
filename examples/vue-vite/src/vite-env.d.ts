@@ -7,9 +7,13 @@ declare module "*.vue" {
   export default component
 }
 
-declare module "virtual:runelight/config" {
-  import type { ResolvedRunelightConfig } from "@runelight/core/config-types"
-
-  const config: ResolvedRunelightConfig
+declare module "virtual:runelight/preview-config" {
+  const config: {
+    project: {
+      sourceRoot: string
+    }
+  }
   export default config
 }
+
+declare const __RUNELIGHT_DEV__: boolean

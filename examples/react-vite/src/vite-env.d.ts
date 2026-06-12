@@ -1,8 +1,12 @@
 /// <reference types="vite/client" />
 
-declare module "virtual:runelight/config" {
-  import type { ResolvedRunelightConfig } from "@runelight/core"
-
-  const config: ResolvedRunelightConfig
+declare module "virtual:runelight/preview-config" {
+  const config: {
+    project: {
+      sourceRoot: string
+    }
+  }
   export default config
 }
+
+declare const __RUNELIGHT_DEV__: boolean

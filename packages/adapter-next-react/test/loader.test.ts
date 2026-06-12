@@ -24,7 +24,7 @@ export function transformRunelightReactModule(input) {
   return { code: [input.root, input.filePath, input.previewImportQuery ?? "", input.code].join("|"), filePath: input.filePath }
 }
 
-export function transpileRunelightReactModuleCode() {
+export function transpileRunelightReactPreviewModule() {
   throw new Error("ordinary imports should not use preview transpilation")
 }
 `)
@@ -84,7 +84,7 @@ export function transformRunelightReactModule(input) {
   return { code: input.code + "|transformed", filePath: input.filePath }
 }
 
-export function transpileRunelightReactModuleCode(input) {
+export function transpileRunelightReactPreviewModule(input) {
   return input.code + "|transpiled"
 }
 `)
@@ -107,7 +107,7 @@ export function transformRunelightReactModule(input) {
   return { code: input.code + "|transformed", filePath: input.filePath }
 }
 
-export function transpileRunelightReactModuleCode(input) {
+export function transpileRunelightReactPreviewModule(input) {
   return input.code + "|transpiled"
 }
 `)

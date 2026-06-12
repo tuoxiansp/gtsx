@@ -1,7 +1,17 @@
-import { RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT, runelightPreviewSsrBootstrapScriptId } from "@runelight/core/preview-protocol"
-import { isRunelightNextRouteEnabled, type RunelightNextRouteEnablementOptions } from "./route-enablement.js"
+import {
+  RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT,
+  RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT_ID,
+  readRunelightPreviewFrameOverridesFromSearchParams,
+} from "@runelight/core/preview-protocol"
+import type { RunelightConfig } from "@runelight/core"
+import { isRunelightNextRouteEnabled } from "./route-enablement.js"
 
 export type RunelightNextPreviewSearchParams = Record<string, string | string[] | undefined> | URLSearchParams | undefined
+
+export type RunelightNextPreviewRouteOptions = {
+  config?: RunelightConfig
+  cwd?: string
+}
 
 export type RunelightNextPreviewRouteProps = {
   frameName?: string | null
@@ -19,12 +29,6 @@ export type RunelightNextPreviewSsrScriptProps = {
   strategy: "beforeInteractive"
 }
 
-/** @deprecated Use runelightPreviewSsrBootstrapScriptId from runelight/preview-protocol. */
-export const runelightNextPreviewPoolMailboxScriptId = runelightPreviewSsrBootstrapScriptId
-
-/** @deprecated Use RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT from runelight/preview-protocol. */
-export const RUNELIGHT_NEXT_PREVIEW_POOL_MAILBOX_SCRIPT = RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT
-
 export function readRunelightNextPreviewProps(searchParams: RunelightNextPreviewSearchParams): RunelightNextPreviewRouteProps {
   const params = searchParams instanceof URLSearchParams ? searchParams : searchParamsFromNextRecord(searchParams)
 
@@ -39,7 +43,7 @@ export function readRunelightNextPreviewProps(searchParams: RunelightNextPreview
   }
 }
 
-export function isRunelightNextPreviewRouteEnabled(options: RunelightNextRouteEnablementOptions = {}): boolean {
+export function isRunelightNextPreviewRouteEnabled(options: RunelightNextPreviewRouteOptions = {}): boolean {
   return isRunelightNextRouteEnabled(options)
 }
 
@@ -51,7 +55,7 @@ export function createRunelightNextPreviewSsrScripts(
   return [createRunelightNextPreviewSsrBootstrapScript()]
 }
 
-export function shouldInstallRunelightNextPreviewSsrScripts(routeProps: Pick<RunelightNextPreviewRouteProps, "pool">): boolean {
+function shouldInstallRunelightNextPreviewSsrScripts(routeProps: Pick<RunelightNextPreviewRouteProps, "pool">): boolean {
   return routeProps.pool === "1"
 }
 
@@ -60,19 +64,9 @@ function createRunelightNextPreviewSsrBootstrapScript(): RunelightNextPreviewSsr
     dangerouslySetInnerHTML: {
       __html: RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT,
     },
-    id: runelightPreviewSsrBootstrapScriptId,
+    id: RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT_ID,
     strategy: "beforeInteractive",
   }
-}
-
-/** @deprecated Use createRunelightNextPreviewSsrScripts. */
-export function createRunelightNextPreviewPoolMailboxScriptProps(): RunelightNextPreviewSsrScriptProps {
-  return createRunelightNextPreviewSsrBootstrapScript()
-}
-
-/** @deprecated Use shouldInstallRunelightNextPreviewSsrScripts. */
-export function shouldInstallRunelightNextPreviewPoolMailbox(routeProps: Pick<RunelightNextPreviewRouteProps, "pool">): boolean {
-  return shouldInstallRunelightNextPreviewSsrScripts(routeProps)
 }
 
 function searchParamsFromNextRecord(searchParams: Record<string, string | string[] | undefined> | undefined): URLSearchParams {
@@ -88,12 +82,5 @@ function searchParamsFromNextRecord(searchParams: Record<string, string | string
 }
 
 function readRunelightPreviewFrameOverrides(params: URLSearchParams): Map<string, string> {
-  const overrides = new Map<string, string>()
-  for (const value of params.getAll("frameOverride")) {
-    const separatorIndex = value.lastIndexOf(":")
-    if (separatorIndex > 0) {
-      overrides.set(value.slice(0, separatorIndex), value.slice(separatorIndex + 1))
-    }
-  }
-  return overrides
+  return readRunelightPreviewFrameOverridesFromSearchParams(params)
 }

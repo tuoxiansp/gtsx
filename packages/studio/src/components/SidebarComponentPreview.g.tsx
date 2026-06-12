@@ -1,7 +1,9 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GBoundaryRect, type GFrames, type GPreviewProtocolMessage } from "@runelight/core"
+import { createGScopeHook, type GFrames } from "@runelight/react/runtime"
+import type { GBoundaryRect } from "@runelight/core/boundary-rect"
+import { isGPreviewSessionMessage, type GPreviewSessionMessage } from "@runelight/core/preview-protocol"
 
 import type { StudioPreviewFrameState } from "../client"
 import { studioBoundaryRectForCoordinate } from "../boundary-tree"
@@ -53,8 +55,8 @@ function useRealSidebarComponentPreviewScope(component: StudioManifestComponent)
     if (!shouldLoad) return
 
     const handleMessage = (event: MessageEvent) => {
-      const message = event.data as GPreviewProtocolMessage
-      if (!isGPreviewProtocolMessage(message) || message.sessionId !== sessionId || message.type !== "runelight:tree") return
+      const message = event.data as GPreviewSessionMessage
+      if (!isGPreviewSessionMessage(message) || message.sessionId !== sessionId || message.type !== "runelight:tree") return
 
       setBoundaryRect(studioBoundaryRectForCoordinate(message.tree, component.coordinate))
     }
@@ -119,6 +121,7 @@ SidebarComponentPreview.frames = {
       component: {
         coordinate: "src/UserCard.g.tsx#default",
         filePath: "src/UserCard.g.tsx",
+        sourceHash: "user-card-source",
         exportName: "default",
         componentName: "UserCard",
         mode: "scope",
@@ -132,10 +135,6 @@ SidebarComponentPreview.frames = {
           preview: "/runelight",
           studio: "/runelight/studio",
           manifest: "/runelight/studio/manifest",
-        },
-        preview: {
-          urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
-          allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
         },
         files: [],
         diagnostics: [],
@@ -181,14 +180,4 @@ function sidebarPreviewSessionId(component: StudioManifestComponent): string {
 
 function selectedBoundaryRectForComponent(tree: StudioPreviewFrameState["tree"], coordinate: string): GBoundaryRect | undefined {
   return studioBoundaryRectForCoordinate(tree, coordinate)
-}
-
-function isGPreviewProtocolMessage(value: unknown): value is GPreviewProtocolMessage {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "type" in value &&
-    typeof (value as { type: unknown }).type === "string" &&
-    (value as { type: string }).type.startsWith("runelight:")
-  )
 }

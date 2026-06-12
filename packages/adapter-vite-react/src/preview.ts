@@ -1,43 +1,47 @@
 export {
   RunelightReactPreviewClient as RunelightVitePreviewClient,
-  isRunelightPreviewComponent,
-  parseRunelightPreviewEntry,
-  readRunelightPreviewRouteParams,
-} from "@runelight/preview-react"
+  isRunelightReactPreviewComponent,
+  parseRunelightReactPreviewEntry,
+  readRunelightReactPreviewRouteParams,
+} from "@runelight/react/preview"
 
 import {
-  isRunelightPreviewComponent,
-  parseRunelightPreviewEntry,
-  type RunelightPreviewComponent,
-  type RunelightPreviewModule,
-} from "@runelight/preview-react"
+  isRunelightReactPreviewComponent,
+  parseRunelightReactPreviewEntry,
+  type RunelightReactPreviewComponent,
+  type RunelightReactPreviewModule,
+} from "@runelight/react/preview"
 
 export type {
-  RunelightPreviewFrame,
-  RunelightPreviewComponent,
-  RunelightPreviewComponentLoader,
-  RunelightPreviewModule,
-  RunelightPreviewRouteParams,
+  RunelightReactPreviewFrame,
+  RunelightReactPreviewComponent,
+  RunelightReactPreviewComponentLoader,
+  RunelightReactPreviewModule,
+  RunelightReactPreviewRouteParams,
   RunelightReactPreviewClientProps as RunelightVitePreviewClientProps,
-} from "@runelight/preview-react"
+} from "@runelight/react/preview"
 
-export type RunelightVitePreviewEntryModules = Record<string, () => Promise<RunelightPreviewModule>>
+export type RunelightVitePreviewEntryModules = Record<string, () => Promise<RunelightReactPreviewModule>>
+
+export type RunelightVitePreviewComponentLoaderOptions = {
+  sourceRoot?: string
+}
 
 export function createRunelightVitePreviewComponentLoader(
   modules: RunelightVitePreviewEntryModules,
-  options: { sourceRoot?: string } = {},
-): (entry: string) => Promise<RunelightPreviewComponent | undefined> {
+  options: RunelightVitePreviewComponentLoaderOptions = {},
+): (entry: string) => Promise<RunelightReactPreviewComponent | undefined> {
   const sourceRoot = normalizeSourceRoot(options.sourceRoot ?? "src")
   const modulesByEntryFile = normalizeVitePreviewEntryModules(modules, sourceRoot)
 
   return async (entry: string) => {
-    const { file, exportName } = parseRunelightPreviewEntry(entry)
+    const { file, exportName } = parseRunelightReactPreviewEntry(entry)
     const loader = modulesByEntryFile[file] ?? modules[toModuleKey(file, sourceRoot)]
     if (!loader) return undefined
 
     const moduleValue = await loader()
     const component = moduleValue[exportName]
-    return isRunelightPreviewComponent(component) ? component : undefined
+    return isRunelightReactPreviewComponent(component) ? component : undefined
   }
 }
 

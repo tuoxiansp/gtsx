@@ -39,7 +39,7 @@ Minimal frame:
 ```tsx
 "use client"
 
-import type { GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
 
 export default function CheckoutFlowConcept() {
   return <main>{/* visual draft */}</main>

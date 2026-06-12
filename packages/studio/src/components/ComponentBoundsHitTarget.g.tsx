@@ -1,4 +1,5 @@
-import type { GBoundaryRect, GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
+import type { GBoundaryRect } from "@runelight/core/boundary-rect"
 
 type ComponentBoundsHitTargetProps = {
   coordinate: string

@@ -29,11 +29,6 @@
       "require": "./index.cjs",
       "default": "./dist/index.js"
     },
-    "./client": {
-      "types": "./dist/client.d.ts",
-      "import": "./dist/client.js",
-      "default": "./dist/client.js"
-    },
     "./preview-entries": {
       "types": "./dist/preview-entries.d.ts",
       "import": "./dist/preview-entries.js",
@@ -53,8 +48,7 @@
       "types": "./dist/studio-route.d.ts",
       "import": "./dist/studio-route.js",
       "default": "./dist/studio-route.js"
-    },
-    "./loader": "./loader.cjs"
+    }
   },
   "files": [
     "dist",
@@ -62,12 +56,13 @@
     "loader.cjs"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "pnpm clean && tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@runelight/preview-react": "workspace:*"
+    "@runelight/react": "workspace:*"
   },
   "peerDependencies": {
     "next": ">=13",

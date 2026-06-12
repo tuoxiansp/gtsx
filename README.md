@@ -51,7 +51,7 @@ After refreshing that setup skill, run `setup-runelight` in this project now.
 Follow it through setup and verification.
 ```
 
-The agent detects your project, installs packages, wires Studio, and verifies everything works. ~5 minutes.
+The agent detects your project, installs packages, wires Studio, and verifies everything works.
 
 ## Supported Projects
 
@@ -66,7 +66,7 @@ Already have components? After setup, tell your agent to run the installed frame
 Runelight is built on the [`.g` protocol](docs/g-protocol.md) for modeling UI states. React uses `.g.tsx`: a normal React file with one static object appended. Vue uses `.g.vue`: a normal SFC with one `<g:frames>` custom block.
 
 ```tsx
-import type { GFrames } from "@runelight/core"
+import type { GFrames } from "@runelight/react/runtime"
 
 type BadgeProps = {
   tone: "neutral" | "warning"
@@ -101,7 +101,7 @@ Rename `.g.tsx` → `.tsx` or `.g.vue` → `.vue`, delete frames, remove the Stu
 - [Vue Authoring Guide](docs/runelight-vue-authoring-guide.md) — template-first patterns for `.g.vue` SFCs
 - [React Refactor Guide](docs/runelight-refactor-guide.md) — convert existing TSX into Runelight format
 - [Vue Refactor Guide](docs/runelight-vue-refactor-guide.md) — convert existing Vue SFCs into Runelight format
-- [CLI Reference](docs/runelight-cli.md) — `init`, `check`, `serve`, `capture`, and `strip`
+- [CLI Reference](docs/runelight-cli.md) — `check`, `serve`, and `capture`
 - [Configuration Reference](docs/runelight-configuration.md) — `runelight.config.ts` fields, defaults, and production behavior
 - [Design Workspace](docs/runelight-design-workspace.md) — AI-assisted product design drafts in Studio
 
@@ -119,4 +119,4 @@ Rename `.g.tsx` → `.tsx` or `.g.vue` → `.vue`, delete frames, remove the Stu
 
 pnpm workspace. `pnpm install && pnpm build && pnpm test && pnpm typecheck`.
 
-Packages: `@runelight/cli` (the `runelight` command), `@runelight/core` (protocol, analysis, and config), `@runelight/studio` (prebuilt Studio app and manifests), `@runelight/adapter-vite-react` (Vite React adapter), `@runelight/adapter-next-react` (Next.js adapter), `@runelight/adapter-vite-vue` (Vite Vue adapter), and the adapter-internal preview runtimes `@runelight/preview-react` and `@runelight/preview-vue` (never installed directly by user projects). The product website lives in [`apps/website`](apps/website/). Repository examples live under [`examples/`](examples/), including `react-vite` and `vue-vite`; agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).
+Packages: `@runelight/cli` (the `runelight` command), `@runelight/core` (framework-neutral protocol, config, and contract injection), `@runelight/react` (React runtime, preview, and contract modules), `@runelight/vue` (Vue runtime, preview, and contract modules), `@runelight/studio` (prebuilt Studio app and manifests), `@runelight/adapter-vite-react` (Vite React adapter), `@runelight/adapter-next-react` (Next.js adapter), and `@runelight/adapter-vite-vue` (Vite Vue adapter). The product website lives in [`apps/website`](apps/website/). Repository examples live under [`examples/`](examples/), including `react-vite` and `vue-vite`; agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).

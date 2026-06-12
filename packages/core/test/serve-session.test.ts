@@ -11,6 +11,7 @@ import {
   readHealthyRunelightServeSession,
   readRunelightServeSession,
   removeRunelightServeSession,
+  runelightServeSessionPreviewUrl,
   runelightServeSessionProjectKey,
   writeRunelightServeSession,
 } from "../src/serve-session.js"
@@ -149,6 +150,18 @@ describe("Runelight serve session registry", () => {
     const thirdLock = acquireRunelightServeLock(projectRoot)
     expect(thirdLock.acquired).toBe(true)
     if (thirdLock.acquired) thirdLock.release()
+  })
+
+  it("escapes frame override parts when creating preview URLs", () => {
+    expect(
+      runelightServeSessionPreviewUrl("http://localhost:4321/", {
+        entry: "src/App.g.tsx#default",
+        frameName: "ready",
+        frameOverrides: ["src/Child.g.tsx#default:open:error"],
+      }),
+    ).toBe(
+      "http://localhost:4321/runelight?entry=src%2FApp.g.tsx%23default&frame=ready&chrome=0&frameOverride=src%252FChild.g.tsx%2523default%3Aopen%253Aerror",
+    )
   })
 })
 

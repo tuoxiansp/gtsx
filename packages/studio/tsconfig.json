@@ -8,13 +8,16 @@
     "paths": {
       "@runelight/adapter-vite-react": ["../adapter-vite-react/src/index.ts"],
       "@runelight/adapter-vite-react/preview": ["../adapter-vite-react/src/preview.ts"],
-      "@runelight/studio": ["./src/index.ts"],
-      "@runelight/preview-react": ["../preview-react/src/index.tsx"],
+      "@runelight/react/runtime": ["../react/src/index.ts"],
+      "@runelight/react/contract": ["../react/src/contract.ts"],
+      "@runelight/react/preview": ["../react/src/preview.tsx"],
       "@runelight/core": ["../core/src/index.ts"],
+      "@runelight/core/boundary-rect": ["../core/src/boundary-rect.ts"],
       "@runelight/core/config": ["../core/src/config.ts"],
-      "@runelight/core/config-model": ["../core/src/config-model.ts"],
-      "@runelight/core/project-index": ["../core/src/project-index.ts"],
-      "@runelight/core/react-transform": ["../core/src/react-transform.ts"]
+      "@runelight/core/contract": ["../core/src/contract.ts"],
+      "@runelight/core/frame-grid-layout": ["../core/src/frame-grid-layout.ts"],
+      "@runelight/core/preview-protocol": ["../core/src/preview-protocol.ts"],
+      "@runelight/core/project-index": ["../core/src/project-index.ts"]
     }
   },
   "include": ["src", "test/**/*.ts", "test/**/*.tsx", "vite.config.ts", "runelight.config.ts"]

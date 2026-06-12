@@ -8,7 +8,7 @@ const root = createRoot(document.getElementById("root")!)
 void renderApp()
 
 async function renderApp() {
-  if (import.meta.env.DEV && window.location.pathname === "/runelight") {
+  if (__RUNELIGHT_DEV__ && window.location.pathname === "/runelight") {
     const { RunelightPreviewApp } = await import("./preview")
     root.render(<RunelightPreviewApp />)
     return

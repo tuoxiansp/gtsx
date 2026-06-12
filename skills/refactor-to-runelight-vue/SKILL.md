@@ -21,7 +21,7 @@ If the project isn't wired for Runelight yet, run the `setup-runelight` skill fi
 ## Workflow
 
 1. Inspect the target SFC and its rendered children.
-2. Apply decision gates: does it render visible DOM? Own visual states? Can those states be represented by props, frame scope, or native `provide` values? Would `.g.vue` just wrap the old SFC?
+2. Apply decision gates: does it render visible DOM? Own visual states? Can those states be represented by props, frame scope, or injection values? Would `.g.vue` just wrap the old SFC?
 3. Choose action:
    - **migrate** — pure or mostly local visual SFC, move into `.g.vue`, add `<g:frames>`
    - **scope** — template depends on composables, stores, queries, or local script state; keep production script and supply template-visible state through frame `scope`
@@ -30,7 +30,7 @@ If the project isn't wired for Runelight yet, run the `setup-runelight` skill fi
 4. For `descend`: keep reading until finding real visual surfaces.
 5. For `migrate`: move the real template, script, styles, props, and helpers into `Component.g.vue`, add frames, update imports.
 6. For `scope`: identify every non-prop template value that affects branch shape or visible state, then add static `scope` values for each important frame.
-7. For native injection-dependent UI, import the same injection key in `<g:frames>`, use `provide: [[key, value]]`, and mark meaningful finite axes with `GVueProvideFrame`.
+7. For native injection-dependent UI, import the same injection key in `<g:frames>`, use `providers: [[key, value]]`, and mark meaningful finite axes with `GVueProviderFrame`.
 8. Keep structural template branches inspectable: `v-if`, `v-else-if`, `v-show`, `v-for`, and dynamic `:is` should depend directly on props, scope, or injected frame values.
 9. Update imports from `./Component.vue` to `./Component.g.vue`. Preserve barrels.
 10. Run `runelight check` + project typecheck. Render a frame in Studio if available.
@@ -44,14 +44,14 @@ If the project isn't wired for Runelight yet, run the `setup-runelight` skill fi
 - Bulk-generating `.g.vue` for every file in a directory
 - Preserving old paths by adding wrappers; update imports or use barrels
 - Hiding template branch reachability behind helper predicates or uninspectable computed state
-- Using `bindings`; Vue frames use `props`, `scope`, and native `provide`
+- Using `bindings`; Vue frames use `props`, `scope`, and `providers`
 
 ## Done When
 
 - `.g.vue` owns the migrated template and styles
 - Frames describe meaningful visual states, happy-path first
 - Stateful frames use concrete `scope` values
-- Injection frames use `provide` and, when variant axes matter, `GVueProvideFrame`
+- Injection frames use `providers` and, when variant axes matter, `GVueProviderFrame`
 - Old `.vue` no longer owns migrated visual branches
 - `runelight check` passes
 - Project typecheck passes, or unrelated failures are reported

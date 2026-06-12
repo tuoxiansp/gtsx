@@ -1,7 +1,8 @@
 "use client"
 
 import React from "react"
-import { createGScopeHook, type GBoundaryRect, type GFrames } from "@runelight/core"
+import { createGScopeHook, type GFrames } from "@runelight/react/runtime"
+import type { GBoundaryRect } from "@runelight/core/boundary-rect"
 
 import ComponentBoundsHitTarget from "./ComponentBoundsHitTarget.g"
 import SelectedBoundaryOutline from "./SelectedBoundaryOutline.g"

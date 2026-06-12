@@ -1,16 +1,21 @@
 import { extname, relative, resolve, sep } from "node:path"
 import { mkdirSync, readdirSync, readFileSync, statSync } from "node:fs"
+import type { Plugin } from "vite"
 
 import { buildRunelightProjectIndex } from "@runelight/core/project-index"
-import { transformRunelightReactModule } from "@runelight/core/react-transform"
 import { loadRunelightConfig, resolveRunelightConfig } from "@runelight/core/config"
-import { runelightDesignRootFromEntryRoot, normalizeRunelightPath, requireRunelightEntryRoot } from "@runelight/core/config-model"
-import type { RunelightConfig, ResolvedRunelightConfig } from "@runelight/core"
-
-export { transformRunelightComponentBoundaries, transformRunelightReactModule } from "@runelight/core/react-transform"
+import { resolveRunelightContractReferences } from "@runelight/core/contract"
+import {
+  runelightDesignRootFromEntryRoot,
+  normalizeRunelightPath,
+  type RunelightConfig,
+  type ResolvedRunelightConfig,
+} from "@runelight/core"
+import { transformRunelightReactModule } from "@runelight/react/contract"
 
 type ViteLikeConfig = {
   command?: "build" | "serve"
+  define?: Record<string, string>
   root: string
 }
 
@@ -81,15 +86,15 @@ type TransformResult = {
   map: null
 }
 
-type RunelightViteReactOptions = {
+type RunelightVitePreviewConfig = {
+  project: {
+    sourceRoot: string
+  }
+}
+
+export type RunelightViteReactOptions = {
   config?: RunelightConfig
-  entryRoot?: string
-  exposeInProduction?: boolean
-  previewEntry?: string
-  sourceRoot?: string
   root?: string
-  studioAppDirectory?: string
-  tsconfigPath?: string
 }
 
 const runelightDevEnvName = "RUNELIGHT_DEV"
@@ -97,34 +102,38 @@ const runelightReactPreviewQuery = "runelight-preview"
 const virtualProductionPreviewEntryId = "virtual:runelight/production-preview-entry"
 const resolvedVirtualProductionPreviewEntryId = `\0${virtualProductionPreviewEntryId}`
 
-export function runelightViteReact(options: RunelightViteReactOptions = {}) {
+export function runelightViteReact(options: RunelightViteReactOptions = {}): Plugin {
   let root = options.root ?? process.cwd()
+  let runelightConfig = options.config
   let resolvedConfig = options.config ? resolveRunelightConfig(options.config) : undefined
   let command: ViteLikeConfig["command"]
   let productionPreviewEntryReference: string | undefined
   const virtualProjectIndexId = "virtual:runelight/project-index"
-  const virtualConfigId = "virtual:runelight/config"
+  const virtualPreviewConfigId = "virtual:runelight/preview-config"
   const resolvedVirtualProjectIndexId = `\0${virtualProjectIndexId}`
-  const resolvedVirtualConfigId = `\0${virtualConfigId}`
+  const resolvedVirtualPreviewConfigId = `\0${virtualPreviewConfigId}`
 
-  return {
+  const plugin = {
     name: "@runelight/adapter-vite-react",
     enforce: "pre" as const,
     config() {
       return {
+        define: {
+          __RUNELIGHT_DEV__: JSON.stringify(isRunelightDevMode()),
+        },
         optimizeDeps: {
           include: [
-            "@runelight/core > react-tracked",
-            "@runelight/core > react-tracked > use-context-selector",
-            "@runelight/core > react-tracked > use-context-selector > scheduler",
+            "@runelight/react > react-tracked",
+            "@runelight/react > react-tracked > use-context-selector",
+            "@runelight/react > react-tracked > use-context-selector > scheduler",
           ],
           exclude: [
             "@runelight/core",
-            "@runelight/preview-react",
+            "@runelight/react",
             "@runelight/studio",
             "@runelight/adapter-vite-react",
             "typescript",
-            virtualConfigId,
+            virtualPreviewConfigId,
             virtualProjectIndexId,
           ],
         },
@@ -159,10 +168,8 @@ export function runelightViteReact(options: RunelightViteReactOptions = {}) {
       server.middlewares?.use((request, response, next) => {
         void handleRunelightViteStudioRequest(request, response, {
           config: requireResolvedConfig(),
+          runelightConfig: requireRunelightConfig(),
           root,
-          sourceRoot: sourceRoot(),
-          studioAppDirectory: options.studioAppDirectory,
-          tsconfigPath: options.tsconfigPath ?? resolvedConfig?.project.tsconfig,
         })
           .then((handled) => {
             if (!handled) next()
@@ -179,30 +186,29 @@ export function runelightViteReact(options: RunelightViteReactOptions = {}) {
 
       if (id === virtualProductionPreviewEntryId) return resolvedVirtualProductionPreviewEntryId
       if (id === virtualProjectIndexId) return resolvedVirtualProjectIndexId
-      if (id === virtualConfigId) return resolvedVirtualConfigId
+      if (id === virtualPreviewConfigId) return resolvedVirtualPreviewConfigId
       return null
     },
-    load(id: string): TransformResult | null {
+    async load(id: string): Promise<TransformResult | null> {
       if (!isRunelightPreviewMode()) return null
 
       if (id === resolvedVirtualProductionPreviewEntryId) {
         return {
-          code: productionPreviewEntryCode(productionPreviewEntryPath()),
+          code: productionPreviewEntryCode(defaultProductionPreviewEntryPath()),
           map: null,
         }
       }
-      if (id === resolvedVirtualConfigId) {
+      if (id === resolvedVirtualPreviewConfigId) {
         return {
-          code: `export default ${JSON.stringify(requireResolvedConfig())}\n`,
+          code: `export default ${JSON.stringify(createRunelightVitePreviewConfig(requireResolvedConfig()))}\n`,
           map: null,
         }
       }
       if (id !== resolvedVirtualProjectIndexId) return null
-      const projectIndex = buildRunelightProjectIndex({
-        additionalRoots: [runelightDesignRootFromEntryRoot(entryRoot())],
-        cwd: root,
-        sourceRoot: sourceRoot(),
-        tsconfigPath: options.tsconfigPath ?? resolvedConfig?.project.tsconfig,
+      const projectIndex = await buildRunelightViteProjectIndex({
+        config: requireResolvedConfig(),
+        root,
+        runelightConfig: requireRunelightConfig(),
       })
       return {
         code: `export default ${JSON.stringify(projectIndex)}\n`,
@@ -242,30 +248,37 @@ export function runelightViteReact(options: RunelightViteReactOptions = {}) {
 
       await emitRunelightProductionAssets(this, bundle, {
         config: requireResolvedConfig(),
-        previewEntryReference: productionPreviewEntryReference,
+        productionPreviewEntryReference,
         root,
-        sourceRoot: sourceRoot(),
-        studioAppDirectory: options.studioAppDirectory,
-        tsconfigPath: options.tsconfigPath ?? resolvedConfig?.project.tsconfig,
+        runelightConfig: requireRunelightConfig(),
       })
     },
   }
+  return plugin as unknown as Plugin
 
   function sourceRoot(): string {
-    return options.sourceRoot ?? resolvedConfig?.project.sourceRoot ?? "src"
+    return requireResolvedConfig().project.sourceRoot
   }
 
   function entryRoot(): string {
-    return normalizeRunelightPath(options.entryRoot ?? requireRunelightEntryRoot(requireResolvedConfig()))
+    return normalizeRunelightPath(requireResolvedConfig().project.entryRoot)
   }
 
   function requireResolvedConfig(): ResolvedRunelightConfig {
     if (resolvedConfig) return resolvedConfig
 
+    const config = requireRunelightConfig()
+    resolvedConfig = resolveRunelightConfig(config)
+    return resolvedConfig
+  }
+
+  function requireRunelightConfig(): RunelightConfig {
+    if (runelightConfig) return runelightConfig
+
     const loaded = loadRunelightConfig(root)
     if (loaded.config) {
-      resolvedConfig = resolveRunelightConfig(loaded.config)
-      return resolvedConfig
+      runelightConfig = loaded.config
+      return runelightConfig
     }
 
     const message = loaded.diagnostics.map((diagnostic) => diagnostic.message).filter(Boolean).join("\n")
@@ -278,22 +291,31 @@ export function runelightViteReact(options: RunelightViteReactOptions = {}) {
 
   function isRunelightProductionExposeMode(): boolean {
     if (isRunelightDevMode() || command !== "build") return false
-    if (options.exposeInProduction !== undefined) return options.exposeInProduction
     return optionalResolvedConfig()?.studio.exposeInProduction === true
   }
 
   function optionalResolvedConfig(): ResolvedRunelightConfig | undefined {
     if (resolvedConfig) return resolvedConfig
 
-    const loaded = loadRunelightConfig(root)
-    if (!loaded.config) return undefined
+    const config = optionalRunelightConfig()
+    if (!config) return undefined
 
-    resolvedConfig = resolveRunelightConfig(loaded.config)
+    resolvedConfig = resolveRunelightConfig(config)
     return resolvedConfig
   }
 
-  function productionPreviewEntryPath(): string {
-    return resolve(root, options.previewEntry ?? "src/preview.tsx")
+  function optionalRunelightConfig(): RunelightConfig | undefined {
+    if (runelightConfig) return runelightConfig
+
+    const loaded = loadRunelightConfig(root)
+    if (!loaded.config) return undefined
+
+    runelightConfig = loaded.config
+    return runelightConfig
+  }
+
+  function defaultProductionPreviewEntryPath(): string {
+    return resolve(root, "src/preview.tsx")
   }
 
   function handleRunelightHotUpdate(
@@ -316,6 +338,14 @@ export function runelightViteReact(options: RunelightViteReactOptions = {}) {
   }
 }
 
+function createRunelightVitePreviewConfig(config: ResolvedRunelightConfig): RunelightVitePreviewConfig {
+  return {
+    project: {
+      sourceRoot: config.project.sourceRoot,
+    },
+  }
+}
+
 function isRunelightDevMode(): boolean {
   return process.env[runelightDevEnvName] === "1"
 }
@@ -327,26 +357,20 @@ function hasRunelightPreviewQuery(id: string, queryName: string): boolean {
 
 type RunelightViteStudioRequestOptions = {
   config: ResolvedRunelightConfig
+  runelightConfig: RunelightConfig
   root: string
-  sourceRoot: string
-  studioAppDirectory?: string
-  tsconfigPath?: string
 }
 
 type StudioManifestModule = {
-  createStudioManifestFromRunelightConfig(projectIndex: ReturnType<typeof buildRunelightProjectIndex>, config: ResolvedRunelightConfig): StudioManifestLike
+  createStudioManifestFromResolvedConfig(projectIndex: ReturnType<typeof buildRunelightProjectIndex>, config: ResolvedRunelightConfig): StudioManifestLike
 }
 
 type StudioStaticAppModule = {
-  runelightStudioAppDirectory(): string
+  resolveRunelightStudioAppDirectory(): string
   resolveRunelightStudioAppAssetPath(assetPath?: string): string
 }
 
 type StudioManifestLike = {
-  preview: {
-    allUrlTemplate?: string
-    urlTemplate: string
-  }
   routes: {
     manifest: string
     preview: string
@@ -356,11 +380,9 @@ type StudioManifestLike = {
 
 type RunelightProductionAssetOptions = {
   config: ResolvedRunelightConfig
-  previewEntryReference: string
+  productionPreviewEntryReference: string
   root: string
-  sourceRoot: string
-  studioAppDirectory?: string
-  tsconfigPath?: string
+  runelightConfig: RunelightConfig
 }
 
 const studioManifestModuleId = "@runelight/studio/manifest"
@@ -371,15 +393,15 @@ async function emitRunelightProductionAssets(
   bundle: ViteLikeOutputBundle,
   options: RunelightProductionAssetOptions,
 ): Promise<void> {
-  const previewEntryFileName = context.getFileName(options.previewEntryReference)
-  const previewEntryChunk = bundle[previewEntryFileName]
-  const previewEntryCss = previewEntryChunk?.type === "chunk" ? [...(previewEntryChunk.viteMetadata?.importedCss ?? [])] : []
+  const productionPreviewEntryFileName = context.getFileName(options.productionPreviewEntryReference)
+  const productionPreviewEntryChunk = bundle[productionPreviewEntryFileName]
+  const productionPreviewEntryCss = productionPreviewEntryChunk?.type === "chunk" ? [...(productionPreviewEntryChunk.viteMetadata?.importedCss ?? [])] : []
 
   context.emitFile({
     fileName: "runelight/index.html",
     source: productionHtml({
-      scripts: [previewEntryFileName],
-      styles: previewEntryCss,
+      scripts: [productionPreviewEntryFileName],
+      styles: productionPreviewEntryCss,
       title: "Runelight Preview",
     }),
     type: "asset",
@@ -390,10 +412,10 @@ async function emitRunelightProductionAssets(
 }
 
 async function emitRunelightProductionStudio(context: ViteLikePluginContext, options: RunelightProductionAssetOptions): Promise<void> {
-  const studioAppDirectory = await resolveRunelightStudioAppDirectory(options)
+  const studioDirectory = await resolveRunelightStudioAppDirectory()
 
-  for (const filePath of listFilesRecursive(studioAppDirectory)) {
-    const relativePath = normalizePath(relative(studioAppDirectory, filePath))
+  for (const filePath of listFilesRecursive(studioDirectory)) {
+    const relativePath = normalizePath(relative(studioDirectory, filePath))
     context.emitFile({
       fileName: `runelight/studio/${relativePath}`,
       source: readFileSync(filePath),
@@ -403,20 +425,11 @@ async function emitRunelightProductionStudio(context: ViteLikePluginContext, opt
 }
 
 async function emitRunelightProductionManifest(context: ViteLikePluginContext, options: RunelightProductionAssetOptions): Promise<void> {
-  const projectIndex = buildRunelightProjectIndex({
-    additionalRoots: [runelightDesignRootFromEntryRoot(requireRunelightEntryRoot(options.config))],
-    cwd: options.root,
-    sourceRoot: options.sourceRoot,
-    tsconfigPath: options.tsconfigPath,
-  })
-  const { createStudioManifestFromRunelightConfig } = await import(studioManifestModuleId) as StudioManifestModule
-  const manifest = createStudioManifestFromRunelightConfig(projectIndex, options.config)
+  const projectIndex = await buildRunelightViteProjectIndex(options)
+  const { createStudioManifestFromResolvedConfig } = await import(studioManifestModuleId) as StudioManifestModule
+  const manifest = createStudioManifestFromResolvedConfig(projectIndex, options.config)
   manifest.routes.preview = trailingSlashRoute(manifest.routes.preview)
   manifest.routes.studio = trailingSlashRoute(manifest.routes.studio)
-  manifest.preview = {
-    allUrlTemplate: appendPreviewSearchTemplate(manifest.routes.preview, "entry={entry}{frameOverrides}"),
-    urlTemplate: appendPreviewSearchTemplate(manifest.routes.preview, "entry={entry}&frame={frame}{frameOverrides}"),
-  }
 
   context.emitFile({
     fileName: normalizePath(options.config.routes.manifest).replace(/^\//, ""),
@@ -425,11 +438,9 @@ async function emitRunelightProductionManifest(context: ViteLikePluginContext, o
   })
 }
 
-async function resolveRunelightStudioAppDirectory(options: Pick<RunelightProductionAssetOptions, "studioAppDirectory">): Promise<string> {
-  if (options.studioAppDirectory) return options.studioAppDirectory
-
-  const { runelightStudioAppDirectory } = await import(studioStaticAppModuleId) as StudioStaticAppModule
-  return runelightStudioAppDirectory()
+async function resolveRunelightStudioAppDirectory(): Promise<string> {
+  const { resolveRunelightStudioAppDirectory } = await import(studioStaticAppModuleId) as StudioStaticAppModule
+  return resolveRunelightStudioAppDirectory()
 }
 
 function listFilesRecursive(directory: string): string[] {
@@ -497,10 +508,6 @@ function productionExposeRedirectScript(config: ResolvedRunelightConfig): string
   ].join("\n")
 }
 
-function appendPreviewSearchTemplate(url: string, template: string): string {
-  return `${url}${url.includes("?") ? "&" : "?"}${template}`
-}
-
 function trailingSlashRoute(route: string): string {
   const [path, search = ""] = route.split("?", 2)
   const normalizedPath = (path || "/").replace(/\/+$/, "")
@@ -531,19 +538,14 @@ async function handleRunelightViteStudioRequest(
   const assetPath = runelightStudioAssetPathFromRequest(pathname, options.config.routes.studio)
   if (!assetPath) return false
 
-  await serveRunelightViteStudioAsset(response, assetPath, options)
+  await serveRunelightViteStudioAsset(response, assetPath)
   return true
 }
 
 async function serveRunelightViteStudioManifest(response: ViteLikeResponse, options: RunelightViteStudioRequestOptions) {
-  const projectIndex = buildRunelightProjectIndex({
-    additionalRoots: [runelightDesignRootFromEntryRoot(requireRunelightEntryRoot(options.config))],
-    cwd: options.root,
-    sourceRoot: options.sourceRoot,
-    tsconfigPath: options.tsconfigPath,
-  })
-  const { createStudioManifestFromRunelightConfig } = await import(studioManifestModuleId) as StudioManifestModule
-  const manifest = createStudioManifestFromRunelightConfig(projectIndex, options.config)
+  const projectIndex = await buildRunelightViteProjectIndex(options)
+  const { createStudioManifestFromResolvedConfig } = await import(studioManifestModuleId) as StudioManifestModule
+  const manifest = createStudioManifestFromResolvedConfig(projectIndex, options.config)
 
   response.statusCode = 200
   response.setHeader("content-type", "application/json; charset=utf-8")
@@ -553,9 +555,8 @@ async function serveRunelightViteStudioManifest(response: ViteLikeResponse, opti
 async function serveRunelightViteStudioAsset(
   response: ViteLikeResponse,
   assetPath: string,
-  options: Pick<RunelightViteStudioRequestOptions, "studioAppDirectory">,
 ) {
-  const filePath = await resolveRunelightStudioAssetFilePath(assetPath, options)
+  const filePath = await resolveRunelightStudioAssetFilePath(assetPath)
   const fileStat = statIfFile(filePath)
 
   if (!fileStat) {
@@ -571,13 +572,21 @@ async function serveRunelightViteStudioAsset(
   response.end(readFileSync(filePath))
 }
 
-async function resolveRunelightStudioAssetFilePath(
-  assetPath: string,
-  options: Pick<RunelightViteStudioRequestOptions, "studioAppDirectory">,
-): Promise<string> {
-  const normalizedAssetPath = normalizeRunelightStudioAssetPath(assetPath)
-  if (options.studioAppDirectory) return resolve(options.studioAppDirectory, normalizedAssetPath)
+async function buildRunelightViteProjectIndex(
+  options: Pick<RunelightProductionAssetOptions, "config" | "root" | "runelightConfig">,
+): Promise<ReturnType<typeof buildRunelightProjectIndex>> {
+  const contracts = await resolveRunelightContractReferences(options.runelightConfig.contracts, { cwd: options.root })
+  return buildRunelightProjectIndex({
+    additionalSourceRoots: [runelightDesignRootFromEntryRoot(options.config.project.entryRoot)],
+    contracts,
+    cwd: options.root,
+    sourceRoot: options.config.project.sourceRoot,
+    tsconfigPath: options.config.project.tsconfig,
+  })
+}
 
+async function resolveRunelightStudioAssetFilePath(assetPath: string): Promise<string> {
+  const normalizedAssetPath = normalizeRunelightStudioAssetPath(assetPath)
   const { resolveRunelightStudioAppAssetPath } = await import(studioStaticAppModuleId) as StudioStaticAppModule
   return resolveRunelightStudioAppAssetPath(normalizedAssetPath)
 }

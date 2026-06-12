@@ -37,10 +37,10 @@ The template reads composables, stores, queries, or local script state
   → props + scope
 
 The component calls Vue's native inject(key)
-  → props + provide (and GVueProvideFrame for finite axes)
+  → props + providers (and GVueProviderFrame for finite axes)
 ```
 
-`scope` should include every non-prop template value that affects branch shape or visible state. Vue frames never use `bindings`, and never use React-style `providers`.
+`scope` should include every non-prop template value that affects branch shape or visible state. Vue frames never use `bindings`; injection-dependent frames use Runelight `providers` entries that preview maps to Vue native `provide(...)`.
 
 ## Props and Scope
 
@@ -78,7 +78,7 @@ Preview never runs `useResource`; `status`, `title`, and `items` come from the s
 
 ## Native Provide / Inject
 
-Vue context uses native `provide`/`inject`. When the injection should appear as a finite Studio axis (role, theme, locale, auth state, platform), define a typed key with `defineGInjectionKey(..., { variants })`, import the same key in `<g:frames lang="ts">`, supply runtime values through `provide: [[key, value]]`, and mark coverage with `GVueProvideFrame`. See [.g Protocol — Vue Provide/Inject](./g-protocol.md#vue-provideinject) for a complete example.
+Vue context uses native `provide`/`inject`. When the injection should appear as a finite Studio axis (role, theme, locale, auth state, platform), define a typed key with `defineGInjectionKey(..., { variants })`, import the same key in `<g:frames lang="ts">`, supply runtime values through `providers: [[key, value]]`, and mark coverage with `GVueProviderFrame`. See [.g Protocol — Vue Provide/Inject](./g-protocol.md#vue-provideinject) for a complete example.
 
 ## Frames
 
@@ -89,7 +89,7 @@ Vue context uses native `provide`/`inject`. When the injection should appear as 
 
 ## Template Branches
 
-Structural directives — `v-if`, `v-else-if`, `v-show`, `v-for`, and dynamic `:is` — must be first-order over frame-visible values: frame `props`, frame `scope`, or `inject(key)` bindings backed by frame `provide` entries. Opaque helpers are fine for formatting text, but not for structural decisions:
+Structural directives — `v-if`, `v-else-if`, `v-show`, `v-for`, and dynamic `:is` — must be first-order over frame-visible values: frame `props`, frame `scope`, or `inject(key)` bindings backed by frame `providers` entries. Opaque helpers are fine for formatting text, but not for structural decisions:
 
 ```vue
 <!-- Good -->
@@ -117,6 +117,6 @@ Common diagnostics and fixes:
 | `non-static-frame-key` | Use literal frame keys |
 | `opaque-vue-template-control-flow` | Make structural directives depend directly on props/scope/injected values |
 | `uncovered-vue-template-branch` | Add a frame that makes the template branch reachable |
-| `missing-provider-variant-frames` | Mark frames with `GVueProvideFrame` for every declared injection variant |
+| `missing-provider-variant-frames` | Mark frames with `GVueProviderFrame` for every declared injection variant |
 
 Full diagnostic list: [Static Contract — Diagnostics](./runelight-static-contract.md#diagnostics).

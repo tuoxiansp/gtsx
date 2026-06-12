@@ -3,10 +3,10 @@ import { join } from "node:path"
 import vm from "node:vm"
 import ts from "typescript"
 
-import type { RunelightDiagnostic } from "./analyzer.js"
+import type { RunelightDiagnostic } from "./contract.js"
 import { defineRunelightConfig } from "./define-config.js"
-import { resolveRunelightConfig } from "./config-model.js"
-import type { RunelightConfig, RunelightScriptConfig } from "./config-types.js"
+import { isRunelightHostCommandWithPortPlaceholder, resolveRunelightConfig } from "./config-model.js"
+import type { RunelightConfig, RunelightProjectConfig } from "./config-types.js"
 
 export { resolveRunelightConfig }
 
@@ -25,6 +25,7 @@ export function loadRunelightConfig(cwd: string): LoadConfigResult {
       diagnostics: [
         {
           stage: "adapter-configuration",
+          severity: "error",
           code: "missing-config",
           message: "Missing runelight.config.ts for adapter commands.",
         },
@@ -34,12 +35,16 @@ export function loadRunelightConfig(cwd: string): LoadConfigResult {
 
   try {
     const config = configPath.endsWith(".ts") ? loadTypeScriptConfig(configPath) : loadCommonJSConfig(configPath)
+    const diagnostics = validateLoadedRunelightConfig(config)
+    if (diagnostics.length > 0) return { diagnostics }
+
     return { config, diagnostics: [] }
   } catch (error) {
     return {
       diagnostics: [
         {
           stage: "adapter-configuration",
+          severity: "error",
           code: "invalid-config",
           message: error instanceof Error ? error.message : String(error),
         },
@@ -81,14 +86,61 @@ function loadCommonJSConfig(configPath: string): RunelightConfig {
 }
 
 function requireRunelightConfigDependency(specifier: string): unknown {
-  if (specifier === "@runelight/core" || specifier === "@runelight/core/define-config") return { defineRunelightConfig }
+  if (specifier === "@runelight/core") return { defineRunelightConfig }
   throw new Error(`Unsupported config import: ${specifier}`)
 }
 
 function readDefaultExport(exportsValue: Record<string, unknown>): RunelightConfig {
-  const config = (exportsValue.default ?? exportsValue) as RunelightConfig
-  if (!config.host) {
-    throw new Error("Missing host configuration in runelight.config.ts.")
+  return (exportsValue.default ?? exportsValue) as RunelightConfig
+}
+
+function validateLoadedRunelightConfig(config: RunelightConfig): RunelightDiagnostic[] {
+  const diagnostics: RunelightDiagnostic[] = []
+  const candidate = config as Partial<RunelightConfig>
+
+  if (!Array.isArray(candidate.contracts) || candidate.contracts.length === 0) {
+    diagnostics.push({
+      stage: "adapter-configuration",
+      severity: "error",
+      code: "missing-contracts",
+      message: 'Add a Runelight contract to runelight.config.ts, for example contracts: ["@runelight/react/contract"].',
+    })
+  } else if (!candidate.contracts.every(isNonEmptyString)) {
+    diagnostics.push({
+      stage: "adapter-configuration",
+      severity: "error",
+      code: "invalid-contracts",
+      message: 'contracts in runelight.config.ts must be string specifiers, for example contracts: ["@runelight/react/contract"].',
+    })
   }
-  return config
+  if (!candidate.project || !isNonEmptyString((candidate.project as Partial<RunelightProjectConfig>).entryRoot)) {
+    diagnostics.push({
+      stage: "adapter-configuration",
+      severity: "error",
+      code: "missing-entry-root",
+      message: 'Add project.entryRoot to runelight.config.ts, for example project: { entryRoot: "app/runelight" }.',
+    })
+  }
+  if (!candidate.project || !isNonEmptyString((candidate.project as Partial<RunelightProjectConfig>).sourceRoot)) {
+    diagnostics.push({
+      stage: "adapter-configuration",
+      severity: "error",
+      code: "missing-source-root",
+      message: 'Add project.sourceRoot to runelight.config.ts, for example project: { sourceRoot: "src" } or project: { sourceRoot: "." }.',
+    })
+  }
+  if (candidate.host?.command !== undefined && !isRunelightHostCommandWithPortPlaceholder(candidate.host.command)) {
+    diagnostics.push({
+      stage: "adapter-configuration",
+      severity: "error",
+      code: "invalid-host-command",
+      message: "host.command in runelight.config.ts must include the {port} placeholder so Runelight can choose and substitute the Host port.",
+    })
+  }
+
+  return diagnostics
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0
 }

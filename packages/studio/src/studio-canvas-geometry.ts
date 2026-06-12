@@ -1,6 +1,7 @@
 "use client"
 
-import { runelightStudioCanvasFixedFramePreviewScale, type GBoundaryRect } from "@runelight/core"
+import type { GBoundaryRect } from "@runelight/core/boundary-rect"
+import { runelightPreviewFixedFrameScale } from "@runelight/core/frame-grid-layout"
 
 import {
   clipPreviewBoundaryRectToViewport,
@@ -68,7 +69,7 @@ export type MeasuredStudioColumnCardLayout = {
 const studioComponentCardColumnGap = 5
 const studioCanvasCardShellViewportStabilityMargin = 24
 const studioMeasuredCanvasLengthPrecision = 100
-export const studioCanvasFixedFramePreviewScale = runelightStudioCanvasFixedFramePreviewScale
+export const studioCanvasFixedFramePreviewScale = runelightPreviewFixedFrameScale
 
 export function domRectToStudioCanvasScreenRect(rect: DOMRect): StudioCanvasScreenRect {
   return {

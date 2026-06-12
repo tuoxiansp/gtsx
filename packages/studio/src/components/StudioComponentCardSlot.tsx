@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import type { GBoundaryTreeNode } from "@runelight/core"
+import type { GBoundaryTreeNode } from "@runelight/core/preview-protocol"
 
 import {
   type StudioPreviewFrameState,
