@@ -1,6 +1,8 @@
 import { existsSync, readdirSync, statSync, type Dirent } from "node:fs"
+import { createRequire } from "node:module"
 import { dirname, join, relative, resolve, sep } from "node:path"
-import ts from "typescript"
+
+const require = createRequire(import.meta.url)
 
 export type DiscoverRunelightProgramFilesOptions = {
   cwd: string
@@ -9,6 +11,7 @@ export type DiscoverRunelightProgramFilesOptions = {
 }
 
 export function discoverRunelightProgramFiles(options: DiscoverRunelightProgramFilesOptions): string[] {
+  const ts = loadTypeScript()
   const root = resolve(options.cwd, options.root)
   const configPath = resolve(options.cwd, options.tsconfigPath)
   const configFile = ts.readConfigFile(configPath, ts.sys.readFile)
@@ -28,6 +31,10 @@ export function discoverRunelightProgramFiles(options: DiscoverRunelightProgramF
   collectRunelightVueFiles(root, files, options.cwd, runelightInternalRoot)
 
   return [...files].sort((left, right) => left.localeCompare(right))
+}
+
+function loadTypeScript(): typeof import("typescript") {
+  return require("typescript") as typeof import("typescript")
 }
 
 function collectRunelightVueFiles(root: string, files: Set<string>, cwd: string, ignoredRoot: string) {

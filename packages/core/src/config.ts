@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs"
+import { createRequire } from "node:module"
 import { join } from "node:path"
 import vm from "node:vm"
-import ts from "typescript"
 
 import type { RunelightDiagnostic } from "./contract.js"
 import { defineRunelightConfig } from "./define-config.js"
@@ -9,6 +9,8 @@ import { isRunelightHostCommandWithPortPlaceholder, resolveRunelightConfig } fro
 import type { RunelightConfig, RunelightProjectConfig } from "./config-types.js"
 
 export { resolveRunelightConfig }
+
+const require = createRequire(import.meta.url)
 
 export type LoadConfigResult = {
   config?: RunelightConfig
@@ -54,6 +56,7 @@ export function loadRunelightConfig(cwd: string): LoadConfigResult {
 }
 
 function loadTypeScriptConfig(configPath: string): RunelightConfig {
+  const ts = loadTypeScript()
   const source = readFileSync(configPath, "utf8")
   const compiled = ts.transpileModule(source, {
     compilerOptions: {
@@ -72,6 +75,10 @@ function loadTypeScriptConfig(configPath: string): RunelightConfig {
   })
 
   return readDefaultExport(moduleValue.exports)
+}
+
+function loadTypeScript(): typeof import("typescript") {
+  return require("typescript") as typeof import("typescript")
 }
 
 function loadCommonJSConfig(configPath: string): RunelightConfig {

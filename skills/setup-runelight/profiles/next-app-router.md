@@ -168,7 +168,7 @@ export async function GET() {
 import { createRunelightNextStudioAssetResponse } from "@runelight/adapter-next-react/studio-route"
 
 type RunelightStudioAssetRouteProps = {
-  params: Promise<{ asset: string[] }> | { asset: string[] }
+  params: Promise<{ asset: string[] }>
 }
 
 export const dynamic = "force-dynamic"

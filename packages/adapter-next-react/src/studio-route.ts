@@ -19,9 +19,6 @@ type StudioStaticAppModule = {
   resolveRunelightStudioAppAssetPath(assetPath?: string): string
 }
 
-const studioManifestServerModuleId = "@runelight/studio/manifest-server"
-const studioStaticAppModuleId = "@runelight/studio/static-app"
-
 export async function createRunelightNextStudioResponse(
   options: RunelightNextStudioResponseOptions = {},
 ): Promise<Response> {
@@ -53,13 +50,13 @@ export async function createRunelightNextStudioManifestResponse(
 ): Promise<Response> {
   if (!isRunelightNextRouteEnabled(options)) return notFoundResponse()
 
-  const { createStudioManifestProvider } = await import(studioManifestServerModuleId) as StudioManifestServerModule
+  const { createStudioManifestProvider } = await import("@runelight/studio/manifest-server") as StudioManifestServerModule
   const createManifest = await createStudioManifestProvider({ config: options.config, cwd: options.cwd })
   return Response.json(createManifest())
 }
 
 async function resolveRunelightNextStudioAssetFilePath(assetPath: string): Promise<string> {
-  const { resolveRunelightStudioAppAssetPath } = await import(studioStaticAppModuleId) as StudioStaticAppModule
+  const { resolveRunelightStudioAppAssetPath } = await import("@runelight/studio/static-app") as StudioStaticAppModule
   return resolveRunelightStudioAppAssetPath(assetPath)
 }
 

@@ -111,7 +111,10 @@ export async function resolveRunelightContractReferences(
       continue
     }
 
-    const moduleValue = await import(resolveContractReferenceSpecifier(reference, options.cwd)) as Record<string, unknown>
+    const moduleValue = await import(
+      /* webpackIgnore: true */
+      resolveContractReferenceSpecifier(reference, options.cwd)
+    ) as Record<string, unknown>
     const contract = moduleValue.default
     if (!isRunelightContract(contract)) {
       throw new Error(`Runelight contract module must default export a contract: ${reference}`)
