@@ -693,9 +693,9 @@ function useStudioShellView(urlSearch: string | undefined): [StudioShellView, (v
     const url = new URL(window.location.href)
     url.searchParams.delete("view")
     if (nextView === "design") {
-      url.hash = "/design"
+      url.hash = "/drafts"
     } else {
-      url.hash = ""
+      url.hash = "/frames"
     }
     window.history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`)
   }, [])
@@ -707,11 +707,12 @@ function studioShellViewFromLocation(search: string | undefined = undefined, has
   if (search === undefined && hash === undefined && typeof window === "undefined") return "components"
 
   const sourceHash = hash ?? (typeof window === "undefined" ? "" : window.location.hash)
-  if (studioShellViewFromHash(sourceHash) === "design") return "design"
+  const hashView = studioShellViewFromHash(sourceHash)
+  if (hashView) return hashView
 
   const source = search ?? (typeof window === "undefined" ? "" : window.location.search)
   const params = new URLSearchParams(source.startsWith("?") ? source.slice(1) : source)
-  return params.get("view") === "design" ? "design" : "components"
+  return studioShellViewFromRouteValue(params.get("view")) ?? "components"
 }
 
 function studioShellViewFromSearch(search: string | undefined): StudioShellView {
@@ -719,12 +720,18 @@ function studioShellViewFromSearch(search: string | undefined): StudioShellView 
 
   const source = search.startsWith("?") ? search.slice(1) : search
   const params = new URLSearchParams(source)
-  return params.get("view") === "design" ? "design" : "components"
+  return studioShellViewFromRouteValue(params.get("view")) ?? "components"
 }
 
-function studioShellViewFromHash(hash: string): StudioShellView {
+function studioShellViewFromHash(hash: string): StudioShellView | undefined {
   const route = hash.startsWith("#") ? hash.slice(1) : hash
-  return route === "/design" || route === "design" ? "design" : "components"
+  return studioShellViewFromRouteValue(route.replace(/^\/+/, ""))
+}
+
+function studioShellViewFromRouteValue(value: string | null): StudioShellView | undefined {
+  if (value === "drafts") return "design"
+  if (value === "frames") return "components"
+  return undefined
 }
 
 function studioCanvasUrlScopeForView(view: StudioShellView): StudioCanvasUrlScope {
@@ -755,12 +762,12 @@ function StudioShellModeTabs(props: {
     >
       <StudioShellModeTab
         active={props.activeView === "components"}
-        label="Components"
+        label="frames"
         onClick={() => props.onChangeView("components")}
       />
       <StudioShellModeTab
         active={props.activeView === "design"}
-        label="Design"
+        label="drafts"
         onClick={() => props.onChangeView("design")}
       />
     </nav>

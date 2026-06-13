@@ -153,7 +153,7 @@ pnpm dev
 Open:
 
 ```txt
-/runelight/studio#/design
+/runelight/studio#/drafts
 /runelight?entry=src%2Fapp%2Frunelight%2Fdesign%2F<FrameName>.g.vue%23default&frame=live&chrome=0
 ```
 

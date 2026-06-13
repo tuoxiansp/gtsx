@@ -459,7 +459,7 @@ describe("Runelight Studio shell", () => {
     })
 
     const html = renderToStaticMarkup(
-      <StudioShell manifest={manifest} urlSearch="view=design&rootProviderVariant=ThemeProvider:dark&debug=pool" />,
+      <StudioShell manifest={manifest} urlSearch="view=drafts&rootProviderVariant=ThemeProvider:dark&debug=pool" />,
     )
 
     expect(html).toContain('data-runelight-studio-design-workspace="true"')
@@ -4862,7 +4862,7 @@ describe("Runelight Studio shell", () => {
     const html = renderToStaticMarkup(
       <StudioShell
         manifest={manifest}
-        urlSearch="view=design&canvasX=120&canvasY=-30&canvasScale=1.25&designCanvasX=340&designCanvasY=-80&designCanvasScale=0.75"
+        urlSearch="view=drafts&canvasX=120&canvasY=-30&canvasScale=1.25&designCanvasX=340&designCanvasY=-80&designCanvasScale=0.75"
       />,
     )
 
@@ -4912,7 +4912,7 @@ describe("Runelight Studio shell", () => {
       value: {
         history: { pushState, replaceState },
         location: {
-          hash: "#/design",
+          hash: "#/drafts",
           pathname: "/runelight/studio",
           search: "?selection=file%3Asrc%2FMultiExport.g.tsx&canvasX=10&canvasY=20&canvasScale=1.1&designCanvasX=30&designCanvasY=40&designCanvasScale=0.9",
         },
@@ -4933,7 +4933,7 @@ describe("Runelight Studio shell", () => {
     expect(replaceState).toHaveBeenCalledWith(
       { runelightStudio: true },
       "",
-      "/runelight/studio?selection=file%3Asrc%2FMultiExport.g.tsx&canvasX=10&canvasY=20&canvasScale=1.1&designCanvasX=120&designCanvasY=-30&designCanvasScale=1.25#/design",
+      "/runelight/studio?selection=file%3Asrc%2FMultiExport.g.tsx&canvasX=10&canvasY=20&canvasScale=1.1&designCanvasX=120&designCanvasY=-30&designCanvasScale=1.25#/drafts",
     )
   })
 

@@ -24,7 +24,7 @@ The difference:
 
 1. You describe what you want to a local agent.
 2. The agent writes or edits a framework-specific design frame in `project.entryRoot/design/`.
-3. You open `/runelight/studio#/design`.
+3. You open `/runelight/studio#/drafts`.
 4. Each file appears as a draggable frame on a canvas. Positions are stored in your browser's `localStorage` — nothing is written to the repo.
 
 ## Frame Contract
@@ -78,7 +78,7 @@ export default {
 The design board:
 
 ```
-/runelight/studio#/design
+/runelight/studio#/drafts
 ```
 
 A single frame directly:

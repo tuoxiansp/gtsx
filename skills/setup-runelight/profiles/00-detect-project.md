@@ -90,7 +90,7 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 2. Run `runelight check` for the configured project. Use an explicit `.g.tsx` / `.g.vue` file only when narrowing a failing diagnostic.
 3. Start the host dev server through `runelight serve` (or the package script that wraps it).
 4. Open `/runelight/studio`.
-5. Open `/runelight/studio#/design`.
+5. Open `/runelight/studio#/drafts`.
 6. Confirm the manifest contains `.g.tsx` or `.g.vue` entries, including design frames from `${project.entryRoot}/design` when present. A setup-only project may legitimately have zero entries; Studio should show its empty state.
 7. If at least one protocol entry exists, open one `/runelight?...` preview URL.
 8. Confirm no `Missing entry`, `Unknown Runelight entry`, or `Unknown Runelight frame` errors.

@@ -126,7 +126,7 @@ pnpm dev
 Open:
 
 ```txt
-/runelight/studio#/design
+/runelight/studio#/drafts
 /runelight?entry=app%2Frunelight%2Fdesign%2F<FrameName>.g.tsx%23default&frame=live&chrome=0
 ```
 

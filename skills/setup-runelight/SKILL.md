@@ -28,7 +28,7 @@ This file is the router. Read the detection profile first, then enter exactly on
   - preserve existing Runelight config, route files, framework config wrappers, browser entry branches, Studio URLs, preview URLs, and `.runelight/preview-entries.ts` import patterns unless the audit shows a package-version contract change requires a minimal migration;
   - ensure the Runelight config records `project.entryRoot`, then create `${project.entryRoot}/design` if it is missing;
   - restart or ask the user to restart the dev server so adapter-generated files such as `.runelight/preview-entries.ts` can be refreshed;
-  - verify `/runelight/studio`, `/runelight/studio#/design`, `/runelight/studio/manifest`, and at least one preview URL when entries exist.
+  - verify `/runelight/studio`, `/runelight/studio#/drafts`, `/runelight/studio/manifest`, and at least one preview URL when entries exist.
 - Only use profile templates to fill missing or demonstrably broken glue. Do not overwrite working local integration code just to match the examples.
 
 ## Upgrade Compatibility Audit

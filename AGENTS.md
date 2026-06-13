@@ -1,4 +1,4 @@
-# agent.md
+# AGENTS.md
 
 This file defines the project-level decision policy for AI agents.
 
@@ -127,7 +127,7 @@ The goal is to help agents make better micro-decisions under this project's actu
 - Even though: Mature open-source projects often add contributor guides, exhaustive roadmaps, governance files, compatibility policies, and polished public promises.
 - Because: Premature ceremony can mislead agents into protecting stale compatibility or presenting unstable internals as settled commitments.
 - Reject: Adding governance/checklist docs, support matrices, compatibility promises, issue templates, or formal policies unless the task explicitly requires them or existing facts justify them.
-- Applies to: README, docs, skills, examples, package metadata, website copy, and this `agent.md`.
+- Applies to: README, docs, skills, examples, package metadata, website copy, and this `AGENTS.md`.
 - Micro-decisions affected: Documentation scope, heading structure, wording strength, whether to add missing files, and how to describe limitations or breaking changes.
 - Exception: Existing public-facing artifacts should still be high-quality, intentional, and coherent even while the project remains internal pre-release.
 

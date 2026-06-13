@@ -182,7 +182,7 @@ async function clipToCards(page, padding = 56) {
 }
 
 async function captureStudioScreenshots() {
-  const server = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port", String(port), "--strictPort"], {
+  const server = spawn("pnpm", ["exec", "runelight", "serve", "--port", String(port)], {
     cwd,
     stdio: "pipe",
   })
@@ -197,7 +197,7 @@ async function captureStudioScreenshots() {
       const landingScreenCoordinate = "src/app/LandingScreen.g.tsx#LandingScreen"
       const componentSelection = encodeURIComponent(`component:${landingScreenCoordinate}`)
 
-      await page.goto(`${baseUrl}/runelight/studio?selection=${componentSelection}&canvasViewport=desktop`, { waitUntil: "networkidle" })
+      await page.goto(`${baseUrl}/runelight/studio/?selection=${componentSelection}&canvasViewport=desktop`, { waitUntil: "networkidle" })
       await page.waitForSelector('[data-runelight-studio-shell-loading="true"]', { state: "detached", timeout: 120_000 })
       await page.waitForSelector("[data-runelight-frame-grid]", { timeout: 120_000 })
       await waitForStudioPreviews(page)
@@ -219,10 +219,10 @@ async function captureStudioScreenshots() {
       }
 
       await page.setViewportSize({ width: 2600, height: 2200 })
-      await page.goto(`${baseUrl}/runelight/studio#/design`, { waitUntil: "networkidle" })
+      await page.goto(`${baseUrl}/runelight/studio/#/drafts`, { waitUntil: "networkidle" })
       await page.waitForSelector('[data-runelight-studio-design-workspace="true"]', { timeout: 120_000 })
-      await page.waitForFunction(() => document.querySelectorAll("[data-runelight-studio-design-card]").length >= 8, { timeout: 120_000 })
-      await waitForStudioPreviews(page, 8)
+      await page.waitForFunction(() => document.querySelectorAll("[data-runelight-studio-design-card]").length >= 4, { timeout: 120_000 })
+      await waitForStudioPreviews(page, 4)
 
       const designClip = await clipToCards(page, 48)
       if (designClip) {
