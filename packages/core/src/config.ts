@@ -5,10 +5,15 @@ import vm from "node:vm"
 
 import type { RunelightDiagnostic } from "./contract.js"
 import { defineRunelightConfig } from "./define-config.js"
-import { isRunelightHostCommandWithPortPlaceholder, resolveRunelightConfig } from "./config-model.js"
+import {
+  isRunelightHostCommandWithPortPlaceholder,
+  resolveRunelightConfig,
+  runelightBaselineRootFromEntryRoot,
+  runelightGeneratedRootFromEntryRoot,
+} from "./config-model.js"
 import type { RunelightConfig, RunelightProjectConfig } from "./config-types.js"
 
-export { resolveRunelightConfig }
+export { resolveRunelightConfig, runelightBaselineRootFromEntryRoot, runelightGeneratedRootFromEntryRoot }
 
 const require = createRequire(import.meta.url)
 
@@ -125,7 +130,7 @@ function validateLoadedRunelightConfig(config: RunelightConfig): RunelightDiagno
       stage: "adapter-configuration",
       severity: "error",
       code: "missing-entry-root",
-      message: 'Add project.entryRoot to runelight.config.ts, for example project: { entryRoot: "app/runelight" }.',
+      message: 'Add project.entryRoot to runelight.config.ts, for example project: { entryRoot: "src/app/runelight" } for src-based projects.',
     })
   }
   if (!candidate.project || !isNonEmptyString((candidate.project as Partial<RunelightProjectConfig>).sourceRoot)) {

@@ -26,7 +26,7 @@ The user talks to the local agent. The agent edits local React design frames. St
 - Multiple alternatives are multiple files, not multiple frame keys. Use names such as `CheckoutFlowCalm.g.tsx`, `CheckoutFlowDense.g.tsx`, and `CheckoutFlowEditorial.g.tsx`.
 - Prefer self-contained TSX. Import existing design-system CSS, tokens, or simple presentational components only when they are stable in preview.
 - Do not write screenshots, serialized DOM, runtime state, or generated layout positions into the repo.
-- Treat `.runelight/preview-entries.ts` and other adapter outputs as generated. Do not put design drafts under `.runelight/`.
+- Treat `${project.entryRoot}/.runelight/` preview registries, baselines, and other adapter outputs as generated. Do not put design drafts under `.runelight/`.
 - A design frame is not formal component coverage. It usually shows one strong happy path; production states are modeled later by component frames.
 - Avoid ordinary React app hooks inside design frame components. If an interaction state matters for the visual direction, create another design frame or model the chosen state statically instead of adding `useState`, `useEffect`, queries, routers, or production providers.
 
@@ -127,10 +127,10 @@ Open:
 
 ```txt
 /runelight/studio#/drafts
-/runelight?entry=app%2Frunelight%2Fdesign%2F<FrameName>.g.tsx%23default&frame=live&chrome=0
+/runelight?entry=src%2Fapp%2Frunelight%2Fdesign%2F<FrameName>.g.tsx%23default&frame=live&chrome=0
 ```
 
-Replace `app%2Frunelight` with the URL-encoded `project.entryRoot` when it differs. Also run the project typecheck or `runelight check` when practical.
+Replace `src%2Fapp%2Frunelight` with the URL-encoded `project.entryRoot` when it differs. Also run the project typecheck or `runelight check` when practical.
 
 If Studio does not show the frame, stop and report that the design workspace is unavailable. Common causes are missing `project.entryRoot`, stale adapter-generated preview entries, or a dev server that needs restart after adding the first design frame.
 

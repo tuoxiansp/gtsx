@@ -15,6 +15,7 @@ type StudioPreviewIframeProps = {
     frame: HTMLIFrameElement | null,
     state?: StudioPreviewIframeMountState,
   ) => void
+  placementKey?: string
   size: { width: number | string; height: number }
   slot: StudioPreviewFrameSlot
 }

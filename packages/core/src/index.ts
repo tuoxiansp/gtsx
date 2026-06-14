@@ -1,6 +1,5 @@
 export { defineRunelightConfig } from "./define-config.js"
 export {
-  DEFAULT_RUNELIGHT_ROUTES,
   runelightDesignRootFromEntryRoot,
   normalizeRunelightPath,
   resolveRunelightConfig,

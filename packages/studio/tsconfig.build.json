@@ -12,6 +12,7 @@
   "include": [
     "src/manifest.ts",
     "src/manifest-server.ts",
+    "src/manifest-server-worker.ts",
     "src/static-app.ts"
   ]
 }

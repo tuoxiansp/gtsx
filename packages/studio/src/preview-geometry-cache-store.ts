@@ -312,6 +312,8 @@ function sameStudioPreviewFrameState(left: StudioPreviewFrameState, right: Studi
     left.ready === right.ready &&
     left.tree === right.tree &&
     left.size === right.size &&
+    left.renderedSnapshot?.version === right.renderedSnapshot?.version &&
+    left.renderedSnapshot?.hash === right.renderedSnapshot?.hash &&
     left.error === right.error &&
     left.valuesByBoundaryId === right.valuesByBoundaryId
   )

@@ -1,11 +1,20 @@
 #!/usr/bin/env node
 
 import { realpathSync, statSync } from "node:fs"
-import { dirname, join, relative, resolve, sep } from "node:path"
+import { dirname, join, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 
+import {
+  createRunelightWorkspaceChangesReportFromGit,
+  type RunelightWorkspaceChangesReport,
+} from "@runelight/changes"
+
 import { loadRunelightConfig } from "./config.js"
-import { resolveRunelightConfig, runelightDesignRootFromEntryRoot } from "./config-model.js"
+import {
+  resolveRunelightConfig,
+  runelightBaselineRootFromEntryRoot,
+  runelightDesignRootFromEntryRoot,
+} from "./config-model.js"
 import {
   resolveRunelightContractReferences,
   type RunelightEntryAnalysisResult,
@@ -67,6 +76,7 @@ const HELP = `runelight
 
 Usage:
   runelight check [-p <tsconfig-or-dir>] [entry[#export]|dir] [--json]
+  runelight changes [-p <tsconfig-or-dir>] [--json] [--ui-only] [--component <component-or-file>]
   runelight serve [-p <tsconfig-or-dir>] [--port <port>]
   runelight capture [-p <tsconfig-or-dir>] <entry[#export]|dir> [--frame <name>] [--frame-override <entry#export:frame>] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
 `
@@ -133,6 +143,43 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       json: args.includes("--json"),
       stderr: context.stderr,
     })
+  }
+
+  if (args[0] === "changes") {
+    const commandArgs = parseCommandArguments(args, {
+      booleanOptions: ["--json", "--ui-only"],
+      maxPositionals: 0,
+      valueOptions: ["--component"],
+    })
+    if (commandArgs.diagnostics.length > 0) return diagnosticsResult(commandArgs.diagnostics)
+
+    const config = loadRunelightConfig(cwd)
+    if (!config.config) return diagnosticsResult(config.diagnostics)
+    const resolvedConfig = resolveRunelightConfig(config.config)
+    const contractResolution = await resolveCLIContracts(cwd)
+    if (contractResolution.diagnostics.length > 0) return diagnosticsResult(contractResolution.diagnostics)
+
+    const report = createCLIWorkspaceChangesReport({
+      contracts: contractResolution.contracts,
+      contractReferences: config.config.contracts,
+      cwd,
+      entryRoot: resolvedConfig.project.entryRoot,
+      sourceRoot: resolvedConfig.project.sourceRoot,
+      tsconfigPath: resolvedConfig.project.tsconfig ?? projectSelection.tsconfigPath,
+    })
+    const filteredReport = filterCLIWorkspaceChangesReport(report, {
+      component: readOption(args, "--component"),
+      uiOnly: args.includes("--ui-only"),
+    })
+    const hasErrors = filteredReport.diagnostics.some((diagnostic) => diagnostic.severity === "error")
+
+    return {
+      exitCode: hasErrors ? 1 : 0,
+      stdout: args.includes("--json")
+        ? `${JSON.stringify(filteredReport, null, 2)}\n`
+        : formatCLIWorkspaceChangesReport(filteredReport),
+      stderr: context.stderr,
+    }
   }
 
   if (args[0] === "serve") {
@@ -382,6 +429,139 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       message: `Unknown command ${args[0] ?? ""}.`,
     },
   ])
+}
+
+function createCLIWorkspaceChangesReport(input: {
+  contracts: readonly RunelightContract[]
+  contractReferences: readonly unknown[]
+  cwd: string
+  entryRoot: string
+  sourceRoot: string
+  tsconfigPath?: string
+}): RunelightWorkspaceChangesReport {
+  const designRoot = runelightDesignRootFromEntryRoot(input.entryRoot)
+  const baselineRoot = runelightBaselineRootFromEntryRoot(input.entryRoot)
+  return createRunelightWorkspaceChangesReportFromGit({
+    baselineRoot,
+    cacheKeyParts: {
+      baselineRoot,
+      contracts: input.contractReferences,
+      entryRoot: input.entryRoot,
+    },
+    cwd: input.cwd,
+    pathspecs: [input.sourceRoot, designRoot],
+    runtimeImportSpecifier: baselineRuntimeImportSpecifier(input.contractReferences),
+    sourceRoot: input.sourceRoot,
+    buildCurrentGraph: () => buildRunelightProjectIndex({
+      additionalSourceRoots: [designRoot],
+      contracts: input.contracts,
+      cwd: input.cwd,
+      sourceRoot: input.sourceRoot,
+      tsconfigPath: input.tsconfigPath,
+    }),
+    buildBaselineGraph: ({ cwd }) => {
+      const index = buildRunelightProjectIndex({
+        additionalSourceRoots: [designRoot],
+        contracts: input.contracts,
+        cwd,
+        sourceRoot: input.sourceRoot,
+      })
+      return index.files.length === 0 ? undefined : index
+    },
+  })
+}
+
+function filterCLIWorkspaceChangesReport(
+  report: RunelightWorkspaceChangesReport,
+  options: { component?: string; uiOnly?: boolean },
+): RunelightWorkspaceChangesReport {
+  const filterApplied = Boolean(options.component) || Boolean(options.uiOnly)
+  const components = report.components.filter((component) => {
+    if (options.uiOnly && component.uiStatus === "unchanged") return false
+    if (!options.component) return true
+
+    return (
+      component.componentName === options.component ||
+      component.coordinate === options.component ||
+      `${component.file}#${component.exportName}` === options.component ||
+      component.file === options.component
+    )
+  })
+
+  return {
+    ...report,
+    components,
+    summary: {
+      ...report.summary,
+      files: filterApplied ? summarizeCLIWorkspaceChangeFiles(components) : report.summary.files,
+      ui: summarizeCLIWorkspaceChangeUI(components),
+    },
+  }
+}
+
+function summarizeCLIWorkspaceChangeFiles(
+  components: readonly RunelightWorkspaceChangesReport["components"][number][],
+): RunelightWorkspaceChangesReport["summary"]["files"] {
+  const files = {
+    added: new Set<string>(),
+    deleted: new Set<string>(),
+    modified: new Set<string>(),
+  }
+  for (const component of components) {
+    files[component.codeStatus].add(component.file)
+  }
+  return {
+    added: files.added.size,
+    deleted: files.deleted.size,
+    modified: files.modified.size,
+  }
+}
+
+function summarizeCLIWorkspaceChangeUI(
+  components: readonly RunelightWorkspaceChangesReport["components"][number][],
+): RunelightWorkspaceChangesReport["summary"]["ui"] {
+  return {
+    added: components.filter((component) => component.uiStatus === "added").length,
+    changed: components.filter((component) => component.uiStatus === "changed").length,
+    deleted: components.filter((component) => component.uiStatus === "deleted").length,
+    unchanged: components.filter((component) => component.uiStatus === "unchanged").length,
+    unknown: components.filter((component) => component.uiStatus === "unknown").length,
+  }
+}
+
+function formatCLIWorkspaceChangesReport(report: RunelightWorkspaceChangesReport): string {
+  if (report.components.length === 0 && report.diagnostics.length === 0) {
+    return "No Runelight workspace changes.\n"
+  }
+
+  const lines = [
+    `Runelight changes${report.base.ref ? ` against ${report.base.ref}` : ""}`,
+    `Files: ${formatCount(report.summary.files.added, "added")}, ${formatCount(report.summary.files.modified, "modified")}, ${formatCount(report.summary.files.deleted, "deleted")}`,
+    `UI: ${formatCount(report.summary.ui.added, "added")}, ${formatCount(report.summary.ui.changed, "changed")}, ${formatCount(report.summary.ui.deleted, "deleted")}, ${formatCount(report.summary.ui.unknown, "unknown")}, ${formatCount(report.summary.ui.unchanged, "unchanged")}`,
+  ]
+
+  for (const component of report.components) {
+    lines.push(`${component.uiStatus} ${component.coordinate} (${component.codeStatus})`)
+    for (const frame of component.frames) {
+      lines.push(`  - ${frame.status} ${frame.name}`)
+    }
+  }
+
+  for (const diagnostic of report.diagnostics) {
+    lines.push(`[${diagnostic.stage}${diagnostic.severity === "warning" ? " warning" : ""}] ${diagnostic.code}: ${diagnostic.message}`)
+  }
+
+  return `${lines.join("\n")}\n`
+}
+
+function formatCount(value: number, label: string): string {
+  return `${value} ${label}`
+}
+
+function baselineRuntimeImportSpecifier(contractReferences: readonly unknown[]): string | undefined {
+  if (contractReferences.some((specifier) => typeof specifier === "string" && specifier.includes("@runelight/vue/contract"))) return "@runelight/vue/runtime"
+  if (contractReferences.some((specifier) => typeof specifier === "string" && specifier.includes("@runelight/react/contract"))) return "@runelight/react/runtime"
+  return undefined
 }
 
 function missingCaptureBackendResult(): CLIResult {

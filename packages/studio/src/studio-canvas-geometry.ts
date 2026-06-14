@@ -23,6 +23,7 @@ import {
 } from "./client"
 import {
   studioFrameGridMaxSide,
+  studioComponentCardWidth,
   studioComponentCardTitleGap,
   studioComponentCardTitleHeight,
   studioComponentFrameChromeHeight,
@@ -154,6 +155,7 @@ export function studioCanvasFramePreviewScale(
 export function studioComponentCardLayout(input: {
   frameStatesByName: Record<string, StudioPreviewFrameState | undefined>
   framePreviewScale?: number
+  cardMinWidth?: number
   component: StudioManifestComponent
   viewportPreset: StudioViewportPreset
 }): StudioComponentCardLayout {
@@ -171,7 +173,7 @@ export function studioComponentCardLayout(input: {
     frameGridLayout,
     frameGridItems,
     height: studioComponentCardTitleHeight + studioComponentCardTitleGap + frameGridLayout.height,
-    width: Math.max(280, frameGridLayout.width),
+    width: studioComponentCardWidth(frameGridLayout.width, input.cardMinWidth),
   }
 }
 

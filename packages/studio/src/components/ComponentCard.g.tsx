@@ -19,6 +19,7 @@ import {
 } from "../client"
 import {
   studioFrameGridMaxSide,
+  studioComponentCardWidth,
   studioComponentCardTitleGap,
   studioComponentCardTitleHeight,
   studioComponentCardTitleScreenGap,
@@ -32,6 +33,7 @@ import {
   studioComponentFrameMismatchBorderOutset,
 } from "../frame-grid-layout"
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
+import type { StudioWorkspaceChangeFrameKind } from "../workspace-changes"
 import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
 import { previewFrameLayoutHeight, previewFrameLayoutWidth } from "../preview-frame-layout"
 import { studioBoundaryRectForCoordinate } from "../boundary-tree"
@@ -42,6 +44,7 @@ import {
   studioCardTitleIndicatorStyle,
   studioCardTitleStyle,
   studioColors,
+  studioFontFamily,
   studioRadii,
 } from "../studio-theme"
 import {
@@ -60,6 +63,9 @@ type ComponentCardProps = {
   frameStatesByName?: Record<string, ComponentCardFrameState | undefined>
   layoutFrameStatesByName?: Record<string, ComponentCardFrameState | undefined>
   framePreviewScale?: number
+  frameGridMaxSide?: number
+  cardMinWidth?: number
+  frameChangeStates?: Record<string, StudioWorkspaceChangeFrameKind>
   columnIndex?: number
   component: StudioManifestComponent
   debugPreviewPool?: boolean
@@ -121,8 +127,10 @@ function ComponentCardView(props: ComponentCardProps) {
       frame,
       props.providerVariantContext,
     )
+    const changeKind = props.frameChangeStates?.[frame.name]
 
     return {
+      changeKind,
       displaySize,
       frameState,
       layoutHeight,
@@ -138,11 +146,12 @@ function ComponentCardView(props: ComponentCardProps) {
     frameChromeHeight: studioComponentFrameChromeHeight,
     gap: studioComponentFrameGridGap,
     items: frameTiles.map((tile) => ({ height: tile.layoutHeight, width: tile.layoutWidth })),
-    maxSide: studioFrameGridMaxSide(props.viewportPreset, frameTiles.length),
+    maxWidth: props.frameGridMaxSide,
+    maxSide: props.frameGridMaxSide ?? studioFrameGridMaxSide(props.viewportPreset, frameTiles.length),
     minScale: studioComponentFrameGridMinScale,
     previewScale: props.framePreviewScale,
   })
-  const cardWidth = Math.max(280, frameGridLayout.width)
+  const cardWidth = studioComponentCardWidth(frameGridLayout.width, props.cardMinWidth)
   const columnIndex = props.columnIndex ?? 0
   const firstFrameName = props.component.frames[0]?.name ?? props.selectedFrameName
 
@@ -208,128 +217,200 @@ function ComponentCardView(props: ComponentCardProps) {
             width: frameGridLayout.width,
           }}
         >
-          {frameTiles.map((tile) => (
-            <div
-              data-runelight-frame-provider-variant-state={tile.providerVariantStatus.state}
-              data-runelight-frame-tile={tile.name}
-              key={tile.name}
-              onClick={() => props.onSelect?.(props.component, effectiveFrameStatesByName, columnIndex, "pointer")}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter" && event.key !== " ") return
-                event.preventDefault()
-                props.onSelect?.(props.component, effectiveFrameStatesByName, columnIndex, "keyboard")
-              }}
-              onPointerDown={(event) => event.stopPropagation()}
-              role="button"
-              style={{
-                cursor: props.onSelect ? "pointer" : "default",
-                display: "grid",
-                gap: studioComponentFrameLabelGap,
-                justifyItems: "center",
-                minWidth: 0,
-                width: frameGridLayout.cellWidth,
-              }}
-              tabIndex={0}
-              title={tile.providerVariantStatus.title}
-            >
+          {frameTiles.map((tile) => {
+            const scaledLayoutHeight = Math.ceil(tile.layoutHeight * frameGridLayout.previewScale)
+            const scaledLayoutWidth = Math.ceil(tile.layoutWidth * frameGridLayout.previewScale)
+            return (
               <div
-                data-runelight-frame-preview-frame={tile.name}
-                data-runelight-frame-preview-frame-state={componentCardPreviewFrameStateName(tile.frameState)}
-                style={{
-                  height: Math.ceil(tile.layoutHeight * frameGridLayout.previewScale),
-                  overflow: "visible",
-                  position: "relative",
-                  width: Math.ceil(tile.layoutWidth * frameGridLayout.previewScale),
+                data-runelight-frame-provider-variant-state={tile.providerVariantStatus.state}
+                data-runelight-frame-change-state={tile.changeKind}
+                data-runelight-frame-tile={tile.name}
+                key={tile.name}
+                onClick={
+                  props.onSelect
+                    ? () => props.onSelect?.(props.component, effectiveFrameStatesByName, columnIndex, "pointer")
+                    : undefined
+                }
+                onKeyDown={(event) => {
+                  if (!props.onSelect) return
+                  if (event.key !== "Enter" && event.key !== " ") return
+                  event.preventDefault()
+                  props.onSelect(props.component, effectiveFrameStatesByName, columnIndex, "keyboard")
                 }}
+                role={props.onSelect ? "button" : undefined}
+                style={{
+                  cursor: props.onSelect ? "pointer" : "grab",
+                  display: "grid",
+                  gap: studioComponentFrameLabelGap,
+                  justifyItems: "center",
+                  minWidth: 0,
+                  width: frameGridLayout.cellWidth,
+                }}
+                tabIndex={props.onSelect ? 0 : undefined}
+                title={tile.providerVariantStatus.title}
               >
-                <div
-                  data-runelight-frame-preview-content={tile.name}
-                  style={{
-                    filter: tile.providerVariantStatus.state === "mismatch" ? "grayscale(0.9)" : undefined,
-                    height: tile.layoutHeight,
-                    left: 0,
-                    opacity: tile.providerVariantStatus.state === "mismatch" ? 0.42 : undefined,
-                    position: "absolute",
-                    top: 0,
-                    transform: `scale(${frameGridLayout.previewScale})`,
-                    transformOrigin: "0 0",
-                    width: tile.layoutWidth,
-                  }}
-                >
-                  <LazyPreviewFrame
-                    data-runelight-preview-session-id={tile.sessionId}
-                    boundaryRect={tile.visibleBoundaryRect}
-                    coordinate={props.component.coordinate}
-                    debugIndicatorScale={frameGridLayout.previewScale}
-                    debugPreviewPool={props.debugPreviewPool}
-                    debugPreviewQueue={props.debugPreviewQueue}
-                    dimmed={tile.providerVariantStatus.state === "mismatch"}
-                    frameState={tile.frameState}
-                    onSelect={() => props.onSelect?.(props.component, effectiveFrameStatesByName, columnIndex, "pointer")}
-                    onPreviewFrameMount={props.onPreviewFrameMount}
-                    previewUrl={tile.previewUrl}
-                    size={tile.displaySize}
-                    sessionId={tile.sessionId}
-                    title={`${props.component.componentName} ${tile.name} preview`}
-                    viewportPreset={props.viewportPreset}
-                  />
-                  {tile.frameState?.error ? (
+                  <div
+                    data-runelight-frame-preview-frame={tile.name}
+                    data-runelight-frame-preview-frame-state={componentCardPreviewFrameStateName(tile.frameState)}
+                    style={{
+                      height: scaledLayoutHeight,
+                      overflow: "visible",
+                      position: "relative",
+                      width: scaledLayoutWidth,
+                    }}
+                  >
                     <div
+                      data-runelight-frame-preview-content={tile.name}
                       style={{
-                        inset: 0,
-                        overflow: "auto",
+                        filter: componentCardFrameDimmed(tile.changeKind, tile.providerVariantStatus.state) ? "grayscale(0.9)" : undefined,
+                        height: tile.layoutHeight,
+                        left: 0,
+                        opacity: componentCardFrameDimmed(tile.changeKind, tile.providerVariantStatus.state) ? 0.42 : undefined,
                         position: "absolute",
-                        zIndex: 2,
+                        top: 0,
+                        transform: `scale(${frameGridLayout.previewScale})`,
+                        transformOrigin: "0 0",
+                        width: tile.layoutWidth,
                       }}
                     >
-                      <PreviewError
-                        frameName={tile.name}
+                      <LazyPreviewFrame
+                        data-runelight-preview-session-id={tile.sessionId}
+                        boundaryRect={tile.visibleBoundaryRect}
                         coordinate={props.component.coordinate}
-                        error={tile.frameState.error}
+                        debugIndicatorScale={frameGridLayout.previewScale}
+                        debugPreviewPool={props.debugPreviewPool}
+                        debugPreviewQueue={props.debugPreviewQueue}
+                        dimmed={componentCardFrameDimmed(tile.changeKind, tile.providerVariantStatus.state)}
+                        frameState={tile.frameState}
+                        onSelect={
+                          props.onSelect
+                            ? () => props.onSelect?.(props.component, effectiveFrameStatesByName, columnIndex, "pointer")
+                            : undefined
+                        }
+                        onPreviewFrameMount={props.onPreviewFrameMount}
                         previewUrl={tile.previewUrl}
+                        size={tile.displaySize}
+                        sessionId={tile.sessionId}
+                        title={`${props.component.componentName} ${tile.name} preview`}
+                        viewportPreset={props.viewportPreset}
                       />
+                      {tile.frameState?.error ? (
+                        <div
+                          style={{
+                            inset: 0,
+                            overflow: "auto",
+                            position: "absolute",
+                            zIndex: 2,
+                          }}
+                        >
+                          <PreviewError
+                            frameName={tile.name}
+                            coordinate={props.component.coordinate}
+                            error={tile.frameState.error}
+                            previewUrl={tile.previewUrl}
+                          />
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
-                </div>
-                {tile.providerVariantStatus.state === "mismatch" ? (
-                  <div
-                    aria-hidden="true"
-                    data-runelight-frame-provider-variant-border={tile.name}
-                    style={{
-                      border: `${studioCanvasScreenStableChromeBorderWidth()} dashed ${studioColors.mismatchBorder}`,
-                      borderRadius: studioRadii.md,
-                      inset: `-${studioComponentFrameMismatchBorderOutset}px`,
-                      pointerEvents: "none",
-                      position: "absolute",
-                      zIndex: 6,
-                    }}
-                  />
-                ) : null}
+                    {tile.changeKind === "deleted" ? (
+                      <div
+                        aria-hidden="true"
+                        data-runelight-frame-change-deleted-overlay={tile.name}
+                        style={{
+                          alignItems: "center",
+                          background: "rgba(18, 18, 18, 0.58)",
+                          borderRadius: studioRadii.md,
+                          color: studioColors.errorText,
+                          display: "flex",
+                          fontFamily: studioFontFamily,
+                          fontSize: 10,
+                          fontWeight: 800,
+                          height: scaledLayoutHeight,
+                          justifyContent: "center",
+                          letterSpacing: 0,
+                          left: 0,
+                          pointerEvents: "none",
+                          position: "absolute",
+                          textTransform: "uppercase",
+                          top: 0,
+                          width: scaledLayoutWidth,
+                          zIndex: 5,
+                        }}
+                      >
+                        deleted
+                      </div>
+                    ) : null}
+                    {tile.providerVariantStatus.state === "mismatch" || componentCardFrameChangeHasBorder(tile.changeKind) ? (
+                      <div
+                        aria-hidden="true"
+                        data-runelight-frame-provider-variant-border={tile.providerVariantStatus.state === "mismatch" ? tile.name : undefined}
+                        data-runelight-frame-change-border={tile.changeKind}
+                        style={{
+                          border: `${studioCanvasScreenStableChromeBorderWidth()} ${componentCardFrameChangeBorderStyle(tile.changeKind, tile.providerVariantStatus.state)}`,
+                          borderRadius: studioRadii.md,
+                          inset: `-${studioComponentFrameMismatchBorderOutset}px`,
+                          pointerEvents: "none",
+                          position: "absolute",
+                          zIndex: 6,
+                        }}
+                      />
+                    ) : null}
+                  </div>
+                  <span
+                    data-runelight-canvas-screen-stable-chrome="frame-label"
+                    style={studioCanvasScreenStableChromeSlotStyle({
+                      height: studioComponentFrameLabelMinHeight,
+                      justifyItems: "center",
+                      width: frameGridLayout.cellWidth,
+                    })}
+                  >
+                    <span
+                      style={{
+                        ...studioFrameLabelStyle(tile.providerVariantStatus.state === "mismatch"),
+                        ...studioCanvasScreenStableChromeContentAfterCanvasGapStyle({
+                          reservedCanvasGap: studioComponentFrameLabelGap,
+                          screenGapBefore: studioComponentFrameLabelScreenGap,
+                          transformOrigin: "top center",
+                        }),
+                        alignItems: "center",
+                        display: "flex",
+                        gap: 5,
+                        justifyContent: "center",
+                      }}
+                    >
+                      <span
+                        style={{
+                          minWidth: 0,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {tile.name}
+                      </span>
+                      {componentCardFrameChangeBadgeLabel(tile.changeKind) ? (
+                        <span
+                          data-runelight-frame-change-badge={tile.changeKind}
+                          style={{
+                            background: componentCardFrameChangeBadgeBg(tile.changeKind),
+                            border: `1px solid ${componentCardFrameChangeBorderColor(tile.changeKind)}`,
+                            borderRadius: studioRadii.sm,
+                            color: componentCardFrameChangeTextColor(tile.changeKind),
+                            flexShrink: 0,
+                            fontSize: 8,
+                            fontWeight: 800,
+                            lineHeight: 1,
+                            padding: "2px 3px",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          {componentCardFrameChangeBadgeLabel(tile.changeKind)}
+                        </span>
+                      ) : null}
+                    </span>
+                  </span>
               </div>
-              <span
-                data-runelight-canvas-screen-stable-chrome="frame-label"
-                style={studioCanvasScreenStableChromeSlotStyle({
-                  height: studioComponentFrameLabelMinHeight,
-                  justifyItems: "center",
-                  width: frameGridLayout.cellWidth,
-                })}
-              >
-                <span
-                  style={{
-                    ...studioFrameLabelStyle(tile.providerVariantStatus.state === "mismatch"),
-                    ...studioCanvasScreenStableChromeContentAfterCanvasGapStyle({
-                      reservedCanvasGap: studioComponentFrameLabelGap,
-                      screenGapBefore: studioComponentFrameLabelScreenGap,
-                      transformOrigin: "top center",
-                    }),
-                    display: "block",
-                  }}
-                >
-                  {tile.name}
-                </span>
-              </span>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </article>
@@ -402,6 +483,9 @@ ComponentCard.frames = {
 function areComponentCardPropsEqual(previous: ComponentCardProps, next: ComponentCardProps): boolean {
   if (
     previous.framePreviewScale !== next.framePreviewScale ||
+    previous.frameGridMaxSide !== next.frameGridMaxSide ||
+    previous.cardMinWidth !== next.cardMinWidth ||
+    !sameComponentCardFrameChangeStates(previous.frameChangeStates, next.frameChangeStates) ||
     previous.columnIndex !== next.columnIndex ||
     previous.component !== next.component ||
     previous.debugPreviewPool !== next.debugPreviewPool ||
@@ -437,6 +521,66 @@ function areComponentCardPropsEqual(previous: ComponentCardProps, next: Componen
   return true
 }
 
+function componentCardFrameDimmed(
+  changeKind: StudioWorkspaceChangeFrameKind | undefined,
+  providerVariantState: string,
+): boolean {
+  return providerVariantState === "mismatch" || changeKind === "deleted"
+}
+
+function componentCardFrameChangeHasBorder(changeKind: StudioWorkspaceChangeFrameKind | undefined): boolean {
+  return changeKind === "added" || changeKind === "deleted" || changeKind === "changed" || changeKind === "unknown"
+}
+
+function componentCardFrameChangeBorderStyle(
+  changeKind: StudioWorkspaceChangeFrameKind | undefined,
+  providerVariantState: string,
+): string {
+  const style = changeKind === "deleted" || changeKind === "unknown" || providerVariantState === "mismatch" ? "dashed" : "solid"
+  return `${style} ${componentCardFrameChangeBorderColor(providerVariantState === "mismatch" && !changeKind ? "unknown" : changeKind)}`
+}
+
+function componentCardFrameChangeBorderColor(changeKind: StudioWorkspaceChangeFrameKind | undefined): string {
+  if (changeKind === "added") return "#4fa66a"
+  if (changeKind === "deleted") return studioColors.errorBorder
+  if (changeKind === "changed") return studioColors.accentBorder
+  if (changeKind === "unknown") return studioColors.mismatchBorder
+  return studioColors.mismatchBorder
+}
+
+function componentCardFrameChangeBadgeBg(changeKind: StudioWorkspaceChangeFrameKind | undefined): string {
+  if (changeKind === "added") return "rgba(79,166,106,0.16)"
+  if (changeKind === "deleted") return studioColors.errorBg
+  if (changeKind === "changed") return studioColors.accentMuted
+  return "rgba(136,136,136,0.16)"
+}
+
+function componentCardFrameChangeTextColor(changeKind: StudioWorkspaceChangeFrameKind | undefined): string {
+  if (changeKind === "added") return "#9bd8ad"
+  if (changeKind === "deleted") return studioColors.errorText
+  if (changeKind === "changed") return studioColors.accentText
+  return studioColors.textMuted
+}
+
+function componentCardFrameChangeBadgeLabel(changeKind: StudioWorkspaceChangeFrameKind | undefined): string | undefined {
+  if (changeKind === "added") return "new"
+  if (changeKind === "deleted") return "del"
+  if (changeKind === "changed") return "chg"
+  if (changeKind === "unknown") return "?"
+  return undefined
+}
+
+function sameComponentCardFrameChangeStates(
+  previous: Record<string, StudioWorkspaceChangeFrameKind> | undefined,
+  next: Record<string, StudioWorkspaceChangeFrameKind> | undefined,
+): boolean {
+  if (previous === next) return true
+  const previousEntries = Object.entries(previous ?? {})
+  const nextEntries = Object.entries(next ?? {})
+  return previousEntries.length === nextEntries.length &&
+    previousEntries.every(([key, value]) => next?.[key] === value)
+}
+
 function sameComponentCardFrameState(
   previous: ComponentCardFrameState | undefined,
   next: ComponentCardFrameState | undefined,
@@ -448,6 +592,8 @@ function sameComponentCardFrameState(
       previous?.tree === next?.tree &&
       previous?.size?.height === next?.size?.height &&
       previous?.size?.width === next?.size?.width &&
+      previous?.renderedSnapshot?.version === next?.renderedSnapshot?.version &&
+      previous?.renderedSnapshot?.hash === next?.renderedSnapshot?.hash &&
       previous?.error?.message === next?.error?.message &&
       previous?.error?.stack === next?.error?.stack &&
       previous?.valuesByBoundaryId === next?.valuesByBoundaryId)

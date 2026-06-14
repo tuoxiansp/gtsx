@@ -72,6 +72,12 @@ export type AnalyzeEntryOptions = {
   entry: string
 }
 
+export type RunelightReactVisualFrameProjection = {
+  dependencies: string[]
+  name: string
+  signatureParts: string[]
+}
+
 type FramesAssignment = {
   targetName: string
   frames: RunelightFrameSummary[]
@@ -378,6 +384,51 @@ export function analyzeEntry(options: AnalyzeEntryOptions): RunelightEntryAnalys
     providers: providerFrames,
     diagnostics,
   }
+}
+
+export function projectReactVisualFrames(options: AnalyzeEntryOptions): RunelightReactVisualFrameProjection[] {
+  const entryCoordinate = parseEntryCoordinate(options.entry)
+  const entryPath = resolve(options.cwd, entryCoordinate.file)
+  const cache = readRunelightReactAnalysisCacheData(options.cache)
+  const sourceFile = sourceFileForAbsolutePath(entryPath, cache)
+  if (!sourceFile) return []
+
+  const componentExportName = getComponentExportName(sourceFile, entryCoordinate.exportName)
+  if (!componentExportName) return []
+
+  const component = getFunctionLikeDeclaration(sourceFile, componentExportName)
+  if (!component?.body) return []
+
+  const diagnostics: RunelightDiagnostic[] = []
+  const componentStaticFrames = sourceFile.statements.flatMap((statement) => {
+    const assignment = getFramesAssignment(statement, sourceFile, diagnostics)
+    return assignment?.targetName === componentExportName ? assignment.staticFrames : []
+  })
+  if (componentStaticFrames.length === 0) return []
+
+  const scopeHookNames = new Set([
+    ...getScopeHookNames(sourceFile),
+    ...getImportedScopeHookNames(sourceFile, entryPath, options.cwd, cache),
+  ])
+  const context: NonRunelightHookAnalysisContext = {
+    cwd: options.cwd,
+    entryPath,
+    cache,
+    sourceFilesByPath: cache?.sourceFilesByPath ?? new Map([[entryPath, sourceFile]]),
+    visitedComponents: new Set(),
+  }
+  const branchContext = createJSXBranchAnalysisContext(sourceFile, component, scopeHookNames, context)
+  const defaultValues = defaultStaticValuesForFunctionLike(component)
+
+  return componentStaticFrames.map((frame) => {
+    const values = new Map([...branchContext.staticValues, ...defaultValues, ...frame.values])
+    const projection = projectReachableReactVisualFrame(sourceFile, componentExportName, branchContext, values, context)
+    return {
+      dependencies: projection.dependencies,
+      name: frame.name,
+      signatureParts: projection.signatureParts,
+    }
+  })
 }
 
 function parseEntryCoordinate(entry: string): EntryCoordinate {
@@ -1784,6 +1835,85 @@ function bindFunctionCallArguments(
   return callContext
 }
 
+function bindJSXComponentCallProps(
+  functionLike: ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction,
+  node: ts.JsxOpeningElement | ts.JsxSelfClosingElement,
+  context: JSXBranchAnalysisContext,
+): JSXBranchAnalysisContext {
+  const propsParameter = functionLike.parameters[0]
+  if (!propsParameter) return context
+
+  const propsContext = cloneJSXBranchAnalysisContext(context)
+  const attributeExpressions = jsxAttributeExpressions(node.attributes, context.sourceFile)
+
+  if (ts.isObjectBindingPattern(propsParameter.name)) {
+    for (const element of propsParameter.name.elements) {
+      if (element.dotDotDotToken) continue
+
+      const propertyName = element.propertyName ? bindingNameText(element.propertyName) : bindingNameText(element.name)
+      if (!propertyName) continue
+
+      const expression = attributeExpressions.get(propertyName)
+      if (!expression) continue
+      bindJSXComponentPropBinding(element.name, propertyName, expression, propsContext)
+    }
+  }
+
+  return propsContext
+}
+
+function jsxAttributeExpressions(attributes: ts.JsxAttributes, sourceFile: ts.SourceFile): Map<string, ts.Expression> {
+  const expressions = new Map<string, ts.Expression>()
+
+  for (const property of attributes.properties) {
+    if (!ts.isJsxAttribute(property) || !ts.isIdentifier(property.name)) continue
+    if (!property.initializer) {
+      expressions.set(property.name.text, ts.factory.createTrue())
+      continue
+    }
+
+    if (ts.isStringLiteral(property.initializer)) {
+      expressions.set(property.name.text, property.initializer)
+      continue
+    }
+
+    if (ts.isJsxExpression(property.initializer) && property.initializer.expression) {
+      expressions.set(property.name.text, property.initializer.expression)
+      continue
+    }
+
+    expressions.set(property.name.text, ts.factory.createIdentifier(property.name.getText(sourceFile)))
+  }
+
+  return expressions
+}
+
+function bindJSXComponentPropBinding(
+  bindingName: ts.BindingName,
+  propertyName: string,
+  expression: ts.Expression,
+  context: JSXBranchAnalysisContext,
+) {
+  const reference = factorReferenceForExpression(expression, context)
+  if (reference) {
+    if (ts.isIdentifier(bindingName)) {
+      context.factorBindings.set(bindingName.text, reference)
+    } else if (ts.isObjectBindingPattern(bindingName)) {
+      bindObjectBindingPattern(bindingName, reference, context)
+    }
+    return
+  }
+
+  const staticPath = [`jsx:${expression.getStart(context.sourceFile)}`, propertyName]
+  if (bindStaticExpressionAtPath(staticPath, expression, context, ts.isIdentifier(bindingName) ? bindingName.text : undefined)) {
+    return
+  }
+
+  if (ts.isIdentifier(bindingName) && !expressionContainsJSX(expression)) {
+    context.expressionAliases.set(bindingName.text, expression)
+  }
+}
+
 function nonEmptyCollectionPredicate(reference: RunelightFactorReference): JSXBranchPredicate {
   return {
     kind: "relation",
@@ -2163,6 +2293,503 @@ function reachableJSXDependenciesForComponent(
   }
 }
 
+function projectReachableReactVisualFrame(
+  sourceFile: ts.SourceFile,
+  componentName: string,
+  branchContext: JSXBranchAnalysisContext,
+  frameValues: Map<string, StaticBranchValue>,
+  context: NonRunelightHookAnalysisContext,
+): Pick<RunelightReactVisualFrameProjection, "dependencies" | "signatureParts"> {
+  const dependencies: string[] = []
+  const dependencySet = new Set<string>()
+  const signatureParts: string[] = []
+  const componentBody = getFunctionLikeBody(sourceFile, componentName)
+  if (!componentBody) return { dependencies, signatureParts }
+
+  const helperFunctions = getTopLevelFunctionLikeBodiesForPath(sourceFile, context.entryPath, context.cache)
+  const localComponentNames = helperFunctions
+  const importBindings = componentDependencyBindingsForFile(sourceFile, context.entryPath, context)
+  const localAliases = localComponentAliasBindingsForBody(componentBody)
+  const ownCoordinate = `${normalizeProjectPath(relative(context.cwd, context.entryPath))}#${getExportNameForComponentTarget(sourceFile, context.entryPath, componentName, context.cache) ?? componentName}`
+  const visitedHelpers = new Set<string>([componentName])
+
+  if (ts.isBlock(componentBody)) {
+    for (const statement of componentBody.statements) visitStatement(statement, branchContext, visitedHelpers)
+  } else {
+    visitExpression(componentBody, branchContext, visitedHelpers)
+  }
+
+  return { dependencies: dependencies.sort(), signatureParts }
+
+  function addDependency(target: ComponentDependencyTarget | undefined) {
+    const coordinate = target ? componentCoordinateForDependencyTarget(target, context.cwd, context.cache) : undefined
+    if (!coordinate || coordinate === ownCoordinate || dependencySet.has(coordinate)) return
+    dependencySet.add(coordinate)
+    dependencies.push(coordinate)
+  }
+
+  function addSignature(part: string) {
+    const normalized = part.replace(/\s+/g, " ").trim()
+    if (normalized) signatureParts.push(normalized)
+  }
+
+  function visitStatement(
+    statement: ts.Statement,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ) {
+    if (ts.isBlock(statement)) {
+      for (const child of statement.statements) visitStatement(child, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    if (ts.isReturnStatement(statement)) {
+      if (statement.expression) visitExpression(statement.expression, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    if (ts.isIfStatement(statement)) {
+      visitConditionalBranch(
+        statement.expression,
+        () => visitStatementOrBlock(statement.thenStatement, currentBranchContext, currentVisitedHelpers),
+        () => {
+          if (statement.elseStatement) visitStatementOrBlock(statement.elseStatement, currentBranchContext, currentVisitedHelpers)
+        },
+        currentBranchContext,
+      )
+      return
+    }
+
+    if (ts.isExpressionStatement(statement)) {
+      visitExpression(statement.expression, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    if (nodeContainsJSX(statement)) {
+      addSignature(`opaque-statement:${summarizeNodeText(statement, currentBranchContext.sourceFile)}`)
+      ts.forEachChild(statement, (child) => {
+        if (isExpressionWithPossibleJSX(child)) visitExpression(child, currentBranchContext, currentVisitedHelpers)
+      })
+    }
+  }
+
+  function visitStatementOrBlock(
+    statement: ts.Statement,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ) {
+    if (ts.isBlock(statement)) {
+      for (const child of statement.statements) visitStatement(child, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    visitStatement(statement, currentBranchContext, currentVisitedHelpers)
+  }
+
+  function visitExpression(
+    expression: ts.Expression,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ) {
+    const value = unwrapExpression(expression)
+
+    if (ts.isJsxElement(value)) {
+      visitJSXOpeningLike(value.openingElement, currentBranchContext, currentVisitedHelpers)
+      for (const child of value.children) visitJSXChild(child, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    if (ts.isJsxSelfClosingElement(value)) {
+      visitJSXOpeningLike(value, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    if (ts.isJsxFragment(value)) {
+      addSignature("fragment")
+      for (const child of value.children) visitJSXChild(child, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    if (ts.isConditionalExpression(value)) {
+      visitConditionalBranch(
+        value.condition,
+        () => visitExpression(value.whenTrue, currentBranchContext, currentVisitedHelpers),
+        () => visitExpression(value.whenFalse, currentBranchContext, currentVisitedHelpers),
+        currentBranchContext,
+      )
+      return
+    }
+
+    if (ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
+      const predicate = parseJSXBranchPredicate(value.left, currentBranchContext)
+      const evaluation = evaluateJSXBranchPredicate(predicate, frameValues)
+      if (evaluation === true || evaluation === "unknown") {
+        if (evaluation === "unknown") addSignature(`unknown-condition:${formatJSXBranchPredicate(predicate)}`)
+        visitExpression(value.right, currentBranchContext, currentVisitedHelpers)
+      }
+      return
+    }
+
+    if (ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.BarBarToken) {
+      const predicate = parseJSXBranchPredicate(value.left, currentBranchContext)
+      const evaluation = evaluateJSXBranchPredicate(predicate, frameValues)
+      if (evaluation === false || evaluation === "unknown") {
+        if (evaluation === "unknown") addSignature(`unknown-condition:${formatJSXBranchPredicate(predicate)}`)
+        visitExpression(value.right, currentBranchContext, currentVisitedHelpers)
+      }
+      return
+    }
+
+    if (ts.isArrowFunction(value) || ts.isFunctionExpression(value)) {
+      visitFunctionLikeBody(value, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    if (ts.isCallExpression(value) && visitJSXProducingCall(value, currentBranchContext, currentVisitedHelpers)) {
+      return
+    }
+
+    ts.forEachChild(value, (child) => {
+      if (isExpressionWithPossibleJSX(child)) visitExpression(child, currentBranchContext, currentVisitedHelpers)
+    })
+  }
+
+  function visitConditionalBranch(
+    condition: ts.Expression,
+    visitWhenTrue: () => void,
+    visitWhenFalse: () => void,
+    currentBranchContext: JSXBranchAnalysisContext,
+  ) {
+    const predicate = parseJSXBranchPredicate(condition, currentBranchContext)
+    const evaluation = evaluateJSXBranchPredicate(predicate, frameValues)
+    if (evaluation === true) {
+      visitWhenTrue()
+      return
+    }
+    if (evaluation === false) {
+      visitWhenFalse()
+      return
+    }
+
+    addSignature(`unknown-condition:${formatJSXBranchPredicate(predicate)}`)
+    visitWhenTrue()
+    visitWhenFalse()
+  }
+
+  function visitFunctionLikeBody(
+    functionLike: ts.ArrowFunction | ts.FunctionExpression | ts.FunctionDeclaration,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ) {
+    if (!functionLike.body) return
+    if (ts.isBlock(functionLike.body)) {
+      for (const statement of functionLike.body.statements) visitStatement(statement, currentBranchContext, currentVisitedHelpers)
+      return
+    }
+
+    visitExpression(functionLike.body, currentBranchContext, currentVisitedHelpers)
+  }
+
+  function visitJSXProducingCall(
+    call: ts.CallExpression,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ): boolean {
+    if (ts.isPropertyAccessExpression(call.expression) && call.expression.name.text === "map") {
+      const callback = call.arguments[0] ? unwrapExpression(call.arguments[0]) : undefined
+      if (callback && (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback))) {
+        const sourceReference = factorReferenceForExpression(call.expression.expression, currentBranchContext)
+        if (sourceReference) {
+          const predicate = nonEmptyCollectionPredicate(sourceReference)
+          const evaluation = evaluateJSXBranchPredicate(predicate, frameValues)
+          if (evaluation === false) return true
+          if (evaluation === "unknown") addSignature(`unknown-condition:${formatJSXBranchPredicate(predicate)}`)
+        } else {
+          addSignature(`unknown-condition:${summarizeNodeText(call.expression.expression, currentBranchContext.sourceFile)}`)
+        }
+        const callbackContext = sourceReference
+          ? bindCallbackItemParameter(callback, sourceReference, currentBranchContext)
+          : cloneJSXBranchAnalysisContext(currentBranchContext)
+        visitFunctionLikeBody(callback, callbackContext, currentVisitedHelpers)
+        return true
+      }
+    }
+
+    if (ts.isIdentifier(call.expression)) {
+      const helper = getFunctionLikeDeclaration(sourceFile, call.expression.text)
+      if (helper?.body && expressionContainsJSX(helper.body) && !currentVisitedHelpers.has(call.expression.text)) {
+        const helperVisited = new Set(currentVisitedHelpers)
+        helperVisited.add(call.expression.text)
+        const helperContext = bindFunctionCallArguments(helper, call.arguments, currentBranchContext)
+        visitFunctionLikeBody(helper, helperContext, helperVisited)
+        return true
+      }
+    }
+
+    let handled = false
+    for (const argument of call.arguments) {
+      if (!expressionContainsJSX(argument)) continue
+      visitExpression(argument, currentBranchContext, currentVisitedHelpers)
+      handled = true
+    }
+    return handled
+  }
+
+  function visitJSXChild(
+    child: ts.JsxChild,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ) {
+    if (ts.isJsxText(child)) {
+      const text = normalizeProjectedText(child.getText(sourceFile))
+      if (text) addSignature(`text:${text}`)
+      return
+    }
+    if (ts.isJsxExpression(child)) {
+      if (!child.expression) return
+      if (expressionContainsJSX(child.expression)) {
+        visitExpression(child.expression, currentBranchContext, currentVisitedHelpers)
+      } else {
+        const projected = projectVisualExpressionText(child.expression, currentBranchContext, frameValues)
+        const text = stringValueFromProjectedExpressionText(projected)
+        addSignature(text !== undefined ? `text:${text}` : `expr:${projected}`)
+      }
+      return
+    }
+
+    visitExpression(child, currentBranchContext, currentVisitedHelpers)
+  }
+
+  function visitJSXOpeningLike(
+    node: ts.JsxOpeningElement | ts.JsxSelfClosingElement,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ) {
+    const target = componentDependencyTargetForJsxTag(node.tagName, {
+      filePath: context.entryPath,
+      importBindings,
+      localAliases,
+      localComponentNames,
+    })
+    const dependencyCoordinate = target ? componentCoordinateForDependencyTarget(target, context.cwd, context.cache) : undefined
+    const tagName = jsxTagNameText(node.tagName, sourceFile)
+    const localUnexportedComponent = Boolean(target?.filePath === context.entryPath && !dependencyCoordinate)
+    addSignature(
+      localUnexportedComponent
+        ? `component:${tagName}`
+        : `element:${tagName} ${projectJSXAttributes(node.attributes, currentBranchContext, frameValues)}`,
+    )
+
+    if (dependencyCoordinate) {
+      addDependency(target)
+    } else if (localUnexportedComponent && target && !currentVisitedHelpers.has(target.componentName)) {
+      const helper = getFunctionLikeDeclaration(sourceFile, target.componentName)
+      if (helper?.body && expressionContainsJSX(helper.body)) {
+        const helperVisited = new Set(currentVisitedHelpers)
+        helperVisited.add(target.componentName)
+        const helperContext = bindJSXComponentCallProps(helper, node, currentBranchContext)
+        visitFunctionLikeBody(helper, helperContext, helperVisited)
+      }
+    }
+
+    visitJSXAttributes(node.attributes, currentBranchContext, currentVisitedHelpers)
+  }
+
+  function visitJSXAttributes(
+    attributes: ts.JsxAttributes,
+    currentBranchContext: JSXBranchAnalysisContext,
+    currentVisitedHelpers: Set<string>,
+  ) {
+    const itemSource = jsxAttributeFactorReference(attributes, currentBranchContext)
+    for (const property of attributes.properties) {
+      if (!ts.isJsxAttribute(property) || !property.initializer) continue
+
+      const initializer = property.initializer
+      const expression = ts.isJsxExpression(initializer) ? initializer.expression : initializer
+      if (!expression || !expressionContainsJSX(expression)) continue
+
+      const value = unwrapExpression(expression)
+      if ((ts.isArrowFunction(value) || ts.isFunctionExpression(value)) && value.parameters.length > 0) {
+        const callbackContext = itemSource ? bindCallbackItemParameter(value, itemSource, currentBranchContext) : currentBranchContext
+        if (!itemSource) addSignature(`unknown-condition:${summarizeNodeText(value, currentBranchContext.sourceFile)}`)
+        visitFunctionLikeBody(value, callbackContext, currentVisitedHelpers)
+        continue
+      }
+
+      visitExpression(expression, currentBranchContext, currentVisitedHelpers)
+    }
+  }
+}
+
+function projectJSXAttributes(
+  attributes: ts.JsxAttributes,
+  context: JSXBranchAnalysisContext,
+  frameValues: Map<string, StaticBranchValue>,
+): string {
+  const parts: string[] = []
+
+  for (const property of attributes.properties) {
+    if (ts.isJsxSpreadAttribute(property)) {
+      parts.push(`...${projectVisualExpressionText(property.expression, context, frameValues)}`)
+      continue
+    }
+
+    if (!ts.isJsxAttribute(property)) continue
+    const name = ts.isIdentifier(property.name) ? property.name.text : property.name.getText(context.sourceFile)
+    if (!property.initializer) {
+      parts.push(name)
+      continue
+    }
+
+    if (ts.isStringLiteral(property.initializer)) {
+      parts.push(`${name}=${JSON.stringify(normalizeProjectedText(property.initializer.text))}`)
+      continue
+    }
+
+    if (!ts.isJsxExpression(property.initializer) || !property.initializer.expression) {
+      parts.push(`${name}=unknown`)
+      continue
+    }
+
+    parts.push(`${name}=${projectVisualExpressionText(property.initializer.expression, context, frameValues)}`)
+  }
+
+  return parts.join(" ")
+}
+
+function projectVisualExpressionText(
+  expression: ts.Expression,
+  context: JSXBranchAnalysisContext,
+  frameValues: Map<string, StaticBranchValue>,
+  resolvingAliases = new Set<string>(),
+): string {
+  const value = unwrapExpression(expression)
+
+  if (value.kind === ts.SyntaxKind.TrueKeyword) return "true"
+  if (value.kind === ts.SyntaxKind.FalseKeyword) return "false"
+  if (value.kind === ts.SyntaxKind.NullKeyword) return "null"
+  if (ts.isIdentifier(value) && value.text === "undefined") return "undefined"
+  if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) return JSON.stringify(normalizeProjectedText(value.text))
+  if (ts.isNumericLiteral(value)) return value.text
+  if (ts.isArrowFunction(value) || ts.isFunctionExpression(value)) return "function"
+
+  if (ts.isIdentifier(value)) {
+    const alias = context.expressionAliases.get(value.text)
+    if (alias && !resolvingAliases.has(value.text)) {
+      resolvingAliases.add(value.text)
+      const text = projectVisualExpressionText(alias, context, frameValues, resolvingAliases)
+      resolvingAliases.delete(value.text)
+      return text
+    }
+  }
+
+  const reference = factorReferenceForExpression(value, context)
+  if (reference) {
+    const key = factorReferenceKey(reference)
+    if (reference.root === "static") {
+      const staticValue = staticBranchValueForReference(frameValues, reference) ?? context.staticValues.get(key)
+      return `static:${staticValue ? formatStaticBranchValue(staticValue) : "unknown"}`
+    }
+    return `ref:${key}`
+  }
+
+  if (ts.isConditionalExpression(value)) {
+    const predicate = parseJSXBranchPredicate(value.condition, context)
+    const evaluation = evaluateJSXBranchPredicate(predicate, frameValues)
+    if (evaluation === true) return projectVisualExpressionText(value.whenTrue, context, frameValues, resolvingAliases)
+    if (evaluation === false) return projectVisualExpressionText(value.whenFalse, context, frameValues, resolvingAliases)
+    return `unknown(${formatJSXBranchPredicate(predicate)})?${projectVisualExpressionText(value.whenTrue, context, frameValues, resolvingAliases)}:${projectVisualExpressionText(value.whenFalse, context, frameValues, resolvingAliases)}`
+  }
+
+  if (ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
+    const predicate = parseJSXBranchPredicate(value.left, context)
+    const evaluation = evaluateJSXBranchPredicate(predicate, frameValues)
+    if (evaluation === false) return ""
+    if (evaluation === true) return projectVisualExpressionText(value.right, context, frameValues, resolvingAliases)
+    return `unknown(${formatJSXBranchPredicate(predicate)})&&${projectVisualExpressionText(value.right, context, frameValues, resolvingAliases)}`
+  }
+
+  if (ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.BarBarToken) {
+    const predicate = parseJSXBranchPredicate(value.left, context)
+    const evaluation = evaluateJSXBranchPredicate(predicate, frameValues)
+    if (evaluation === true) return projectVisualExpressionText(value.left, context, frameValues, resolvingAliases)
+    if (evaluation === false) return projectVisualExpressionText(value.right, context, frameValues, resolvingAliases)
+    return `unknown(${formatJSXBranchPredicate(predicate)})||${projectVisualExpressionText(value.right, context, frameValues, resolvingAliases)}`
+  }
+
+  if (ts.isBinaryExpression(value) && value.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    return normalizeProjectedText(
+      `${projectVisualExpressionText(value.left, context, frameValues, resolvingAliases)}${projectVisualExpressionText(value.right, context, frameValues, resolvingAliases)}`,
+    )
+  }
+
+  if (ts.isTemplateExpression(value)) {
+    const parts = [value.head.text]
+    for (const span of value.templateSpans) {
+      parts.push(projectVisualTemplateSpanText(span.expression, context, frameValues, resolvingAliases), span.literal.text)
+    }
+    return JSON.stringify(normalizeProjectedText(parts.join("")))
+  }
+
+  return summarizeNodeText(value, context.sourceFile)
+}
+
+function projectVisualTemplateSpanText(
+  expression: ts.Expression,
+  context: JSXBranchAnalysisContext,
+  frameValues: Map<string, StaticBranchValue>,
+  resolvingAliases: Set<string>,
+): string {
+  const text = projectVisualExpressionText(expression, context, frameValues, resolvingAliases)
+  if (!text.startsWith("\"") || !text.endsWith("\"")) return text
+
+  try {
+    const parsed = JSON.parse(text) as unknown
+    return typeof parsed === "string" ? parsed : text
+  } catch {
+    return text
+  }
+}
+
+function stringValueFromProjectedExpressionText(text: string): string | undefined {
+  const value = text.startsWith("static:") ? text.slice("static:".length) : text
+  if (!value.startsWith("\"") || !value.endsWith("\"")) return undefined
+
+  try {
+    const parsed = JSON.parse(value) as unknown
+    return typeof parsed === "string" ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function normalizeProjectedText(text: string): string {
+  return text.replace(/\s+/g, " ").trim()
+}
+
+function componentCoordinateForDependencyTarget(
+  target: ComponentDependencyTarget,
+  cwd: string,
+  cache?: RunelightAnalysisCacheData,
+): string | undefined {
+  const sourceFile = sourceFileForAbsolutePath(target.filePath, cache)
+  if (!sourceFile) return undefined
+  const exportName = getExportNameForComponentTarget(sourceFile, target.filePath, target.componentName, cache)
+  return exportName ? `${normalizeProjectPath(relative(cwd, target.filePath))}#${exportName}` : undefined
+}
+
+function getExportNameForComponentTarget(
+  sourceFile: ts.SourceFile,
+  filePath: string,
+  componentName: string,
+  cache?: RunelightAnalysisCacheData,
+): string | undefined {
+  for (const [exportName, target] of exportedComponentTargetsForFile(sourceFile, filePath, cache)) {
+    if (target.componentName === componentName) return exportName
+  }
+  return undefined
+}
+
 function isExpressionWithPossibleJSX(node: ts.Node): node is ts.Expression {
   return ts.isExpression(node) && nodeContainsJSX(node)
 }
@@ -2321,7 +2948,11 @@ function invertRelationOperator(operator: "<" | "<=" | ">" | ">="): "<" | "<=" |
   return "<="
 }
 
-function factorReferenceForExpression(expression: ts.Expression, context: JSXBranchAnalysisContext): RunelightFactorReference | undefined {
+function factorReferenceForExpression(
+  expression: ts.Expression,
+  context: JSXBranchAnalysisContext,
+  resolvingAliases = new Set<string>(),
+): RunelightFactorReference | undefined {
   const value = unwrapExpression(expression)
 
   if (ts.isIdentifier(value)) {
@@ -2329,21 +2960,25 @@ function factorReferenceForExpression(expression: ts.Expression, context: JSXBra
     if (direct) return direct
 
     const alias = context.expressionAliases.get(value.text)
-    return alias ? factorReferenceForExpression(alias, context) : undefined
+    if (!alias || resolvingAliases.has(value.text)) return undefined
+    resolvingAliases.add(value.text)
+    const reference = factorReferenceForExpression(alias, context, resolvingAliases)
+    resolvingAliases.delete(value.text)
+    return reference
   }
 
   if (ts.isPropertyAccessExpression(value)) {
-    const base = factorReferenceForExpression(value.expression, context)
+    const base = factorReferenceForExpression(value.expression, context, resolvingAliases)
     return base ? appendFactorReferencePath(base, value.name.text) : undefined
   }
 
   if (ts.isElementAccessExpression(value) && ts.isStringLiteralLike(value.argumentExpression)) {
-    const base = factorReferenceForExpression(value.expression, context)
+    const base = factorReferenceForExpression(value.expression, context, resolvingAliases)
     return base ? appendFactorReferencePath(base, value.argumentExpression.text) : undefined
   }
 
   if (ts.isElementAccessExpression(value) && ts.isNumericLiteral(value.argumentExpression)) {
-    const base = factorReferenceForExpression(value.expression, context)
+    const base = factorReferenceForExpression(value.expression, context, resolvingAliases)
     return base ? appendFactorReferencePath(base, "number") : undefined
   }
 
@@ -3241,6 +3876,13 @@ function readFramesObject(
 ): Pick<FramesAssignment, "frames" | "staticFrames"> {
   const frames: RunelightFrameSummary[] = []
   const staticFrames: RunelightFrameStaticFacts[] = []
+  const staticContext: JSXBranchAnalysisContext = {
+    expressionAliases: new Map(),
+    factorBindings: new Map(),
+    sourceFile,
+    staticValues: new Map(),
+  }
+  bindTopLevelStaticConstDeclarations(sourceFile, staticContext)
 
   for (const property of objectLiteral.properties) {
     if (ts.isSpreadAssignment(property)) {
@@ -3278,7 +3920,7 @@ function readFramesObject(
       ...(providerVariants && Object.keys(providerVariants).length > 0 ? { providerVariants } : {}),
       ...(providers && Object.keys(providers).length > 0 ? { providers } : {}),
     })
-    staticFrames.push(readFrameStaticFacts(frameName, frameValue, providerVariants))
+    staticFrames.push(readFrameStaticFacts(frameName, frameValue, providerVariants, staticContext))
   }
 
   return { frames, staticFrames }
@@ -3294,18 +3936,19 @@ function readFrameStaticFacts(
   frameName: string,
   frameValue: ts.Expression,
   providerVariants: Record<string, RunelightProviderVariantSelection> | undefined,
+  context?: JSXBranchAnalysisContext,
 ): RunelightFrameStaticFacts {
   const values = new Map<string, StaticBranchValue>()
 
   if (ts.isObjectLiteralExpression(frameValue)) {
     const props = objectLiteralPropertyExpression(frameValue, "props")
-    if (props) flattenStaticObjectExpression(props, "props", values)
+    if (props) flattenStaticObjectExpression(props, "props", values, context)
 
     const scope = objectLiteralPropertyExpression(frameValue, "scope")
-    if (scope) flattenStaticObjectExpression(scope, "scope", values)
+    if (scope) flattenStaticObjectExpression(scope, "scope", values, context)
 
     const providers = objectLiteralPropertyExpression(frameValue, "providers")
-    if (providers) flattenProviderStaticValues(providers, values)
+    if (providers) flattenProviderStaticValues(providers, values, context)
   }
 
   for (const [providerName, selection] of Object.entries(providerVariants ?? {})) {
@@ -3333,7 +3976,11 @@ function objectLiteralPropertyExpression(objectLiteral: ts.ObjectLiteralExpressi
   return property ? unwrapExpression(property.initializer) : undefined
 }
 
-function flattenProviderStaticValues(expression: ts.Expression, values: Map<string, StaticBranchValue>) {
+function flattenProviderStaticValues(
+  expression: ts.Expression,
+  values: Map<string, StaticBranchValue>,
+  context?: JSXBranchAnalysisContext,
+) {
   const providersValue = unwrapExpression(expression)
   if (!ts.isArrayLiteralExpression(providersValue)) return
 
@@ -3345,7 +3992,7 @@ function flattenProviderStaticValues(expression: ts.Expression, values: Map<stri
     const valueExpression = entry.elements[1] ? unwrapExpression(entry.elements[1]) : undefined
     if (!providerExpression || !ts.isIdentifier(providerExpression) || !valueExpression) continue
 
-    flattenStaticObjectExpression(valueExpression, `context.${providerExpression.text}`, values)
+    flattenStaticObjectExpression(valueExpression, `context.${providerExpression.text}`, values, context)
   }
 }
 

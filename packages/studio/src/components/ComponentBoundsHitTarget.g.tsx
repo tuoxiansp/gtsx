@@ -13,15 +13,19 @@ export default function ComponentBoundsHitTarget(props: ComponentBoundsHitTarget
       aria-hidden="true"
       data-runelight-card-select-coordinate={props.coordinate}
       data-runelight-card-select-target="component-bounds"
-      onClick={(event) => {
-        event.stopPropagation()
-        props.onSelect?.()
-      }}
-      onPointerDown={(event) => event.stopPropagation()}
+      onClick={
+        props.onSelect
+          ? (event) => {
+              event.stopPropagation()
+              props.onSelect?.()
+            }
+          : undefined
+      }
+      onPointerDown={props.onSelect ? (event) => event.stopPropagation() : undefined}
       style={{
         height: props.rect.height,
         left: props.rect.x,
-        pointerEvents: "auto",
+        pointerEvents: props.onSelect ? "auto" : "none",
         position: "absolute",
         top: props.rect.y,
         width: props.rect.width,

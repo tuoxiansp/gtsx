@@ -37,6 +37,7 @@ export {
   createStudioWorkspaceState,
   createStudioWorkspaceStateFromUrl,
   createStudioWorkspaceUrlSearchParams,
+  currentStudioChangesPreviewTargets,
   currentStudioDesignPreviewTargets,
   currentStudioPreviewTargets,
   defaultStudioCanvasTransform,

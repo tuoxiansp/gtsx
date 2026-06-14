@@ -18,13 +18,13 @@ The adapter uses `@runelight/react/preview` internally; user projects should not
 - Wrap config with `runelightNextReact` from `@runelight/adapter-next-react`.
 - Use `runelightNextReact()` without statically importing the Runelight config from `next.config.*`; the adapter loads the Runelight config only when Runelight preview entries are active.
 - `.g.tsx` files are production React components. Do not move normal app imports away from `.g.tsx`; isolate only preview routes, generated preview entries, Studio route helpers, and config loading from production.
-- `@runelight/studio` ships a prebuilt Studio app. Next route files should call `@runelight/adapter-next-react/studio-route` helpers; app code should not import React Studio source.
-- The Next preview/studio integration is development-only. Normal setup must not change production app behavior, expose usable `/runelight*` production routes, or read/write `.runelight` at production runtime.
-- The adapter generates `.runelight/preview-entries.ts` and wires webpack/Turbopack for preview imports when Runelight preview entries are active. Do not add a custom `.g.tsx` Turbopack loader in app code.
+- `@runelight/studio` ships a prebuilt Studio app. Next static Studio routes should call `@runelight/adapter-next-react/studio-route`; the manifest route should call `@runelight/adapter-next-react/studio-manifest-route`. App code should not import React Studio source.
+- The Next preview/studio integration is development-only. Normal setup must not change production app behavior, expose usable `/runelight*` production routes, or read/write `${project.entryRoot}/.runelight/` at production runtime.
+- The adapter generates `${project.entryRoot}/.runelight/preview-entries.ts` and workspace-change baselines under `${project.entryRoot}/.runelight/baselines/HEAD/` by default, then wires webpack/Turbopack for preview imports when Runelight preview entries are active. Ensure `.gitignore` contains `.runelight/`; that single directory pattern covers this generated folder at any depth. For `src/app` projects, set `project.entryRoot: "src/app/runelight"` so generated files stay inside `src` without extra adapter output configuration. Do not add user-authored preview entry imports or a custom `.g.tsx` Turbopack loader in app code.
 - Record the local Runelight route entry directory in `project.entryRoot`. Design frames live in `${project.entryRoot}/design`; do not add a `designRoot` config key.
 - During setup, create the empty `${project.entryRoot}/design` directory. Do not add placeholder frames; the first `design-runelight-react` request writes the first `.g.tsx` frame.
-- In upgrade/ensure mode, do not rewrite `next.config.*`, Runelight config, or `app/runelight/*` if they already exist and pass verification; only update packages and add missing design-directory support.
-- After package upgrades, rerun Next.js typecheck/dev verification. If adapter exports, route helper signatures, generated `.runelight/preview-entries.ts`, or manifest generation changed, migrate only the affected glue while preserving existing route isolation and config-wrapper composition.
+- In upgrade/ensure mode, do not rewrite `next.config.*`, Runelight config, or existing `${project.entryRoot}/*` route files if they already exist and pass verification; only update packages and add missing design-directory support.
+- After package upgrades, rerun Next.js typecheck/dev verification. If adapter exports, route helper signatures, generated preview entry registry wiring, or manifest generation changed, migrate only the affected glue while preserving existing route isolation and config-wrapper composition.
 - Preserve existing Next.js config wrappers. If the project exports `withMDX(nextConfig)`, `withContentlayer(nextConfig)`, `createNextIntlPlugin(...)(nextConfig)`, or another wrapper, apply `runelightNextReact()` around the existing composed config without statically importing the Runelight config.
 - Use `project.sourceRoot: "."` for root-level `app`, `components`, or `lib`; use `src` only when the app source lives under `src`.
 - Configure `host.command` as the direct Next.js dev command that `runelight serve` wraps, with `{port}` as the port placeholder: `npx next dev --hostname 127.0.0.1 --port {port}` for npm, `pnpm exec next dev --hostname 127.0.0.1 --port {port}` for pnpm. Do not point `host.command` at a package script that itself runs `runelight serve`.
@@ -40,7 +40,7 @@ const nextConfig: NextConfig = {}
 export default runelightNextReact()(nextConfig)
 ```
 
-`runelight.config.ts`:
+`runelight.config.ts` example for a `src/app` project. For a root-level `app` project, use `sourceRoot: "."` and `entryRoot: "app/runelight"` instead.
 
 ```ts
 import { defineRunelightConfig } from "@runelight/core"
@@ -48,8 +48,8 @@ import { defineRunelightConfig } from "@runelight/core"
 export default defineRunelightConfig({
   contracts: ["@runelight/react/contract"],
   project: {
-    sourceRoot: ".",
-    entryRoot: "app/runelight",
+    sourceRoot: "src",
+    entryRoot: "src/app/runelight",
     namespace: "my-project",
   },
   host: {
@@ -58,13 +58,13 @@ export default defineRunelightConfig({
 })
 ```
 
-`runelight serve` substitutes `{port}` with the Runelight-owned port, sets `RUNELIGHT_DEV=1`, and prints the serve and Studio URLs. Routes are fixed at `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest`; they are not configurable.
+`runelight serve` substitutes `{port}` with the Runelight-owned port, sets `RUNELIGHT_DEV=1`, and prints the serve and Studio URLs. Routes are fixed and not configurable: `/runelight`, `/runelight/studio`, `/runelight/studio/manifest`, plus adapter-owned internal Studio sidecar routes `/runelight/studio/events` and `/runelight/studio/changes`.
 
 ## Route Files
 
 ### App Router Layout Boundary Audit And Remediation
 
-Before adding `app/runelight/*`, audit and clean the route layout chain that will wrap `/runelight` and `/runelight/studio`. Treat this as a setup gate, not a browser-only verification step.
+Before adding `${project.entryRoot}/*`, audit and clean the route layout chain that will wrap `/runelight` and `/runelight/studio`. Treat this as a setup gate, not a browser-only verification step.
 
 For App Router projects, a `page.tsx` cannot opt out of ancestor layouts. If `app/layout.tsx` or any parent segment layout mounts production shell code, `/runelight` will execute that code too. That includes ordinary client components, providers, router hooks, timers, subscriptions, and network/query effects. Passing `runelight check` does not prove this boundary is clean; `runelight check` validates `.g.tsx` entries and their resolvable `.g.tsx` dependencies, not the Next.js layout tree.
 
@@ -78,7 +78,9 @@ Use source inspection first. Search the inherited layout chain and its imported 
 
 The preview/studio route is clean only if the inherited layout chain is limited to static document and visual setup: `<html>`, `<body>`, global CSS imports, font classes, static theme classes or `data-*` attributes, metadata, and non-hook bootstrap scripts.
 
-If the root layout contains production shell behavior, remove the risk before claiming setup is complete. Do not hide it in `app/runelight/page.tsx`, and do not rely on runtime guards inside preview/studio. The supported App Router remediation is to isolate layouts with route groups:
+If the root layout contains production shell behavior, remove the risk before claiming setup is complete. Do not hide it in `${project.entryRoot}/page.tsx`, and do not rely on runtime guards inside preview/studio. The supported App Router remediation is to isolate layouts with route groups.
+
+Root-level `app` example; for `src/app` projects, use the same structure under `src/app` and keep `project.entryRoot` set to `src/app/runelight`:
 
 ```txt
 app/layout.tsx              # minimal document shell only
@@ -93,7 +95,7 @@ app/runelight/studio/manifest/route.ts
 When applying that remediation:
 
 - Preserve public URLs; route group folder names like `(app)` do not appear in URLs.
-- Move only production route segments under the production route group. Keep `app/runelight/*` outside it.
+- Move only production route segments under the production route group. Keep `${project.entryRoot}/*` outside it.
 - Leave the root layout as the minimal document and visual shell shared by all routes.
 - Keep production providers, navigation, app clients, subscriptions, and data fetching inside the production route group layout.
 - Copy only visual setup needed by Runelight into the minimal root layout or the `/runelight` static wrapper: CSS imports, font classes, theme attributes, and non-hook bootstrap scripts.
@@ -109,7 +111,7 @@ Before writing the route files, identify the visual environment used by the comp
 
 The `/runelight` preview route must load those visual pieces too. This route is a preview adapter entry, not the production app shell: use imports and static wrappers, not hookful production providers or layouts.
 
-`app/runelight/preview-client.tsx`:
+`${project.entryRoot}/preview-client.tsx`:
 
 ```tsx
 "use client"
@@ -117,7 +119,7 @@ The `/runelight` preview route must load those visual pieces too. This route is 
 export { RunelightNextPreviewClient } from "@runelight/adapter-next-react/preview"
 ```
 
-`app/runelight/page.tsx`:
+`${project.entryRoot}/page.tsx`:
 
 ```tsx
 import { notFound } from "next/navigation"
@@ -150,7 +152,7 @@ export default async function RunelightPreviewPage(props: RunelightPreviewPagePr
 
 Replace the `contents` wrapper with the project's static visual shell when needed, for example a style/base-color class wrapper. Do not use a production provider component just to get those classes if that provider runs hooks.
 
-`app/runelight/studio/route.ts`:
+`${project.entryRoot}/studio/route.ts`:
 
 ```ts
 import { createRunelightNextStudioResponse } from "@runelight/adapter-next-react/studio-route"
@@ -162,7 +164,7 @@ export async function GET() {
 }
 ```
 
-`app/runelight/studio/assets/[...asset]/route.ts`:
+`${project.entryRoot}/studio/assets/[...asset]/route.ts`:
 
 ```ts
 import { createRunelightNextStudioAssetResponse } from "@runelight/adapter-next-react/studio-route"
@@ -179,10 +181,10 @@ export async function GET(_request: Request, props: RunelightStudioAssetRoutePro
 }
 ```
 
-`app/runelight/studio/manifest/route.ts`:
+`${project.entryRoot}/studio/manifest/route.ts`:
 
 ```ts
-import { createRunelightNextStudioManifestResponse } from "@runelight/adapter-next-react/studio-route"
+import { createRunelightNextStudioManifestResponse } from "@runelight/adapter-next-react/studio-manifest-route"
 
 export const dynamic = "force-dynamic"
 

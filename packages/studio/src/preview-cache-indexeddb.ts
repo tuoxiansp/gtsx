@@ -1,6 +1,6 @@
 "use client"
 
-import type { GBoundaryTreeNode } from "@runelight/core/preview-protocol"
+import type { GBoundaryTreeNode, GRenderedSnapshot } from "@runelight/core/preview-protocol"
 
 import type { StudioManifest } from "./manifest"
 import type { StudioPreviewCacheEntry, StudioPreviewFrameState } from "./client"
@@ -20,6 +20,7 @@ type PersistedStudioPreviewFrameState = {
     width: number
     height: number
   }
+  renderedSnapshot?: GRenderedSnapshot
   tree?: GBoundaryTreeNode[]
 }
 
@@ -108,12 +109,13 @@ export async function writeStudioPreviewIndexedDBCache(
 }
 
 function persistedStudioPreviewFrameState(state: StudioPreviewFrameState): PersistedStudioPreviewFrameState | undefined {
-  if (!state.tree && !state.size) return undefined
+  if (!state.tree && !state.size && !state.renderedSnapshot) return undefined
 
   return {
     expectedSessionId: state.expectedSessionId,
     ready: state.ready,
     ...(state.size ? { size: state.size } : {}),
+    ...(state.renderedSnapshot ? { renderedSnapshot: state.renderedSnapshot } : {}),
     ...(state.tree ? { tree: state.tree } : {}),
   }
 }

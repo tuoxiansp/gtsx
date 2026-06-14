@@ -46,9 +46,66 @@ describe("Runelight Vue support", () => {
         ],
         diagnostics: [],
       })
+      expect(index.files[0]?.components[0]?.frameDependencies).toEqual({
+        loading: [],
+        ready: [],
+      })
+      expect(Object.keys(index.files[0]?.components[0]?.frameVisualSignatures ?? {})).toEqual(["loading", "ready"])
+      expect(index.files[0]?.components[0]?.visualSignature).toEqual(expect.any(String))
 
       const analysis = analyzeEntry({ cwd, entry: "src/UserCard.g.vue" })
       expect(analysis.frames.map((frame) => frame.name)).toEqual(["loading", "ready"])
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("indexes Vue frame-level visual dependencies from reachable template branches", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-vue-frame-deps-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      writeFileSync(
+        join(cwd, "src/Child.g.vue"),
+        [
+          "<template>",
+          "  <span>Child</span>",
+          "</template>",
+          "<g:frames>",
+          "export default { ready: {} }",
+          "</g:frames>",
+        ].join("\n"),
+      )
+      writeFileSync(
+        join(cwd, "src/Root.g.vue"),
+        [
+          "<template>",
+          "  <section>",
+          "    <Child v-if=\"showChild\" />",
+          "    <p v-else>Plain</p>",
+          "  </section>",
+          "</template>",
+          "<script setup lang=\"ts\">",
+          "import Child from './Child.g.vue'",
+          "</script>",
+          "<g:frames>",
+          "export default {",
+          "  plain: { scope: { showChild: false } },",
+          "  withChild: { scope: { showChild: true } },",
+          "}",
+          "</g:frames>",
+        ].join("\n"),
+      )
+
+      const index = buildRunelightProjectIndex({ contracts: [runelightVueContract], cwd, sourceRoot: "src" })
+      const root = index.files.find((file) => file.path === "src/Root.g.vue")?.components[0]
+
+      expect(root?.dependencies).toEqual(["src/Child.g.vue#default"])
+      expect(root?.frameDependencies).toEqual({
+        plain: [],
+        withChild: ["src/Child.g.vue#default"],
+      })
+      expect(root?.frameVisualSignatures?.plain).not.toBe(root?.frameVisualSignatures?.withChild)
     } finally {
       rmSync(cwd, { force: true, recursive: true })
     }

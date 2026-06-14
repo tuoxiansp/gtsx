@@ -32,3 +32,11 @@ export const studioComponentFrameLabelMinHeight = runelightPreviewFrameLabelMinH
 export const studioComponentFrameChromeHeight = runelightPreviewFrameChromeHeight
 export const studioComponentFrameGridMinScale = runelightPreviewFrameGridMinScale
 export const studioComponentFrameMismatchBorderOutset = runelightPreviewFrameMismatchBorderOutset
+export const studioComponentCardDefaultMinWidth = 280
+
+export function studioComponentCardWidth(
+  frameGridWidth: number,
+  minWidth = studioComponentCardDefaultMinWidth,
+): number {
+  return Math.max(minWidth, frameGridWidth)
+}

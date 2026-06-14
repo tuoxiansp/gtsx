@@ -1,6 +1,6 @@
 import { join } from "node:path"
-import type { GBoundaryTreeNode } from "@runelight/core/preview-protocol"
-import { isGPreviewSessionMessage } from "@runelight/core/preview-protocol"
+import type { GBoundaryTreeNode, GRenderedSnapshot } from "@runelight/core/preview-protocol"
+import { G_RENDERED_SNAPSHOT_VERSION, isGPreviewSessionMessage } from "@runelight/core/preview-protocol"
 import { renderToStaticMarkup } from "react-dom/server"
 import { buildRunelightProjectIndex } from "@runelight/core/project-index"
 import { runelightReactContract } from "@runelight/react/contract"
@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vitest"
 import {
   StudioShell,
   StudioWorkspaceView,
+  type StudioManifest,
   type StudioManifestComponent,
   createStudioManifest,
   discoverStudioDesignManifest,
@@ -36,7 +37,9 @@ import {
   createStudioWorkspaceStateFromUrl,
   createStudioWorkspaceState,
   createStudioWorkspaceUrlSearchParams,
+  currentStudioChangesPreviewTargets,
   currentStudioDesignPreviewTargets,
+  currentStudioPreviewTargets,
   defaultStudioCanvasTransform,
   defaultStudioPreviewRenderQueueMaximumConcurrentRenderTasksDuringCanvasMovement,
   defaultStudioPreviewRenderQueueMinimumVisibleRenderTasksDuringCanvasMovement,
@@ -79,14 +82,16 @@ import ComponentCard from "../src/components/ComponentCard.g.js"
 import LazyPreviewFrame from "../src/components/LazyPreviewFrame.g.js"
 import PreviewFrameSheet from "../src/components/PreviewFrameSheet.g.js"
 import PreviewMessage from "../src/components/PreviewMessage.g.js"
+import StudioChangesWorkspace from "../src/components/StudioChangesWorkspace.g.js"
+import StudioDesignWorkspace from "../src/components/StudioDesignWorkspace.g.js"
 import {
   layoutNeutralDrilldownColumnEnterIdentity,
   preserveStudioCanvasViewportAnchor,
 } from "../src/components/StudioWorkspaceView.g.js"
+import { studioPreviewGeometryCacheKeySignature } from "../src/components/StudioShell.js"
 import { domRectToLocalStudioCanvasScreenRect } from "../src/studio-canvas-geometry.js"
 import BufferedPreviewIframe from "../src/components/BufferedPreviewIframe.g.js"
 import {
-  studioPreviewIframePoolDimOverlayPlacementForAnchor,
   selectStudioPreviewIframePoolEntryForBorrow,
   studioPreviewIframePoolEntryCanUseDirectRenderEndpoint,
   studioPreviewIframeBorrowInputNeedsRender,
@@ -97,6 +102,7 @@ import {
   studioPreviewIframePoolNextPendingRenderDeliveryAttemptCount,
 } from "../src/preview-iframe-pool.js"
 import { studioPreviewIndexedDBNamespace } from "../src/preview-cache-indexeddb.js"
+import { createStudioRequestCoalescer } from "../src/studio-request-coalescer.js"
 import {
   mergeStudioPreviewRenderRequestPolicies,
   mergeStudioPreviewRenderSchedulerRunOptions,
@@ -120,6 +126,7 @@ import {
   visibleStudioPreviewSessionIds,
 } from "../src/preview-lazy-loading.js"
 import { studioCanvasScreenStableChromeHostStyle } from "../src/studio-canvas-screen-stable-chrome.js"
+import type { StudioPreviewGeometryCacheStore } from "../src/preview-geometry-cache-store.js"
 
 const fixtureRoot = join(import.meta.dirname, "../../core/test/fixtures/check-project")
 const examplesRoot = join(import.meta.dirname, "../../../examples/react-vite")
@@ -127,6 +134,97 @@ const studioRoot = join(import.meta.dirname, "..")
 const tsProjectScopeRoot = join(import.meta.dirname, "../../core/test/fixtures/ts-project-scope")
 
 type CreateStudioManifestOptions = NonNullable<Parameters<typeof createStudioManifest>[1]>
+
+function createDeferredPromise() {
+  let resolve!: () => void
+  const promise = new Promise<void>((nextResolve) => {
+    resolve = nextResolve
+  })
+  return { promise, resolve }
+}
+
+function waitForMicrotasks() {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+function createStaticPreviewGeometryStore(
+  frameStatesBySessionId: Record<string, ReturnType<typeof readyPreviewFrameState>>,
+): StudioPreviewGeometryCacheStore {
+  return {
+    cacheKeys: [],
+    getFrameState(sessionId) {
+      return frameStatesBySessionId[sessionId]
+    },
+    getLayoutFrameState(sessionId) {
+      return frameStatesBySessionId[sessionId]
+    },
+    getMergedFrameState(sessionId) {
+      return frameStatesBySessionId[sessionId]
+    },
+    getSnapshot() {
+      return {}
+    },
+    getVersionForKeys(keys) {
+      return keys.map((key) => `${key}:ready`).join("|")
+    },
+    async hydrate() {
+      return {}
+    },
+    markSessionRenderStarted() {
+      return false
+    },
+    putMessages() {
+      return { changed: false, entriesToWrite: {}, snapshot: {} }
+    },
+    reset() {},
+    subscribe() {
+      return () => {}
+    },
+    async writeEntries() {},
+    namespace: "test",
+  }
+}
+
+function readyPreviewFrameState(
+  sessionId: string,
+  coordinate: string,
+  rect: GBoundaryTreeNode["rect"] = { x: 0, y: 0, width: 320, height: 180 },
+) {
+  return {
+    expectedSessionId: sessionId,
+    ready: true,
+    size: { width: 320, height: 180 },
+    tree: [
+      {
+        id: `${sessionId}:root`,
+        coordinate,
+        rect,
+        children: [],
+      },
+    ] satisfies GBoundaryTreeNode[],
+  }
+}
+
+function renderedSnapshot(hash: string): GRenderedSnapshot {
+  return {
+    hash,
+    nodes: [],
+    version: G_RENDERED_SNAPSHOT_VERSION,
+    viewport: { width: 768, height: 1024 },
+  }
+}
+
+function readyRenderedPreviewFrameState(
+  component: StudioManifestComponent,
+  frameName: string,
+  hash: string,
+) {
+  const sessionId = previewSessionId(component, frameName, "tablet")
+  return {
+    ...readyPreviewFrameState(sessionId, component.coordinate),
+    renderedSnapshot: renderedSnapshot(hash),
+  }
+}
 
 function buildStudioManifest(
   options: { cwd: string; sourceRoot: string; tsconfigPath?: string } & CreateStudioManifestOptions,
@@ -197,6 +295,52 @@ function createFakeStudioPreviewRenderRequestClockScheduler(): StudioPreviewRend
 }
 
 describe("Runelight Studio shell", () => {
+  it("replays the latest Studio reload after an in-flight reload completes", async () => {
+    const first = createDeferredPromise()
+    const second = createDeferredPromise()
+    const runs: string[] = []
+    const queue = createStudioRequestCoalescer<{ id: string }>(async (request) => {
+      runs.push(request.id)
+      await (runs.length === 1 ? first.promise : second.promise)
+    })
+
+    expect(queue.request({ id: "initial" })).toBe("started")
+    expect(queue.request({ id: "stale-sse" })).toBe("queued")
+    expect(queue.request({ id: "latest-sse" })).toBe("queued")
+    expect(runs).toEqual([])
+
+    await waitForMicrotasks()
+    expect(runs).toEqual(["initial"])
+
+    first.resolve()
+    await waitForMicrotasks()
+    expect(runs).toEqual(["initial", "latest-sse"])
+
+    second.resolve()
+    await queue.whenIdle()
+    expect(queue.hasPendingRequest()).toBe(false)
+  })
+
+  it("lets in-flight Studio reloads avoid applying stale results when a newer reload is pending", async () => {
+    const first = createDeferredPromise()
+    const second = createDeferredPromise()
+    const applied: string[] = []
+    const queue = createStudioRequestCoalescer<{ id: string }>(async (request, context) => {
+      await (request.id === "initial" ? first.promise : second.promise)
+      if (!context.hasPendingRequest()) applied.push(request.id)
+    })
+
+    queue.request({ id: "initial" })
+    queue.request({ id: "latest-sse" })
+    first.resolve()
+    await waitForMicrotasks()
+    expect(applied).toEqual([])
+
+    second.resolve()
+    await queue.whenIdle()
+    expect(applied).toEqual(["latest-sse"])
+  })
+
   it("renders preview route messages from a Runelight visual component", () => {
     const html = renderToStaticMarkup(<PreviewMessage title="Missing entry" detail="Pass an entry query parameter." />)
 
@@ -415,6 +559,833 @@ describe("Runelight Studio shell", () => {
     expect(cardCoordinates(html)).toEqual(["src/UserCard.g.tsx#default"])
   })
 
+  it("uses the changes workspace as the default Studio tab when workspace changes are present", () => {
+    const manifest = buildLargeStudioManifest(1)
+    const file = manifest.files[0]
+    const component = file.components[0]
+    const changes = {
+      version: 1 as const,
+      base: { kind: "git" as const, baselineRoot: ".runelight/baselines/HEAD", ref: "HEAD" },
+      items: [
+        {
+          filePath: file.path,
+          kind: "modified" as const,
+          surface: "frames" as const,
+          currentFile: file,
+          impacts: [
+            {
+              frameNames: component.frames.map((frame) => frame.name),
+              rootComponentName: component.componentName,
+              rootCoordinate: component.coordinate,
+              surface: "frames" as const,
+              path: [{ componentName: component.componentName, coordinate: component.coordinate }],
+            },
+          ],
+        },
+      ],
+    }
+
+    const html = renderToStaticMarkup(<StudioShell changes={changes} manifest={manifest} />)
+
+    expect(html).toContain('data-runelight-studio-changes-workspace="true"')
+    expect(html).toContain('data-runelight-studio-changes-canvas="true"')
+    expect(html).not.toContain('data-runelight-studio-changes-list="true"')
+    expect(html).toContain('data-runelight-studio-change-section="modified"')
+    expect(html).toContain('data-runelight-studio-change-section-tag="modified"')
+    expect(sectionTagHtml(html, "modified")).toContain("background:rgba(255,200,80,0.1)")
+    expect(sectionTagHtml(html, "modified")).toContain("color:#f0d080")
+    expect(html).toContain('data-runelight-studio-change-item="src/Card000.g.tsx"')
+    expect(html).toContain('data-runelight-studio-change-pane="current"')
+    expect(html).toContain('data-runelight-card-coordinate="src/Card000.g.tsx#default"')
+    expect(html).not.toContain('data-runelight-studio-change-pane="before"')
+    expect(canvasSurfaceHtml(html)).not.toContain("grid-template-columns:repeat(2,max-content)")
+  })
+
+  it("uses the changes workspace as the default while deferred changes are loading", () => {
+    const manifest = buildLargeStudioManifest(4)
+    const html = renderToStaticMarkup(<StudioShell changesLoading manifest={manifest} />)
+
+    expect(html).toContain('data-runelight-studio-changes-workspace="true"')
+    expect(html).toContain('data-runelight-studio-changes-loading="true"')
+    expect(html).toContain("Loading workspace changes")
+    expect(html).not.toContain('data-runelight-card-coordinate="src/Card000.g.tsx#default"')
+  })
+
+  it("opens a lightweight changes workspace for an explicit changes route while deferred changes are loading", () => {
+    const manifest = buildLargeStudioManifest(4)
+    const html = renderToStaticMarkup(<StudioShell changesLoading manifest={manifest} urlSearch="?view=changes" />)
+
+    expect(html).toContain('data-runelight-studio-changes-workspace="true"')
+    expect(html).toContain('data-runelight-studio-changes-loading="true"')
+    expect(html).toContain("Loading workspace changes")
+    expect(html).not.toContain('data-runelight-card-coordinate="src/Card000.g.tsx#default"')
+  })
+
+  it("renders deleted changes from the baseline manifest in the before pane", () => {
+    const manifest = buildLargeStudioManifest(0)
+    const baselineComponent = {
+      coordinate: ".runelight/baselines/HEAD/src/Deleted.g.tsx#default",
+      filePath: ".runelight/baselines/HEAD/src/Deleted.g.tsx",
+      sourceHash: "deleted-source",
+      exportName: "default",
+      componentName: "DeletedCard",
+      mode: "pure",
+      frames: [{ kind: "pure", name: "live" }],
+      providers: {},
+      diagnostics: [],
+    } satisfies StudioManifestComponent
+    const baselineFile = {
+      path: ".runelight/baselines/HEAD/src/Deleted.g.tsx",
+      sourceHash: "deleted-source",
+      components: [baselineComponent],
+      diagnostics: [],
+    }
+    const baselineManifest = {
+      ...manifest,
+      files: [baselineFile],
+    }
+    const changes = {
+      version: 1 as const,
+      base: { kind: "git" as const, baselineRoot: ".runelight/baselines/HEAD", ref: "HEAD", manifest: baselineManifest },
+      items: [
+        {
+          filePath: "src/Deleted.g.tsx",
+          kind: "deleted" as const,
+          surface: "frames" as const,
+          baselineFile,
+          baselineImpacts: [
+            {
+              frameNames: ["live"],
+              frames: [{ kind: "deleted" as const, name: "live" }],
+              rootComponentName: "DeletedCard",
+              rootCoordinate: baselineComponent.coordinate,
+              surface: "frames" as const,
+              path: [{ componentName: "DeletedCard", coordinate: baselineComponent.coordinate }],
+            },
+          ],
+          impacts: [
+            {
+              frameNames: ["live"],
+              frames: [{ kind: "deleted" as const, name: "live" }],
+              rootComponentName: "DeletedCard",
+              rootCoordinate: baselineComponent.coordinate,
+              surface: "frames" as const,
+              path: [{ componentName: "DeletedCard", coordinate: baselineComponent.coordinate }],
+            },
+          ],
+        },
+      ],
+    }
+
+    const html = renderToStaticMarkup(<StudioShell changes={changes} manifest={manifest} />)
+
+    expect(html).toContain('data-runelight-studio-change-pane="before"')
+    expect(html).toContain('data-runelight-studio-change-section="deleted"')
+    expect(html).toContain('data-runelight-studio-change-section-tag="deleted"')
+    expect(html).toContain('data-runelight-studio-change-preview-components="before"')
+    expect(html).toContain('data-runelight-card-coordinate=".runelight/baselines/HEAD/src/Deleted.g.tsx#default"')
+    expect(html).toContain('data-runelight-frame-change-state="deleted"')
+    expect(html).toContain('data-runelight-frame-change-deleted-overlay="live"')
+    expect(deletedFrameOverlayHtml(html, "live")).toContain("height:")
+    expect(deletedFrameOverlayHtml(html, "live")).toContain("width:")
+    expect(deletedFrameOverlayHtml(html, "live")).not.toContain("inset:0")
+    expect(html).toContain('data-runelight-frame-change-badge="deleted"')
+    expect(html).not.toContain('data-runelight-studio-change-pane="current"')
+    expect(html).not.toContain('data-runelight-studio-change-preview-empty="current"')
+    expect(html).toContain('data-runelight-studio-change-deleted-card="true"')
+  })
+
+  it("renders added changes without a redundant before pane", () => {
+    const manifest = buildLargeStudioManifest(1)
+    const file = manifest.files[0]
+    const component = file.components[0]
+    const changes = {
+      version: 1 as const,
+      base: { kind: "git" as const, baselineRoot: ".runelight/baselines/HEAD", ref: "HEAD" },
+      items: [
+        {
+          filePath: file.path,
+          kind: "added" as const,
+          surface: "frames" as const,
+          currentFile: file,
+          impacts: [
+            {
+              frameNames: component.frames.map((frame) => frame.name),
+              rootComponentName: component.componentName,
+              rootCoordinate: component.coordinate,
+              surface: "frames" as const,
+              path: [{ componentName: component.componentName, coordinate: component.coordinate }],
+            },
+          ],
+        },
+      ],
+    }
+
+    const html = renderToStaticMarkup(<StudioShell changes={changes} manifest={manifest} />)
+
+    expect(html).toContain('data-runelight-studio-change-pane="current"')
+    expect(html).toContain('data-runelight-studio-change-section="added"')
+    expect(html).toContain('data-runelight-studio-change-section-tag="added"')
+    expect(html).toContain('data-runelight-studio-change-preview-components="current"')
+    expect(html).toContain('data-runelight-card-coordinate="src/Card000.g.tsx#default"')
+    expect(frameTileHtml(html, "default")).toContain("cursor:grab")
+    expect(frameTileHtml(html, "default")).not.toContain('role="button"')
+    expect(changeSectionItemsHtml(html, "added")).toContain("gap:42px 42px")
+    expect(html).not.toContain('data-runelight-card-title-selected="true"')
+    expect(changeSectionHtml(html, "added")).not.toContain("data-runelight-canvas-wheel-exempt")
+    expect(changeGroupHtml(html, `frames:${component.coordinate}`)).not.toContain("data-runelight-canvas-wheel-exempt")
+    expect(changePaneHtml(html, "current")).not.toContain("data-runelight-canvas-wheel-exempt")
+    expect(html).not.toContain('data-runelight-studio-change-pane="before"')
+    expect(html).not.toContain('data-runelight-studio-change-preview-empty="before"')
+  })
+
+  it("renders only frame-level visual diffs inside a modified component", () => {
+    const baseManifest = buildLargeStudioManifest(1)
+    const baseFile = baseManifest.files[0]
+    const baseComponent = baseFile.components[0]
+    const component = {
+      ...baseComponent,
+      frames: [
+        { kind: "scope" as const, name: "default" },
+        { kind: "scope" as const, name: "quiet" },
+      ],
+    } satisfies StudioManifestComponent
+    const file = { ...baseFile, components: [component] }
+    const manifest = { ...baseManifest, files: [file] }
+    const baselineComponent = {
+      ...component,
+      coordinate: ".runelight/baselines/HEAD/src/Card000.g.tsx#default",
+      filePath: ".runelight/baselines/HEAD/src/Card000.g.tsx",
+      sourceHash: "baseline-card-source",
+    } satisfies StudioManifestComponent
+    const baselineFile = {
+      path: ".runelight/baselines/HEAD/src/Card000.g.tsx",
+      sourceHash: "baseline-card-source",
+      components: [baselineComponent],
+      diagnostics: [],
+    }
+    const baselineManifest = {
+      ...manifest,
+      files: [baselineFile],
+    }
+    const changes = {
+      version: 1 as const,
+      base: { kind: "git" as const, baselineRoot: ".runelight/baselines/HEAD", ref: "HEAD", manifest: baselineManifest },
+      items: [
+        {
+          filePath: file.path,
+          kind: "modified" as const,
+          surface: "frames" as const,
+          currentFile: file,
+          baselineFile,
+          baselineImpacts: [
+            {
+              frameNames: ["default", "quiet"],
+              frames: [
+                { kind: "changed" as const, name: "default" },
+                { kind: "unchanged" as const, name: "quiet" },
+              ],
+              rootComponentName: baselineComponent.componentName,
+              rootCoordinate: baselineComponent.coordinate,
+              surface: "frames" as const,
+              path: [{ componentName: baselineComponent.componentName, coordinate: baselineComponent.coordinate }],
+            },
+          ],
+          impacts: [
+            {
+              frameNames: ["default", "quiet"],
+              frames: [
+                { kind: "changed" as const, name: "default" },
+                { kind: "unchanged" as const, name: "quiet" },
+              ],
+              rootComponentName: component.componentName,
+              rootCoordinate: component.coordinate,
+              surface: "frames" as const,
+              path: [{ componentName: component.componentName, coordinate: component.coordinate }],
+            },
+          ],
+        },
+      ],
+    }
+
+    const previewCache = {
+      [studioPreviewCacheKey(baselineComponent, "default", "tablet")]: {
+        frameState: readyRenderedPreviewFrameState(baselineComponent, "default", "before-render"),
+        lastUsedAt: 1,
+      },
+      [studioPreviewCacheKey(component, "default", "tablet")]: {
+        frameState: readyRenderedPreviewFrameState(component, "default", "current-render"),
+        lastUsedAt: 1,
+      },
+    }
+
+    const html = renderToStaticMarkup(
+      <StudioChangesWorkspace changes={changes} manifest={manifest} previewCache={previewCache} />,
+    )
+
+    expect(html).toContain('data-runelight-studio-change-item="src/Card000.g.tsx"')
+    expect(html).not.toContain('data-runelight-studio-change-frame-summary')
+    expect(html).toContain('data-runelight-frame-change-badge="changed"')
+    expect(html).toContain('data-runelight-frame-tile="default"')
+    expect(html).not.toContain('data-runelight-frame-tile="quiet"')
+    expect(html).not.toContain(">quiet<")
+  })
+
+  it("aggregates child component changes onto the affected root component canvas card", () => {
+    const root = {
+      coordinate: "src/Root.g.tsx#default",
+      filePath: "src/Root.g.tsx",
+      sourceHash: "root-source",
+      exportName: "default",
+      componentName: "Root",
+      mode: "pure",
+      frames: [{ kind: "pure" as const, name: "default" }],
+      providers: {},
+      dependencies: ["src/Child.g.tsx#default"],
+      diagnostics: [],
+    } satisfies StudioManifestComponent
+    const child = {
+      coordinate: "src/Child.g.tsx#default",
+      filePath: "src/Child.g.tsx",
+      sourceHash: "child-source",
+      exportName: "default",
+      componentName: "Child",
+      mode: "pure",
+      frames: [{ kind: "pure" as const, name: "default" }],
+      providers: {},
+      diagnostics: [],
+    } satisfies StudioManifestComponent
+    const rootFile = {
+      path: "src/Root.g.tsx",
+      sourceHash: "root-source",
+      components: [root],
+      diagnostics: [],
+    }
+    const childFile = {
+      path: "src/Child.g.tsx",
+      sourceHash: "child-source",
+      components: [child],
+      diagnostics: [],
+    }
+    const manifest = {
+      ...buildLargeStudioManifest(0),
+      files: [rootFile, childFile],
+    }
+    const baselineRootPath = "src/app/runelight/.runelight/baselines/HEAD"
+    const baselineRoot = {
+      ...root,
+      coordinate: `${baselineRootPath}/src/Root.g.tsx#default`,
+      filePath: `${baselineRootPath}/src/Root.g.tsx`,
+      sourceHash: "baseline-root-source",
+      dependencies: [`${baselineRootPath}/src/Child.g.tsx#default`],
+    } satisfies StudioManifestComponent
+    const baselineChild = {
+      ...child,
+      coordinate: `${baselineRootPath}/src/Child.g.tsx#default`,
+      filePath: `${baselineRootPath}/src/Child.g.tsx`,
+      sourceHash: "baseline-child-source",
+    } satisfies StudioManifestComponent
+    const baselineRootFile = {
+      path: `${baselineRootPath}/src/Root.g.tsx`,
+      sourceHash: "baseline-root-source",
+      components: [baselineRoot],
+      diagnostics: [],
+    }
+    const baselineChildFile = {
+      path: `${baselineRootPath}/src/Child.g.tsx`,
+      sourceHash: "baseline-child-source",
+      components: [baselineChild],
+      diagnostics: [],
+    }
+    const baselineManifest = {
+      ...manifest,
+      files: [baselineRootFile, baselineChildFile],
+    }
+    const changes = {
+      version: 1 as const,
+      base: { kind: "git" as const, baselineRoot: baselineRootPath, ref: "HEAD", manifest: baselineManifest },
+      items: [
+        {
+          filePath: childFile.path,
+          kind: "modified" as const,
+          surface: "frames" as const,
+          currentFile: childFile,
+          baselineFile: baselineChildFile,
+          baselineImpacts: [
+            {
+              frameNames: ["default"],
+              frames: [{ kind: "changed" as const, name: "default" }],
+              rootComponentName: baselineRoot.componentName,
+              rootCoordinate: baselineRoot.coordinate,
+              surface: "frames" as const,
+              path: [
+                { componentName: baselineRoot.componentName, coordinate: baselineRoot.coordinate },
+                { componentName: baselineChild.componentName, coordinate: baselineChild.coordinate },
+              ],
+            },
+          ],
+          impacts: [
+            {
+              frameNames: ["default"],
+              frames: [{ kind: "changed" as const, name: "default" }],
+              rootComponentName: root.componentName,
+              rootCoordinate: root.coordinate,
+              surface: "frames" as const,
+              path: [
+                { componentName: root.componentName, coordinate: root.coordinate },
+                { componentName: child.componentName, coordinate: child.coordinate },
+              ],
+            },
+          ],
+        },
+      ],
+    }
+    const previewCache = {
+      [studioPreviewCacheKey(baselineRoot, "default", "tablet")]: {
+        frameState: readyRenderedPreviewFrameState(baselineRoot, "default", "before-child-render"),
+        lastUsedAt: 1,
+      },
+      [studioPreviewCacheKey(root, "default", "tablet")]: {
+        frameState: readyRenderedPreviewFrameState(root, "default", "current-child-render"),
+        lastUsedAt: 1,
+      },
+    }
+
+    const html = renderToStaticMarkup(
+      <StudioChangesWorkspace changes={changes} manifest={manifest} previewCache={previewCache} />,
+    )
+
+    expect(html).toContain('data-runelight-studio-change-group="frames:src/Root.g.tsx#default"')
+    expect(html).toContain('data-runelight-studio-change-item="src/Child.g.tsx"')
+    expect(html).toContain('data-runelight-studio-change-kind="modified"')
+    expect(html).toContain('data-runelight-studio-change-pane="before"')
+    expect(html).toContain('data-runelight-studio-change-pane="current"')
+    expect(cardCoordinates(html)).toEqual([
+      `${baselineRootPath}/src/Root.g.tsx#default`,
+      "src/Root.g.tsx#default",
+    ])
+  })
+
+  it("waits for rendered snapshots before showing modified changed frames", () => {
+    const baseManifest = buildLargeStudioManifest(1)
+    const baseFile = baseManifest.files[0]
+    const component = baseFile.components[0]
+    const file = { ...baseFile, components: [component] }
+    const baselineComponent = {
+      ...component,
+      coordinate: ".runelight/baselines/HEAD/src/Card000.g.tsx#default",
+      filePath: ".runelight/baselines/HEAD/src/Card000.g.tsx",
+      sourceHash: "baseline-card-source",
+    } satisfies StudioManifestComponent
+    const baselineFile = {
+      path: ".runelight/baselines/HEAD/src/Card000.g.tsx",
+      sourceHash: "baseline-card-source",
+      components: [baselineComponent],
+      diagnostics: [],
+    }
+    const changes = {
+      version: 1 as const,
+      base: { kind: "git" as const, baselineRoot: ".runelight/baselines/HEAD", ref: "HEAD", manifest: { ...baseManifest, files: [baselineFile] } },
+      items: [
+        {
+          filePath: file.path,
+          kind: "modified" as const,
+          surface: "frames" as const,
+          currentFile: file,
+          baselineFile,
+          baselineImpacts: [
+            {
+              frameNames: ["default"],
+              frames: [{ kind: "changed" as const, name: "default" }],
+              rootComponentName: baselineComponent.componentName,
+              rootCoordinate: baselineComponent.coordinate,
+              surface: "frames" as const,
+              path: [{ componentName: baselineComponent.componentName, coordinate: baselineComponent.coordinate }],
+            },
+          ],
+          impacts: [
+            {
+              frameNames: ["default"],
+              frames: [{ kind: "changed" as const, name: "default" }],
+              rootComponentName: component.componentName,
+              rootCoordinate: component.coordinate,
+              surface: "frames" as const,
+              path: [{ componentName: component.componentName, coordinate: component.coordinate }],
+            },
+          ],
+        },
+      ],
+    }
+
+    const html = renderToStaticMarkup(<StudioChangesWorkspace changes={changes} manifest={{ ...baseManifest, files: [file] }} />)
+
+    expect(html).toContain('data-runelight-studio-changes-resolving="true"')
+    expect(html).toContain("Resolving rendered changes")
+    expect(html).toContain('data-runelight-studio-change-preview-prewarm="true"')
+    expect(html).not.toContain('data-runelight-studio-change-item="src/Card000.g.tsx"')
+    expect(html).not.toContain('data-runelight-studio-change-preview-comparison="true"')
+  })
+
+  it("shows changed frames as unknown when ready previews have no rendered snapshot", () => {
+    const baseManifest = buildLargeStudioManifest(1)
+    const baseFile = baseManifest.files[0]
+    const component = baseFile.components[0]
+    const file = { ...baseFile, components: [component] }
+    const manifest = { ...baseManifest, files: [file] }
+    const baselineComponent = {
+      ...component,
+      coordinate: ".runelight/baselines/HEAD/src/Card000.g.tsx#default",
+      filePath: ".runelight/baselines/HEAD/src/Card000.g.tsx",
+      sourceHash: "baseline-card-source",
+    } satisfies StudioManifestComponent
+    const baselineFile = {
+      path: ".runelight/baselines/HEAD/src/Card000.g.tsx",
+      sourceHash: "baseline-card-source",
+      components: [baselineComponent],
+      diagnostics: [],
+    }
+    const baselineManifest = {
+      ...manifest,
+      files: [baselineFile],
+    }
+    const changes = {
+      version: 1 as const,
+      base: { kind: "git" as const, baselineRoot: ".runelight/baselines/HEAD", ref: "HEAD", manifest: baselineManifest },
+      items: [
+        {
+          filePath: file.path,
+          kind: "modified" as const,
+          surface: "frames" as const,
+          currentFile: file,
+          baselineFile,
+          baselineImpacts: [
+            {
+              frameNames: ["default"],
+              frames: [{ kind: "changed" as const, name: "default" }],
+              rootComponentName: baselineComponent.componentName,
+              rootCoordinate: baselineComponent.coordinate,
+              surface: "frames" as const,
+              path: [{ componentName: baselineComponent.componentName, coordinate: baselineComponent.coordinate }],
+            },
+          ],
+          impacts: [
+            {
+              frameNames: ["default"],
+              frames: [{ kind: "changed" as const, name: "default" }],
+              rootComponentName: component.componentName,
+              rootCoordinate: component.coordinate,
+              surface: "frames" as const,
+              path: [{ componentName: component.componentName, coordinate: component.coordinate }],
+            },
+          ],
+        },
+      ],
+    }
+    const baselineSessionId = previewSessionId(baselineComponent, "default", "tablet")
+    const currentSessionId = previewSessionId(component, "default", "tablet")
+    const frameStates = {
+      [baselineSessionId]: readyPreviewFrameState(baselineSessionId, baselineComponent.coordinate),
+      [currentSessionId]: readyPreviewFrameState(currentSessionId, component.coordinate),
+    }
+
+    const html = renderToStaticMarkup(
+      <StudioChangesWorkspace changes={changes} frameStates={frameStates} manifest={manifest} />,
+    )
+
+    expect(html).not.toContain('data-runelight-studio-changes-resolving="true"')
+    expect(html).not.toContain("Resolving rendered changes")
+    expect(html).toContain('data-runelight-studio-change-item="src/Card000.g.tsx"')
+    expect(html).toContain('data-runelight-studio-change-pane="before"')
+    expect(html).toContain('data-runelight-studio-change-pane="current"')
+    expect(html).toContain('data-runelight-frame-tile="default"')
+    expect(html).toContain('data-runelight-frame-change-state="unknown"')
+    expect(html).toContain('data-runelight-frame-change-badge="unknown"')
+  })
+
+  it("shows ready added frames while modified changed frames are still resolving", () => {
+    const baseManifest = buildLargeStudioManifest(1)
+    const baseFile = baseManifest.files[0]
+    const baseComponent = baseFile.components[0]
+    const component = {
+      ...baseComponent,
+      frames: [
+        { kind: "scope" as const, name: "existing" },
+        { kind: "scope" as const, name: "newFrame" },
+      ],
+    } satisfies StudioManifestComponent
+    const file = { ...baseFile, components: [component] }
+    const manifest = { ...baseManifest, files: [file] }
+    const baselineComponent = {
+      ...component,
+      coordinate: ".runelight/baselines/HEAD/src/Card000.g.tsx#default",
+      filePath: ".runelight/baselines/HEAD/src/Card000.g.tsx",
+      frames: [{ kind: "scope" as const, name: "existing" }],
+      sourceHash: "baseline-card-source",
+    } satisfies StudioManifestComponent
+    const baselineFile = {
+      path: ".runelight/baselines/HEAD/src/Card000.g.tsx",
+      sourceHash: "baseline-card-source",
+      components: [baselineComponent],
+      diagnostics: [],
+    }
+    const baselineManifest = {
+      ...manifest,
+      files: [baselineFile],
+    }
+    const changes = {
+      version: 1 as const,
+      base: { kind: "git" as const, baselineRoot: ".runelight/baselines/HEAD", ref: "HEAD", manifest: baselineManifest },
+      items: [
+        {
+          filePath: file.path,
+          kind: "modified" as const,
+          surface: "frames" as const,
+          currentFile: file,
+          baselineFile,
+          baselineImpacts: [
+            {
+              frameNames: ["existing", "newFrame"],
+              frames: [
+                { kind: "changed" as const, name: "existing" },
+                { kind: "added" as const, name: "newFrame" },
+              ],
+              rootComponentName: baselineComponent.componentName,
+              rootCoordinate: baselineComponent.coordinate,
+              surface: "frames" as const,
+              path: [{ componentName: baselineComponent.componentName, coordinate: baselineComponent.coordinate }],
+            },
+          ],
+          impacts: [
+            {
+              frameNames: ["existing", "newFrame"],
+              frames: [
+                { kind: "changed" as const, name: "existing" },
+                { kind: "added" as const, name: "newFrame" },
+              ],
+              rootComponentName: component.componentName,
+              rootCoordinate: component.coordinate,
+              surface: "frames" as const,
+              path: [{ componentName: component.componentName, coordinate: component.coordinate }],
+            },
+          ],
+        },
+      ],
+    }
+
+    const html = renderToStaticMarkup(<StudioChangesWorkspace changes={changes} manifest={manifest} />)
+
+    expect(html).toContain('data-runelight-studio-changes-resolving-notice="true"')
+    expect(html).toContain('data-runelight-studio-change-preview-prewarm="true"')
+    expect(html).toContain('data-runelight-studio-change-item="src/Card000.g.tsx"')
+    expect(html).toContain('data-runelight-studio-change-pane="current"')
+    expect(html).not.toContain('data-runelight-studio-change-pane="before"')
+    expect(html).toContain('data-runelight-frame-tile="newFrame"')
+    expect(html).toContain('data-runelight-frame-change-state="added"')
+  })
+
+  it("hides changed frames whose rendered snapshots match", () => {
+    const baseManifest = buildLargeStudioManifest(1)
+    const baseFile = baseManifest.files[0]
+    const baseComponent = baseFile.components[0]
+    const component = {
+      ...baseComponent,
+      frames: [
+        { kind: "scope" as const, name: "default" },
+        { kind: "scope" as const, name: "loud" },
+        { kind: "scope" as const, name: "quiet" },
+      ],
+    } satisfies StudioManifestComponent
+    const file = { ...baseFile, components: [component] }
+    const manifest = { ...baseManifest, files: [file] }
+    const baselineComponent = {
+      ...component,
+      coordinate: ".runelight/baselines/HEAD/src/Card000.g.tsx#default",
+      filePath: ".runelight/baselines/HEAD/src/Card000.g.tsx",
+      sourceHash: "baseline-card-source",
+    } satisfies StudioManifestComponent
+    const baselineFile = {
+      path: ".runelight/baselines/HEAD/src/Card000.g.tsx",
+      sourceHash: "baseline-card-source",
+      components: [baselineComponent],
+      diagnostics: [],
+    }
+    const baselineManifest = {
+      ...manifest,
+      files: [baselineFile],
+    }
+    const changes = {
+      version: 1 as const,
+      base: { kind: "git" as const, baselineRoot: ".runelight/baselines/HEAD", ref: "HEAD", manifest: baselineManifest },
+      items: [
+        {
+          filePath: file.path,
+          kind: "modified" as const,
+          surface: "frames" as const,
+          currentFile: file,
+          baselineFile,
+          baselineImpacts: [
+            {
+              frameNames: ["default", "loud", "quiet"],
+              frames: [
+                { kind: "changed" as const, name: "default" },
+                { kind: "changed" as const, name: "loud" },
+                { kind: "unchanged" as const, name: "quiet" },
+              ],
+              rootComponentName: baselineComponent.componentName,
+              rootCoordinate: baselineComponent.coordinate,
+              surface: "frames" as const,
+              path: [{ componentName: baselineComponent.componentName, coordinate: baselineComponent.coordinate }],
+            },
+          ],
+          impacts: [
+            {
+              frameNames: ["default", "loud", "quiet"],
+              frames: [
+                { kind: "changed" as const, name: "default" },
+                { kind: "changed" as const, name: "loud" },
+                { kind: "unchanged" as const, name: "quiet" },
+              ],
+              rootComponentName: component.componentName,
+              rootCoordinate: component.coordinate,
+              surface: "frames" as const,
+              path: [{ componentName: component.componentName, coordinate: component.coordinate }],
+            },
+          ],
+        },
+      ],
+    }
+    const previewCache = {
+      [studioPreviewCacheKey(baselineComponent, "default", "tablet")]: {
+        frameState: readyRenderedPreviewFrameState(baselineComponent, "default", "same-render"),
+        lastUsedAt: 1,
+      },
+      [studioPreviewCacheKey(component, "default", "tablet")]: {
+        frameState: readyRenderedPreviewFrameState(component, "default", "same-render"),
+        lastUsedAt: 1,
+      },
+      [studioPreviewCacheKey(baselineComponent, "loud", "tablet")]: {
+        frameState: readyRenderedPreviewFrameState(baselineComponent, "loud", "before-render"),
+        lastUsedAt: 1,
+      },
+      [studioPreviewCacheKey(component, "loud", "tablet")]: {
+        frameState: readyRenderedPreviewFrameState(component, "loud", "current-render"),
+        lastUsedAt: 1,
+      },
+    }
+
+    const html = renderToStaticMarkup(
+      <StudioChangesWorkspace changes={changes} manifest={manifest} previewCache={previewCache} />,
+    )
+
+    expect(html).toContain('data-runelight-studio-change-item="src/Card000.g.tsx"')
+    expect(html).toContain('data-runelight-frame-tile="loud"')
+    expect(html).not.toContain('data-runelight-frame-tile="default"')
+    expect(html).not.toContain('data-runelight-frame-tile="quiet"')
+    expect(html).not.toContain(">default<")
+    expect(html).not.toContain(">quiet<")
+  })
+
+  it("does not show baseline context for a modified root when rendered filtering leaves only added frames", () => {
+    const baseManifest = buildLargeStudioManifest(1)
+    const baseFile = baseManifest.files[0]
+    const baseComponent = baseFile.components[0]
+    const component = {
+      ...baseComponent,
+      frames: [
+        { kind: "scope" as const, name: "existing" },
+        { kind: "scope" as const, name: "newFrame" },
+      ],
+    } satisfies StudioManifestComponent
+    const file = { ...baseFile, components: [component] }
+    const manifest = { ...baseManifest, files: [file] }
+    const baselineComponent = {
+      ...component,
+      coordinate: ".runelight/baselines/HEAD/src/Card000.g.tsx#default",
+      filePath: ".runelight/baselines/HEAD/src/Card000.g.tsx",
+      frames: [{ kind: "scope" as const, name: "existing" }],
+      sourceHash: "baseline-card-source",
+    } satisfies StudioManifestComponent
+    const baselineFile = {
+      path: ".runelight/baselines/HEAD/src/Card000.g.tsx",
+      sourceHash: "baseline-card-source",
+      components: [baselineComponent],
+      diagnostics: [],
+    }
+    const baselineManifest = {
+      ...manifest,
+      files: [baselineFile],
+    }
+    const changes = {
+      version: 1 as const,
+      base: { kind: "git" as const, baselineRoot: ".runelight/baselines/HEAD", ref: "HEAD", manifest: baselineManifest },
+      items: [
+        {
+          filePath: file.path,
+          kind: "modified" as const,
+          surface: "frames" as const,
+          currentFile: file,
+          baselineFile,
+          baselineImpacts: [
+            {
+              frameNames: ["existing", "newFrame"],
+              frames: [
+                { kind: "changed" as const, name: "existing" },
+                { kind: "added" as const, name: "newFrame" },
+              ],
+              rootComponentName: baselineComponent.componentName,
+              rootCoordinate: baselineComponent.coordinate,
+              surface: "frames" as const,
+              path: [{ componentName: baselineComponent.componentName, coordinate: baselineComponent.coordinate }],
+            },
+          ],
+          impacts: [
+            {
+              frameNames: ["existing", "newFrame"],
+              frames: [
+                { kind: "changed" as const, name: "existing" },
+                { kind: "added" as const, name: "newFrame" },
+              ],
+              rootComponentName: component.componentName,
+              rootCoordinate: component.coordinate,
+              surface: "frames" as const,
+              path: [{ componentName: component.componentName, coordinate: component.coordinate }],
+            },
+          ],
+        },
+      ],
+    }
+    const previewCache = {
+      [studioPreviewCacheKey(baselineComponent, "existing", "tablet")]: {
+        frameState: readyRenderedPreviewFrameState(baselineComponent, "existing", "same-render"),
+        lastUsedAt: 1,
+      },
+      [studioPreviewCacheKey(component, "existing", "tablet")]: {
+        frameState: readyRenderedPreviewFrameState(component, "existing", "same-render"),
+        lastUsedAt: 1,
+      },
+    }
+
+    const html = renderToStaticMarkup(
+      <StudioChangesWorkspace changes={changes} manifest={manifest} previewCache={previewCache} />,
+    )
+
+    expect(html).toContain('data-runelight-studio-change-item="src/Card000.g.tsx"')
+    expect(html).toContain('data-runelight-studio-change-pane="current"')
+    expect(html).not.toContain('data-runelight-studio-change-pane="before"')
+    expect(html).not.toContain('data-runelight-card-coordinate=".runelight/baselines/HEAD/src/Card000.g.tsx#default"')
+    expect(html).not.toContain('data-runelight-frame-tile="existing"')
+    expect(html).toContain('data-runelight-frame-tile="newFrame"')
+    expect(html).toContain('data-runelight-frame-change-state="added"')
+  })
+
+  it("keeps frames as the default Studio tab when no workspace changes are present", () => {
+    const manifest = buildLargeStudioManifest(1)
+    const html = renderToStaticMarkup(<StudioShell changes={{ version: 1, base: { kind: "none" }, items: [] }} manifest={manifest} />)
+
+    expect(html).toContain('data-runelight-canvas-viewport="true"')
+    expect(html).not.toContain('data-runelight-studio-changes-workspace="true"')
+  })
+
   it("names the Studio package's outer visual root as Studio", () => {
     const manifest = buildStudioManifest({ cwd: studioRoot, sourceRoot: "src" })
     const roots = rootStudioManifestComponents(manifest)
@@ -475,6 +1446,82 @@ describe("Runelight Studio shell", () => {
     expect(html).not.toContain("data-runelight-studio-design-frame-preview")
   })
 
+  it("packs design cards to measured iframe width without the default component card minimum", () => {
+    const firstComponent = {
+      coordinate: "src/app/runelight/design/FirstPhoneDraft.g.tsx#default",
+      filePath: "src/app/runelight/design/FirstPhoneDraft.g.tsx",
+      sourceHash: "first-phone-draft-source",
+      exportName: "default",
+      componentName: "FirstPhoneDraft",
+      mode: "pure",
+      frames: [{ kind: "pure" as const, name: "live" }],
+      providers: {},
+      diagnostics: [],
+    } satisfies StudioManifestComponent
+    const secondComponent = {
+      coordinate: "src/app/runelight/design/SecondPhoneDraft.g.tsx#default",
+      filePath: "src/app/runelight/design/SecondPhoneDraft.g.tsx",
+      sourceHash: "second-phone-draft-source",
+      exportName: "default",
+      componentName: "SecondPhoneDraft",
+      mode: "pure",
+      frames: [{ kind: "pure" as const, name: "live" }],
+      providers: {},
+      diagnostics: [],
+    } satisfies StudioManifestComponent
+    const manifest = {
+      version: 1,
+      routes: {
+        changes: "/runelight/studio/changes",
+        events: "/runelight/studio/events",
+        manifest: "/runelight/studio/manifest",
+        preview: "/runelight",
+        studio: "/runelight/studio",
+      },
+      design: {
+        frames: [
+          {
+            id: `${firstComponent.coordinate}:live`,
+            entry: firstComponent.coordinate,
+            filePath: firstComponent.filePath,
+            title: firstComponent.componentName,
+            exportName: firstComponent.exportName,
+            frameName: "live",
+          },
+          {
+            id: `${secondComponent.coordinate}:live`,
+            entry: secondComponent.coordinate,
+            filePath: secondComponent.filePath,
+            title: secondComponent.componentName,
+            exportName: secondComponent.exportName,
+            frameName: "live",
+          },
+        ],
+      },
+      diagnostics: [],
+      files: [
+        { path: firstComponent.filePath, sourceHash: "first-phone-draft-source", components: [firstComponent], diagnostics: [] },
+        { path: secondComponent.filePath, sourceHash: "second-phone-draft-source", components: [secondComponent], diagnostics: [] },
+      ],
+    } satisfies StudioManifest
+    const firstSessionId = previewSessionId(firstComponent, "live", "tablet")
+    const secondSessionId = previewSessionId(secondComponent, "live", "tablet")
+    const phoneDraftRect = { x: 0, y: 0, width: 390, height: 1024 }
+    const frameStates = {
+      [firstSessionId]: readyPreviewFrameState(firstSessionId, firstComponent.coordinate, phoneDraftRect),
+      [secondSessionId]: readyPreviewFrameState(secondSessionId, secondComponent.coordinate, phoneDraftRect),
+    }
+
+    const html = renderToStaticMarkup(<StudioDesignWorkspace frameStates={frameStates} manifest={manifest} />)
+
+    expect(designCardHtml(html, firstComponent.coordinate)).toContain("left:96px")
+    expect(designCardHtml(html, firstComponent.coordinate)).toContain("width:176px")
+    expect(designCardHtml(html, secondComponent.coordinate)).toContain("left:286px")
+    expect(designCardHtml(html, secondComponent.coordinate)).toContain("width:176px")
+    expect(cardHtml(html, firstComponent.coordinate)).toContain("width:176px")
+    expect(frameGridHtml(html, firstComponent.coordinate)).toContain("width:176px")
+  })
+
   it("derives design preview targets from design component cards", () => {
     const manifest = buildStudioManifest({
       cwd: fixtureRoot,
@@ -499,6 +1546,83 @@ describe("Runelight Studio shell", () => {
     expect(currentStudioDesignPreviewTargets(manifest, "tablet").map((target) => target.sessionId)).toEqual([
       "src/UserCard.g.tsx#default:loading",
       "src/UserCard.g.tsx#default:ready",
+    ])
+  })
+
+  it("derives changes preview targets from affected roots", () => {
+    const manifest = buildLargeStudioManifest(2)
+    const root = manifest.files[0].components[0]
+    const changed = manifest.files[1]
+    const baselineRoot = {
+      ...root,
+      coordinate: ".runelight/baselines/HEAD/src/Card000.g.tsx#default",
+      filePath: ".runelight/baselines/HEAD/src/Card000.g.tsx",
+      sourceHash: "baseline-root-source",
+    }
+    const baselineChanged = {
+      ...changed.components[0],
+      coordinate: ".runelight/baselines/HEAD/src/Card001.g.tsx#default",
+      filePath: ".runelight/baselines/HEAD/src/Card001.g.tsx",
+      sourceHash: "baseline-changed-source",
+    }
+    const baselineManifest = {
+      ...manifest,
+      files: [
+        {
+          path: ".runelight/baselines/HEAD/src/Card000.g.tsx",
+          sourceHash: "baseline-root-source",
+          components: [baselineRoot],
+          diagnostics: [],
+        },
+        {
+          path: ".runelight/baselines/HEAD/src/Card001.g.tsx",
+          sourceHash: "baseline-changed-source",
+          components: [baselineChanged],
+          diagnostics: [],
+        },
+      ],
+    }
+    const changes = {
+      version: 1 as const,
+      base: { kind: "git" as const, baselineRoot: ".runelight/baselines/HEAD", ref: "HEAD", manifest: baselineManifest },
+      items: [
+        {
+          filePath: changed.path,
+          kind: "modified" as const,
+          surface: "frames" as const,
+          currentFile: changed,
+          baselineFile: baselineManifest.files[1],
+          baselineImpacts: [
+            {
+              frameNames: baselineRoot.frames.map((frame) => frame.name),
+              rootComponentName: baselineRoot.componentName,
+              rootCoordinate: baselineRoot.coordinate,
+              surface: "frames" as const,
+              path: [
+                { componentName: baselineRoot.componentName, coordinate: baselineRoot.coordinate },
+                { componentName: baselineChanged.componentName, coordinate: baselineChanged.coordinate },
+              ],
+            },
+          ],
+          impacts: [
+            {
+              frameNames: root.frames.map((frame) => frame.name),
+              rootComponentName: root.componentName,
+              rootCoordinate: root.coordinate,
+              surface: "frames" as const,
+              path: [
+                { componentName: root.componentName, coordinate: root.coordinate },
+                { componentName: changed.components[0].componentName, coordinate: changed.components[0].coordinate },
+              ],
+            },
+          ],
+        },
+      ],
+    }
+
+    expect(currentStudioChangesPreviewTargets(manifest, changes, "tablet").map((target) => target.sessionId)).toEqual([
+      ".runelight/baselines/HEAD/src/Card000.g.tsx#default:default",
+      "src/Card000.g.tsx#default:default",
     ])
   })
 
@@ -855,6 +1979,21 @@ describe("Runelight Studio shell", () => {
     expect(singleTabletFrame.columns).toBe(1)
     expect(singleTabletFrame.height).toBeLessThanOrEqual(760)
     expect(singleTabletFrame.previewScale).toBeLessThan(1)
+
+    const fixedScaleWrapped = computeStudioFrameGridLayout({
+      items: [
+        { width: 768, height: 1024 },
+        { width: 768, height: 1024 },
+        { width: 768, height: 1024 },
+        { width: 768, height: 1024 },
+      ],
+      maxSide: 720,
+      maxWidth: 720,
+      previewScale: 0.45,
+    })
+
+    expect(fixedScaleWrapped.columns).toBe(2)
+    expect(fixedScaleWrapped.width).toBeLessThanOrEqual(720)
   })
 
   it("uses the fixed preview scale for every component card in the canvas", () => {
@@ -1108,6 +2247,7 @@ describe("Runelight Studio shell", () => {
 
     expect(selectionOutlineHtml(html)).toBe("")
     expect(boundsHitTargetHtml(html)).toContain("width:390px")
+    expect(boundsHitTargetHtml(html)).toContain("pointer-events:none")
     expect(cardHtml(html, "src/UserCard.g.tsx#default")).toContain("width:390px")
     expect(previewFrameTagHtml(html, "src/UserCard.g.tsx#default:loading@phone")).not.toContain("content-visibility:auto")
     expect(previewFrameTagHtml(html, "src/UserCard.g.tsx#default:loading@phone")).not.toContain("contain:layout paint style")
@@ -1202,7 +2342,7 @@ describe("Runelight Studio shell", () => {
     expect(html).not.toContain("data-runelight-env-variant")
   })
 
-  it("renders dimmed preview stripes with the same radius as the mismatch border", () => {
+  it("dims buffered previews without owning the cropped stripe overlay", () => {
     const html = renderToStaticMarkup(
       <BufferedPreviewIframe
         dimmed
@@ -1215,12 +2355,14 @@ describe("Runelight Studio shell", () => {
       />,
     )
 
-    expect(html).toContain("data-runelight-buffered-preview-dim-overlay")
-    expect(html).toContain("repeating-linear-gradient")
-    expect(html).toContain("border-radius:6px")
+    expect(html).toContain("filter:grayscale(0.9)")
+    expect(html).toContain("opacity:0.42")
+    expect(html).not.toContain("data-runelight-buffered-preview-dim-overlay")
+    expect(html).not.toContain("repeating-linear-gradient")
   })
 
-  it("rounds the dimmed preview clip so cropped stripes keep bottom corners", () => {
+  it("renders dimmed preview stripes from the clipped frame geometry", () => {
+    const sessionId = "src/Icon.g.tsx#default:ready"
     const html = renderToStaticMarkup(
       <LazyPreviewFrame
         data-runelight-preview-session-id="src/Icon.g.tsx#default:ready@phone"
@@ -1231,14 +2373,18 @@ describe("Runelight Studio shell", () => {
         selectedBoundaryRect={{ x: 0, y: 0, width: 96, height: 96 }}
         shouldLoad
         size={{ width: 390, height: 844 }}
-        sessionId="src/Icon.g.tsx#default:ready"
+        sessionId={sessionId}
         title="Icon preview"
         viewportPreset="phone"
       />,
     )
 
     expect(previewClipHtml(html)).toContain("border-radius:6px")
-    expect(html).toContain("repeating-linear-gradient")
+    expect(previewDimOverlayHtml(html, sessionId)).toContain("repeating-linear-gradient")
+    expect(previewDimOverlayHtml(html, sessionId)).toContain("border-radius:6px")
+    expect(previewDimOverlayHtml(html, sessionId)).toContain("height:96px")
+    expect(previewDimOverlayHtml(html, sessionId)).toContain("width:96px")
+    expect(previewDimOverlayHtml(html, sessionId)).not.toContain("844px")
   })
 
   it("keeps preview rendering containment below selection overlays", () => {
@@ -3525,6 +4671,30 @@ describe("Runelight Studio shell", () => {
     })
   })
 
+  it("stores rendered snapshot messages on preview frame state", () => {
+    const snapshot = renderedSnapshot("rendered-frame")
+    const state = applyStudioPreviewMessage(
+      {
+        expectedSessionId: "current-session",
+        ready: true,
+      },
+      {
+        type: "runelight:rendered-snapshot",
+        protocolVersion: 1,
+        sessionId: "current-session",
+        snapshot,
+      },
+    )
+
+    expect(state.renderedSnapshot).toBe(snapshot)
+    expect(applyStudioPreviewMessage(state, {
+      type: "runelight:rendered-snapshot",
+      protocolVersion: 1,
+      sessionId: "current-session",
+      snapshot: renderedSnapshot("rendered-frame"),
+    })).toBe(state)
+  })
+
   it("keeps duplicate preview layout messages idempotent", () => {
     const tree = [
       {
@@ -3670,6 +4840,14 @@ describe("Runelight Studio shell", () => {
   it("keeps pooled iframe handshake messages out of session frame state", () => {
     expect(isGPreviewSessionMessage({ type: "runelight:pool-ready", protocolVersion: 1 })).toBe(false)
     expect(isGPreviewSessionMessage({ type: "runelight:ready", protocolVersion: 1, sessionId: "session-1" })).toBe(true)
+    expect(
+      isGPreviewSessionMessage({
+        type: "runelight:rendered-snapshot",
+        protocolVersion: 1,
+        sessionId: "session-1",
+        snapshot: renderedSnapshot("session-render"),
+      }),
+    ).toBe(true)
     expect(isGPreviewSessionMessage({ type: "runelight:ready", protocolVersion: 1 })).toBe(false)
     expect(
       isGPreviewSessionMessage({
@@ -3744,6 +4922,12 @@ describe("Runelight Studio shell", () => {
     expect(
       studioPreviewIframeBorrowInputNeedsRender(input, {
         ...input,
+        placementKey: "layout-width:layout-height:offset-x:offset-y",
+      }),
+    ).toBe(false)
+    expect(
+      studioPreviewIframeBorrowInputNeedsRender(input, {
+        ...input,
         size: { width: 390, height: 844 },
       }),
     ).toBe(true)
@@ -3780,6 +4964,12 @@ describe("Runelight Studio shell", () => {
         }),
       ),
     ).toBe(true)
+    expect(
+      studioPreviewIframePendingRenderPostKey({
+        ...input,
+        placementKey: "layout-width:layout-height:offset-x:offset-y",
+      }),
+    ).toBe(renderKey)
   })
 
   it("recognizes a same-origin pooled preview mailbox as a direct render endpoint", () => {
@@ -3890,22 +5080,6 @@ describe("Runelight Studio shell", () => {
       }),
     ).toEqual({
       clipPath: "inset(120px 30px 244px 30px)",
-      height: "844px",
-      transform: "translate3d(80px, 100px, 0) scale(0.5, 0.5)",
-      visibility: "visible",
-      width: "390px",
-    })
-  })
-
-  it("rounds pooled dim overlays at the clipping edge", () => {
-    expect(
-      studioPreviewIframePoolDimOverlayPlacementForAnchor({
-        anchorRect: { bottom: 522, height: 422, left: 80, right: 275, top: 100, width: 195 },
-        clipRect: { bottom: 400, height: 240, left: 95, right: 260, top: 160, width: 165 },
-        layoutSize: { height: 844, width: 390 },
-      }),
-    ).toEqual({
-      clipPath: "inset(120px 30px 244px 30px round 6px)",
       height: "844px",
       transform: "translate3d(80px, 100px, 0) scale(0.5, 0.5)",
       visibility: "visible",
@@ -4348,7 +5522,12 @@ describe("Runelight Studio shell", () => {
     expect(studioPreviewFrameOverridesForProviderVariantContext({
       diagnostics: [],
       files: [{ components: [component], diagnostics: [], path: "src/UserPanel.g.tsx", sourceHash: "user-panel-source" }],
-      routes: { manifest: "/runelight/studio/manifest", preview: "/runelight", studio: "/runelight/studio" },
+      routes: {
+        events: "/runelight/studio/events",
+        manifest: "/runelight/studio/manifest",
+        preview: "/runelight",
+        studio: "/runelight/studio",
+      },
       version: 1,
     }, {
       UserSignProvider: "anonymous",
@@ -4557,6 +5736,34 @@ describe("Runelight Studio shell", () => {
     )
     expect(createStudioRuntimeValuesRequest(manifest, childState, "child")?.sessionId).toBe(
       "src/UserCard.g.tsx#default:loading",
+    )
+  })
+
+  it("keeps geometry cache identity stable when component drilldown only changes visible targets", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
+    const parentState = createStudioWorkspaceState(manifest, "component:src/UserCard.g.tsx#default")
+    const childState = selectStudioComponent(parentState, manifest, "src/UserCard.g.tsx#default", [
+      {
+        id: "root",
+        coordinate: "src/UserCard.g.tsx#default",
+        children: [{ id: "child", coordinate: "src/MultiExport.g.tsx#NamedBadge", children: [] }],
+      },
+    ])
+    const manifestCacheKeys = studioPreviewGeometryCacheKeys(manifest)
+    const parentTargets = currentStudioPreviewTargets(manifest, parentState)
+    const childTargets = currentStudioPreviewTargets(manifest, childState)
+
+    expect(childTargets.map((target) => target.sessionId)).not.toEqual(parentTargets.map((target) => target.sessionId))
+    expect(
+      studioPreviewGeometryCacheKeySignature([
+        ...manifestCacheKeys,
+        ...parentTargets.map((target) => target.cacheKey),
+      ]),
+    ).toBe(
+      studioPreviewGeometryCacheKeySignature([
+        ...manifestCacheKeys,
+        ...childTargets.map((target) => target.cacheKey),
+      ]),
     )
   })
 
@@ -4995,6 +6202,7 @@ function buildLargeStudioManifest(count: number) {
   return {
     version: 1,
     routes: {
+      events: "/runelight/studio/events",
       preview: "/runelight",
       studio: "/runelight/studio",
       manifest: "/runelight/studio/manifest",
@@ -5109,6 +6317,30 @@ function canvasSurfaceHtml(html: string): string {
   return html.match(/<div[^>]+data-runelight-canvas-surface="true"[^>]*>/)?.[0] ?? ""
 }
 
+function designCardHtml(html: string, coordinate: string): string {
+  return html.match(new RegExp(`<div[^>]+data-runelight-studio-design-card="${escapeRegExp(coordinate)}"[^>]*>`))?.[0] ?? ""
+}
+
+function sectionTagHtml(html: string, kind: string): string {
+  return html.match(new RegExp(`<span[^>]+data-runelight-studio-change-section-tag="${escapeRegExp(kind)}"[^>]*>`))?.[0] ?? ""
+}
+
+function changeSectionHtml(html: string, kind: string): string {
+  return html.match(new RegExp(`<section[^>]+data-runelight-studio-change-section="${escapeRegExp(kind)}"[^>]*>`))?.[0] ?? ""
+}
+
+function changeSectionItemsHtml(html: string, kind: string): string {
+  return html.match(new RegExp(`<div[^>]+data-runelight-studio-change-section-items="${escapeRegExp(kind)}"[^>]*>`))?.[0] ?? ""
+}
+
+function changeGroupHtml(html: string, key: string): string {
+  return html.match(new RegExp(`<section[^>]+data-runelight-studio-change-group="${escapeRegExp(key)}"[^>]*>`))?.[0] ?? ""
+}
+
+function changePaneHtml(html: string, side: string): string {
+  return html.match(new RegExp(`<section[^>]+data-runelight-studio-change-pane="${escapeRegExp(side)}"[^>]*>`))?.[0] ?? ""
+}
+
 function frameGridHtml(html: string, coordinate: string): string {
   return html.match(new RegExp(`<div[^>]+data-runelight-frame-grid="${escapeRegExp(coordinate)}"[^>]*>`))?.[0] ?? ""
 }
@@ -5119,6 +6351,14 @@ function frameGridPreviewScales(html: string): string[] {
 
 function previewClipHtml(html: string): string {
   return html.match(/<div[^>]+data-runelight-preview-clip="true"[^>]*>/)?.[0] ?? ""
+}
+
+function previewDimOverlayHtml(html: string, sessionId: string): string {
+  return html.match(new RegExp(`<div[^>]+data-runelight-preview-dim-overlay="${escapeRegExp(sessionId)}"[^>]*>`))?.[0] ?? ""
+}
+
+function deletedFrameOverlayHtml(html: string, frameName: string): string {
+  return html.match(new RegExp(`<div[^>]+data-runelight-frame-change-deleted-overlay="${escapeRegExp(frameName)}"[^>]*>`))?.[0] ?? ""
 }
 
 function previewFrameTagHtml(html: string, sessionId: string): string {

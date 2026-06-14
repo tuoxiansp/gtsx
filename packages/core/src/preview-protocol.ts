@@ -9,6 +9,11 @@ export type {
 
 export const G_PREVIEW_PROTOCOL_VERSION = 1
 
+/**
+ * @internal Preview runtime to Studio rendered-diff protocol detail.
+ */
+export const G_RENDERED_SNAPSHOT_VERSION = 1
+
 export const RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT_ID = "runelight-preview-ssr-bootstrap"
 
 export const RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT = `(() => {
@@ -56,6 +61,60 @@ export type GPreviewResizeMessage = GPreviewProtocolBase & {
     width: number
     height: number
   }
+}
+
+/**
+ * @internal Preview runtime to Studio rendered-diff protocol detail.
+ */
+export type GRenderedSnapshotRect = {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/**
+ * @internal Preview runtime to Studio rendered-diff protocol detail.
+ */
+export type GRenderedSnapshotPseudo = {
+  content: string
+  styles?: Record<string, string>
+}
+
+/**
+ * @internal Preview runtime to Studio rendered-diff protocol detail.
+ */
+export type GRenderedSnapshotNode = {
+  attrs?: Record<string, string>
+  after?: GRenderedSnapshotPseudo
+  before?: GRenderedSnapshotPseudo
+  path: string
+  rect?: GRenderedSnapshotRect
+  styles?: Record<string, string>
+  tag: string
+  text?: string
+}
+
+/**
+ * @internal Preview runtime to Studio rendered-diff protocol detail.
+ */
+export type GRenderedSnapshot = {
+  hash: string
+  nodes: GRenderedSnapshotNode[]
+  truncated?: boolean
+  version: typeof G_RENDERED_SNAPSHOT_VERSION
+  viewport: {
+    width: number
+    height: number
+  }
+}
+
+/**
+ * @internal Preview runtime to Studio rendered-diff protocol detail.
+ */
+export type GPreviewRenderedSnapshotMessage = GPreviewProtocolBase & {
+  type: "runelight:rendered-snapshot"
+  snapshot: GRenderedSnapshot
 }
 
 export type GPreviewErrorMessage = GPreviewProtocolBase & {
@@ -120,6 +179,7 @@ export type GPreviewSessionMessage =
   | GPreviewReadyMessage
   | GPreviewTreeMessage
   | GPreviewResizeMessage
+  | GPreviewRenderedSnapshotMessage
   | GPreviewRequestValuesMessage
   | GPreviewValuesMessage
   | GPreviewErrorMessage
@@ -166,6 +226,8 @@ export function isGPreviewSessionMessage(value: unknown): value is GPreviewSessi
       return isBoundaryTree(value.tree)
     case "runelight:resize":
       return isPreviewSize(value.size)
+    case "runelight:rendered-snapshot":
+      return isRenderedSnapshot(value.snapshot)
     case "runelight:error":
       return isPreviewError(value.error)
     case "runelight:request-values":
@@ -248,6 +310,40 @@ function isBoundaryRect(value: unknown): value is GBoundaryRect {
     isFinitePreviewNumber(value.width) &&
     isFinitePreviewNumber(value.height)
   )
+}
+
+function isRenderedSnapshot(value: unknown): value is GRenderedSnapshot {
+  return (
+    isObjectRecord(value) &&
+    typeof value.hash === "string" &&
+    value.version === G_RENDERED_SNAPSHOT_VERSION &&
+    Array.isArray(value.nodes) &&
+    value.nodes.every(isRenderedSnapshotNode) &&
+    (value.truncated === undefined || typeof value.truncated === "boolean") &&
+    isPreviewSize(value.viewport)
+  )
+}
+
+function isRenderedSnapshotNode(value: unknown): value is GRenderedSnapshotNode {
+  return (
+    isObjectRecord(value) &&
+    typeof value.path === "string" &&
+    typeof value.tag === "string" &&
+    (value.text === undefined || typeof value.text === "string") &&
+    (value.rect === undefined || isBoundaryRect(value.rect)) &&
+    (value.attrs === undefined || isStringRecord(value.attrs)) &&
+    (value.styles === undefined || isStringRecord(value.styles)) &&
+    (value.before === undefined || isRenderedSnapshotPseudo(value.before)) &&
+    (value.after === undefined || isRenderedSnapshotPseudo(value.after))
+  )
+}
+
+function isRenderedSnapshotPseudo(value: unknown): value is GRenderedSnapshotPseudo {
+  return isObjectRecord(value) && typeof value.content === "string" && (value.styles === undefined || isStringRecord(value.styles))
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return isObjectRecord(value) && Object.values(value).every((entry) => typeof entry === "string")
 }
 
 function isRuntimeValuesSnapshot(value: unknown): value is GRuntimeValuesSnapshot {
@@ -432,6 +528,21 @@ export function createGPreviewResizeMessage(
   }
 }
 
+/**
+ * @internal Preview runtime to Studio rendered-diff protocol detail.
+ */
+export function createGPreviewRenderedSnapshotMessage(
+  sessionId: string,
+  snapshot: GRenderedSnapshot,
+): GPreviewRenderedSnapshotMessage {
+  return {
+    type: "runelight:rendered-snapshot",
+    protocolVersion: G_PREVIEW_PROTOCOL_VERSION,
+    sessionId,
+    snapshot,
+  }
+}
+
 export function createGPreviewErrorMessage(sessionId: string, error: unknown): GPreviewErrorMessage {
   const normalized = error instanceof Error ? error : new Error(String(error))
 
@@ -486,4 +597,290 @@ export function createGPreviewRenderAcceptedMessage(sessionId: string): GPreview
     protocolVersion: G_PREVIEW_PROTOCOL_VERSION,
     sessionId,
   }
+}
+
+const renderedSnapshotNodeLimit = 1500
+
+const renderedSnapshotIgnoredTags = new Set(["script", "style", "link", "meta", "noscript", "template"])
+
+const renderedSnapshotAttrs = [
+  "alt",
+  "aria-label",
+  "checked",
+  "disabled",
+  "d",
+  "fill",
+  "height",
+  "href",
+  "placeholder",
+  "points",
+  "role",
+  "selected",
+  "src",
+  "stroke",
+  "title",
+  "type",
+  "value",
+  "viewBox",
+  "width",
+] as const
+
+const renderedSnapshotStyleProperties = [
+  "align-items",
+  "background-color",
+  "background-image",
+  "border-bottom-color",
+  "border-bottom-left-radius",
+  "border-bottom-right-radius",
+  "border-bottom-style",
+  "border-bottom-width",
+  "border-left-color",
+  "border-left-style",
+  "border-left-width",
+  "border-right-color",
+  "border-right-style",
+  "border-right-width",
+  "border-top-color",
+  "border-top-left-radius",
+  "border-top-right-radius",
+  "border-top-style",
+  "border-top-width",
+  "box-shadow",
+  "color",
+  "display",
+  "filter",
+  "flex-direction",
+  "font-family",
+  "font-size",
+  "font-style",
+  "font-weight",
+  "gap",
+  "justify-content",
+  "letter-spacing",
+  "line-height",
+  "margin-bottom",
+  "margin-left",
+  "margin-right",
+  "margin-top",
+  "object-fit",
+  "object-position",
+  "opacity",
+  "overflow-x",
+  "overflow-y",
+  "padding-bottom",
+  "padding-left",
+  "padding-right",
+  "padding-top",
+  "position",
+  "text-align",
+  "text-decoration-line",
+  "text-transform",
+  "transform",
+  "visibility",
+  "z-index",
+] as const
+
+const renderedSnapshotPseudoStyleProperties = [
+  "background-color",
+  "background-image",
+  "border-bottom-color",
+  "border-bottom-style",
+  "border-bottom-width",
+  "border-left-color",
+  "border-left-style",
+  "border-left-width",
+  "border-right-color",
+  "border-right-style",
+  "border-right-width",
+  "border-top-color",
+  "border-top-style",
+  "border-top-width",
+  "color",
+  "display",
+  "font-size",
+  "font-weight",
+  "height",
+  "opacity",
+  "position",
+  "transform",
+  "visibility",
+  "width",
+] as const
+
+/**
+ * @internal Preview runtime to Studio rendered-diff protocol detail.
+ */
+export function readGRenderedSnapshot(document: Document): GRenderedSnapshot {
+  const root = document.body ?? document.documentElement
+  const win = document.defaultView
+  const nodes: GRenderedSnapshotNode[] = []
+  let truncated = false
+
+  const visit = (element: Element, path: string) => {
+    if (nodes.length >= renderedSnapshotNodeLimit) {
+      truncated = true
+      return
+    }
+
+    const tag = element.tagName.toLowerCase()
+    if (renderedSnapshotIgnoredTags.has(tag)) return
+
+    const style = win?.getComputedStyle(element)
+    if (style?.display === "none") return
+
+    const node = renderedSnapshotNode(element, path, tag, style, win)
+    if (node) nodes.push(node)
+
+    let childIndex = 0
+    for (const child of element.children) {
+      const childTag = child.tagName.toLowerCase()
+      visit(child, `${path}/${childTag}[${childIndex}]`)
+      childIndex += 1
+      if (truncated) break
+    }
+  }
+
+  visit(root, root.tagName.toLowerCase())
+  const snapshotBody = {
+    nodes,
+    truncated: truncated || undefined,
+    version: G_RENDERED_SNAPSHOT_VERSION as typeof G_RENDERED_SNAPSHOT_VERSION,
+    viewport: {
+      width: Math.round(win?.innerWidth ?? document.documentElement.clientWidth),
+      height: Math.round(win?.innerHeight ?? document.documentElement.clientHeight),
+    },
+  }
+
+  return {
+    ...snapshotBody,
+    hash: hashPreviewString(JSON.stringify(snapshotBody)),
+  }
+}
+
+function renderedSnapshotNode(
+  element: Element,
+  path: string,
+  tag: string,
+  style: CSSStyleDeclaration | undefined,
+  win: Window | null | undefined,
+): GRenderedSnapshotNode | undefined {
+  const attrs = renderedSnapshotElementAttrs(element)
+  const text = normalizeRenderedSnapshotText(
+    Array.from(element.childNodes)
+      .flatMap((child) => (child.nodeType === 3 ? [child.textContent ?? ""] : []))
+      .join(" "),
+  )
+  const rect = renderedSnapshotElementRect(element)
+  const styles = style ? renderedSnapshotStyles(style, renderedSnapshotStyleProperties) : undefined
+  const before = renderedSnapshotPseudo(element, "::before", win)
+  const after = renderedSnapshotPseudo(element, "::after", win)
+
+  if (!rect && !text && !attrs && !styles && !before && !after) return undefined
+
+  return {
+    ...(attrs ? { attrs } : {}),
+    ...(after ? { after } : {}),
+    ...(before ? { before } : {}),
+    path,
+    ...(rect ? { rect } : {}),
+    ...(styles ? { styles } : {}),
+    tag,
+    ...(text ? { text } : {}),
+  }
+}
+
+function renderedSnapshotElementAttrs(element: Element): Record<string, string> | undefined {
+  const attrs: Record<string, string> = {}
+  for (const name of renderedSnapshotAttrs) {
+    const value = element.getAttribute(name)
+    if (value !== null && value !== "") attrs[name] = value
+  }
+
+  const tag = element.tagName.toLowerCase()
+  if ((tag === "input" || tag === "textarea" || tag === "select") && "value" in element) {
+    const value = String(element.value)
+    if (value !== "") attrs.value = value
+  }
+  if (tag === "input") {
+    if ("checked" in element && element.checked) attrs.checked = "true"
+    if ("disabled" in element && element.disabled) attrs.disabled = "true"
+  }
+  if (tag === "img") {
+    const src = ("currentSrc" in element ? String(element.currentSrc) : "") || element.getAttribute("src")
+    if (src) attrs.src = src
+  }
+  if (tag === "a") {
+    const href = ("href" in element ? String(element.href) : "") || element.getAttribute("href")
+    if (href) attrs.href = href
+  }
+
+  return Object.keys(attrs).length > 0 ? attrs : undefined
+}
+
+function renderedSnapshotElementRect(element: Element): GRenderedSnapshotRect | undefined {
+  const rect = element.getBoundingClientRect()
+  if (rect.width === 0 && rect.height === 0) return undefined
+  return {
+    x: roundRenderedSnapshotNumber(rect.left),
+    y: roundRenderedSnapshotNumber(rect.top),
+    width: roundRenderedSnapshotNumber(rect.width),
+    height: roundRenderedSnapshotNumber(rect.height),
+  }
+}
+
+function renderedSnapshotStyles(
+  style: CSSStyleDeclaration,
+  properties: readonly string[],
+): Record<string, string> | undefined {
+  const styles: Record<string, string> = {}
+  for (const property of properties) {
+    const value = normalizeRenderedSnapshotStyleValue(style.getPropertyValue(property))
+    if (value) styles[property] = value
+  }
+  return Object.keys(styles).length > 0 ? styles : undefined
+}
+
+function renderedSnapshotPseudo(
+  element: Element,
+  pseudo: "::before" | "::after",
+  win: Window | null | undefined,
+): GRenderedSnapshotPseudo | undefined {
+  const style = win?.getComputedStyle(element, pseudo)
+  if (!style) return undefined
+  const content = normalizeRenderedSnapshotPseudoContent(style.getPropertyValue("content"))
+  if (!content) return undefined
+  const styles = renderedSnapshotStyles(style, renderedSnapshotPseudoStyleProperties)
+  return {
+    content,
+    ...(styles ? { styles } : {}),
+  }
+}
+
+function normalizeRenderedSnapshotText(value: string): string | undefined {
+  const normalized = value.replace(/\s+/g, " ").trim()
+  return normalized || undefined
+}
+
+function normalizeRenderedSnapshotStyleValue(value: string): string | undefined {
+  const normalized = value.replace(/\s+/g, " ").trim()
+  return normalized || undefined
+}
+
+function normalizeRenderedSnapshotPseudoContent(value: string): string | undefined {
+  const normalized = normalizeRenderedSnapshotStyleValue(value)
+  if (!normalized || normalized === "none" || normalized === "normal" || normalized === "\"\"" || normalized === "''") return undefined
+  return normalized
+}
+
+function roundRenderedSnapshotNumber(value: number): number {
+  return Math.round(value * 1000) / 1000
+}
+
+function hashPreviewString(value: string): string {
+  let hash = 0x811c9dc5
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(36)
 }

@@ -11,6 +11,7 @@ import {
   sameStudioProviderVariantContext,
 } from "../client"
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
+import type { StudioWorkspaceChangeFrameKind } from "../workspace-changes"
 import {
   studioPreviewGeometrySubscriptionKeys,
   type StudioPreviewGeometryCacheStore,
@@ -24,20 +25,23 @@ import ComponentCard from "./ComponentCard.g"
 
 type StudioComponentCardSlotProps = {
   framePreviewScale?: number
+  frameGridMaxSide?: number
   columnIndex: number
   component: StudioManifestComponent
   debugPreviewPool?: boolean
   debugPreviewQueue?: boolean
   fallbackFrameStates?: Record<string, StudioPreviewFrameState>
   fallbackPreviewCache?: Record<string, StudioPreviewCacheEntry>
+  frameChangeStates?: Record<string, StudioWorkspaceChangeFrameKind>
   manifest: StudioManifest
+  cardMinWidth?: number
   onPreviewFrameMount?: (
     sessionId: string,
     frame: HTMLIFrameElement | null,
     state?: StudioPreviewIframeMountState,
   ) => void
   onPreviewGeometryChange?: () => void
-  onSelect: (
+  onSelect?: (
     component: StudioManifestComponent,
     frameStatesByName: Record<string, StudioPreviewFrameState | undefined>,
     columnIndex: number,
@@ -107,7 +111,7 @@ function StudioComponentCardSlotView(props: StudioComponentCardSlotProps) {
       columnIndex: number,
       source: "keyboard" | "pointer",
     ) => {
-      onSelectRef.current(component, frameStatesByName, columnIndex, source)
+      onSelectRef.current?.(component, frameStatesByName, columnIndex, source)
     },
     [],
   )
@@ -119,14 +123,17 @@ function StudioComponentCardSlotView(props: StudioComponentCardSlotProps) {
     <ComponentCard
       frameStatesByName={frameStatesByName}
       layoutFrameStatesByName={layoutFrameStatesByName}
+      frameChangeStates={props.frameChangeStates}
       framePreviewScale={props.framePreviewScale}
+      frameGridMaxSide={props.frameGridMaxSide}
+      cardMinWidth={props.cardMinWidth}
       columnIndex={props.columnIndex}
       component={props.component}
       debugPreviewPool={props.debugPreviewPool}
       debugPreviewQueue={props.debugPreviewQueue}
       manifest={props.manifest}
       onPreviewFrameMount={props.onPreviewFrameMount}
-      onSelect={handleSelect}
+      onSelect={props.onSelect ? handleSelect : undefined}
       providerVariantComponent={props.providerVariantComponent}
       providerVariantContext={props.providerVariantContext}
       selected={props.selected}
@@ -146,13 +153,16 @@ function areStudioComponentCardSlotPropsEqual(
 ): boolean {
   return (
     previous.framePreviewScale === next.framePreviewScale &&
+    previous.frameGridMaxSide === next.frameGridMaxSide &&
     previous.columnIndex === next.columnIndex &&
     previous.component === next.component &&
     previous.debugPreviewPool === next.debugPreviewPool &&
     previous.debugPreviewQueue === next.debugPreviewQueue &&
     previous.fallbackFrameStates === next.fallbackFrameStates &&
     previous.fallbackPreviewCache === next.fallbackPreviewCache &&
+    sameStudioFrameChangeStates(previous.frameChangeStates, next.frameChangeStates) &&
     previous.manifest === next.manifest &&
+    previous.cardMinWidth === next.cardMinWidth &&
     previous.onPreviewGeometryChange === next.onPreviewGeometryChange &&
     previous.onPreviewFrameMount === next.onPreviewFrameMount &&
     previous.onSelect === next.onSelect &&
@@ -163,6 +173,17 @@ function areStudioComponentCardSlotPropsEqual(
     previous.selectedFrameName === next.selectedFrameName &&
     previous.viewportPreset === next.viewportPreset
   )
+}
+
+function sameStudioFrameChangeStates(
+  previous: Record<string, StudioWorkspaceChangeFrameKind> | undefined,
+  next: Record<string, StudioWorkspaceChangeFrameKind> | undefined,
+): boolean {
+  if (previous === next) return true
+  const previousEntries = Object.entries(previous ?? {})
+  const nextEntries = Object.entries(next ?? {})
+  return previousEntries.length === nextEntries.length &&
+    previousEntries.every(([key, value]) => next?.[key] === value)
 }
 
 function useStudioComponentPreviewGeometryVersion(input: {

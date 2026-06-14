@@ -33,11 +33,13 @@ type ViteLikeHotChannel = {
 
 type ViteLikeRequest = {
   method?: string
+  on?(event: "close", listener: () => void): void
   url?: string
 }
 
 type ViteLikeResponse = {
   statusCode?: number
+  write?(body: string): void
   setHeader(name: string, value: string): void
   end(body?: string | Buffer): void
 }
@@ -52,6 +54,7 @@ type ViteLikeDevServer = {
   ws?: ViteLikeHotChannel
   watcher?: {
     add(paths: string | string[]): void
+    on?(event: "all", listener: (eventName: string, path: string) => void): void
   }
 }
 
@@ -93,7 +96,13 @@ type RunelightVitePreviewConfig = {
 }
 
 export type RunelightViteReactOptions = {
+  /**
+   * @internal Test and nonstandard host wiring escape hatch. Normal setup should call `runelightViteReact()` without statically importing Runelight config.
+   */
   config?: RunelightConfig
+  /**
+   * @internal Test and nonstandard host wiring escape hatch. Normal setup should let Vite provide the project root.
+   */
   root?: string
 }
 
@@ -163,13 +172,27 @@ export function runelightViteReact(options: RunelightViteReactOptions = {}): Plu
     configureServer(server: ViteLikeDevServer) {
       if (!isRunelightDevMode()) return
 
+      const studioEvents = createRunelightStudioEventHub()
+      let changesProviderPromise: Promise<() => Promise<unknown>> | undefined
+      const getChangesProvider = () => {
+        changesProviderPromise ??= createRunelightViteStudioChangesProvider({
+          config: requireRunelightConfig(),
+          root,
+        })
+        return changesProviderPromise
+      }
       ensureRunelightDesignDirectory(root, entryRoot())
       server.watcher?.add(runelightViteWatchRoots(root, sourceRoot(), entryRoot()))
+      server.watcher?.on?.("all", (_eventName, filePath) => {
+        if (isRunelightFileInViteWatchRoots(root, sourceRoot(), entryRoot(), filePath)) studioEvents.publish()
+      })
       server.middlewares?.use((request, response, next) => {
         void handleRunelightViteStudioRequest(request, response, {
           config: requireResolvedConfig(),
+          getChangesProvider,
           runelightConfig: requireRunelightConfig(),
           root,
+          studioEvents,
         })
           .then((handled) => {
             if (!handled) next()
@@ -357,12 +380,22 @@ function hasRunelightPreviewQuery(id: string, queryName: string): boolean {
 
 type RunelightViteStudioRequestOptions = {
   config: ResolvedRunelightConfig
+  getChangesProvider: () => Promise<() => Promise<unknown>>
   runelightConfig: RunelightConfig
   root: string
+  studioEvents: RunelightStudioEventHub
 }
 
 type StudioManifestModule = {
   createStudioManifestFromResolvedConfig(projectIndex: ReturnType<typeof buildRunelightProjectIndex>, config: ResolvedRunelightConfig): StudioManifestLike
+}
+
+type StudioManifestServerModule = {
+  createStudioWorkspaceChangesProvider(options?: { config?: RunelightConfig; cwd?: string }): Promise<() => Promise<unknown>>
+  createStudioWorkspaceChangesFromManifest(
+    manifest: StudioManifestLike,
+    options: { cwd: string; entryRoot: string; sourceRoot: string },
+  ): unknown
 }
 
 type StudioStaticAppModule = {
@@ -372,6 +405,8 @@ type StudioStaticAppModule = {
 
 type StudioManifestLike = {
   routes: {
+    changes?: string
+    events?: string
     manifest: string
     preview: string
     studio: string
@@ -386,6 +421,7 @@ type RunelightProductionAssetOptions = {
 }
 
 const studioManifestModuleId = "@runelight/studio/manifest"
+const studioManifestServerModuleId = "@runelight/studio/manifest-server"
 const studioStaticAppModuleId = "@runelight/studio/static-app"
 
 async function emitRunelightProductionAssets(
@@ -428,6 +464,8 @@ async function emitRunelightProductionManifest(context: ViteLikePluginContext, o
   const projectIndex = await buildRunelightViteProjectIndex(options)
   const { createStudioManifestFromResolvedConfig } = await import(studioManifestModuleId) as StudioManifestModule
   const manifest = createStudioManifestFromResolvedConfig(projectIndex, options.config)
+  manifest.routes.changes ??= runelightStudioChangesRoute(options.config)
+  manifest.routes.events ??= runelightStudioEventsRoute(options.config)
   manifest.routes.preview = trailingSlashRoute(manifest.routes.preview)
   manifest.routes.studio = trailingSlashRoute(manifest.routes.studio)
 
@@ -530,6 +568,16 @@ async function handleRunelightViteStudioRequest(
   if (request.method && request.method !== "GET" && request.method !== "HEAD") return false
 
   const pathname = requestPathname(request.url)
+  if (pathname === runelightStudioEventsRoute(options.config)) {
+    serveRunelightViteStudioEvents(request, response, options.studioEvents)
+    return true
+  }
+
+  if (pathname === runelightStudioChangesRoute(options.config)) {
+    await serveRunelightViteStudioChanges(response, options)
+    return true
+  }
+
   if (pathname === options.config.routes.manifest) {
     await serveRunelightViteStudioManifest(response, options)
     return true
@@ -546,10 +594,75 @@ async function serveRunelightViteStudioManifest(response: ViteLikeResponse, opti
   const projectIndex = await buildRunelightViteProjectIndex(options)
   const { createStudioManifestFromResolvedConfig } = await import(studioManifestModuleId) as StudioManifestModule
   const manifest = createStudioManifestFromResolvedConfig(projectIndex, options.config)
+  manifest.routes.changes ??= runelightStudioChangesRoute(options.config)
+  manifest.routes.events ??= runelightStudioEventsRoute(options.config)
 
   response.statusCode = 200
+  response.setHeader("cache-control", "no-store")
   response.setHeader("content-type", "application/json; charset=utf-8")
   response.end(JSON.stringify(manifest))
+}
+
+async function serveRunelightViteStudioChanges(response: ViteLikeResponse, options: RunelightViteStudioRequestOptions) {
+  const createChanges = await options.getChangesProvider()
+  const changes = await createChanges()
+
+  response.statusCode = 200
+  response.setHeader("cache-control", "no-store")
+  response.setHeader("content-type", "application/json; charset=utf-8")
+  response.end(JSON.stringify(changes))
+}
+
+async function createRunelightViteStudioChangesProvider(options: {
+  config: RunelightConfig
+  root: string
+}): Promise<() => Promise<unknown>> {
+  const { createStudioWorkspaceChangesProvider } = await import(studioManifestServerModuleId) as StudioManifestServerModule
+  return createStudioWorkspaceChangesProvider({ config: options.config, cwd: options.root })
+}
+
+type RunelightStudioEventHub = {
+  publish(): void
+  subscribe(response: ViteLikeResponse): () => void
+}
+
+function createRunelightStudioEventHub(): RunelightStudioEventHub {
+  const clients = new Set<ViteLikeResponse>()
+
+  return {
+    publish() {
+      for (const client of clients) {
+        client.write?.("event: manifest\ndata: {}\n\n")
+      }
+    },
+    subscribe(response) {
+      clients.add(response)
+      response.write?.(": connected\n\n")
+      return () => {
+        clients.delete(response)
+      }
+    },
+  }
+}
+
+function serveRunelightViteStudioEvents(
+  request: ViteLikeRequest,
+  response: ViteLikeResponse,
+  studioEvents: RunelightStudioEventHub,
+) {
+  response.statusCode = 200
+  response.setHeader("cache-control", "no-store")
+  response.setHeader("connection", "keep-alive")
+  response.setHeader("content-type", "text/event-stream; charset=utf-8")
+  response.setHeader("x-accel-buffering", "no")
+
+  if (request.method === "HEAD") {
+    response.end()
+    return
+  }
+
+  const unsubscribe = studioEvents.subscribe(response)
+  request.on?.("close", unsubscribe)
 }
 
 async function serveRunelightViteStudioAsset(
@@ -593,6 +706,14 @@ async function resolveRunelightStudioAssetFilePath(assetPath: string): Promise<s
 
 function requestPathname(url: string | undefined): string {
   return new URL(url ?? "/", "http://runelight.local").pathname
+}
+
+function runelightStudioEventsRoute(config: ResolvedRunelightConfig): string {
+  return config.routes.events ?? "/runelight/studio/events"
+}
+
+function runelightStudioChangesRoute(_config: ResolvedRunelightConfig): string {
+  return "/runelight/studio/changes"
 }
 
 function runelightStudioAssetPathFromRequest(pathname: string, studioRoute: string): string | undefined {

@@ -40,11 +40,146 @@ describe("runelight CLI", () => {
 
     expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0)
     expect(result.stdout).toContain("runelight check [-p <tsconfig-or-dir>] [entry[#export]|dir]")
+    expect(result.stdout).toContain("runelight changes [-p <tsconfig-or-dir>] [--json]")
     expect(result.stdout).toContain("runelight serve [-p <tsconfig-or-dir>] [--port <port>]")
     expect(result.stdout).toContain("--frame-override <entry#export:frame>")
     expect(result.stdout).toContain("runelight capture [-p <tsconfig-or-dir>] <entry[#export]|dir>")
     expect(result.stdout).not.toContain("runelight init")
     expect(result.stdout).not.toContain("runelight strip")
+  })
+
+  it("lists current workspace UI changes as JSON", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-cli-changes-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      writeFileSync(
+        join(cwd, "tsconfig.json"),
+        JSON.stringify({ compilerOptions: { jsx: "react-jsx", module: "ESNext", moduleResolution: "Bundler", target: "ES2022" }, include: ["src"] }),
+      )
+      writeFileSync(
+        join(cwd, "runelight.config.ts"),
+        `import { defineRunelightConfig } from "@runelight/core"
+
+export default defineRunelightConfig({
+  contracts: ["@runelight/react/contract"],
+  project: {
+    sourceRoot: "src",
+    entryRoot: "src",
+    tsconfig: "tsconfig.json",
+  },
+})
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Button.g.tsx"),
+        `import type { GFrames } from "@runelight/react"
+
+type ButtonProps = { label: string }
+
+export default function Button(props: ButtonProps) {
+  return <button>{props.label}</button>
+}
+
+Button.frames = {
+  ready: { props: { label: "Save" } },
+} satisfies GFrames<ButtonProps>
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Link.g.tsx"),
+        `import type { GFrames } from "@runelight/react"
+
+type LinkProps = { label: string }
+
+export default function Link(props: LinkProps) {
+  return <a>{props.label}</a>
+}
+
+Link.frames = {
+  ready: { props: { label: "Docs" } },
+} satisfies GFrames<LinkProps>
+`,
+      )
+      spawnSync("git", ["init"], { cwd, encoding: "utf8" })
+      spawnSync("git", ["add", "."], { cwd, encoding: "utf8" })
+      spawnSync("git", ["-c", "user.email=runelight@example.test", "-c", "user.name=Runelight Test", "commit", "-m", "baseline"], {
+        cwd,
+        encoding: "utf8",
+      })
+      writeFileSync(
+        join(cwd, "src/Button.g.tsx"),
+        `import type { GFrames } from "@runelight/react"
+
+type ButtonProps = { label: string }
+
+export default function Button(props: ButtonProps) {
+  return <button><strong>{props.label}</strong></button>
+}
+
+Button.frames = {
+  ready: { props: { label: "Save" } },
+} satisfies GFrames<ButtonProps>
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Link.g.tsx"),
+        `import type { GFrames } from "@runelight/react"
+
+type LinkProps = { label: string }
+
+export default function Link(props: LinkProps) {
+  return <a><span>{props.label}</span></a>
+}
+
+Link.frames = {
+  ready: { props: { label: "Docs" } },
+} satisfies GFrames<LinkProps>
+`,
+      )
+
+      const result = await runCLI(["changes", "--json"], { cwd, stdout: "", stderr: "" })
+      const report = JSON.parse(result.stdout)
+
+      expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0)
+      expect(report.schemaVersion).toBe(1)
+      expect(report.summary.files.modified).toBe(2)
+      expect(report.components).toMatchObject([
+        {
+          codeStatus: "modified",
+          coordinate: "src/Button.g.tsx#default",
+          file: "src/Button.g.tsx",
+          uiStatus: "changed",
+          frames: [{ name: "ready", status: "changed" }],
+        },
+        {
+          codeStatus: "modified",
+          coordinate: "src/Link.g.tsx#default",
+          file: "src/Link.g.tsx",
+          uiStatus: "changed",
+          frames: [{ name: "ready", status: "changed" }],
+        },
+      ])
+
+      const filteredResult = await runCLI(["changes", "--json", "--component", "src/Button.g.tsx#default"], {
+        cwd,
+        stdout: "",
+        stderr: "",
+      })
+      const filteredReport = JSON.parse(filteredResult.stdout)
+
+      expect(filteredResult.exitCode, `${filteredResult.stdout}\n${filteredResult.stderr}`).toBe(0)
+      expect(filteredReport.summary.files).toEqual({ added: 0, deleted: 0, modified: 1 })
+      expect(filteredReport.summary.ui.changed).toBe(1)
+      expect(filteredReport.components).toMatchObject([
+        {
+          coordinate: "src/Button.g.tsx#default",
+          file: "src/Button.g.tsx",
+        },
+      ])
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
   })
 
   it("rejects unknown command options before loading project config", async () => {

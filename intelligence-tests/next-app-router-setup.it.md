@@ -4,6 +4,8 @@ Set up Runelight in a clean supported Next.js App Router project and verify the 
 
 Use a fresh/minimal project, or make a temporary copy of another project and remove any existing Runelight integration before setup. Do not treat an already-initialized project as proof that setup works. Exercise the README installer flow: install or refresh only `skills/setup-runelight` from this checkout into the target project at `.agents/skills/setup-runelight`, then run that project-level setup skill.
 
+After the setup and preview checks, make the temporary project a git worktree if needed, commit a clean Runelight baseline, and create at least one added, one deleted, and one modified `.g.tsx` working-tree change under the configured source or design roots.
+
 Validate these outcomes:
 
 - Before setup runs, the project contains `.agents/skills/setup-runelight` and no other Runelight project-level skills.
@@ -12,7 +14,7 @@ Validate these outcomes:
 - Setup does not install `authoring-runelight-vue`, `refactor-to-runelight-vue`, `design-runelight-vue`, or the deprecated unsplit `authoring-runelight`, `refactor-to-runelight`, and `design-runelight`.
 - The installed `design-runelight-react/DESIGN_REFERENCE.md` is an aesthetic reference only; it does not contain framework/package installation instructions such as `npm install`, `npx`, or design-stack defaults unrelated to the target project.
 - The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
-- Studio route files call `@runelight/adapter-next-react/studio-route` helpers and do not import React Studio source.
+- Studio HTML/assets route files call `@runelight/adapter-next-react/studio-route`, the manifest route calls `@runelight/adapter-next-react/studio-manifest-route`, and app code does not import React Studio source.
 - The Next config wrapper uses `runelightNextReact()` and does not statically import `runelight.config.ts`.
 - `runelight.config.ts` records `project.sourceRoot`, `project.entryRoot`, and a `host.command` with the `{port}` placeholder that `runelight serve` can wrap.
 - `${project.entryRoot}/design` exists after setup or dev-server startup.
@@ -23,13 +25,15 @@ Validate these outcomes:
 - While the dev server is running, adding a new `${project.entryRoot}/design/*.g.tsx` frame appears in manifest, Studio, and preview without restarting.
 - Editing that design frame updates preview without restarting.
 - Removing the temporary design frame does not leave a stale usable preview entry.
+- In the changed git worktree, `/runelight/studio` can open the Changes workspace without restarting the Next dev server. The page should not throw Turbopack module errors for repository documentation or other non-entry files, and Frames and Drafts still render after Changes has loaded.
+- `runelight changes --json --ui-only` reports the same added, deleted, and modified Runelight surfaces that Studio shows, using the configured `project.sourceRoot` and `${project.entryRoot}/design` paths rather than guessed paths.
 - Generated preview entries include source files and `${project.entryRoot}/design`, not guessed `sourceRoot/runelight/design` paths.
 - `/runelight` and `/runelight/studio` do not inherit hookful production app layout behavior or trigger app-owned network effects.
 - Production `next build` succeeds when `runelight.config.ts` is missing from the production build context.
-- Production `next start` starts successfully without `runelight.config.ts` or a writable `.runelight` directory.
+- Production `next start` starts successfully without `runelight.config.ts` or a writable `${project.entryRoot}/.runelight` directory.
 - The production app can import and render a normal `.g.tsx` component.
 - The original app route returns normally in production, while `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest` are not usable production surfaces unless the project explicitly opts in to production Runelight.
-- No `.runelight/preview-entries.ts` is required or written during production build or production startup.
+- No `${project.entryRoot}/.runelight/preview-entries.ts` is required or written during production build or production startup.
 - In a controlled fixture that uses the repository's internal production opt-in hook, a production `next build` and `next start` should expose usable `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest` routes. Studio should discover frames and render preview iframes from the production server. Removing the opt-in should restore the default non-exposed production behavior. Do not turn this fixture-only hook into user-facing setup guidance.
 - The test does not write Runelight companion skills into the user's global skills directory. If global Runelight skills already exist, do not treat them as proof of success; inspect project-local `.agents/skills`.
 

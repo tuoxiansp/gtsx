@@ -4,7 +4,6 @@ import type { GFrames } from "@runelight/react/runtime"
 
 import type { StudioPreviewFrameSlot } from "../preview-frame-slot"
 import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
-import { studioRadii } from "../studio-theme"
 
 type BufferedPreviewIframeProps = {
   dimmed?: boolean
@@ -13,6 +12,7 @@ type BufferedPreviewIframeProps = {
     frame: HTMLIFrameElement | null,
     state?: StudioPreviewIframeMountState,
   ) => void
+  placementKey?: string
   size: { width: number | string; height: number }
   slot: StudioPreviewFrameSlot
 }
@@ -41,21 +41,6 @@ export default function BufferedPreviewIframe(props: BufferedPreviewIframeProps)
         tabIndex={-1}
         title={props.slot.title}
       />
-      {props.dimmed ? (
-        <div
-          aria-hidden="true"
-          data-runelight-buffered-preview-dim-overlay={props.slot.sessionId}
-          style={{
-            background:
-              "repeating-linear-gradient(135deg, rgba(87,96,106,0.34) 0, rgba(87,96,106,0.34) 6px, transparent 6px, transparent 12px)",
-            borderRadius: studioRadii.md,
-            inset: 0,
-            pointerEvents: "none",
-            position: "absolute",
-            zIndex: 2,
-          }}
-        />
-      ) : null}
     </>
   )
 }

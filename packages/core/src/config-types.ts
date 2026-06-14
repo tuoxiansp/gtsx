@@ -17,6 +17,10 @@ export type RunelightProjectConfig = {
 }
 
 export type RunelightRouteConfig = {
+  /**
+   * @internal Studio refresh event stream route. Fixed adapter/Studio sidecar protocol, not user-configurable.
+   */
+  events: string
   preview: string
   studio: string
   manifest: string

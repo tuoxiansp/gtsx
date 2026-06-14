@@ -1,0 +1,45 @@
+{
+  "name": "@runelight/changes",
+  "version": "0.0.9",
+  "description": "Shared implementation package for Runelight workspace change classification.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuoxiansp/runelight.git",
+    "directory": "packages/changes"
+  },
+  "bugs": {
+    "url": "https://github.com/tuoxiansp/runelight/issues"
+  },
+  "homepage": "https://github.com/tuoxiansp/runelight#readme",
+  "keywords": [
+    "runelight",
+    "changes",
+    "visual-diff",
+    "component-preview"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "pnpm clean && tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

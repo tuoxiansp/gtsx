@@ -4,7 +4,7 @@ export default defineRunelightConfig({
   contracts: ["@runelight/react/contract"],
   project: {
     sourceRoot: "src",
-    entryRoot: "app/runelight",
+    entryRoot: "src/app/runelight",
     namespace: "runelight-studio",
   },
   host: {

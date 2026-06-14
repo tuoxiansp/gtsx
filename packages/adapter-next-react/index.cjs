@@ -1,13 +1,16 @@
 "use strict"
 
+const { execFileSync } = require("node:child_process")
 const { existsSync, mkdirSync, readdirSync, readFileSync, statSync, watch, writeFileSync } = require("node:fs")
+const { createServer } = require("node:http")
 const { dirname, join, relative, resolve, sep } = require("node:path")
 const vm = require("node:vm")
 
 const defaultPreviewEntriesModuleId = "@runelight/adapter-next-react/preview-entries"
-const defaultPreviewEntriesOutputFile = ".runelight/preview-entries.ts"
 const runelightHostPortPlaceholder = "{port}"
 const defaultRunelightRoutes = {
+  changes: "/runelight/studio/changes",
+  events: "/runelight/studio/events",
   preview: "/runelight",
   studio: "/runelight/studio",
   manifest: "/runelight/studio/manifest",
@@ -16,8 +19,10 @@ const ignoredPreviewEntryDirs = new Set(["node_modules", "dist", ".next", ".git"
 const previewEntriesPluginName = "RunelightNextPreviewEntriesPlugin"
 const previewEntriesWatcherDebounceMs = 50
 const globalPreviewEntryWatcherSymbol = Symbol.for("runelight.next.preview-entry.watchers")
+const globalStudioEventsServerSymbol = Symbol.for("runelight.next.studio.events.servers")
 const previewImportQuery = "runelight-preview"
 const runelightDevEnvName = "RUNELIGHT_DEV"
+const runelightServerExternalPackages = ["@runelight/core", "@runelight/studio"]
 
 function runelightNextReact(options = {}) {
   const root = options.root ?? process.cwd()
@@ -31,6 +36,7 @@ function runelightNextReact(options = {}) {
 
   return function withRunelightNextReact(nextConfig = {}) {
     const userWebpack = nextConfig.webpack
+    const studioEventsServer = startRunelightNextStudioEventsServer(root, previewEntries, options.config)
     writeRunelightNextPreviewEntries(root, previewEntries)
     startRunelightNextPreviewEntriesWatcher(root, previewEntries)
 
@@ -54,6 +60,8 @@ function runelightNextReact(options = {}) {
         })
         return resolvedConfig
       },
+      rewrites: withRunelightNextStudioEventsRewrites(nextConfig.rewrites, studioEventsServer, previewEntries),
+      serverExternalPackages: withRunelightServerExternalPackages(nextConfig.serverExternalPackages),
       turbopack: withRunelightTurbopackConfig(
         nextConfig.turbopack,
         loaderPath,
@@ -63,6 +71,14 @@ function runelightNextReact(options = {}) {
       ),
     }
   }
+}
+
+function withRunelightServerExternalPackages(serverExternalPackages) {
+  const merged = [...(serverExternalPackages ?? [])]
+  for (const packageName of runelightServerExternalPackages) {
+    if (!merged.includes(packageName)) merged.push(packageName)
+  }
+  return merged
 }
 
 function isRunelightNextRouteEnabled(root, options) {
@@ -98,18 +114,20 @@ function prependRule(rule, existing) {
 function resolvePreviewEntriesOptions(root, options) {
   if (options.previewEntries === false) return undefined
 
-  const previewEntries = typeof options.previewEntries === "object" ? options.previewEntries : {}
   const resolvedConfig = resolveNextRunelightConfig(root, options.config)
   const entryRoot = resolvedConfig?.project.entryRoot
   if (!entryRoot) {
     throw new Error(
-      'Missing project.entryRoot in runelight.config.ts. Record the local /runelight entry directory, for example project: { entryRoot: "app/runelight" }.',
+      'Missing project.entryRoot in runelight.config.ts. Record the local /runelight entry directory, for example project: { entryRoot: "src/app/runelight" } for src-based projects.',
     )
   }
 
+  const normalizedEntryRoot = normalizeRunelightPath(entryRoot)
+
   return {
-    entryRoot: normalizeRunelightPath(entryRoot),
-    outputPath: resolve(root, previewEntries.outputFile ?? defaultPreviewEntriesOutputFile),
+    baselineRoot: runelightBaselineRootFromEntryRoot(normalizedEntryRoot),
+    entryRoot: normalizedEntryRoot,
+    outputPath: resolve(root, `${runelightGeneratedRootFromEntryRoot(normalizedEntryRoot)}/preview-entries.ts`),
     sourceRoot: resolvedConfig.project.sourceRoot,
   }
 }
@@ -250,7 +268,7 @@ function validateLoadedRunelightConfig(config) {
     diagnostics.push({
       stage: "adapter-configuration",
       code: "missing-entry-root",
-      message: 'Add project.entryRoot to runelight.config.ts, for example project: { entryRoot: "app/runelight" }.',
+      message: 'Add project.entryRoot to runelight.config.ts, for example project: { entryRoot: "src/app/runelight" } for src-based projects.',
     })
   }
   if (!config?.project || !isNonEmptyString(config.project.sourceRoot)) {
@@ -286,6 +304,7 @@ function isRunelightHostCommandWithPortPlaceholder(command) {
 function writeRunelightNextPreviewEntries(root, options) {
   if (!options || !existsSync(root)) return
 
+  prepareRunelightNextBaselineSource(root, options)
   const files = discoverRunelightPreviewFiles(root, options)
   const code = createRunelightNextPreviewEntriesModule(root, options.outputPath, files)
   const current = readFileIfExists(options.outputPath)
@@ -327,7 +346,8 @@ function collectRunelightPreviewFiles(directory, files, root) {
 }
 
 function runelightNextPreviewEntryRoots(options) {
-  return [...new Set([options.sourceRoot, runelightDesignRootFromEntryRoot(options.entryRoot)])]
+  const designRoot = runelightDesignRootFromEntryRoot(options.entryRoot)
+  return [...new Set([options.sourceRoot, designRoot, `${options.baselineRoot}/${options.sourceRoot}`, `${options.baselineRoot}/${designRoot}`])]
 }
 
 function runelightNextPreviewEntryWatchRoots(options) {
@@ -371,7 +391,13 @@ function installRunelightNextPreviewEntriesPlugin(config, root, options) {
 function startRunelightNextPreviewEntriesWatcher(root, options) {
   if (!options || process.env.NODE_ENV === "production" || process.env.NODE_ENV === "test") return
 
-  const key = JSON.stringify({ entryRoot: options.entryRoot, outputPath: options.outputPath, sourceRoot: options.sourceRoot, root })
+  const key = JSON.stringify({
+    baselineRoot: options.baselineRoot,
+    entryRoot: options.entryRoot,
+    outputPath: options.outputPath,
+    sourceRoot: options.sourceRoot,
+    root,
+  })
   const watchers = globalPreviewEntryWatchers()
   if (watchers.has(key)) return
 
@@ -395,6 +421,7 @@ function watchRunelightNextPreviewEntryRoots(root, options) {
     pending = setTimeout(() => {
       pending = undefined
       writeRunelightNextPreviewEntries(root, options)
+      notifyRunelightNextStudioManifestChange(root, options)
     }, previewEntriesWatcherDebounceMs)
     pending.unref?.()
   }
@@ -455,6 +482,196 @@ function watchRunelightNextPreviewEntryRoots(root, options) {
       directoryWatchers.clear()
     },
   }
+}
+
+function withRunelightNextStudioEventsRewrites(userRewrites, studioEventsServer, options) {
+  if (!studioEventsServer || !options) return userRewrites
+
+  return async () => {
+    const rewrites = typeof userRewrites === "function" ? await userRewrites() : userRewrites
+    const serverUrl = await studioEventsServer.url()
+    return prependNextRewrites(rewrites, [
+      {
+        destination: `${serverUrl}${runelightNextStudioEventsRoute()}`,
+        source: runelightNextStudioEventsRoute(),
+      },
+      {
+        destination: `${serverUrl}${runelightNextStudioChangesRoute()}`,
+        source: runelightNextStudioChangesRoute(),
+      },
+    ])
+  }
+}
+
+function prependNextRewrites(rewrites, prepended) {
+  return prepended.reduceRight((nextRewrites, rewrite) => prependNextRewrite(nextRewrites, rewrite), rewrites)
+}
+
+function prependNextRewrite(rewrites, rewrite) {
+  if (!rewrites) return [rewrite]
+  if (Array.isArray(rewrites)) return [rewrite, ...rewrites]
+  if (typeof rewrites === "object") {
+    return {
+      ...rewrites,
+      beforeFiles: [rewrite, ...(Array.isArray(rewrites.beforeFiles) ? rewrites.beforeFiles : [])],
+    }
+  }
+
+  return [rewrite]
+}
+
+function startRunelightNextStudioEventsServer(root, options, config) {
+  if (!options || !isRunelightDevMode()) return undefined
+
+  const key = runelightNextPreviewEntriesKey(root, options)
+  const servers = globalStudioEventsServers()
+  const existing = servers.get(key)
+  if (existing) return existing
+
+  const hub = createRunelightStudioEventHub()
+  let changesProviderPromise
+  const getChangesProvider = () => {
+    changesProviderPromise ??= createRunelightNextStudioChangesProvider({ config, root })
+    return changesProviderPromise
+  }
+  const server = createServer((request, response) => {
+    if (request.method && request.method !== "GET" && request.method !== "HEAD") {
+      response.statusCode = 405
+      response.end("Method not allowed.")
+      return
+    }
+
+    const pathname = requestPathname(request.url)
+    if (pathname === runelightNextStudioEventsRoute()) {
+      serveRunelightNextStudioEvents(request, response, hub)
+      return
+    }
+
+    if (pathname === runelightNextStudioChangesRoute()) {
+      void serveRunelightNextStudioChanges(response, { getChangesProvider, previewEntries: options, root })
+      return
+    }
+
+    {
+      response.statusCode = 404
+      response.end("Runelight Studio event stream not found.")
+      return
+    }
+  })
+  const url = new Promise((resolveUrl, rejectUrl) => {
+    server.once("error", rejectUrl)
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", rejectUrl)
+      server.unref?.()
+      const address = server.address()
+      if (!address || typeof address === "string") {
+        rejectUrl(new Error("Unable to start Runelight Studio event stream."))
+        return
+      }
+      resolveUrl(`http://127.0.0.1:${address.port}`)
+    })
+  })
+  const studioEventsServer = {
+    close() {
+      server.close()
+    },
+    publish: hub.publish,
+    url: () => url,
+  }
+
+  servers.set(key, studioEventsServer)
+  return studioEventsServer
+}
+
+async function serveRunelightNextStudioChanges(response, options) {
+  try {
+    const createChanges = await options.getChangesProvider()
+    const changes = await createChanges()
+    writeRunelightNextPreviewEntries(options.root, options.previewEntries)
+    response.statusCode = 200
+    response.setHeader("cache-control", "no-store")
+    response.setHeader("content-type", "application/json; charset=utf-8")
+    response.end(JSON.stringify(changes))
+  } catch (error) {
+    response.statusCode = 500
+    response.setHeader("content-type", "text/plain; charset=utf-8")
+    response.end(error instanceof Error ? error.message : "Runelight Studio changes request failed.")
+  }
+}
+
+async function createRunelightNextStudioChangesProvider(options) {
+  const { createStudioWorkspaceChangesProvider } = await import("@runelight/studio/manifest-server")
+  return createStudioWorkspaceChangesProvider({ config: options.config, cwd: options.root })
+}
+
+function globalStudioEventsServers() {
+  globalThis[globalStudioEventsServerSymbol] ??= new Map()
+  return globalThis[globalStudioEventsServerSymbol]
+}
+
+function notifyRunelightNextStudioManifestChange(root, options) {
+  globalStudioEventsServers().get(runelightNextPreviewEntriesKey(root, options))?.publish()
+}
+
+function createRunelightStudioEventHub() {
+  const clients = new Set()
+
+  return {
+    publish() {
+      for (const client of clients) {
+        client.write("event: manifest\ndata: {}\n\n")
+      }
+    },
+    subscribe(response) {
+      clients.add(response)
+      response.write(": connected\n\n")
+      return () => {
+        clients.delete(response)
+      }
+    },
+  }
+}
+
+function serveRunelightNextStudioEvents(request, response, studioEvents) {
+  response.statusCode = 200
+  response.setHeader("cache-control", "no-store")
+  response.setHeader("connection", "keep-alive")
+  response.setHeader("content-type", "text/event-stream; charset=utf-8")
+  response.setHeader("x-accel-buffering", "no")
+
+  if (request.method === "HEAD") {
+    response.end()
+    return
+  }
+
+  const unsubscribe = studioEvents.subscribe(response)
+  request.on("close", unsubscribe)
+}
+
+function runelightNextPreviewEntriesKey(root, options) {
+  return JSON.stringify({
+    baselineRoot: options.baselineRoot,
+    entryRoot: options.entryRoot,
+    outputPath: options.outputPath,
+    sourceRoot: options.sourceRoot,
+    root,
+  })
+}
+
+function runelightNextStudioEventsRoute() {
+  return "/runelight/studio/events"
+}
+
+function runelightNextStudioChangesRoute() {
+  return "/runelight/studio/changes"
+}
+
+function requestPathname(url) {
+  return new URL(url ?? "/", "http://runelight.local").pathname
+}
+
+function isRunelightDevMode() {
+  return process.env[runelightDevEnvName] === "1"
 }
 
 function createRunelightNextPreviewEntriesModule(root, outputPath, files) {
@@ -522,9 +739,127 @@ function ensureRunelightDesignDirectory(root, options) {
   mkdirSync(resolve(root, runelightDesignRootFromEntryRoot(options.entryRoot)), { recursive: true })
 }
 
+function prepareRunelightNextBaselineSource(root, options) {
+  if (!isRunelightDevMode()) return
+
+  const cacheKey = runelightNextBaselineSourceCacheKey(root, options)
+  const cacheKeyPath = resolve(root, options.baselineRoot, ".baseline-key")
+  if (readFileIfExists(cacheKeyPath) === cacheKey) return
+
+  const roots = [options.sourceRoot, runelightDesignRootFromEntryRoot(options.entryRoot)]
+  const filePaths = readRunelightNextGitHeadFiles(root, roots)
+  if (filePaths.length === 0) return
+
+  for (const filePath of filePaths) {
+    const content = readRunelightNextGitHeadFile(root, filePath)
+    if (!content) continue
+
+    const outputPath = resolve(root, options.baselineRoot, filePath)
+    mkdirSync(dirname(outputPath), { recursive: true })
+    writeFileSync(
+      outputPath,
+      shouldRewriteRunelightNextBaselineImports(filePath)
+        ? rewriteRunelightNextBaselineImports(content.toString("utf8"), {
+            baselineRoot: options.baselineRoot,
+            filePath,
+            runtimeImportSpecifier: "@runelight/react/runtime",
+            sourceRoot: options.sourceRoot,
+          })
+        : content,
+    )
+  }
+  mkdirSync(resolve(root, options.baselineRoot), { recursive: true })
+  writeFileSync(cacheKeyPath, cacheKey)
+}
+
+function runelightNextBaselineSourceCacheKey(root, options) {
+  return JSON.stringify({
+    baselineRoot: options.baselineRoot,
+    entryRoot: options.entryRoot,
+    head: readRunelightNextGitHeadRevision(root),
+    runtimeImportSpecifier: "@runelight/react/runtime",
+    sourceRoot: options.sourceRoot,
+  })
+}
+
+function readRunelightNextGitHeadRevision(root) {
+  try {
+    return execFileSync("git", ["-C", root, "rev-parse", "HEAD"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim()
+  } catch {
+    return undefined
+  }
+}
+
+function readRunelightNextGitHeadFiles(root, pathspecs) {
+  let output
+  try {
+    output = execFileSync("git", ["-C", root, "ls-tree", "-r", "--name-only", "HEAD", "--", ...pathspecs], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+  } catch {
+    return []
+  }
+
+  return output.split(/\r?\n/).filter(Boolean).map((path) => path.replaceAll("\\", "/"))
+}
+
+function readRunelightNextGitHeadFile(root, path) {
+  try {
+    return execFileSync("git", ["-C", root, "show", `HEAD:${path}`], {
+      encoding: "buffer",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+  } catch {
+    return undefined
+  }
+}
+
+function shouldRewriteRunelightNextBaselineImports(path) {
+  return /\.(c|m)?(t|j)sx?$/.test(path)
+}
+
+function rewriteRunelightNextBaselineImports(source, options) {
+  const aliasRewritten = source
+    .replaceAll(/(from\s*["'])@\/([^"']+)(["'])/g, (_match, before, target, after) =>
+      `${before}${runelightNextBaselineRelativeAliasSpecifier(options, target)}${after}`)
+    .replaceAll(/(import\s*\(\s*["'])@\/([^"']+)(["']\s*\))/g, (_match, before, target, after) =>
+      `${before}${runelightNextBaselineRelativeAliasSpecifier(options, target)}${after}`)
+  if (!options.runtimeImportSpecifier || !isRunelightNextBaselineProtocolFile(options.filePath)) return aliasRewritten
+
+  return aliasRewritten
+    .replaceAll(/(from\s*["'])@runelight\/core(["'])/g, (_match, before, after) =>
+      `${before}${options.runtimeImportSpecifier}${after}`)
+    .replaceAll(/(import\s*\(\s*["'])@runelight\/core(["']\s*\))/g, (_match, before, after) =>
+      `${before}${options.runtimeImportSpecifier}${after}`)
+}
+
+function runelightNextBaselineRelativeAliasSpecifier(options, target) {
+  const fromDirectory = dirname(`${options.baselineRoot}/${options.filePath}`)
+  const toPath = `${options.baselineRoot}/${options.sourceRoot}/${target}`.replaceAll("\\", "/")
+  const relativePath = relative(fromDirectory, toPath).split(sep).join("/")
+  return relativePath.startsWith(".") ? relativePath : `./${relativePath}`
+}
+
+function isRunelightNextBaselineProtocolFile(path) {
+  return path.endsWith(".g.tsx")
+}
+
 function runelightDesignRootFromEntryRoot(entryRoot) {
   const root = normalizeRunelightPath(entryRoot)
   return root === "." ? "design" : `${root}/design`
+}
+
+function runelightGeneratedRootFromEntryRoot(entryRoot) {
+  const root = normalizeRunelightPath(entryRoot)
+  return root === "." ? ".runelight" : `${root}/.runelight`
+}
+
+function runelightBaselineRootFromEntryRoot(entryRoot) {
+  return `${runelightGeneratedRootFromEntryRoot(entryRoot)}/baselines/HEAD`
 }
 
 function normalizeRunelightPath(path) {

@@ -22,7 +22,7 @@ The adapter uses `@runelight/react/preview` internally; user projects should not
 - Production app behavior must remain unchanged: normal `vite build` must not require the Runelight config, resolve `virtual:runelight/preview-config`, include preview route code, expose a usable `/runelight` experience, or read/write Runelight-generated preview files.
 - If the root `tsconfig.json` is a references container, set `project.tsconfig` to the app config that includes React files, usually `tsconfig.app.json`.
 - Configure `host.command` as the direct framework dev command that `runelight serve` wraps, with `{port}` as the port placeholder. Do not point `host.command` at a package script that itself runs `runelight serve`.
-- Record the local Runelight entry directory in `project.entryRoot`. Design frames live in `${project.entryRoot}/design`; do not add a `designRoot` config key. `app/runelight` at the project root is the default for client-only Vite hosts; `src/app/runelight` is also valid when the project keeps all authored source under `src`.
+- Record the local Runelight entry directory in `project.entryRoot`. Design frames live in `${project.entryRoot}/design`; generated Runelight files live in `${project.entryRoot}/.runelight/`; ensure `.gitignore` contains `.runelight/`, which covers this generated folder at any depth. Do not add a `designRoot` config key. Use `src/app/runelight` when the project keeps authored source under `src`, or `app/runelight` for root-level source projects.
 - During setup, create the empty `${project.entryRoot}/design` directory. Do not add placeholder frames; the first `design-runelight-react` request writes the first `.g.tsx` frame.
 - In upgrade/ensure mode, do not rewrite `vite.config.*`, Runelight config, browser-entry branches, or `src/preview.tsx` if they already exist and pass verification; only update packages and add missing design-directory support.
 - After package upgrades, rerun Vite typecheck/dev verification. If adapter exports, virtual modules, preview loader signatures, or manifest generation changed, migrate only the affected glue while preserving the existing app render path.
@@ -49,7 +49,7 @@ export default defineRunelightConfig({
   contracts: ["@runelight/react/contract"],
   project: {
     sourceRoot: "src",
-    entryRoot: "app/runelight",
+    entryRoot: "src/app/runelight",
     namespace: "my-project",
   },
   host: {
@@ -58,7 +58,7 @@ export default defineRunelightConfig({
 })
 ```
 
-Use the detected package manager's exec form in `host.command`: `npx vite ...` for npm, `pnpm exec vite ...` for pnpm. `runelight serve` substitutes `{port}` with the Runelight-owned port, sets `RUNELIGHT_DEV=1`, and prints the serve and Studio URLs. Routes are fixed at `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest`; they are not configurable.
+Use the detected package manager's exec form in `host.command`: `npx vite ...` for npm, `pnpm exec vite ...` for pnpm. `runelight serve` substitutes `{port}` with the Runelight-owned port, sets `RUNELIGHT_DEV=1`, and prints the serve and Studio URLs. Routes are fixed and not configurable: `/runelight`, `/runelight/studio`, `/runelight/studio/manifest`, plus adapter-owned internal Studio sidecar routes `/runelight/studio/events` and `/runelight/studio/changes`.
 
 Recommended `package.json` scripts:
 
@@ -118,7 +118,7 @@ import {
 } from "@runelight/adapter-vite-react/preview"
 import previewConfig from "virtual:runelight/preview-config"
 
-const modules = import.meta.glob<RunelightReactPreviewModule>(["/src/**/*.g.tsx", "/app/runelight/design/**/*.g.tsx"], {
+const modules = import.meta.glob<RunelightReactPreviewModule>(["/src/**/*.g.tsx", "/src/app/runelight/design/**/*.g.tsx"], {
   query: "?runelight-preview",
 })
 const loadPreviewComponent = createRunelightVitePreviewComponentLoader(modules, {

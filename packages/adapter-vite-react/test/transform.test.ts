@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { execFileSync } from "node:child_process"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 
@@ -48,6 +49,8 @@ vi.mock("@runelight/studio/static-app", () => ({
   },
 }))
 
+vi.mock("@runelight/studio/manifest-server", async () => vi.importActual("../../studio/src/manifest-server.js"))
+
 const runelightConfig = {
   contracts: ["@runelight/react/contract"],
   project: {
@@ -58,6 +61,7 @@ const runelightConfig = {
     command: "vite --host 127.0.0.1 --port {port} --strictPort",
   },
 }
+const baselineRoot = "src/app/runelight/.runelight/baselines/HEAD"
 
 describe("runelight Vite React adapter", () => {
   const previousRunelightDev = process.env.RUNELIGHT_DEV
@@ -218,11 +222,92 @@ Card.frames = {
       expect(manifestResponse).toMatchObject({ statusCode: 200 })
       expect(manifestResponse.headers["content-type"]).toContain("application/json")
       expect(manifest.routes).toMatchObject({
+        changes: "/runelight/studio/changes",
+        events: "/runelight/studio/events",
         preview: "/runelight",
         studio: "/runelight/studio",
         manifest: "/runelight/studio/manifest",
       })
+      expect(manifestResponse.headers["cache-control"]).toBe("no-store")
       expect(manifest.files.map((file: { path: string }) => file.path)).toEqual(["src/components/Card.g.tsx"])
+    } finally {
+      rmSync(root, { force: true, recursive: true })
+    }
+  })
+
+  it("serves adapter-owned Studio manifest events from the Vite dev server", async () => {
+    const root = mkdtempSync(join(tmpdir(), "runelight-vite-studio-events-"))
+
+    try {
+      mkdirSync(join(root, "src/components"), { recursive: true })
+      const plugin = runelightViteReact({ config: runelightConfig, root })
+      plugin.configResolved({ root })
+      const server = createViteMiddlewareHarness()
+      plugin.configureServer(server)
+
+      const events = await server.open("/runelight/studio/events")
+
+      expect(events.response.statusCode).toBe(200)
+      expect(events.response.headers["content-type"]).toContain("text/event-stream")
+      expect(events.response.headers["cache-control"]).toBe("no-store")
+      expect(events.response.body).toContain(": connected")
+
+      server.emitWatcher("change", join(root, "src/components/Card.g.tsx"))
+
+      expect(events.response.body).toContain("event: manifest")
+      events.close()
+    } finally {
+      rmSync(root, { force: true, recursive: true })
+    }
+  })
+
+  it("serves workspace changes from the Vite dev server", async () => {
+    const root = mkdtempSync(join(tmpdir(), "runelight-vite-studio-changes-"))
+
+    try {
+      mkdirSync(join(root, "src/components"), { recursive: true })
+      writeFileSync(
+        join(root, "src/components/Card.g.tsx"),
+        [
+          'import { createGScopeHook, type GFrames } from "@runelight/core"',
+          "export default function Card() { return <span>old</span> }",
+          "Card.frames = { ready: { props: {} } } satisfies GFrames<Record<string, never>>",
+          "",
+        ].join("\n"),
+      )
+      execFileSync("git", ["init"], { cwd: root, stdio: "ignore" })
+      execFileSync("git", ["config", "user.email", "runelight@example.test"], { cwd: root })
+      execFileSync("git", ["config", "user.name", "Runelight Test"], { cwd: root })
+      execFileSync("git", ["add", "src"], { cwd: root })
+      execFileSync("git", ["commit", "-m", "baseline"], { cwd: root, stdio: "ignore" })
+      writeFileSync(
+        join(root, "src/components/Card.g.tsx"),
+        ["export default function Card() { return <span>new</span> }", "Card.frames = { ready: { props: {} } }", ""].join("\n"),
+      )
+
+      const plugin = runelightViteReact({ config: runelightConfig, root })
+      plugin.configResolved({ root })
+      const server = createViteMiddlewareHarness()
+      plugin.configureServer(server)
+
+      const response = await server.request("/runelight/studio/changes")
+      const changes = JSON.parse(response.body)
+
+      expect(response).toMatchObject({ statusCode: 200 })
+      expect(response.headers["cache-control"]).toBe("no-store")
+      expect(changes.items).toMatchObject([
+        {
+          kind: "modified",
+          filePath: "src/components/Card.g.tsx",
+          surface: "frames",
+        },
+      ])
+      expect(changes.base.manifest.files.map((file: { path: string }) => file.path)).toContain(
+        `${baselineRoot}/src/components/Card.g.tsx`,
+      )
+      expect(changes.items[0].baselineFile.path).toBe(`${baselineRoot}/src/components/Card.g.tsx`)
+      expect(changes.items[0].baselineFile.components[0].componentName).toBe("Card")
+      expect(readBaselineFile(root, "src/components/Card.g.tsx")).toContain('from "@runelight/react/runtime"')
     } finally {
       rmSync(root, { force: true, recursive: true })
     }
@@ -746,8 +831,9 @@ type ViteMiddlewareResponse = {
 }
 
 function createViteMiddlewareHarness() {
-  type Middleware = (request: { method?: string; url?: string }, response: unknown, next: () => void) => void
+  type Middleware = (request: { method?: string; on?(event: "close", listener: () => void): void; url?: string }, response: unknown, next: () => void) => void
   const middlewares: Middleware[] = []
+  const watcherListeners: Array<(eventName: string, path: string) => void> = []
 
   return {
     middlewares: {
@@ -757,6 +843,72 @@ function createViteMiddlewareHarness() {
     },
     watcher: {
       add() {},
+      on(event: "all", listener: (eventName: string, path: string) => void) {
+        if (event === "all") watcherListeners.push(listener)
+      },
+    },
+    emitWatcher(eventName: string, path: string) {
+      for (const listener of watcherListeners) listener(eventName, path)
+    },
+    async open(url: string): Promise<{ close(): void; response: ViteMiddlewareResponse }> {
+      let index = 0
+      const closeListeners: Array<() => void> = []
+      const response: ViteMiddlewareResponse = {
+        body: "",
+        headers: {},
+        statusCode: 404,
+      }
+      await new Promise<void>((resolveOpen) => {
+        let resolved = false
+        const resolveOnce = () => {
+          if (resolved) return
+          resolved = true
+          resolveOpen()
+        }
+        const writableResponse = {
+          get statusCode() {
+            return response.statusCode
+          },
+          set statusCode(nextStatusCode: number) {
+            response.statusCode = nextStatusCode
+          },
+          setHeader(name: string, value: string) {
+            response.headers[name.toLowerCase()] = value
+          },
+          write(body = "") {
+            response.body += String(body)
+            resolveOnce()
+          },
+          end(body = "") {
+            response.body += String(body)
+            resolveOnce()
+          },
+        }
+        const next = () => {
+          const middleware = middlewares[index++]
+          if (!middleware) {
+            resolveOnce()
+            return
+          }
+
+          middleware({
+            method: "GET",
+            on(event, listener) {
+              if (event === "close") closeListeners.push(listener)
+            },
+            url,
+          }, writableResponse, next)
+        }
+
+        next()
+      })
+
+      return {
+        close() {
+          for (const listener of closeListeners) listener()
+        },
+        response,
+      }
     },
     async request(url: string): Promise<ViteMiddlewareResponse> {
       let index = 0
@@ -797,4 +949,8 @@ function createViteMiddlewareHarness() {
       return response
     },
   }
+}
+
+function readBaselineFile(root: string, path: string): string {
+  return readFileSync(join(root, baselineRoot, path), "utf8")
 }

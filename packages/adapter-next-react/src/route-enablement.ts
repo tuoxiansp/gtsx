@@ -1,6 +1,9 @@
 import { loadRunelightConfig, resolveRunelightConfig } from "@runelight/core/config"
 import type { RunelightConfig, ResolvedRunelightConfig } from "@runelight/core"
 
+/**
+ * @internal Shared Next route enablement helper options for adapter-owned routes.
+ */
 export type RunelightNextRouteEnablementOptions = {
   config?: RunelightConfig
   cwd?: string

@@ -4,6 +4,8 @@ Set up Runelight in a clean supported Vite React project and verify the resultin
 
 Use a fresh/minimal project, or make a temporary copy of another project and remove any existing Runelight integration before setup. Do not treat an already-initialized project as proof that setup works. Exercise the README installer flow: install or refresh only `skills/setup-runelight` from this checkout into the target project at `.agents/skills/setup-runelight`, then run that project-level setup skill.
 
+After the initial setup and preview checks, make the temporary project a git worktree if it is not already one, commit a clean Runelight baseline, then create realistic working-tree `.g.tsx` changes: add a design frame, delete a committed design frame, make a code-only edit that should not affect visible UI, and modify one component so only one of several frames has a visible change.
+
 Validate these outcomes:
 
 - Before setup runs, the project contains `.agents/skills/setup-runelight` and no other Runelight project-level skills.
@@ -24,11 +26,16 @@ Validate these outcomes:
 - While the dev server is running, adding a new `${project.entryRoot}/design/*.g.tsx` frame appears in Studio and preview without restarting.
 - Editing that design frame updates preview without restarting.
 - Removing the temporary design frame does not leave a stale usable preview entry.
-- Design files live under `${project.entryRoot}/design`, never under `.runelight`.
+- `runelight changes --json --ui-only` reports the added design frame, deleted design frame, and visually changed component with stable component/frame status, but omits the code-only edit from user-visible UI changes.
+- In the changed git worktree, opening Studio defaults to the Changes workspace; in a clean worktree, Studio defaults to Frames.
+- The Studio Changes workspace renders added, deleted, and modified Runelight surfaces without empty before/current boxes. Deleted items have a visibly disabled/deleted presentation, added items show only current UI, and modified items show before/current only where comparison is meaningful.
+- For the component with multiple frames, both Studio Changes and `runelight changes` identify the changed frame separately from unchanged frames, so the user is not asked to compare two identical previews.
+- Selecting a non-first change item stays selected while previews load, and switching between Changes, Frames, and Drafts does not leave either workspace permanently blank.
+- Design files live under `${project.entryRoot}/design`, never under `${project.entryRoot}/.runelight`.
 - Setup does not rely on multiple guessed design globs.
 - A production `vite build` succeeds when `runelight.config.ts` is missing from the production build context.
 - The production app can import and render a normal `.g.tsx` component.
-- The production output still renders the original app route and does not require `virtual:runelight/preview-config`, bundle preview route code, expose a usable `/runelight` experience, or write `.runelight`/Runelight-generated preview registry files.
+- The production output still renders the original app route and does not require `virtual:runelight/preview-config`, bundle preview route code, expose a usable `/runelight` experience, or write `${project.entryRoot}/.runelight` generated files.
 - In a controlled fixture that uses the repository's internal production opt-in hook, a production `vite build` emits a usable `/runelight/` preview entry, `/runelight/studio/` Studio entry, `/runelight/studio/manifest`, and Studio assets without platform-specific rewrites. Serving the built output should allow Studio to discover frames and render preview iframes from the production bundle. Removing the opt-in should restore the default non-exposed production output. Do not turn this fixture-only hook into user-facing setup guidance.
 - The test does not write Runelight companion skills into the user's global skills directory. If global Runelight skills already exist, do not treat them as proof of success; inspect project-local `.agents/skills`.
 

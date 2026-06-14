@@ -5,12 +5,14 @@ import {
   createGPreviewErrorMessage,
   createGPreviewPoolReadyMessage,
   createGPreviewReadyMessage,
+  createGPreviewRenderedSnapshotMessage,
   createGPreviewRenderAcceptedMessage,
   createGPreviewResizeMessage,
   createGPreviewTreeMessage,
   createGPreviewValuesMessage,
   isGPreviewRenderMessage,
   isGPreviewRenderTarget,
+  readGRenderedSnapshot,
   readRunelightPreviewFrameOverridesFromSearchParams,
   type GBoundaryTreeNode,
   type GPreviewRenderTarget,
@@ -1243,8 +1245,13 @@ function useRunelightPreviewProtocolMessages(
     let settled = false
     let resizeObserver: ResizeObserver | undefined
 
+    const publishRenderedSnapshot = () => {
+      window.parent.postMessage(createGPreviewRenderedSnapshotMessage(sessionId, readGRenderedSnapshot(document)), "*")
+    }
+
     const settleStaticPreview = () => {
       settled = true
+      publishRenderedSnapshot()
       window.removeEventListener("message", handleMessage)
       window.removeEventListener("resize", scheduleLayoutPublish)
       resizeObserver?.disconnect()
@@ -1259,6 +1266,7 @@ function useRunelightPreviewProtocolMessages(
       const tree = collector.getTree()
       window.parent.postMessage(createGPreviewTreeMessage(sessionId, tree), "*")
       window.parent.postMessage(createGPreviewResizeMessage(sessionId, previewContentSize(tree)), "*")
+      if (!options.staticMode) publishRenderedSnapshot()
 
       if (options.staticMode) {
         if (settleTimer) window.clearTimeout(settleTimer)

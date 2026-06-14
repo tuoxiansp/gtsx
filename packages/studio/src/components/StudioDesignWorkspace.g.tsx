@@ -39,6 +39,7 @@ import {
   studioRadii,
   studioShellStyle,
 } from "../studio-theme"
+import { studioComponentFrameGridGap } from "../frame-grid-layout"
 import { useStudioCanvasController } from "../use-studio-canvas-controller"
 import StudioComponentCardSlot from "./StudioComponentCardSlot"
 import ViewportPresetTabs from "./ViewportPresetTabs.g"
@@ -116,8 +117,9 @@ const studioDesignCanvasPaddingBottom = 120
 const studioDesignCanvasPaddingLeft = 96
 const studioDesignCanvasPaddingRight = 96
 const studioDesignCanvasPaddingTop = 108
-const studioDesignCardColumnGap = 36
-const studioDesignCardRowGap = 88
+const studioDesignCardMinWidth = 0
+const studioDesignCardColumnGap = studioComponentFrameGridGap
+const studioDesignCardRowGap = studioComponentFrameGridGap
 const emptyStudioDesignCards: StudioCanvasCardIndexEntry[] = []
 
 function shouldHandleCanvasWheelTarget(target: EventTarget | null): boolean {
@@ -302,6 +304,7 @@ function StudioDesignWorkspaceView(props: StudioDesignWorkspaceProps) {
                     >
                       <StudioComponentCardSlot
                         framePreviewScale={studioCanvasFixedFramePreviewScale}
+                        cardMinWidth={studioDesignCardMinWidth}
                         columnIndex={0}
                         component={component}
                         debugPreviewPool={props.debugPreviewPool}
@@ -377,6 +380,7 @@ function createStudioDesignPackedLayout(input: {
     )
     const cardLayout = studioComponentCardLayout({
       component,
+      cardMinWidth: studioDesignCardMinWidth,
       framePreviewScale: studioCanvasFixedFramePreviewScale,
       frameStatesByName,
       viewportPreset: input.viewportPreset,

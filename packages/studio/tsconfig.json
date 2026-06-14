@@ -8,6 +8,7 @@
     "paths": {
       "@runelight/adapter-vite-react": ["../adapter-vite-react/src/index.ts"],
       "@runelight/adapter-vite-react/preview": ["../adapter-vite-react/src/preview.ts"],
+      "@runelight/changes": ["../changes/src/index.ts"],
       "@runelight/react/runtime": ["../react/src/index.ts"],
       "@runelight/react/contract": ["../react/src/contract.ts"],
       "@runelight/react/preview": ["../react/src/preview.tsx"],

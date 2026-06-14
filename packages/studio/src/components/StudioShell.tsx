@@ -2,7 +2,6 @@
 
 import React from "react"
 import {
-  isGPreviewPoolReadyMessage,
   isGPreviewSessionMessage,
   type GPreviewSessionMessage,
 } from "@runelight/core/preview-protocol"
@@ -15,6 +14,7 @@ import {
   changeStudioViewportPreset,
   createStudioPreviewPoolUrl,
   createStudioWorkspaceStateFromUrl,
+  currentStudioChangesPreviewTargets,
   currentStudioDesignPreviewTargets,
   currentStudioPreviewTargets,
   initialStudioUrlSearchParams,
@@ -33,6 +33,7 @@ import {
   type StudioViewportPreset,
   type StudioWorkspaceState,
 } from "../client"
+import type { StudioWorkspaceChanges } from "../workspace-changes"
 import { studioPreviewIndexedDBNamespace } from "../preview-cache-indexeddb"
 import {
   createStudioPreviewGeometryCacheStore,
@@ -49,11 +50,15 @@ import {
 import { StudioPreviewIframePoolProvider } from "../preview-iframe-pool"
 import type { StudioPreviewIframeMountState } from "../preview-iframe-pool"
 import { createStudioPreviewMessageFlush } from "../studio-preview-message-flush"
+import { createStudioRequestCoalescer, type StudioRequestCoalescerContext } from "../studio-request-coalescer"
 import { studioColors, studioFontFamily, studioRadii, studioShellStyle } from "../studio-theme"
+import StudioChangesWorkspace from "./StudioChangesWorkspace.g"
 import StudioDesignWorkspace from "./StudioDesignWorkspace.g"
 import StudioWorkspaceView from "./StudioWorkspaceView.g"
 
 export type StudioShellLoadedProps = {
+  changes?: StudioWorkspaceChanges
+  changesLoading?: boolean
   manifest: StudioManifest
   previewRenderQueue?: StudioPreviewRenderQueueOptions
   selection?: string
@@ -103,10 +108,34 @@ type PendingStudioPreviewMessage = StudioPreviewGeometryCacheMessage & {
   target: StudioPreviewTarget
 }
 
-type StudioShellView = "components" | "design"
+type StudioShellView = "components" | "design" | "changes"
+
+type StudioManifestLoadRequest = {
+  includeChanges?: boolean
+  signal?: AbortSignal
+}
+
+type StudioChangesLoadRequest = {
+  manifest: StudioManifest
+  signal?: AbortSignal
+}
 
 const studioCanvasUrlCommitDelayMilliseconds = 120
+const studioManifestFallbackPollIntervalMilliseconds = 10_000
 const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
+
+function coalesceStudioManifestLoadRequest(
+  pending: StudioManifestLoadRequest | undefined,
+  next: StudioManifestLoadRequest,
+): StudioManifestLoadRequest {
+  const pendingIncludesChanges = pending?.includeChanges !== false
+  const nextIncludesChanges = next.includeChanges !== false
+
+  return {
+    includeChanges: pendingIncludesChanges || nextIncludesChanges,
+    signal: next.signal,
+  }
+}
 
 function useStudioShellScope(props: StudioShellLoadedProps, view: StudioShellView): StudioShellScope {
   const canvasUrlScope = studioCanvasUrlScopeForView(view)
@@ -132,16 +161,35 @@ function useStudioShellScope(props: StudioShellLoadedProps, view: StudioShellVie
   const filteredWorkspace = React.useMemo(() => studioWorkspaceWithProviderVariantFilters(workspace), [workspace])
   const previewFrames = React.useRef(new Map<string, HTMLIFrameElement>())
   const previewFrameMountedAt = React.useRef(new Map<string, number>())
+  const changesForPreview = view === "changes" ? props.changes : undefined
   const currentTargets = React.useMemo(
     () =>
       view === "design"
         ? currentStudioDesignPreviewTargets(props.manifest, canvasViewportPresetForWorkspace(filteredWorkspace))
+        : view === "changes"
+          ? currentStudioChangesPreviewTargets(
+              props.manifest,
+              changesForPreview,
+              canvasViewportPresetForWorkspace(filteredWorkspace),
+            )
         : currentStudioPreviewTargets(props.manifest, filteredWorkspace),
-    [props.manifest, filteredWorkspace, view],
+    [changesForPreview, props.manifest, filteredWorkspace, view],
   )
   const sessionIds = React.useMemo(() => new Set(currentTargets.map((target) => target.sessionId)), [currentTargets])
   const previewCacheNamespace = React.useMemo(() => studioPreviewIndexedDBNamespace(props.manifest), [props.manifest])
-  const previewGeometryCacheKeys = React.useMemo(() => studioPreviewGeometryCacheKeys(props.manifest), [props.manifest])
+  const manifestPreviewGeometryCacheKeys = React.useMemo(() => studioPreviewGeometryCacheKeys(props.manifest), [props.manifest])
+  const previewGeometryCacheKeySignature = React.useMemo(
+    () =>
+      studioPreviewGeometryCacheKeySignature([
+        ...manifestPreviewGeometryCacheKeys,
+        ...currentTargets.map((target) => target.cacheKey),
+      ]),
+    [currentTargets, manifestPreviewGeometryCacheKeys],
+  )
+  const previewGeometryCacheKeys = React.useMemo(
+    () => studioPreviewGeometryCacheKeysFromSignature(previewGeometryCacheKeySignature),
+    [previewGeometryCacheKeySignature],
+  )
   const previewGeometryCacheStore = React.useMemo(
     () => createStudioPreviewGeometryCacheStore({ cacheKeys: previewGeometryCacheKeys, namespace: previewCacheNamespace }),
     [previewCacheNamespace, previewGeometryCacheKeys],
@@ -255,6 +303,9 @@ function useStudioShellScope(props: StudioShellLoadedProps, view: StudioShellVie
       canvasScope: canvasUrlScope,
     })
     canvasUrlState.restoreCanvasFromUrl(restored.canvas)
+    setSelection(restored.selection)
+    setUrlWarning(restored.warning)
+    setWorkspace(restored.workspace)
   }, [canvasUrlScope, canvasUrlState.flushPendingCanvasUrlCommit, canvasUrlState.restoreCanvasFromUrl, props.manifest])
 
   const commitWorkspace = React.useCallback((updater: (current: StudioWorkspaceState) => StudioWorkspaceState) => {
@@ -418,40 +469,244 @@ function StudioShellManifestLoader(props: StudioShellDeferredProps) {
   )
   const shouldPrewarmPreviewPool = React.useMemo(() => !isStudioPreviewPoolDisabled(initialUrlParams), [initialUrlParams])
   const [manifest, setManifest] = React.useState<StudioManifest | null>(null)
+  const [changes, setChanges] = React.useState<StudioWorkspaceChanges | undefined>()
+  const [changesLoading, setChangesLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-  const [previewPoolReady, setPreviewPoolReady] = React.useState(false)
+  const eventsConnectedRef = React.useRef(false)
+  const changesRef = React.useRef<StudioWorkspaceChanges | undefined>(undefined)
+  const changesSignatureRef = React.useRef<string | null>(null)
+  const manifestRef = React.useRef<StudioManifest | null>(null)
+  const manifestSignatureRef = React.useRef<string | null>(null)
+  const manifestLoadTaskRef = React.useRef<(
+    request: StudioManifestLoadRequest,
+    context: StudioRequestCoalescerContext,
+  ) => Promise<void> | void>(() => undefined)
+  const changesLoadTaskRef = React.useRef<(
+    request: StudioChangesLoadRequest,
+    context: StudioRequestCoalescerContext,
+  ) => Promise<void> | void>(() => undefined)
+  const manifestLoadQueue = React.useMemo(
+    () =>
+      createStudioRequestCoalescer<StudioManifestLoadRequest>(
+        (request, context) => manifestLoadTaskRef.current(request, context),
+        {
+          coalesce: coalesceStudioManifestLoadRequest,
+          isCancelled: (request) => Boolean(request.signal?.aborted),
+        },
+      ),
+    [],
+  )
+  const changesLoadQueue = React.useMemo(
+    () =>
+      createStudioRequestCoalescer<StudioChangesLoadRequest>(
+        (request, context) => changesLoadTaskRef.current(request, context),
+        {
+          coalesce: (_pending, next) => next,
+          isCancelled: (request) => Boolean(request.signal?.aborted),
+        },
+      ),
+    [],
+  )
+
+  React.useEffect(() => {
+    manifestRef.current = manifest
+  }, [manifest])
+
+  React.useEffect(() => {
+    changesRef.current = changes
+  }, [changes])
+
+  const performChangesLoad = React.useCallback(async (
+    request: StudioChangesLoadRequest,
+    context: StudioRequestCoalescerContext,
+  ) => {
+    const nextManifest = request.manifest
+    const signal = request.signal
+    const changesUrl = nextManifest.routes.changes
+    if (!changesUrl) {
+      if (context.hasPendingRequest()) return
+
+      changesSignatureRef.current = null
+      changesRef.current = undefined
+      setChanges(undefined)
+      setChangesLoading(false)
+      return
+    }
+
+    try {
+      setChangesLoading(true)
+      const response = await fetch(changesUrl, {
+        cache: "no-store",
+        credentials: "same-origin",
+        signal,
+      })
+      if (!response.ok) throw new Error(`Studio changes request failed with ${response.status}.`)
+
+      const signature = await response.text()
+      if (signal?.aborted) return
+      if (context.hasPendingRequest()) return
+      if (signature === changesSignatureRef.current) return
+
+      const nextChanges = JSON.parse(signature) as StudioWorkspaceChanges
+      changesSignatureRef.current = signature
+      changesRef.current = nextChanges
+      React.startTransition(() => setChanges(nextChanges))
+    } catch {
+      if (signal?.aborted) return
+      if (context.hasPendingRequest()) return
+      changesSignatureRef.current = null
+      changesRef.current = undefined
+      React.startTransition(() => setChanges(undefined))
+    } finally {
+      if (!signal?.aborted && !context.hasPendingRequest()) setChangesLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    changesLoadTaskRef.current = performChangesLoad
+  }, [performChangesLoad])
+
+  const loadChangesForManifest = React.useCallback((nextManifest: StudioManifest, signal?: AbortSignal) => {
+    changesLoadQueue.request({ manifest: nextManifest, signal })
+  }, [changesLoadQueue])
+
+  const performManifestLoad = React.useCallback(async (
+    request: StudioManifestLoadRequest,
+    context: StudioRequestCoalescerContext,
+  ) => {
+    const signal = request.signal
+    try {
+      const response = await fetch(manifestUrl, {
+        cache: "no-store",
+        credentials: "same-origin",
+        signal,
+      })
+      if (!response.ok) throw new Error(`Studio manifest request failed with ${response.status}.`)
+
+      const signature = await response.text()
+      if (signal?.aborted) return
+      if (context.hasPendingRequest()) return
+      if (signature === manifestSignatureRef.current) {
+        if (manifestRef.current && request.includeChanges !== false) {
+          loadChangesForManifest(manifestRef.current, signal)
+        }
+        return
+      }
+
+      const nextManifest = JSON.parse(signature) as StudioManifest
+      if (signal?.aborted) return
+      if (context.hasPendingRequest()) return
+      manifestSignatureRef.current = signature
+      manifestRef.current = nextManifest
+      const shouldLoadChanges = request.includeChanges !== false && Boolean(nextManifest.routes.changes)
+      if (shouldLoadChanges) setChangesLoading(true)
+
+      React.startTransition(() => {
+        setManifest(nextManifest)
+      })
+      if (shouldLoadChanges) loadChangesForManifest(nextManifest, signal)
+      setError(null)
+    } catch (nextError: unknown) {
+      if (signal?.aborted) return
+      if (!manifestRef.current) {
+        setError(nextError instanceof Error ? nextError.message : "Studio manifest request failed.")
+      }
+    }
+  }, [loadChangesForManifest, manifestUrl])
+
+  React.useEffect(() => {
+    manifestLoadTaskRef.current = performManifestLoad
+  }, [performManifestLoad])
+
+  const loadManifest = React.useCallback((
+    signal?: AbortSignal,
+    options: { includeChanges?: boolean } = {},
+  ) => {
+    manifestLoadQueue.request({ includeChanges: options.includeChanges, signal })
+  }, [manifestLoadQueue])
 
   React.useEffect(() => {
     const controller = new AbortController()
+    manifestLoadQueue.clearPending()
+    changesLoadQueue.clearPending()
+    manifestRef.current = null
+    manifestSignatureRef.current = null
+    changesRef.current = undefined
+    changesSignatureRef.current = null
+    eventsConnectedRef.current = false
     setError(null)
     setManifest(null)
-    setPreviewPoolReady(false)
+    setChanges(undefined)
+    setChangesLoading(false)
 
-    fetch(manifestUrl, {
-      credentials: "same-origin",
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Studio manifest request failed with ${response.status}.`)
-        return (await response.json()) as StudioManifest
-      })
-      .then((nextManifest) => {
-        if (controller.signal.aborted) return
-        setManifest(nextManifest)
-        setPreviewPoolReady(!shouldPrewarmPreviewPool)
-      })
-      .catch((nextError: unknown) => {
-        if (controller.signal.aborted) return
-        setError(nextError instanceof Error ? nextError.message : "Studio manifest request failed.")
-      })
+    void loadManifest(controller.signal)
 
     return () => controller.abort()
-  }, [manifestUrl, shouldPrewarmPreviewPool])
+  }, [loadManifest])
 
-  if (manifest && previewPoolReady) {
+  React.useEffect(() => {
+    const eventsUrl = manifest?.routes.events
+    if (!eventsUrl || typeof EventSource === "undefined") return
+
+    const source = new EventSource(eventsUrl)
+    const handleManifestChange = () => {
+      void loadManifest(undefined, { includeChanges: true })
+    }
+
+    source.addEventListener("manifest", handleManifestChange)
+    source.onmessage = handleManifestChange
+    source.onopen = () => {
+      eventsConnectedRef.current = true
+    }
+    source.onerror = () => {
+      eventsConnectedRef.current = false
+    }
+
+    return () => {
+      eventsConnectedRef.current = false
+      source.removeEventListener("manifest", handleManifestChange)
+      source.close()
+    }
+  }, [loadManifest, manifest?.routes.events])
+
+  React.useEffect(() => {
+    if (!manifest) return
+
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    const schedulePoll = () => {
+      timer = setTimeout(() => {
+        if (
+          !eventsConnectedRef.current &&
+          (typeof document === "undefined" || document.visibilityState !== "hidden")
+        ) {
+          void loadManifest(undefined, { includeChanges: true })
+        }
+        schedulePoll()
+      }, studioManifestFallbackPollIntervalMilliseconds)
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && !eventsConnectedRef.current) {
+        void loadManifest(undefined, { includeChanges: true })
+      }
+    }
+
+    schedulePoll()
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      if (timer) clearTimeout(timer)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [loadManifest, manifest])
+
+  if (manifest) {
     return (
       <StudioShellLoaded
         manifest={manifest}
+        changes={changes}
+        changesLoading={changesLoading}
         previewRenderQueue={props.previewRenderQueue}
         selection={props.selection}
         urlSearch={props.urlSearch}
@@ -464,11 +719,7 @@ function StudioShellManifestLoader(props: StudioShellDeferredProps) {
       error={error}
       manifestUrl={manifestUrl}
       status={manifest && shouldPrewarmPreviewPool ? "Preparing preview host" : undefined}
-    >
-      {manifest && shouldPrewarmPreviewPool ? (
-        <StudioShellPreviewPoolPrewarmer manifest={manifest} onReady={() => setPreviewPoolReady(true)} />
-      ) : null}
-    </StudioShellLoadingFrame>
+    />
   )
 }
 
@@ -558,53 +809,26 @@ function StudioShellLoadingFrame(props: {
   )
 }
 
-function StudioShellPreviewPoolPrewarmer(props: {
-  manifest: StudioManifest
-  onReady: () => void
-}) {
-  const poolUrl = React.useMemo(() => createStudioPreviewPoolUrl(props.manifest), [props.manifest])
-  const frameRef = React.useRef<HTMLIFrameElement | null>(null)
-  const onReadyRef = React.useRef(props.onReady)
-  onReadyRef.current = props.onReady
-
-  React.useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.source !== frameRef.current?.contentWindow) return
-      if (!isGPreviewPoolReadyMessage(event.data)) return
-      onReadyRef.current()
-    }
-
-    window.addEventListener("message", handleMessage)
-    return () => window.removeEventListener("message", handleMessage)
-  }, [])
-
-  return (
-    <iframe
-      aria-hidden="true"
-      data-runelight-studio-preview-pool-prewarmer="true"
-      ref={frameRef}
-      src={poolUrl}
-      style={{
-        border: 0,
-        height: 0,
-        pointerEvents: "none",
-        position: "absolute",
-        visibility: "hidden",
-        width: 0,
-      }}
-      tabIndex={-1}
-      title="Preview host preloader"
-    />
-  )
-}
-
 function StudioShellLoaded(props: StudioShellLoadedProps) {
-  const [view, setView] = useStudioShellView(props.urlSearch)
+  const [view, setView] = useStudioShellView(props.urlSearch, props.changes, { changesLoading: props.changesLoading })
   const scope = useStudioShellScope(props, view)
   const canvasViewportPreset = canvasViewportPresetForWorkspace(scope.workspace)
 
   const studioContent =
-    view === "design" ? (
+    view === "changes" ? (
+      <StudioChangesWorkspace
+        changes={props.changes}
+        changesLoading={props.changesLoading}
+        debugPreviewPool={scope.debugPreviewPool}
+        debugPreviewQueue={scope.debugPreviewQueue}
+        manifest={props.manifest}
+        onChangeViewportPreset={scope.onChangeCanvasViewportPreset}
+        onPreviewFrameMount={scope.onPreviewFrameMount}
+        previewCacheReady={scope.previewCacheReady}
+        previewGeometryStore={scope.previewGeometryStore}
+        viewportPreset={canvasViewportPreset}
+      />
+    ) : view === "design" ? (
       <StudioDesignWorkspace
         canvas={scope.canvas}
         debugPreviewPool={scope.debugPreviewPool}
@@ -667,14 +891,19 @@ function StudioShellLoaded(props: StudioShellLoadedProps) {
   )
 }
 
-function useStudioShellView(urlSearch: string | undefined): [StudioShellView, (view: StudioShellView) => void] {
-  const [view, setView] = React.useState<StudioShellView>(() => studioShellViewFromSearch(urlSearch))
+function useStudioShellView(
+  urlSearch: string | undefined,
+  changes: StudioWorkspaceChanges | undefined,
+  options: { changesLoading?: boolean } = {},
+): [StudioShellView, (view: StudioShellView) => void] {
+  const [view, setView] = React.useState<StudioShellView>(() =>
+    studioShellViewFromSearch(urlSearch, changes, options))
 
   useStudioLayoutEffect(() => {
     if (typeof window === "undefined") return undefined
 
     const handleLocationChange = () => {
-      setView(studioShellViewFromLocation())
+      setView(studioShellViewFromLocation(undefined, undefined, changes, options))
     }
 
     handleLocationChange()
@@ -684,7 +913,7 @@ function useStudioShellView(urlSearch: string | undefined): [StudioShellView, (v
       window.removeEventListener("hashchange", handleLocationChange)
       window.removeEventListener("popstate", handleLocationChange)
     }
-  }, [])
+  }, [changes, options.changesLoading])
 
   const changeView = React.useCallback((nextView: StudioShellView) => {
     setView(nextView)
@@ -692,7 +921,9 @@ function useStudioShellView(urlSearch: string | undefined): [StudioShellView, (v
 
     const url = new URL(window.location.href)
     url.searchParams.delete("view")
-    if (nextView === "design") {
+    if (nextView === "changes") {
+      url.hash = "/changes"
+    } else if (nextView === "design") {
       url.hash = "/drafts"
     } else {
       url.hash = "/frames"
@@ -703,7 +934,12 @@ function useStudioShellView(urlSearch: string | undefined): [StudioShellView, (v
   return [view, changeView]
 }
 
-function studioShellViewFromLocation(search: string | undefined = undefined, hash: string | undefined = undefined): StudioShellView {
+function studioShellViewFromLocation(
+  search: string | undefined = undefined,
+  hash: string | undefined = undefined,
+  changes: StudioWorkspaceChanges | undefined = undefined,
+  options: { changesLoading?: boolean } = {},
+): StudioShellView {
   if (search === undefined && hash === undefined && typeof window === "undefined") return "components"
 
   const sourceHash = hash ?? (typeof window === "undefined" ? "" : window.location.hash)
@@ -712,15 +948,19 @@ function studioShellViewFromLocation(search: string | undefined = undefined, has
 
   const source = search ?? (typeof window === "undefined" ? "" : window.location.search)
   const params = new URLSearchParams(source.startsWith("?") ? source.slice(1) : source)
-  return studioShellViewFromRouteValue(params.get("view")) ?? "components"
+  return studioShellViewFromRouteValue(params.get("view")) ?? defaultStudioShellView(changes, options)
 }
 
-function studioShellViewFromSearch(search: string | undefined): StudioShellView {
-  if (search === undefined) return "components"
+function studioShellViewFromSearch(
+  search: string | undefined,
+  changes: StudioWorkspaceChanges | undefined,
+  options: { changesLoading?: boolean } = {},
+): StudioShellView {
+  if (search === undefined) return defaultStudioShellView(changes, options)
 
   const source = search.startsWith("?") ? search.slice(1) : search
   const params = new URLSearchParams(source)
-  return studioShellViewFromRouteValue(params.get("view")) ?? "components"
+  return studioShellViewFromRouteValue(params.get("view")) ?? defaultStudioShellView(changes, options)
 }
 
 function studioShellViewFromHash(hash: string): StudioShellView | undefined {
@@ -729,6 +969,7 @@ function studioShellViewFromHash(hash: string): StudioShellView | undefined {
 }
 
 function studioShellViewFromRouteValue(value: string | null): StudioShellView | undefined {
+  if (value === "changes") return "changes"
   if (value === "drafts") return "design"
   if (value === "frames") return "components"
   return undefined
@@ -736,6 +977,14 @@ function studioShellViewFromRouteValue(value: string | null): StudioShellView | 
 
 function studioCanvasUrlScopeForView(view: StudioShellView): StudioCanvasUrlScope {
   return view === "design" ? "design" : "components"
+}
+
+function defaultStudioShellView(
+  changes: StudioWorkspaceChanges | undefined,
+  options: { changesLoading?: boolean } = {},
+): StudioShellView {
+  if (options.changesLoading) return "changes"
+  return (changes?.items.length ?? 0) > 0 ? "changes" : "components"
 }
 
 function StudioShellModeTabs(props: {
@@ -764,6 +1013,11 @@ function StudioShellModeTabs(props: {
         active={props.activeView === "components"}
         label="frames"
         onClick={() => props.onChangeView("components")}
+      />
+      <StudioShellModeTab
+        active={props.activeView === "changes"}
+        label="changes"
+        onClick={() => props.onChangeView("changes")}
       />
       <StudioShellModeTab
         active={props.activeView === "design"}
@@ -834,6 +1088,19 @@ function positiveStudioShellIntegerOption(value: number | undefined, fallback: n
 
 function shouldHydrateStudioPreviewCacheBeforeLayout(manifest: StudioManifest): boolean {
   return Boolean(manifest.cache?.namespace) || typeof window !== "undefined"
+}
+
+function uniqueStudioStrings(values: readonly string[]): string[] {
+  return [...new Set(values)]
+}
+
+/** @internal */
+export function studioPreviewGeometryCacheKeySignature(values: readonly string[]): string {
+  return JSON.stringify(uniqueStudioStrings(values).sort())
+}
+
+function studioPreviewGeometryCacheKeysFromSignature(signature: string): string[] {
+  return JSON.parse(signature) as string[]
 }
 
 function dispatchStudioPreviewTiming(

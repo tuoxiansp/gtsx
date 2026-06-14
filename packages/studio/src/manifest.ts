@@ -6,6 +6,14 @@ import {
 import type { RunelightProjectIndex } from "@runelight/core/project-index"
 
 export type StudioManifestRouteConfig = {
+  /**
+   * @internal Studio changes data route. Fixed adapter/Studio sidecar protocol, not user-configurable.
+   */
+  changes?: string
+  /**
+   * @internal Studio refresh event stream route. Fixed adapter/Studio sidecar protocol, not user-configurable.
+   */
+  events?: string
   preview: string
   studio: string
   manifest: string
@@ -35,7 +43,22 @@ export type StudioManifestComponent = {
   mode: "pure" | "scope" | "unknown"
   frames: StudioManifestFrame[]
   providers: Record<string, StudioManifestProvider>
+  /**
+   * @internal Static metadata consumed by Studio and workspace change classification.
+   */
   dependencies?: string[]
+  /**
+   * @internal Static metadata consumed by Studio and workspace change classification.
+   */
+  frameDependencies?: Record<string, string[]>
+  /**
+   * @internal Static metadata consumed by Studio and workspace change classification.
+   */
+  frameVisualSignatures?: Record<string, string>
+  /**
+   * @internal Static metadata consumed by Studio and workspace change classification.
+   */
+  visualSignature?: string
   diagnostics: RunelightDiagnostic[]
 }
 
@@ -69,6 +92,9 @@ export type StudioManifest = {
   diagnostics: RunelightDiagnostic[]
 }
 
+/**
+ * @internal Low-level Studio manifest builder options used by first-party adapters.
+ */
 export type CreateStudioManifestOptions = {
   cache?: StudioManifestCacheConfig
   design?: StudioDesignManifest
@@ -89,11 +115,16 @@ type ProjectIndexFileWithSourceHash = RunelightProjectIndex["files"][number] & {
 }
 
 const DEFAULT_ROUTES: StudioManifestRouteConfig = {
+  changes: "/runelight/studio/changes",
+  events: "/runelight/studio/events",
   preview: "/runelight",
   studio: "/runelight/studio",
   manifest: "/runelight/studio/manifest",
 }
 
+/**
+ * @internal Low-level Studio manifest builder used by first-party adapters. Custom hosts should use `createStudioManifestProvider`.
+ */
 export function createStudioManifest(projectIndex: RunelightProjectIndex, options: CreateStudioManifestOptions = {}): StudioManifest {
   const serveSession = serveSessionFromEnvironment()
   const cache = normalizeStudioManifestCache(options.cache)
@@ -133,6 +164,9 @@ function normalizeStudioManifestCache(cache: StudioManifestCacheConfig | undefin
   return namespace ? { namespace } : undefined
 }
 
+/**
+ * @internal Low-level Studio manifest builder used by first-party adapters. Custom hosts should use `createStudioManifestProvider`.
+ */
 export function createStudioManifestFromResolvedConfig(
   projectIndex: RunelightProjectIndex,
   config: ResolvedRunelightConfig,
@@ -147,6 +181,9 @@ export function createStudioManifestFromResolvedConfig(
   })
 }
 
+/**
+ * @internal Low-level design manifest discovery used by first-party adapters.
+ */
 export function discoverStudioDesignManifest(projectIndex: RunelightProjectIndex, entryRoot: string): StudioDesignManifest {
   const designPathPrefix = studioDesignPathPrefix(entryRoot)
   const frames = projectIndex.files.flatMap((file) => {

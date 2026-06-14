@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { tmpdir } from "node:os"
@@ -11,7 +12,13 @@ import {
   createStudioManifestFromResolvedConfig,
   discoverStudioDesignManifest,
 } from "../src/manifest.js"
-import { createStudioManifestProvider } from "../src/manifest-server.js"
+import {
+  createStudioBaselineManifest,
+  createStudioManifestProvider,
+  createStudioWorkspaceChangesProvider,
+  createStudioWorkspaceChangesFromManifest,
+  createStudioWorkspaceChangesSyncProvider,
+} from "../src/manifest-server.js"
 
 const fixtureRoot = join(import.meta.dirname, "../../core/test/fixtures/check-project")
 const tsProjectScopeRoot = join(import.meta.dirname, "../../core/test/fixtures/ts-project-scope")
@@ -55,6 +62,8 @@ describe("Runelight Studio manifest", () => {
     expect(manifest).toEqual({
       version: 1,
       routes: {
+        changes: "/runelight/studio/changes",
+        events: "/runelight/studio/events",
         preview: "/runelight",
         studio: "/runelight/studio",
         manifest: "/runelight/studio/manifest",
@@ -71,11 +80,20 @@ describe("Runelight Studio manifest", () => {
               exportName: "default",
               componentName: "Badge",
               mode: "pure",
+              frameVisualSignatures: {
+                neutral: expect.any(String),
+                success: expect.any(String),
+              },
+              frameDependencies: {
+                neutral: [],
+                success: [],
+              },
               frames: [
                 { kind: "pure", name: "neutral" },
                 { kind: "pure", name: "success" },
               ],
               providers: {},
+              visualSignature: expect.any(String),
               diagnostics: [],
             },
           ],
@@ -92,11 +110,20 @@ describe("Runelight Studio manifest", () => {
               exportName: "default",
               componentName: "StatusPanel",
               mode: "pure",
+              frameVisualSignatures: {
+                error: expect.any(String),
+                loading: expect.any(String),
+              },
+              frameDependencies: {
+                error: [],
+                loading: [],
+              },
               frames: [
                 { kind: "pure", name: "loading" },
                 { kind: "pure", name: "error" },
               ],
               providers: {},
+              visualSignature: expect.any(String),
               diagnostics: [],
             },
           ],
@@ -113,6 +140,8 @@ describe("Runelight Studio manifest", () => {
     const manifest = createStudioManifest(projectIndex)
 
     expect(manifest.routes).toEqual({
+      changes: "/runelight/studio/changes",
+      events: "/runelight/studio/events",
       preview: "/runelight",
       studio: "/runelight/studio",
       manifest: "/runelight/studio/manifest",
@@ -179,6 +208,8 @@ describe("Runelight Studio manifest", () => {
 
     expect(manifest.cache).toEqual({ namespace: "fixture-project" })
     expect(manifest.routes).toEqual({
+      changes: "/runelight/studio/changes",
+      events: "/runelight/studio/events",
       preview: "/runelight",
       studio: "/runelight/studio",
       manifest: "/runelight/studio/manifest",
@@ -188,6 +219,442 @@ describe("Runelight Studio manifest", () => {
       "src/corpus/Badge.g.tsx",
       "src/corpus/StatusPanel.g.tsx",
     ])
+  })
+
+  it("creates an async Studio workspace changes provider", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-studio-async-changes-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      execFileSync("git", ["init"], { cwd, stdio: "ignore" })
+      execFileSync("git", ["config", "user.email", "runelight@example.test"], { cwd })
+      execFileSync("git", ["config", "user.name", "Runelight Test"], { cwd })
+      writeFileSync(join(cwd, ".gitkeep"), "")
+      execFileSync("git", ["add", ".gitkeep"], { cwd })
+      execFileSync("git", ["commit", "-m", "baseline"], { cwd, stdio: "ignore" })
+      writeFileSync(
+        join(cwd, "src/New.g.tsx"),
+        [
+          "export default function NewCard() { return <span>new</span> }",
+          "NewCard.frames = { live: { props: {} } }",
+          "",
+        ].join("\n"),
+      )
+
+      const createChanges = await createStudioWorkspaceChangesProvider({
+        cwd,
+        config: {
+          contracts: ["@runelight/react/contract"],
+          project: {
+            sourceRoot: "src",
+            entryRoot: "src/app/runelight",
+          },
+        },
+      })
+      const changesPromise = createChanges()
+
+      expect(typeof changesPromise.then).toBe("function")
+      await expect(changesPromise).resolves.toMatchObject({
+        version: 1,
+        base: { kind: "git", baselineRoot: "src/app/runelight/.runelight/baselines/HEAD", ref: "HEAD" },
+        items: [
+          {
+            kind: "added",
+            filePath: "src/New.g.tsx",
+            surface: "frames",
+          },
+        ],
+      })
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("reuses workspace changes results while the workspace signature is stable", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-studio-cached-changes-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      execFileSync("git", ["init"], { cwd, stdio: "ignore" })
+      execFileSync("git", ["config", "user.email", "runelight@example.test"], { cwd })
+      execFileSync("git", ["config", "user.name", "Runelight Test"], { cwd })
+      writeFileSync(join(cwd, ".gitkeep"), "")
+      execFileSync("git", ["add", ".gitkeep"], { cwd })
+      execFileSync("git", ["commit", "-m", "baseline"], { cwd, stdio: "ignore" })
+      writeFileSync(
+        join(cwd, "src/New.g.tsx"),
+        [
+          "export default function NewCard() { return <span>new</span> }",
+          "NewCard.frames = { live: { props: {} } }",
+          "",
+        ].join("\n"),
+      )
+
+      const createChanges = await createStudioWorkspaceChangesSyncProvider({
+        cwd,
+        config: {
+          contracts: ["@runelight/react/contract"],
+          project: {
+            sourceRoot: "src",
+            entryRoot: "src/app/runelight",
+          },
+        },
+      })
+
+      const first = createChanges()
+      const second = createChanges()
+      expect(second).toBe(first)
+
+      writeFileSync(
+        join(cwd, "src/Second.g.tsx"),
+        [
+          "export default function SecondCard() { return <span>second</span> }",
+          "SecondCard.frames = { live: { props: {} } }",
+          "",
+        ].join("\n"),
+      )
+      const third = createChanges()
+      expect(third).not.toBe(first)
+      expect(third.items.map((item) => item.filePath)).toEqual(["src/New.g.tsx", "src/Second.g.tsx"])
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("describes Git workspace changes and affected root paths", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-studio-changes-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      writeFileSync(
+        join(cwd, "src/Child.g.tsx"),
+        [
+          "export default function Child() { return <span>child</span> }",
+          "Child.frames = { ready: { props: {} } }",
+          "",
+        ].join("\n"),
+      )
+      writeFileSync(
+        join(cwd, "src/Root.g.tsx"),
+        [
+          'import Child from "./Child.g"',
+          "",
+          "export default function Root() { return <Child /> }",
+          "Root.frames = { ready: { props: {} } }",
+          "",
+        ].join("\n"),
+      )
+      writeFileSync(
+        join(cwd, "src/Deleted.g.tsx"),
+        [
+          "export default function DeletedCard() { return <span>deleted</span> }",
+          "DeletedCard.frames = { live: { props: {} } }",
+          "",
+        ].join("\n"),
+      )
+      execFileSync("git", ["init"], { cwd, stdio: "ignore" })
+      execFileSync("git", ["config", "user.email", "runelight@example.test"], { cwd })
+      execFileSync("git", ["config", "user.name", "Runelight Test"], { cwd })
+      execFileSync("git", ["add", "src"], { cwd })
+      execFileSync("git", ["commit", "-m", "baseline"], { cwd, stdio: "ignore" })
+      writeFileSync(
+        join(cwd, "src/Child.g.tsx"),
+        [
+          "export default function Child() { return <strong>changed</strong> }",
+          "Child.frames = { ready: { props: {} } }",
+          "",
+        ].join("\n"),
+      )
+      rmSync(join(cwd, "src/Deleted.g.tsx"))
+      writeFileSync(
+        join(cwd, "src/New.g.tsx"),
+        [
+          "export default function NewCard() { return <span>new</span> }",
+          "NewCard.frames = { live: { props: {} } }",
+          "",
+        ].join("\n"),
+      )
+
+      const manifest = buildStudioManifest({ cwd, sourceRoot: "src" })
+      const baselineManifest = createStudioBaselineManifest({
+        contracts: [runelightReactContract],
+        cwd,
+        entryRoot: "src/app/runelight",
+        sourceRoot: "src",
+      })
+      const changes = createStudioWorkspaceChangesFromManifest(manifest, {
+        baselineManifest,
+        cwd,
+        entryRoot: "src/app/runelight",
+        sourceRoot: "src",
+      })
+
+      expect(changes.items.map((item) => [item.kind, item.filePath])).toEqual([
+        ["modified", "src/Child.g.tsx"],
+        ["deleted", "src/Deleted.g.tsx"],
+        ["added", "src/New.g.tsx"],
+      ])
+      expect(changes.items[0].impacts[0].path.map((segment) => segment.componentName)).toEqual(["Root", "Child"])
+      expect(changes.items[1].deletedSummary?.componentNames).toEqual(["DeletedCard"])
+      expect(changes.items[1].baselineFile?.path).toBe("src/app/runelight/.runelight/baselines/HEAD/src/Deleted.g.tsx")
+      expect(changes.items[1].baselineFile?.components[0]?.componentName).toBe("DeletedCard")
+      expect(changes.items[1].baselineImpacts?.[0]?.rootCoordinate).toBe("src/app/runelight/.runelight/baselines/HEAD/src/Deleted.g.tsx#default")
+      expect(changes.base).toMatchObject({
+        kind: "git",
+        baselineRoot: "src/app/runelight/.runelight/baselines/HEAD",
+        ref: "HEAD",
+      })
+      if (changes.base.kind !== "git") throw new Error("Expected git-backed workspace changes")
+      expect(changes.base.manifest?.files.map((file) => file.path)).toContain("src/app/runelight/.runelight/baselines/HEAD/src/Root.g.tsx")
+      expect(changes.items[2].currentFile?.components[0].componentName).toBe("NewCard")
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("does not build a baseline manifest for added-only workspace changes", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-studio-added-changes-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      execFileSync("git", ["init"], { cwd, stdio: "ignore" })
+      execFileSync("git", ["config", "user.email", "runelight@example.test"], { cwd })
+      execFileSync("git", ["config", "user.name", "Runelight Test"], { cwd })
+      writeFileSync(join(cwd, ".gitkeep"), "")
+      execFileSync("git", ["add", ".gitkeep"], { cwd })
+      execFileSync("git", ["commit", "-m", "baseline"], { cwd, stdio: "ignore" })
+      writeFileSync(
+        join(cwd, "src/New.g.tsx"),
+        [
+          "export default function NewCard() { return <span>new</span> }",
+          "NewCard.frames = { live: { props: {} } }",
+          "",
+        ].join("\n"),
+      )
+
+      const manifest = buildStudioManifest({ cwd, sourceRoot: "src" })
+      let baselineBuilt = false
+      const changes = createStudioWorkspaceChangesFromManifest(manifest, {
+        baselineManifest: () => {
+          baselineBuilt = true
+          throw new Error("baseline should not be built for added-only changes")
+        },
+        cwd,
+        entryRoot: "src/app/runelight",
+        sourceRoot: "src",
+      })
+
+      expect(baselineBuilt).toBe(false)
+      expect(changes.base).toEqual({
+        kind: "git",
+        baselineRoot: "src/app/runelight/.runelight/baselines/HEAD",
+        ref: "HEAD",
+      })
+      expect(changes.items.map((item) => [item.kind, item.filePath])).toEqual([["added", "src/New.g.tsx"]])
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("omits changed protocol files that have no previewable GUI surface", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-studio-non-visual-changes-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      writeFileSync(join(cwd, "src/Helper.g.tsx"), "export const helperValue = 1\n")
+      execFileSync("git", ["init"], { cwd, stdio: "ignore" })
+      execFileSync("git", ["config", "user.email", "runelight@example.test"], { cwd })
+      execFileSync("git", ["config", "user.name", "Runelight Test"], { cwd })
+      execFileSync("git", ["add", "src"], { cwd })
+      execFileSync("git", ["commit", "-m", "baseline"], { cwd, stdio: "ignore" })
+      writeFileSync(join(cwd, "src/Helper.g.tsx"), "export const helperValue = 2\n")
+
+      const manifest = buildStudioManifest({ cwd, sourceRoot: "src" })
+      const baselineManifest = createStudioBaselineManifest({
+        contracts: [runelightReactContract],
+        cwd,
+        entryRoot: "src/app/runelight",
+        sourceRoot: "src",
+      })
+      const changes = createStudioWorkspaceChangesFromManifest(manifest, {
+        baselineManifest,
+        cwd,
+        entryRoot: "src/app/runelight",
+        sourceRoot: "src",
+      })
+
+      expect(changes.items).toEqual([])
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("omits modified components when static visual signatures are unchanged", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-studio-static-non-visual-changes-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      writeFileSync(
+        join(cwd, "src/Card.g.tsx"),
+        [
+          "const ignored = 1",
+          "export default function Card() { return <span>same</span> }",
+          "Card.frames = { ready: { props: {} } }",
+          "",
+        ].join("\n"),
+      )
+      execFileSync("git", ["init"], { cwd, stdio: "ignore" })
+      execFileSync("git", ["config", "user.email", "runelight@example.test"], { cwd })
+      execFileSync("git", ["config", "user.name", "Runelight Test"], { cwd })
+      execFileSync("git", ["add", "src"], { cwd })
+      execFileSync("git", ["commit", "-m", "baseline"], { cwd, stdio: "ignore" })
+      writeFileSync(
+        join(cwd, "src/Card.g.tsx"),
+        [
+          "const ignored = 2",
+          "export default function Card() { return <span>same</span> }",
+          "Card.frames = { ready: { props: {} } }",
+          "",
+        ].join("\n"),
+      )
+
+      const manifest = buildStudioManifest({ cwd, sourceRoot: "src" })
+      const baselineManifest = createStudioBaselineManifest({
+        contracts: [runelightReactContract],
+        cwd,
+        entryRoot: "src/app/runelight",
+        sourceRoot: "src",
+      })
+      const changes = createStudioWorkspaceChangesFromManifest(manifest, {
+        baselineManifest,
+        cwd,
+        entryRoot: "src/app/runelight",
+        sourceRoot: "src",
+      })
+
+      expect(changes.items).toEqual([])
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("omits modified components when only frame mock data changes", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-studio-frame-mock-only-changes-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      writeFileSync(
+        join(cwd, "src/Card.g.tsx"),
+        [
+          "export default function Card(props: { label: string }) {",
+          "  return <span>{props.label}</span>",
+          "}",
+          'Card.frames = { ready: { props: { label: "Before" } } }',
+          "",
+        ].join("\n"),
+      )
+      execFileSync("git", ["init"], { cwd, stdio: "ignore" })
+      execFileSync("git", ["config", "user.email", "runelight@example.test"], { cwd })
+      execFileSync("git", ["config", "user.name", "Runelight Test"], { cwd })
+      execFileSync("git", ["add", "src"], { cwd })
+      execFileSync("git", ["commit", "-m", "baseline"], { cwd, stdio: "ignore" })
+      writeFileSync(
+        join(cwd, "src/Card.g.tsx"),
+        [
+          "export default function Card(props: { label: string }) {",
+          "  return <span>{props.label}</span>",
+          "}",
+          'Card.frames = { ready: { props: { label: "After" } } }',
+          "",
+        ].join("\n"),
+      )
+
+      const manifest = buildStudioManifest({ cwd, sourceRoot: "src" })
+      const baselineManifest = createStudioBaselineManifest({
+        contracts: [runelightReactContract],
+        cwd,
+        entryRoot: "src/app/runelight",
+        sourceRoot: "src",
+      })
+      const changes = createStudioWorkspaceChangesFromManifest(manifest, {
+        baselineManifest,
+        cwd,
+        entryRoot: "src/app/runelight",
+        sourceRoot: "src",
+      })
+
+      expect(changes.items).toEqual([])
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("does not keep an unchanged dependency just because an affected root changed elsewhere", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-studio-unchanged-dependency-changes-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      writeFileSync(
+        join(cwd, "src/Child.g.tsx"),
+        [
+          "const ignored = 1",
+          "export default function Child() { return <span>child</span> }",
+          "Child.frames = { ready: { props: {} } }",
+          "",
+        ].join("\n"),
+      )
+      writeFileSync(
+        join(cwd, "src/Root.g.tsx"),
+        [
+          'import Child from "./Child.g"',
+          "export default function Root() { return <section><Child /><b>before</b></section> }",
+          "Root.frames = { ready: { props: {} } }",
+          "",
+        ].join("\n"),
+      )
+      execFileSync("git", ["init"], { cwd, stdio: "ignore" })
+      execFileSync("git", ["config", "user.email", "runelight@example.test"], { cwd })
+      execFileSync("git", ["config", "user.name", "Runelight Test"], { cwd })
+      execFileSync("git", ["add", "src"], { cwd })
+      execFileSync("git", ["commit", "-m", "baseline"], { cwd, stdio: "ignore" })
+      writeFileSync(
+        join(cwd, "src/Child.g.tsx"),
+        [
+          "const ignored = 2",
+          "export default function Child() { return <span>child</span> }",
+          "Child.frames = { ready: { props: {} } }",
+          "",
+        ].join("\n"),
+      )
+      writeFileSync(
+        join(cwd, "src/Root.g.tsx"),
+        [
+          'import Child from "./Child.g"',
+          "export default function Root() { return <section><Child /><b>after</b></section> }",
+          "Root.frames = { ready: { props: {} } }",
+          "",
+        ].join("\n"),
+      )
+
+      const manifest = buildStudioManifest({ cwd, sourceRoot: "src" })
+      const baselineManifest = createStudioBaselineManifest({
+        contracts: [runelightReactContract],
+        cwd,
+        entryRoot: "src/app/runelight",
+        sourceRoot: "src",
+      })
+      const changes = createStudioWorkspaceChangesFromManifest(manifest, {
+        baselineManifest,
+        cwd,
+        entryRoot: "src/app/runelight",
+        sourceRoot: "src",
+      })
+
+      expect(changes.items.map((item) => item.filePath)).toEqual(["src/Root.g.tsx"])
+      expect(changes.items[0]?.impacts[0]?.frames).toEqual([{ kind: "changed", name: "ready" }])
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
   })
 
   it("discovers local design frames under the configured route entry", () => {
@@ -457,7 +924,9 @@ describe("Runelight Studio manifest", () => {
     })
     expect(packageJson.private).toBeUndefined()
     expect(packageJson.files).toEqual(["dist"])
-    expect(packageJson.dependencies).toBeUndefined()
+    expect(packageJson.dependencies).toEqual({
+      "@runelight/changes": "workspace:*",
+    })
     expect(packageJson.peerDependencies).toEqual({
       "@runelight/core": "workspace:*",
     })

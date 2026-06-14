@@ -6,7 +6,7 @@ import {
 } from "@runelight/adapter-vite-react/preview"
 import previewConfig from "virtual:runelight/preview-config"
 
-const modules = import.meta.glob<RunelightReactPreviewModule>(["/src/frames/**/*.g.tsx", "/app/runelight/design/**/*.g.tsx"], {
+const modules = import.meta.glob<RunelightReactPreviewModule>(["/src/frames/**/*.g.tsx", "/src/app/runelight/design/**/*.g.tsx"], {
   query: "?runelight-preview",
 })
 const loadExamplePreviewComponent = createRunelightVitePreviewComponentLoader(modules, {

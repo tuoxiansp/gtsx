@@ -1,6 +1,10 @@
 import type { RunelightConfig, RunelightProjectConfig, RunelightRouteConfig, ResolvedRunelightConfig } from "./config-types.js"
 
+/**
+ * @internal Fixed adapter/Studio sidecar routes. Users should not import this as configuration.
+ */
 export const DEFAULT_RUNELIGHT_ROUTES: RunelightRouteConfig = {
+  events: "/runelight/studio/events",
   preview: "/runelight",
   studio: "/runelight/studio",
   manifest: "/runelight/studio/manifest",
@@ -30,6 +34,21 @@ export function runelightDesignRootFromEntryRoot(entryRoot: string): string {
   return root === "." ? "design" : `${root}/design`
 }
 
+/**
+ * @internal Adapter, Studio, and CLI generated-file location helper.
+ */
+export function runelightGeneratedRootFromEntryRoot(entryRoot: string): string {
+  const root = normalizeRunelightPath(entryRoot)
+  return root === "." ? ".runelight" : `${root}/.runelight`
+}
+
+/**
+ * @internal Adapter, Studio, and CLI baseline-cache location helper.
+ */
+export function runelightBaselineRootFromEntryRoot(entryRoot: string): string {
+  return `${runelightGeneratedRootFromEntryRoot(entryRoot)}/baselines/HEAD`
+}
+
 export function normalizeRunelightPath(path: string): string {
   const normalized = path.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/+$/, "")
   return normalized || "."
@@ -45,7 +64,7 @@ function assertRunelightConfig(config: RunelightConfig): void {
     messages.push('Invalid contracts in runelight.config.ts. Use string specifiers, for example contracts: ["@runelight/react/contract"].')
   }
   if (!candidate.project || !isNonEmptyString((candidate.project as Partial<RunelightProjectConfig>).entryRoot)) {
-    messages.push("Missing project.entryRoot in runelight.config.ts. Record the local /runelight entry directory, for example project: { entryRoot: \"app/runelight\" }.")
+    messages.push('Missing project.entryRoot in runelight.config.ts. Record the local /runelight entry directory, for example project: { entryRoot: "src/app/runelight" } for src-based projects.')
   }
   if (!candidate.project || !isNonEmptyString((candidate.project as Partial<RunelightProjectConfig>).sourceRoot)) {
     messages.push("Missing project.sourceRoot in runelight.config.ts. Record the source directory to scan, for example project: { sourceRoot: \"src\" } or project: { sourceRoot: \".\" }.")

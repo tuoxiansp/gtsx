@@ -6,6 +6,7 @@ Configuration lives in `runelight.config.ts`; see the [Configuration Reference](
 
 ```sh
 runelight check [-p <tsconfig-or-dir>] [entry[#export]|dir] [--json]
+runelight changes [-p <tsconfig-or-dir>] [--json] [--ui-only] [--component <component-or-file>]
 runelight serve [-p <tsconfig-or-dir>] [--port <port>]
 runelight capture [-p <tsconfig-or-dir>] <entry[#export]|dir> [--frame <name>] [--frame-override <entry#export:frame>] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
 ```
@@ -14,7 +15,7 @@ Command options are strict: unknown flags fail with `unknown-option`, known flag
 
 ## Project Selection
 
-`check`, `serve`, and `capture` accept `-p` / `--project` with either a tsconfig path or a directory. Project selection is an override chain, not a merge: an explicit `-p` wins, otherwise the CLI honors `project.tsconfig` from `runelight.config.ts`, otherwise it falls back to the nearest `tsconfig.json` from the working directory. If the nearest `tsconfig.json` is a project-reference container, pass or configure the app config that includes framework source, such as `tsconfig.app.json`.
+`check`, `changes`, `serve`, and `capture` accept `-p` / `--project` with either a tsconfig path or a directory. Project selection is an override chain, not a merge: an explicit `-p` wins, otherwise the CLI honors `project.tsconfig` from `runelight.config.ts`, otherwise it falls back to the nearest `tsconfig.json` from the working directory. If the nearest `tsconfig.json` is a project-reference container, pass or configure the app config that includes framework source, such as `tsconfig.app.json`.
 
 ## `runelight check`
 
@@ -29,6 +30,22 @@ Validates the `.g` protocol contract for the configured project, one entry, or a
 `runelight check` requires `contracts` in `runelight.config.ts`, such as `["@runelight/react/contract"]` or `["@runelight/vue/contract"]`. The CLI resolves those packages from the project root and delegates static analysis to the selected contract.
 
 The complete diagnostic registry lives in [.g Static Contract — Diagnostics](./runelight-static-contract.md#diagnostics).
+
+## `runelight changes`
+
+Lists current Git workspace changes that affect Runelight frames or design drafts. The command compares the working tree against `HEAD`, builds the same static visual graph used by Studio changes, and does not start the Host or render screenshots.
+
+The Studio changes tab is UI-focused and hides unchanged visual entries. The CLI default is audit-focused and includes code changes whose `uiStatus` is `"unchanged"`; pass `--ui-only` for a Studio-like visual change list.
+
+- Added and deleted `.g.tsx` / `.g.vue` files are reported as added or deleted UI.
+- Modified files distinguish `codeStatus` from `uiStatus`; code-only edits can be `uiStatus: "unchanged"`.
+- Frame reports distinguish `added`, `deleted`, `changed`, `unchanged`, and `unknown`.
+- `--json` prints a versioned automation schema with `schemaVersion: 1`.
+- `--ui-only` omits components whose UI status is unchanged.
+- `--component <component-or-file>` filters by exact component name, coordinate, file path, or `file#export`.
+- When filters are present, `summary.files` and `summary.ui` describe the visible components; `base` and `diagnostics` still describe the full analysis context.
+
+Fatal analyzer diagnostics are included in the report and make the command exit non-zero.
 
 ## `runelight serve`
 

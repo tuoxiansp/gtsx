@@ -24,4 +24,21 @@ describe("Runelight preview frame grid layout", () => {
     expect(layout.width).toBeLessThanOrEqual(runelightPreviewFrameGridMaxSide("desktop", 3))
     expect(layout.previewScale).toBeGreaterThanOrEqual(0.2)
   })
+
+  it("wraps fixed-scale grids instead of exceeding an explicit max width", () => {
+    const layout = computeRunelightPreviewFrameGridLayout({
+      items: [
+        { width: 768, height: 1024 },
+        { width: 768, height: 1024 },
+        { width: 768, height: 1024 },
+        { width: 768, height: 1024 },
+      ],
+      maxSide: 720,
+      maxWidth: 720,
+      previewScale: 0.45,
+    })
+
+    expect(layout.columns).toBe(2)
+    expect(layout.width).toBeLessThanOrEqual(720)
+  })
 })

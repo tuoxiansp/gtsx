@@ -12,6 +12,7 @@ export default defineConfig({
       entry: {
         manifest: resolve(root, "src/manifest.ts"),
         "manifest-server": resolve(root, "src/manifest-server.ts"),
+        "manifest-server-worker": resolve(root, "src/manifest-server-worker.ts"),
         "static-app": resolve(root, "src/static-app.ts"),
       },
       formats: ["es"],
@@ -19,15 +20,19 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
+        "@runelight/changes",
         "@runelight/core",
         "@runelight/core/config",
         "@runelight/core/contract",
         "@runelight/core/frame-grid-layout",
         "@runelight/core/project-index",
+        "node:child_process",
+        "node:crypto",
         "node:fs",
         "node:module",
         "node:path",
         "node:url",
+        "node:worker_threads",
       ],
       output: {
         assetFileNames: "assets/[name][extname]",

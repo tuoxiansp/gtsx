@@ -196,6 +196,15 @@ importers:
         specifier: ^3.5.25
         version: 3.5.35(typescript@6.0.3)
 
+  packages/changes:
+    devDependencies:
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.7
+        version: 4.1.7(@types/node@25.9.1)(vite@8.0.14(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.3))
+
   packages/cli:
     dependencies:
       '@runelight/core':
@@ -214,6 +223,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@runelight/changes':
+        specifier: workspace:*
+        version: link:../changes
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -256,6 +268,10 @@ importers:
         version: 4.1.7(@types/node@25.9.1)(vite@8.0.14(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.3))
 
   packages/studio:
+    dependencies:
+      '@runelight/changes':
+        specifier: workspace:*
+        version: link:../changes
     devDependencies:
       '@runelight/cli':
         specifier: workspace:*

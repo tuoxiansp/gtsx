@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, statSync } from "node:fs"
-import { basename, dirname, join, resolve } from "node:path"
+import { basename, dirname, join, relative, resolve, sep } from "node:path"
 import { baseParse, NodeTypes, type DirectiveNode, type ElementNode, type RootNode, type TemplateChildNode } from "@vue/compiler-dom"
 import ts from "typescript"
 
@@ -58,6 +58,12 @@ type RunelightVueFrameStaticFacts = {
   name: string
   providerVariants?: Record<string, RunelightProviderVariantSelection>
   values: Map<string, VueStaticBranchValue>
+}
+
+export type RunelightVueVisualFrameProjection = {
+  dependencies: string[]
+  name: string
+  signatureParts: unknown[]
 }
 
 type VueStaticBranchValue =
@@ -258,6 +264,38 @@ export function vueComponentNameFromFilePath(filePath: string): string {
   const words = rawName.split(/[^A-Za-z0-9]+/).filter(Boolean)
   const name = words.map((word) => `${word.slice(0, 1).toUpperCase()}${word.slice(1)}`).join("")
   return name || "RunelightVueComponent"
+}
+
+export function projectVueVisualFrames(options: { cache?: RunelightVueAnalysisCache; cwd: string; entry: string }): RunelightVueVisualFrameProjection[] {
+  const entryCoordinate = parseEntryCoordinate(options.entry)
+  const entryPath = resolve(options.cwd, entryCoordinate.file)
+  const cache = readRunelightVueAnalysisCacheData(options.cache)
+
+  if (!existsSync(entryPath)) return []
+
+  const source = readFileSync(entryPath, "utf8")
+  const extraction = extractVueFrames(source, options.entry)
+  if (extraction.staticFrames.length === 0) return []
+
+  const template = extractVueTemplateBlock(source)
+  if (!template) return extraction.staticFrames.map((frame) => ({ dependencies: [], name: frame.name, signatureParts: [] }))
+
+  const ast = baseParse(template.content)
+  const context: VueTemplateAnalysisContext = {
+    aliases: new Map(),
+    injectedBindings: readVueInjectedProviderBindings(source),
+  }
+  const componentImports = vueImportedComponentCoordinates(source, entryPath, options.cwd, cache)
+
+  return extraction.staticFrames.map((frame) => {
+    const dependencies = new Set<string>()
+    const signatureParts = projectVueTemplateChildNodes(ast.children, { kind: "always" }, context, frame.values, componentImports, dependencies)
+    return {
+      dependencies: [...dependencies].sort((left, right) => left.localeCompare(right)),
+      name: frame.name,
+      signatureParts,
+    }
+  })
 }
 
 type VueFramesBlock = {
@@ -1085,6 +1123,241 @@ function reachableVueElementBranches(
 
   branches.push(...reachableVueTemplateChildBranches(element.children, childCondition, childContext))
   return branches
+}
+
+function projectVueTemplateChildNodes(
+  children: TemplateChildNode[],
+  condition: VueTemplateBranchPredicate,
+  context: VueTemplateAnalysisContext,
+  values: Map<string, VueStaticBranchValue>,
+  componentImports: ReadonlyMap<string, string>,
+  dependencies: Set<string>,
+): unknown[] {
+  const parts: unknown[] = []
+  const consumed = new Set<number>()
+
+  for (let index = 0; index < children.length; index += 1) {
+    if (consumed.has(index)) continue
+
+    const child = children[index]
+    if (child.type === NodeTypes.TEXT) {
+      const text = child.content.replace(/\s+/g, " ").trim()
+      if (text) parts.push({ text })
+      continue
+    }
+
+    if (child.type === NodeTypes.INTERPOLATION) {
+      parts.push({ interpolation: child.loc.source.trim() })
+      continue
+    }
+
+    if (child.type !== NodeTypes.ELEMENT) continue
+
+    const ifDirective = vueDirective(child, "if")
+    if (ifDirective) {
+      const chain = collectVueIfChain(children, index)
+      for (const chainIndex of chain.indices) consumed.add(chainIndex)
+      parts.push(...projectVueIfChainTemplateNodes(chain.elements, condition, context, values, componentImports, dependencies))
+      continue
+    }
+
+    if (vueDirective(child, "else-if") || vueDirective(child, "else")) continue
+    parts.push(...projectVueElementTemplateNode(child, condition, context, values, componentImports, dependencies))
+  }
+
+  return parts
+}
+
+function projectVueIfChainTemplateNodes(
+  elements: ElementNode[],
+  condition: VueTemplateBranchPredicate,
+  context: VueTemplateAnalysisContext,
+  values: Map<string, VueStaticBranchValue>,
+  componentImports: ReadonlyMap<string, string>,
+  dependencies: Set<string>,
+): unknown[] {
+  const parts: unknown[] = []
+  let previousBranches = { kind: "static", value: false } as VueTemplateBranchPredicate
+
+  for (const element of elements) {
+    const ifDirective = vueDirective(element, "if") ?? vueDirective(element, "else-if")
+    const elseDirective = vueDirective(element, "else")
+    const ownPredicate = elseDirective ? { kind: "always" } as VueTemplateBranchPredicate : vuePredicateFromDirective(ifDirective, context)
+    const branchCondition = andVueTemplatePredicates(condition, andVueTemplatePredicates(notVueTemplatePredicate(previousBranches), ownPredicate))
+
+    parts.push(...projectVueElementTemplateNode(element, branchCondition, context, values, componentImports, dependencies, { skipIfDirective: true }))
+    previousBranches = orVueTemplatePredicates(previousBranches, ownPredicate)
+  }
+
+  return parts
+}
+
+function projectVueElementTemplateNode(
+  element: ElementNode,
+  condition: VueTemplateBranchPredicate,
+  context: VueTemplateAnalysisContext,
+  values: Map<string, VueStaticBranchValue>,
+  componentImports: ReadonlyMap<string, string>,
+  dependencies: Set<string>,
+  options: { skipIfDirective?: boolean } = {},
+): unknown[] {
+  let elementCondition = condition
+
+  if (!options.skipIfDirective) {
+    const ifDirective = vueDirective(element, "if")
+    if (ifDirective) elementCondition = andVueTemplatePredicates(elementCondition, vuePredicateFromDirective(ifDirective, context))
+  }
+
+  const elementEvaluation = evaluateVueTemplatePredicate(elementCondition, values)
+  if (elementEvaluation === false) return []
+
+  const forDirective = vueDirective(element, "for")
+  const forExpression = forDirective?.exp?.loc.source.trim()
+  const parsedForExpression = forExpression ? parseVueForExpression(forExpression) : undefined
+  let childContext = context
+  let childCondition = elementCondition
+  const markers: Record<string, string> = {}
+
+  if (forDirective && parsedForExpression?.source) {
+    const sourcePath = vueExpressionPath(parsedForExpression.source)
+    if (sourcePath) {
+      const sourceRef = vueTemplateReferenceForPath(sourcePath, context)
+      const nonEmptyCondition = andVueTemplatePredicates(elementCondition, nonEmptyVueCollectionPredicate(sourceRef))
+      const forEvaluation = evaluateVueTemplatePredicate(nonEmptyCondition, values)
+      if (forEvaluation === false) return []
+      if (forEvaluation === "unknown") markers.forCondition = formatVueTemplatePredicate(nonEmptyCondition)
+      childCondition = nonEmptyCondition
+
+      if (parsedForExpression.value) {
+        const aliases = new Map(context.aliases)
+        aliases.set(parsedForExpression.value, `${sourceRef.candidates[0]}.number`)
+        childContext = { ...context, aliases }
+      }
+    } else {
+      markers.forCondition = forDirective.exp?.loc.source ?? "v-for"
+    }
+  } else if (forDirective) {
+    markers.forCondition = forDirective.exp?.loc.source ?? "v-for"
+  }
+
+  const showDirective = vueDirective(element, "show")
+  if (showDirective) {
+    const showCondition = andVueTemplatePredicates(childCondition, vuePredicateFromDirective(showDirective, childContext))
+    const showEvaluation = evaluateVueTemplatePredicate(showCondition, values)
+    if (showEvaluation === false) return []
+    if (showEvaluation === "unknown") markers.showCondition = formatVueTemplatePredicate(showCondition)
+  }
+
+  if (elementEvaluation === "unknown") markers.condition = formatVueTemplatePredicate(elementCondition)
+
+  const componentCoordinate = componentImports.get(element.tag)
+  if (componentCoordinate) dependencies.add(componentCoordinate)
+
+  const children = projectVueTemplateChildNodes(element.children, childCondition, childContext, values, componentImports, dependencies)
+  return [
+    {
+      tag: element.tag,
+      ...(componentCoordinate ? { component: componentCoordinate } : {}),
+      attrs: vueVisualAttributeParts(element),
+      ...(Object.keys(markers).length > 0 ? { markers } : {}),
+      children,
+    },
+  ]
+}
+
+function vueVisualAttributeParts(element: ElementNode): unknown[] {
+  const parts: unknown[] = []
+
+  for (const property of element.props) {
+    if (property.type === NodeTypes.ATTRIBUTE) {
+      parts.push({
+        kind: "attribute",
+        name: property.name,
+        value: property.value?.content ?? true,
+      })
+      continue
+    }
+
+    if (["if", "else-if", "else", "for", "show"].includes(property.name)) continue
+
+    parts.push({
+      arg: property.arg?.loc.source,
+      expression: property.exp?.loc.source,
+      kind: "directive",
+      name: property.name,
+    })
+  }
+
+  return parts.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)))
+}
+
+function vueImportedComponentCoordinates(
+  source: string,
+  entryPath: string,
+  cwd: string,
+  cache?: RunelightVueAnalysisCacheData,
+): Map<string, string> {
+  const imports = new Map<string, string>()
+
+  for (const script of extractVueScriptBlocks(source)) {
+    const sourceFile = ts.createSourceFile("component.vue-script.ts", script, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+    for (const statement of sourceFile.statements) {
+      if (!ts.isImportDeclaration(statement) || !statement.importClause || !ts.isStringLiteral(statement.moduleSpecifier)) continue
+
+      const targetPath = resolveImportedVueComponentPath(entryPath, cwd, statement.moduleSpecifier.text, cache)
+      if (!targetPath) continue
+
+      const coordinate = `${relative(cwd, targetPath).split(sep).join("/")}#default`
+      const importClause = statement.importClause
+      if (importClause.name) {
+        imports.set(importClause.name.text, coordinate)
+        imports.set(kebabCaseVueComponentName(importClause.name.text), coordinate)
+      }
+
+      const namedBindings = importClause.namedBindings
+      if (!namedBindings || !ts.isNamedImports(namedBindings)) continue
+      for (const element of namedBindings.elements) {
+        imports.set(element.name.text, coordinate)
+        imports.set(kebabCaseVueComponentName(element.name.text), coordinate)
+      }
+    }
+  }
+
+  return imports
+}
+
+function resolveImportedVueComponentPath(
+  entryPath: string,
+  cwd: string,
+  specifier: string,
+  cache?: RunelightVueAnalysisCacheData,
+): string | undefined {
+  const cacheKey = `${entryPath}\0vue-component\0${specifier}`
+  const cached = cache?.importedStaticSourcePathByKey.get(cacheKey)
+  if (cached !== undefined) return cached ?? undefined
+
+  const basePath = resolveImportBasePath(entryPath, cwd, specifier)
+  const resolvedPath = basePath ? importedVueComponentPathCandidates(basePath).find((candidate) => isFile(candidate)) : undefined
+  cache?.importedStaticSourcePathByKey.set(cacheKey, resolvedPath ?? null)
+  return resolvedPath
+}
+
+function importedVueComponentPathCandidates(basePath: string): string[] {
+  const hasKnownExtension = /\.vue$/.test(basePath)
+  const candidates = [
+    hasKnownExtension ? basePath : undefined,
+    !hasKnownExtension ? `${basePath}.g.vue` : undefined,
+    join(basePath, "index.g.vue"),
+  ]
+
+  return [...new Set(candidates.filter((candidate): candidate is string => Boolean(candidate)))]
+}
+
+function kebabCaseVueComponentName(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/([A-Z])([A-Z][a-z])/g, "$1-$2")
+    .toLowerCase()
 }
 
 function parseVueForExpression(expression: string): { source: string; value?: string } | undefined {

@@ -10,7 +10,7 @@ import "./styles.css"
 import "./frames/preview.css"
 import "./frames/website-design-explore.css"
 
-const modules = import.meta.glob<RunelightReactPreviewModule>(["/src/app/**/*.g.tsx", "/app/runelight/design/**/*.g.tsx"], {
+const modules = import.meta.glob<RunelightReactPreviewModule>(["/src/app/**/*.g.tsx", "/src/app/runelight/design/**/*.g.tsx"], {
   query: "?runelight-preview",
 })
 const loadWebsitePreviewComponent = createRunelightVitePreviewComponentLoader(modules, {

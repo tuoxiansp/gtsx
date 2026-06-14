@@ -48,6 +48,11 @@
       "types": "./dist/studio-route.d.ts",
       "import": "./dist/studio-route.js",
       "default": "./dist/studio-route.js"
+    },
+    "./studio-manifest-route": {
+      "types": "./dist/studio-manifest-route.d.ts",
+      "import": "./dist/studio-manifest-route.js",
+      "default": "./dist/studio-manifest-route.js"
     }
   },
   "files": [
@@ -58,7 +63,7 @@
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "pnpm clean && tsc -p tsconfig.build.json",
-    "test": "vitest run",
+    "test": "pnpm --filter @runelight/changes build && vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

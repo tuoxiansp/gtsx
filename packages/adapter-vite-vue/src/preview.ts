@@ -36,13 +36,23 @@ export function createRunelightViteVuePreviewComponentLoader(
 
   return async (entry: string) => {
     const { file, exportName } = parseRunelightVuePreviewEntry(entry)
-    const loader = modulesByEntryFile[file] ?? modules[toModuleKey(file, sourceRoot)]
+    const loader = modulesByEntryFile[file] ?? modules[toModuleKey(file, sourceRoot)] ?? dynamicBaselinePreviewEntryLoader(file)
     if (!loader) return undefined
 
     const moduleValue = await loader()
     const component = moduleValue[exportName]
     return isRunelightVuePreviewComponent(component) ? component : undefined
   }
+}
+
+function dynamicBaselinePreviewEntryLoader(file: string): (() => Promise<RunelightVuePreviewModule>) | undefined {
+  if (!isRunelightBaselinePreviewEntryFile(file)) return undefined
+
+  return () => import(/* @vite-ignore */ `/${file}?runelight-preview`) as Promise<RunelightVuePreviewModule>
+}
+
+function isRunelightBaselinePreviewEntryFile(file: string): boolean {
+  return file.startsWith(".runelight/baselines/HEAD/") || file.includes("/.runelight/baselines/HEAD/")
 }
 
 function normalizeSourceRoot(sourceRoot: string): string {

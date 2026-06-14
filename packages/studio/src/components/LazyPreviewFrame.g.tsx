@@ -76,6 +76,7 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
   const layoutWidth = previewFrameLayoutWidth(props.size, props.boundaryRect)
   const visualBleed = previewFrameVisualBleed(props.size, props.boundaryRect)
   const viewportOffset = previewFrameViewportOffset(props.boundaryRect, visualBleed)
+  const iframePlacementKey = `${layoutWidth}:${layoutHeight}:${viewportOffset.x}:${viewportOffset.y}:${props.debugIndicatorScale ?? 1}`
   const overlayRect = normalizeBoundaryRect(props.boundaryRect, visualBleed)
   const selectedOverlayRect = normalizeBoundaryRect(props.selectedBoundaryRect, visualBleed)
   const debugIndicatorScale = 1 / Math.max(props.debugIndicatorScale ?? 1, 0.01)
@@ -129,6 +130,7 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
               onBorrowOriginChange={props.debugPreviewPool || props.debugPreviewQueue ? scope.setBorrowOrigin : undefined}
               onPreviewFrameMount={props.onPreviewFrameMount}
               dimmed={props.dimmed}
+              placementKey={iframePlacementKey}
               size={props.size}
               slot={{
                 previewUrl: props.previewUrl,
@@ -137,6 +139,24 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
               }}
             />
           </div>
+          {props.dimmed ? (
+            <div
+              aria-hidden="true"
+              data-runelight-preview-dim-overlay={props.sessionId}
+              style={{
+                background:
+                  "repeating-linear-gradient(135deg, rgba(87,96,106,0.34) 0, rgba(87,96,106,0.34) 6px, transparent 6px, transparent 12px)",
+                borderRadius: studioRadii.md,
+                height: layoutHeight,
+                left: 0,
+                pointerEvents: "none",
+                position: "absolute",
+                top: 0,
+                width: layoutWidth,
+                zIndex: 2,
+              }}
+            />
+          ) : null}
         </div>
       ) : null}
       {props.debugPreviewQueue ? (

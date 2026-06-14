@@ -84,16 +84,16 @@ The design board:
 A single frame directly:
 
 ```
-/runelight?entry=app%2Frunelight%2Fdesign%2FCheckoutFlow.g.tsx%23default&frame=live&chrome=0
+/runelight?entry=src%2Fapp%2Frunelight%2Fdesign%2FCheckoutFlow.g.tsx%23default&frame=live&chrome=0
 ```
 
 For Vue, the same URL shape points at a `.g.vue` entry:
 
 ```
-/runelight?entry=app%2Frunelight%2Fdesign%2FCheckoutFlow.g.vue%23default&frame=live&chrome=0
+/runelight?entry=src%2Fapp%2Frunelight%2Fdesign%2FCheckoutFlow.g.vue%23default&frame=live&chrome=0
 ```
 
-The URL shape is identical for both frameworks; only the file extension differs. Replace the `app%2Frunelight` segment with the URL-encoded `project.entryRoot` if setup chose a different entry root, such as `src%2Fapp%2Frunelight`.
+The URL shape is identical for both frameworks; only the file extension differs. Replace the `src%2Fapp%2Frunelight` segment with the URL-encoded `project.entryRoot` if setup chose a different entry root.
 
 ## The Agent's Design Loop
 

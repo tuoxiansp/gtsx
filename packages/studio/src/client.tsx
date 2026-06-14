@@ -7,6 +7,7 @@ import {
   type GPreviewRenderTarget,
   type GPreviewRequestValuesMessage,
   type GPreviewSessionMessage,
+  type GRenderedSnapshot,
   type GRuntimeValuesSnapshot,
 } from "@runelight/core/preview-protocol"
 import type { GBoundaryRect } from "@runelight/core/boundary-rect"
@@ -15,7 +16,9 @@ import {
   type RunelightPreviewFrameGridItemLayout,
   type RunelightPreviewFrameGridLayout,
 } from "@runelight/core/frame-grid-layout"
+import { studioComponentCardWidth } from "./frame-grid-layout"
 import type { StudioManifest, StudioManifestComponent } from "./manifest"
+import type { StudioWorkspaceChanges } from "./workspace-changes"
 import { findStudioBoundaryNode, studioBoundaryRectForCoordinate } from "./boundary-tree"
 import { previewFrameLayoutWidth } from "./preview-frame-layout"
 
@@ -27,6 +30,7 @@ export type StudioPreviewFrameState = {
     width: number
     height: number
   }
+  renderedSnapshot?: GRenderedSnapshot
   error?: {
     message: string
     stack?: string
@@ -195,6 +199,11 @@ export function applyStudioPreviewMessage(
   if (message.type === "runelight:resize") {
     if (state.size?.width === message.size.width && state.size.height === message.size.height) return state
     return { ...state, size: message.size }
+  }
+
+  if (message.type === "runelight:rendered-snapshot") {
+    if (state.renderedSnapshot?.hash === message.snapshot.hash) return state
+    return { ...state, renderedSnapshot: message.snapshot }
   }
 
   if (message.type === "runelight:error") {
@@ -1373,6 +1382,7 @@ export function computeStudioFrameGridLayout(input: {
   frameChromeHeight?: number
   gap?: number
   items: StudioFrameGridItemLayout[]
+  maxWidth?: number
   maxSide?: number
   minScale?: number
   previewScale?: number
@@ -1501,7 +1511,7 @@ export function componentCardLayoutWidth(
   coordinate: string,
 ): number {
   const rect = studioBoundaryRectForCoordinate(tree, coordinate)
-  if (rect) return Math.max(280, Math.ceil(Number(previewFrameLayoutWidth(displaySize, rect))))
+  if (rect) return studioComponentCardWidth(Math.ceil(Number(previewFrameLayoutWidth(displaySize, rect))))
   return typeof displaySize.width === "number" ? displaySize.width + 28 : 520
 }
 
@@ -1675,6 +1685,9 @@ export function mergeStudioPreviewFrameState(
     ready: current?.ready ?? false,
     ...(current?.tree ?? cached?.tree ? { tree: current?.tree ?? cached?.tree } : {}),
     ...(current?.size ?? cached?.size ? { size: current?.size ?? cached?.size } : {}),
+    ...(current?.renderedSnapshot ?? cached?.renderedSnapshot ? {
+      renderedSnapshot: current?.renderedSnapshot ?? cached?.renderedSnapshot,
+    } : {}),
     ...(current?.error ? { error: current.error } : {}),
     ...(current?.valuesByBoundaryId ? { valuesByBoundaryId: current.valuesByBoundaryId } : {}),
   }
@@ -1726,6 +1739,81 @@ export function currentStudioDesignPreviewTargets(
       ),
     ),
   )
+}
+
+export function currentStudioChangesPreviewTargets(
+  manifest: StudioManifest,
+  changes: StudioWorkspaceChanges | undefined,
+  viewportPreset: StudioViewportPreset,
+): StudioPreviewTarget[] {
+  const currentComponentsByCoordinate = new Map(
+    manifest.files.flatMap((file) => file.components).map((component) => [component.coordinate, component] as const),
+  )
+  const baselineManifest = changes?.base.kind === "git" ? changes.base.manifest : undefined
+  const baselineComponentsByCoordinate = new Map(
+    (baselineManifest?.files ?? []).flatMap((file) => file.components).map((component) => [component.coordinate, component] as const),
+  )
+  const targets: StudioPreviewTarget[] = []
+  const seenSessionIds = new Set<string>()
+  const appendComponentTargets = (
+    targetManifest: StudioManifest | undefined,
+    component: StudioManifestComponent | undefined,
+    frameNames?: readonly string[],
+  ) => {
+    if (!targetManifest || !component) return
+
+    const frameNameSet = frameNames ? new Set(frameNames) : undefined
+    for (const frame of component.frames) {
+      if (frameNameSet && !frameNameSet.has(frame.name)) continue
+      const sessionId = previewSessionId(component, frame.name, viewportPreset)
+      if (seenSessionIds.has(sessionId)) continue
+      seenSessionIds.add(sessionId)
+      targets.push(studioPreviewTarget(targetManifest, component, frame.name, viewportPreset, sessionId))
+    }
+  }
+
+  for (const item of changes?.items ?? []) {
+    let appendedBaselineImpact = false
+    for (const impact of item.baselineImpacts ?? []) {
+      const component = baselineComponentsByCoordinate.get(impact.rootCoordinate)
+      appendedBaselineImpact ||= Boolean(component)
+      appendComponentTargets(baselineManifest, component, studioChangesPreviewTargetFrameNames(impact, "before"))
+    }
+    if (!appendedBaselineImpact) {
+      for (const component of item.baselineFile?.components ?? []) {
+        appendComponentTargets(baselineManifest, component)
+      }
+    }
+
+    let appendedCurrentImpact = false
+    if (item.currentFile) {
+      for (const impact of item.impacts) {
+        const component = currentComponentsByCoordinate.get(impact.rootCoordinate)
+        appendedCurrentImpact ||= Boolean(component)
+        appendComponentTargets(manifest, component, studioChangesPreviewTargetFrameNames(impact, "current"))
+      }
+    }
+    if (!appendedCurrentImpact) {
+      for (const component of item.currentFile?.components ?? []) {
+        appendComponentTargets(manifest, component)
+      }
+    }
+  }
+
+  return targets
+}
+
+function studioChangesPreviewTargetFrameNames(
+  impact: StudioWorkspaceChanges["items"][number]["impacts"][number],
+  side: "before" | "current",
+): string[] {
+  const frames = impact.frames ?? impact.frameNames.map((name) => ({ kind: "unknown" as const, name }))
+  return frames.flatMap((frame) => {
+    if (frame.kind === "unchanged") return []
+    if (side === "before" && frame.kind === "added") return []
+    if (side === "current" && frame.kind === "deleted") return []
+    return [frame.name]
+  })
 }
 
 function studioPreviewTarget(

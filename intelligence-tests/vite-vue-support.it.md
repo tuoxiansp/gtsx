@@ -10,6 +10,8 @@ Add a Vue template reachability target. Start with a `.g.vue` component whose te
 
 Also add a Vue-native provide/inject case in the same temporary project. Define an injection key in a normal TypeScript module with `defineGInjectionKey<{ role: "admin" | "viewer" }>({ variants: ["admin", "viewer"] as const })`. Have a `.g.vue` component import that key, call Vue's native `inject(key)` in `<script setup>`, and render the injected role in the template. Its `<g:frames lang="ts">` block must import the same key, use frame `providers: [[key, value]]` entries, and mark coverage with `GVueProviderFrame` / `GVueFrames`.
 
+After the Vue setup and preview checks, make the temporary project a git worktree if needed, commit a clean Runelight baseline, then create added, deleted, modified, and code-only `.g.vue` working-tree changes under the configured source or design roots.
+
 Validate these outcomes:
 
 - Before setup runs, the project contains `.agents/skills/setup-runelight` and no other Runelight project-level skills.
@@ -24,6 +26,8 @@ Validate these outcomes:
 - Editing that design frame updates preview without restarting.
 - Removing the temporary design frame does not leave a stale usable preview entry.
 - Design files live under `${project.entryRoot}/design`, never under generated adapter output directories.
+- `runelight changes --json --ui-only` recognizes `.g.vue` changes in both source and design roots, reports added and deleted Vue frames clearly, and omits code-only edits that do not change the static visual signature.
+- Studio Changes renders Vue added/deleted/modified items through the Vite Vue adapter without extra project glue. Added items show only current UI, deleted items show only the old UI with an obvious deleted presentation, and switching back to Frames or Drafts still renders previews.
 - For the provide/inject component, `/runelight/studio/manifest` reports the injection key as a provider axis with `admin` and `viewer` variants, and the relevant frames include matching `providerVariants`.
 - `/runelight?entry=...g.vue%23default&frame=<name>&chrome=0` renders the selected frame through the Vue preview client.
 - The rendered preview uses frame `scope` rather than the production setup state for structural template branches.

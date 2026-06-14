@@ -61,7 +61,22 @@ export type RunelightContractComponent = {
   mode: RunelightEntryAnalysisResult["mode"]
   frames: RunelightEntryAnalysisResult["frames"]
   providers: RunelightEntryAnalysisResult["providers"]
+  /**
+   * @internal Static metadata consumed by Studio and workspace change classification.
+   */
   dependencies?: string[]
+  /**
+   * @internal Static metadata consumed by Studio and workspace change classification.
+   */
+  frameDependencies?: Record<string, string[]>
+  /**
+   * @internal Static metadata consumed by Studio and workspace change classification.
+   */
+  frameVisualSignatures?: Record<string, string>
+  /**
+   * @internal Static metadata consumed by Studio and workspace change classification.
+   */
+  visualSignature?: string
   diagnostics: RunelightDiagnostic[]
 }
 

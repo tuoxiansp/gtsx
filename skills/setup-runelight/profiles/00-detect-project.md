@@ -60,7 +60,7 @@ Before selecting write actions, check whether the project is already integrated:
 - `runelight.config.ts`.
 - Adapter wrappers in `vite.config.*`, `next.config.*`, or another framework config.
 - Existing `/runelight`, `/runelight/studio`, `/runelight/studio/assets/*`, or `/runelight/studio/manifest` route files, middleware handlers, or `/runelight` browser-entry branches.
-- Existing `.runelight/preview-entries.ts` imports or adapter-generated output.
+- Existing adapter-generated output under `${project.entryRoot}/.runelight/`, including preview entry registries and workspace-change baselines.
 
 If any of these are present, classify the task as upgrade/ensure mode unless the user explicitly asked for a full reinstall. In upgrade/ensure mode:
 
@@ -77,10 +77,11 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 - Install `@runelight/adapter-vite-react` only for Vite-compatible React client-only hosts.
 - Install `@runelight/adapter-vite-vue` only for Vite Vue 3 client-only hosts.
 - Install `@runelight/adapter-next-react` only for Next.js App Router.
-- Put selected framework contract, selected source root, selected local Runelight entry root, selected tsconfig when needed, and the Host dev command in `runelight.config.ts`. The valid keys are `contracts`, `project.{sourceRoot, entryRoot, namespace, tsconfig}` and `host.command`; routes are fixed at `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest` and are not configurable.
+- Put selected framework contract, selected source root, selected local Runelight entry root, selected tsconfig when needed, and the Host dev command in `runelight.config.ts`. The valid keys are `contracts`, `project.{sourceRoot, entryRoot, namespace, tsconfig}` and `host.command`; routes are fixed and not configurable: `/runelight`, `/runelight/studio`, `/runelight/studio/manifest`, plus adapter-owned internal Studio sidecar routes `/runelight/studio/events` and `/runelight/studio/changes`.
+- Ensure the project `.gitignore` contains `.runelight/`. Do not add a path-specialized ignore rule such as `${project.entryRoot}/.runelight/`; `.runelight/` covers generated Runelight directories at any depth. Project-local generated Runelight files live under `${project.entryRoot}/.runelight/`; choose `project.entryRoot` inside the app's authored source tree so generated registries and baselines stay source-scoped and importable without user glue. Authored design frames stay under `${project.entryRoot}/design`.
 - `project.namespace` is optional. When a stable package name or repo slug is available, use it as `project.namespace`; do not invent a file hash or derive it from a transient folder name.
 - Choose `project.sourceRoot: "src"` when app source lives under `src`; choose `project.sourceRoot: "."` for root-level `app`, `pages`, `components`, or `lib`.
-- Choose `project.entryRoot` as the filesystem directory that owns the local `/runelight` entry: usually `app/runelight`, or `src/app/runelight` when the route tree lives under `src/app`. For client-only hosts without filesystem routes, still create and record a logical entry root during setup: `app/runelight` at the project root by default, or `src/app/runelight` when the project keeps all authored source under `src`.
+- Choose `project.entryRoot` as the filesystem directory that owns the local `/runelight` entry: use `src/app/runelight` when the project keeps authored source under `src`, or `app/runelight` for root-level source projects. Because generated files are derived under `${project.entryRoot}/.runelight/`, keep this entry root inside the source tree the host can import. For client-only hosts without filesystem routes, still create and record this logical entry root during setup.
 - Generate `host.command` for the detected package manager and host using its exec form (`npx vite ...`, `pnpm exec next dev ...`). Do not hard-code `pnpm` in npm/yarn/bun projects, and do not point `host.command` at a package script that itself runs `runelight serve`.
 - `host.command` must bind a deterministic host (prefer `127.0.0.1`) and accept the `{port}` placeholder; `runelight serve` substitutes the Runelight-owned port and prints the serve and Studio URLs itself.
 

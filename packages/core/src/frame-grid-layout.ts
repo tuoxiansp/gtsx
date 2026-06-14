@@ -1,10 +1,19 @@
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export type RunelightPreviewViewportPreset = "desktop" | "phone" | "tablet"
 
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export type RunelightPreviewFrameGridItemLayout = {
   height: number
   width: number
 }
 
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export type RunelightPreviewFrameGridLayout = {
   frameChromeHeight: number
   cellHeight: number
@@ -17,34 +26,95 @@ export type RunelightPreviewFrameGridLayout = {
   width: number
 }
 
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export const runelightPreviewFixedFrameScale = 0.45
+
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export const runelightPreviewScreenStableChromeMinimumScale = 0.75
+
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export const runelightPreviewFrameGridGap = 14
+
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export const runelightPreviewCardTitleScreenGap = 8
+
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export const runelightPreviewCardTitleScreenHeight = 9
+
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export const runelightPreviewFrameLabelScreenGap = 5
+
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export const runelightPreviewFrameLabelScreenMinHeight = 13
+
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export const runelightPreviewCardTitleGap = runelightPreviewScreenStableChromeReservedLength(
   runelightPreviewCardTitleScreenGap,
 )
+
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export const runelightPreviewCardTitleHeight = runelightPreviewScreenStableChromeReservedLength(
   runelightPreviewCardTitleScreenHeight,
 )
+
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export const runelightPreviewFrameLabelGap = runelightPreviewScreenStableChromeReservedLength(
   runelightPreviewFrameLabelScreenGap,
 )
+
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export const runelightPreviewFrameLabelMinHeight = runelightPreviewScreenStableChromeReservedLength(
   runelightPreviewFrameLabelScreenMinHeight,
 )
+
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export const runelightPreviewFrameChromeHeight =
   runelightPreviewFrameLabelGap + runelightPreviewFrameLabelMinHeight
+
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export const runelightPreviewFrameGridMinScale = 0.18
+
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export const runelightPreviewFrameMismatchBorderOutset = 2
 
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export function runelightPreviewScreenStableChromeReservedLength(screenLength: number): number {
   return Math.ceil(screenLength / runelightPreviewScreenStableChromeMinimumScale)
 }
 
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export function runelightPreviewFrameGridMaxSide(
   viewportPreset: RunelightPreviewViewportPreset,
   frameCount: number,
@@ -53,10 +123,14 @@ export function runelightPreviewFrameGridMaxSide(
   return frameCount <= 1 ? Math.min(base, 720) : base
 }
 
+/**
+ * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ */
 export function computeRunelightPreviewFrameGridLayout(input: {
   frameChromeHeight?: number
   gap?: number
   items: RunelightPreviewFrameGridItemLayout[]
+  maxWidth?: number
   maxSide?: number
   minScale?: number
   previewScale?: number
@@ -64,6 +138,7 @@ export function computeRunelightPreviewFrameGridLayout(input: {
   const gap = input.gap ?? 14
   const frameChromeHeight = input.frameChromeHeight ?? 20
   const maxSide = input.maxSide ?? 760
+  const maxWidth = input.maxWidth ?? maxSide
   const minScale = input.minScale ?? 0.24
   const items = input.items.length > 0 ? input.items : [{ height: 160, width: 280 }]
   const itemCount = items.length
@@ -79,7 +154,7 @@ export function computeRunelightPreviewFrameGridLayout(input: {
     const chromeHeight = rows * frameChromeHeight + (rows - 1) * gap
     const heightAvailableForPreviews = Math.max(maxSide * minScale, maxSide - chromeHeight)
     const fittingPreviewScale = clampRunelightFrameGridNumber(
-      Math.min(1, maxSide / naturalWidth, heightAvailableForPreviews / previewNaturalHeight),
+      Math.min(1, maxWidth / naturalWidth, heightAvailableForPreviews / previewNaturalHeight),
       minScale,
       1,
     )
@@ -91,10 +166,11 @@ export function computeRunelightPreviewFrameGridLayout(input: {
     const cellHeight = Math.ceil(frameChromeHeight + maxItemHeight * previewScale)
     const width = Math.ceil(columns * cellWidth + (columns - 1) * gap)
     const height = Math.ceil(rows * cellHeight + (rows - 1) * gap)
+    if (input.maxWidth !== undefined && columns > 1 && width > input.maxWidth) continue
     const aspectPenalty = Math.abs(Math.log(width / height))
     const scalePenalty = input.previewScale === undefined ? (1 - previewScale) * 0.35 : 0
     const emptySlotPenalty = (columns * rows - itemCount) * 0.08
-    const overflowPenalty = input.previewScale === undefined ? 0 : Math.max(0, width - maxSide, height - maxSide) / maxSide
+    const overflowPenalty = input.previewScale === undefined ? 0 : Math.max(0, width - maxWidth, height - maxSide) / maxSide
     const score = aspectPenalty + scalePenalty + emptySlotPenalty + overflowPenalty * 4
 
     if (score < bestScore) {

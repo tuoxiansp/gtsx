@@ -23,7 +23,7 @@ The adapter uses `@runelight/vue/preview` internally; user projects should not i
 - Vue frames use `props` and `scope`; do not generate or document `bindings`.
 - Vue native `provide`/`inject` preview works through static frame `providers` entries when the injected key is importable from `<g:frames>`.
 - Declared Vue injection variants need `defineGInjectionKey` and `GVueProviderFrame` markers.
-- Record the local Runelight entry directory in `project.entryRoot`. Design frames live in `${project.entryRoot}/design`. `src/app/runelight` is the default when the project keeps all authored source under `src`; `app/runelight` at the project root is also valid.
+- Record the local Runelight entry directory in `project.entryRoot`. Design frames live in `${project.entryRoot}/design`; generated Runelight files live in `${project.entryRoot}/.runelight/`; ensure `.gitignore` contains `.runelight/`, which covers this generated folder at any depth. Use `src/app/runelight` when the project keeps authored source under `src`, or `app/runelight` for root-level source projects.
 - During setup, create the empty `${project.entryRoot}/design` directory. Do not add placeholder frames; the first `design-runelight-vue` request writes the first `.g.vue` frame.
 - Preserve the existing application render path. Only `/runelight` renders the preview app.
 
@@ -57,7 +57,7 @@ export default defineRunelightConfig({
 })
 ```
 
-Use the detected package manager's exec form in `host.command`: `npx vite ...` for npm, `pnpm exec vite ...` for pnpm. `runelight serve` substitutes `{port}` with the Runelight-owned port, sets `RUNELIGHT_DEV=1`, and prints the serve and Studio URLs. Routes are fixed at `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest`; they are not configurable.
+Use the detected package manager's exec form in `host.command`: `npx vite ...` for npm, `pnpm exec vite ...` for pnpm. `runelight serve` substitutes `{port}` with the Runelight-owned port, sets `RUNELIGHT_DEV=1`, and prints the serve and Studio URLs. Routes are fixed and not configurable: `/runelight`, `/runelight/studio`, `/runelight/studio/manifest`, plus adapter-owned internal Studio sidecar routes `/runelight/studio/events` and `/runelight/studio/changes`.
 
 `@runelight/core` is framework-neutral; Vue authoring helpers come from `@runelight/vue/runtime`.
 
@@ -117,7 +117,7 @@ export function createRunelightVuePreviewApp() {
 }
 ```
 
-Generate these glob strings from the selected config: one root-anchored source glob for `project.sourceRoot`, and one root-anchored design glob for `${project.entryRoot}/design`. For example, `project.sourceRoot: "src"` becomes `"/src/**/*.g.vue"`, and `project.entryRoot: "app/runelight"` becomes `"/app/runelight/design/**/*.g.vue"`. Do not include multiple candidate design globs.
+Generate these glob strings from the selected config: one root-anchored source glob for `project.sourceRoot`, and one root-anchored design glob for `${project.entryRoot}/design`. For example, `project.sourceRoot: "src"` becomes `"/src/**/*.g.vue"`, and `project.entryRoot: "src/app/runelight"` becomes `"/src/app/runelight/design/**/*.g.vue"`. Do not include multiple candidate design globs.
 
 `src/vite-env.d.ts`:
 

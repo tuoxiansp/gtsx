@@ -8,6 +8,9 @@ import { isRunelightNextRouteEnabled } from "./route-enablement.js"
 
 export type RunelightNextPreviewSearchParams = Record<string, string | string[] | undefined> | URLSearchParams | undefined
 
+/**
+ * @internal Test and nonstandard host wiring escape hatch. Normal route files should call helper functions without passing config or cwd.
+ */
 export type RunelightNextPreviewRouteOptions = {
   config?: RunelightConfig
   cwd?: string

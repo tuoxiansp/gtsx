@@ -4,7 +4,12 @@ import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { loadRunelightConfig, resolveRunelightConfig } from "../src/config.js"
+import {
+  runelightBaselineRootFromEntryRoot,
+  runelightGeneratedRootFromEntryRoot,
+  loadRunelightConfig,
+  resolveRunelightConfig,
+} from "../src/config.js"
 
 describe("runelight config", () => {
   it("loads project, Host, and internal Studio settings", () => {
@@ -44,6 +49,7 @@ export default defineRunelightConfig({
       })
       expect(resolveRunelightConfig(result.config!).host.command).toBe("pnpm dev --port {port}")
       expect(resolveRunelightConfig(result.config!).routes).toEqual({
+        events: "/runelight/studio/events",
         preview: "/runelight",
         studio: "/runelight/studio",
         manifest: "/runelight/studio/manifest",
@@ -72,6 +78,12 @@ export default defineRunelightConfig({
     expect(resolved.routes.studio).toBe("/runelight/studio")
     expect(resolved.routes.manifest).toBe("/runelight/studio/manifest")
     expect(resolved.studio.exposeInProduction).toBe(false)
+  })
+
+  it("derives generated Runelight roots from the local entry root", () => {
+    expect(runelightGeneratedRootFromEntryRoot("src/app/runelight")).toBe("src/app/runelight/.runelight")
+    expect(runelightBaselineRootFromEntryRoot("src/app/runelight")).toBe("src/app/runelight/.runelight/baselines/HEAD")
+    expect(runelightGeneratedRootFromEntryRoot(".")).toBe(".runelight")
   })
 
   it("reports missing public config skeleton fields when loading config", () => {

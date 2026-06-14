@@ -4,15 +4,12 @@ import { extname } from "node:path"
 import type { RunelightConfig } from "@runelight/core"
 import { isRunelightNextRouteEnabled } from "./route-enablement.js"
 
+/**
+ * @internal Test and nonstandard host wiring escape hatch. Normal Studio route files should call helpers without passing config or cwd.
+ */
 export type RunelightNextStudioResponseOptions = {
   config?: RunelightConfig
   cwd?: string
-}
-
-export type RunelightNextStudioManifestResponseOptions = RunelightNextStudioResponseOptions
-
-type StudioManifestServerModule = {
-  createStudioManifestProvider(options?: { config?: RunelightConfig; cwd?: string }): Promise<() => unknown>
 }
 
 type StudioStaticAppModule = {
@@ -43,16 +40,6 @@ export async function createRunelightNextStudioAssetResponse(
     },
     status: 200,
   })
-}
-
-export async function createRunelightNextStudioManifestResponse(
-  options: RunelightNextStudioManifestResponseOptions = {},
-): Promise<Response> {
-  if (!isRunelightNextRouteEnabled(options)) return notFoundResponse()
-
-  const { createStudioManifestProvider } = await import("@runelight/studio/manifest-server") as StudioManifestServerModule
-  const createManifest = await createStudioManifestProvider({ config: options.config, cwd: options.cwd })
-  return Response.json(createManifest())
 }
 
 async function resolveRunelightNextStudioAssetFilePath(assetPath: string): Promise<string> {

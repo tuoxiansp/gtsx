@@ -45,14 +45,17 @@
   "scripts": {
     "dev": "runelight serve",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
-    "build": "pnpm clean && vite build --config vite.lib.config.ts && tsc -p tsconfig.build.json && pnpm build:app",
+    "build": "pnpm --filter @runelight/changes build && pnpm clean && vite build --config vite.lib.config.ts && tsc -p tsconfig.build.json && pnpm build:app",
     "build:app": "vite build",
     "runelight:check": "runelight check",
-    "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "test": "pnpm --filter @runelight/changes build && vitest run",
+    "typecheck": "pnpm --filter @runelight/changes build && tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
     "@runelight/core": "workspace:*"
+  },
+  "dependencies": {
+    "@runelight/changes": "workspace:*"
   },
   "devDependencies": {
     "@runelight/cli": "workspace:*",
