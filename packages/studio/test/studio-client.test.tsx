@@ -88,7 +88,10 @@ import {
   layoutNeutralDrilldownColumnEnterIdentity,
   preserveStudioCanvasViewportAnchor,
 } from "../src/components/StudioWorkspaceView.g.js"
-import { studioPreviewGeometryCacheKeySignature } from "../src/components/StudioShell.js"
+import {
+  shouldHydrateStudioPreviewCacheBeforeLayout,
+  studioPreviewGeometryCacheKeySignature,
+} from "../src/components/StudioShell.js"
 import { domRectToLocalStudioCanvasScreenRect } from "../src/studio-canvas-geometry.js"
 import BufferedPreviewIframe from "../src/components/BufferedPreviewIframe.g.js"
 import {
@@ -557,6 +560,16 @@ describe("Runelight Studio shell", () => {
 
     expect(html).toContain('data-runelight-canvas-viewport="true"')
     expect(cardCoordinates(html)).toEqual(["src/UserCard.g.tsx#default"])
+  })
+
+  it("hydrates preview geometry cache without blocking the initial Studio layout", () => {
+    const manifest = buildStudioManifest({
+      cwd: fixtureRoot,
+      sourceRoot: "src",
+      cache: { namespace: "fixture-project" },
+    })
+
+    expect(shouldHydrateStudioPreviewCacheBeforeLayout(manifest)).toBe(false)
   })
 
   it("uses the changes workspace as the default Studio tab when workspace changes are present", () => {

@@ -1086,8 +1086,10 @@ function positiveStudioShellIntegerOption(value: number | undefined, fallback: n
   return Number.isFinite(value) && value !== undefined && value > 0 ? Math.floor(value) : fallback
 }
 
-function shouldHydrateStudioPreviewCacheBeforeLayout(manifest: StudioManifest): boolean {
-  return Boolean(manifest.cache?.namespace) || typeof window !== "undefined"
+/** @internal */
+export function shouldHydrateStudioPreviewCacheBeforeLayout(_manifest: StudioManifest): boolean {
+  // Geometry cache improves placement after hydration, but Studio must not put IndexedDB reads on the first-paint path.
+  return false
 }
 
 function uniqueStudioStrings(values: readonly string[]): string[] {
