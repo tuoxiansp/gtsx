@@ -21,6 +21,7 @@ import {
   studioComponentFrameFrameStates,
   studioComponentFrameLayoutFrameStates,
 } from "../studio-component-preview-frame-states"
+import { dispatchStudioPreviewPlacementChangedEvent } from "../studio-preview-placement-event"
 import ComponentCard from "./ComponentCard.g"
 
 type StudioComponentCardSlotProps = {
@@ -117,6 +118,7 @@ function StudioComponentCardSlotView(props: StudioComponentCardSlotProps) {
   )
   useStudioLayoutEffect(() => {
     onPreviewGeometryChangeRef.current?.()
+    dispatchStudioPreviewPlacementChangedEvent()
   }, [layoutSignature])
 
   return (

@@ -6,15 +6,15 @@ import {
   type StudioViewportRect,
 } from "./preview-lazy-loading"
 
-export const defaultStudioPreviewRenderQueueMaximumConcurrentRenderTasks = 24
-export const defaultStudioPreviewRenderQueueMaximumConcurrentRenderTasksDuringCanvasMovement = 4
-export const defaultStudioPreviewRenderQueueMinimumVisibleRenderTasksDuringCanvasMovement = 4
+export const defaultStudioPreviewRenderQueueMaximumConcurrentRenderTasks = 32
+export const defaultStudioPreviewRenderQueueMaximumConcurrentRenderTasksDuringCanvasMovement = 24
+export const defaultStudioPreviewRenderQueueMinimumVisibleRenderTasksDuringCanvasMovement = 24
 export const defaultStudioPreviewRenderQueueMaximumRenderTaskCount = 8192
-export const defaultStudioPreviewRenderQueueMaximumMountedPreviewSessions = 32
+export const defaultStudioPreviewRenderQueueMaximumMountedPreviewSessions = 96
 export const defaultStudioPreviewRenderQueueActiveRenderTimeoutMilliseconds = 5000
-export const defaultStudioPreviewRenderQueueRenderThrottleMilliseconds = 100
-export const defaultStudioPreviewRenderQueueRenderDebounceMilliseconds = 120
-export const defaultStudioPreviewRenderQueueBufferRenderDelayMilliseconds = 1000
+export const defaultStudioPreviewRenderQueueRenderThrottleMilliseconds = 32
+export const defaultStudioPreviewRenderQueueRenderDebounceMilliseconds = 48
+export const defaultStudioPreviewRenderQueueBufferRenderDelayMilliseconds = 300
 
 export type StudioPreviewRenderQueueOptions = {
   /** How long an unfinished mounted preview is treated as an in-flight render. */

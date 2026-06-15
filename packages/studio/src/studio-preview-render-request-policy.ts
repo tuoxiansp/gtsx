@@ -27,7 +27,7 @@ export const normalVisiblePreviewRenderRequestPolicy: StudioPreviewRenderRequest
 
 export const movingCanvasBufferedPreviewRenderRequestPolicy: StudioPreviewRenderRequestPolicy = {
   renderBudget: "canvas-movement",
-  renderScope: "buffer",
+  renderScope: "visible",
 }
 
 export function studioPreviewRenderQueueOptionsForRun(

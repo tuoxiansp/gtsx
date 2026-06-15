@@ -883,6 +883,10 @@ function StudioShellLoaded(props: StudioShellLoadedProps) {
     <StudioPreviewIframePoolProvider
       debug={scope.debugPreviewPool}
       maximumIdleFrames={maximumIdlePreviewFrames}
+      minimumIdleReserveFrames={studioPreviewIframePoolMinimumIdleReserveFrames(
+        scope.previewRenderQueue,
+        maximumIdlePreviewFrames,
+      )}
       maximumRetainedFrames={maximumRetainedPreviewFrames}
       poolUrl={createStudioPreviewPoolUrl(props.manifest)}
     >
@@ -1080,6 +1084,17 @@ function studioPreviewIframePoolMaximumRetainedFrames(
     defaultStudioPreviewRenderQueueMaximumMountedPreviewSessions,
   )
   return maximumMountedPreviewSessions + maximumIdleFrames
+}
+
+function studioPreviewIframePoolMinimumIdleReserveFrames(
+  options: StudioPreviewRenderQueueOptions,
+  maximumIdleFrames: number,
+): number {
+  const movementRenderTasks = positiveStudioShellIntegerOption(
+    options.maximumConcurrentRenderTasksDuringCanvasMovement,
+    defaultStudioPreviewRenderQueueMaximumConcurrentRenderTasksDuringCanvasMovement,
+  )
+  return Math.min(maximumIdleFrames, Math.max(4, Math.ceil(movementRenderTasks / 2)))
 }
 
 function positiveStudioShellIntegerOption(value: number | undefined, fallback: number): number {

@@ -13,6 +13,7 @@ import {
 import { studioPreviewRenderTargetFromUrl } from "./client"
 import type { StudioPreviewFrameSlot } from "./preview-frame-slot"
 import { studioCanvasTransformChangedEventType } from "./studio-canvas-transform-event"
+import { studioPreviewPlacementChangedEventType } from "./studio-preview-placement-event"
 
 export type StudioPreviewIframeBorrowOrigin = "pool" | "new"
 
@@ -396,10 +397,12 @@ export function StudioPreviewIframePoolProvider(props: StudioPreviewIframePoolPr
     window.addEventListener("resize", schedulePlacement)
     window.addEventListener("scroll", schedulePlacement, true)
     window.addEventListener(studioCanvasTransformChangedEventType, schedulePlacement)
+    window.addEventListener(studioPreviewPlacementChangedEventType, schedulePlacement)
     return () => {
       window.removeEventListener("resize", schedulePlacement)
       window.removeEventListener("scroll", schedulePlacement, true)
       window.removeEventListener(studioCanvasTransformChangedEventType, schedulePlacement)
+      window.removeEventListener(studioPreviewPlacementChangedEventType, schedulePlacement)
     }
   }, [scheduleActiveFramePlacementUpdate])
 
@@ -523,6 +526,31 @@ export function StudioPooledPreviewIframe(props: StudioPooledPreviewIframeProps)
     leaseRef.current?.update(borrowInput)
     if (leaseRef.current) onBorrowOriginChangeRef.current?.(leaseRef.current.origin)
   }, [borrowInput])
+
+  useStudioLayoutEffect(() => {
+    if (!pool || !containerRef.current || typeof ResizeObserver === "undefined") return
+
+    let frame = 0
+    const schedulePlacementUpdate = () => {
+      if (frame) return
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        const input = borrowInputRef.current
+        if (input) leaseRef.current?.update(input)
+      })
+    }
+    const observer = new ResizeObserver(schedulePlacementUpdate)
+    const container = containerRef.current
+    const clipElement = container.closest("[data-runelight-preview-clip]")
+    observer.observe(container)
+    if (clipElement instanceof HTMLElement) observer.observe(clipElement)
+    schedulePlacementUpdate()
+
+    return () => {
+      observer.disconnect()
+      if (frame) window.cancelAnimationFrame(frame)
+    }
+  }, [pool])
 
   if (!pool) return null
 

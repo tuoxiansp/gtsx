@@ -25,6 +25,7 @@ import {
   studioWorkspaceColumnMeasurementsFromGeometry,
   studioWorkspaceLayoutMeasurementKey,
 } from "./studio-canvas-geometry"
+import { dispatchStudioPreviewPlacementChangedEvent } from "./studio-preview-placement-event"
 
 type MutableRef<T> = {
   current: T
@@ -232,6 +233,10 @@ export function useStudioCanvasLayout(input: {
     recomputeFramePreviewScale()
     measure()
   }, [input.canvasSurfaceElement, layoutMeasurementKey, measure, recomputeFramePreviewScale])
+
+  useStudioLayoutEffect(() => {
+    dispatchStudioPreviewPlacementChangedEvent()
+  }, [columnLayoutByIndex, columnMeasurementsByIndex])
 
   React.useEffect(() => {
     return () => {

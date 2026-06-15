@@ -565,21 +565,30 @@ function useVisibleStudioCanvasCardsByColumnIndex(input: {
   React.useEffect(() => {
     if (typeof window === "undefined") return
 
-    let frame = 0
+    let disposed = false
+    let pendingCanvas: StudioCanvasTransform | undefined
+    let scheduled = false
+    const commitPendingCanvas = () => {
+      scheduled = false
+      if (disposed || !pendingCanvas) return
+      const nextCanvas = pendingCanvas
+      pendingCanvas = undefined
+      setCanvas(nextCanvas)
+    }
     const handleCanvasTransformChange = (event: Event) => {
       const nextCanvas = (event as CustomEvent<StudioCanvasTransform>).detail
       if (!nextCanvas) return
-      if (frame) window.cancelAnimationFrame(frame)
-      frame = window.requestAnimationFrame(() => {
-        frame = 0
-        setCanvas(nextCanvas)
-      })
+      pendingCanvas = nextCanvas
+      if (scheduled) return
+      scheduled = true
+      queueStudioCanvasVirtualizationUpdate(commitPendingCanvas)
     }
 
     window.addEventListener(studioCanvasTransformChangedEventType, handleCanvasTransformChange)
     return () => {
+      disposed = true
+      pendingCanvas = undefined
       window.removeEventListener(studioCanvasTransformChangedEventType, handleCanvasTransformChange)
-      if (frame) window.cancelAnimationFrame(frame)
     }
   }, [])
 
@@ -610,6 +619,15 @@ function studioCanvasViewportElementSize(element: HTMLElement): { height: number
     height: Math.max(1, rect.height),
     width: Math.max(1, rect.width),
   }
+}
+
+function queueStudioCanvasVirtualizationUpdate(callback: () => void): void {
+  if (typeof queueMicrotask === "function") {
+    queueMicrotask(callback)
+    return
+  }
+
+  void Promise.resolve().then(callback)
 }
 
 function captureStudioCanvasViewportPresetAnchor(input: {

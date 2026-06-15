@@ -3332,19 +3332,19 @@ describe("Runelight Studio shell", () => {
     })
 
     clock.requestCanvasMovementRender(canvas)
-    expect(requestPolicies).toEqual([{ renderBudget: "canvas-movement", renderScope: "buffer" }])
+    expect(requestPolicies).toEqual([{ renderBudget: "canvas-movement", renderScope: "visible" }])
 
     scheduler.advanceTime(120)
     scheduler.flushAnimationFrames()
     expect(requestPolicies).toEqual([
-      { renderBudget: "canvas-movement", renderScope: "buffer" },
+      { renderBudget: "canvas-movement", renderScope: "visible" },
       { renderBudget: "normal", renderScope: "visible" },
     ])
 
     scheduler.advanceTime(240)
     scheduler.flushAnimationFrames()
     expect(requestPolicies).toEqual([
-      { renderBudget: "canvas-movement", renderScope: "buffer" },
+      { renderBudget: "canvas-movement", renderScope: "visible" },
       { renderBudget: "normal", renderScope: "visible" },
       { renderBudget: "normal", renderScope: "buffer" },
     ])
@@ -3378,7 +3378,7 @@ describe("Runelight Studio shell", () => {
     await Promise.resolve()
 
     expect(requests).toEqual([
-      { canvas: latestCanvas, renderBudget: "canvas-movement", renderScope: "buffer" },
+      { canvas: latestCanvas, renderBudget: "canvas-movement", renderScope: "visible" },
     ])
 
     clock.dispose()
@@ -3406,19 +3406,19 @@ describe("Runelight Studio shell", () => {
     clock.requestCanvasMovementRender(canvas)
     scheduler.advanceTime(100)
     scheduler.flushAnimationFrames()
-    expect(requestPolicies).toEqual([{ renderBudget: "canvas-movement", renderScope: "buffer" }])
+    expect(requestPolicies).toEqual([{ renderBudget: "canvas-movement", renderScope: "visible" }])
 
     scheduler.advanceTime(400)
     scheduler.flushAnimationFrames()
     expect(requestPolicies).toEqual([
-      { renderBudget: "canvas-movement", renderScope: "buffer" },
+      { renderBudget: "canvas-movement", renderScope: "visible" },
       { renderBudget: "normal", renderScope: "visible" },
     ])
 
     scheduler.advanceTime(240)
     scheduler.flushAnimationFrames()
     expect(requestPolicies).toEqual([
-      { renderBudget: "canvas-movement", renderScope: "buffer" },
+      { renderBudget: "canvas-movement", renderScope: "visible" },
       { renderBudget: "normal", renderScope: "visible" },
       { renderBudget: "normal", renderScope: "buffer" },
     ])
@@ -3451,7 +3451,7 @@ describe("Runelight Studio shell", () => {
     scheduler.flushAnimationFrames()
 
     expect(requestPolicies).toEqual([
-      { renderBudget: "canvas-movement", renderScope: "buffer" },
+      { renderBudget: "canvas-movement", renderScope: "visible" },
       { renderBudget: "normal", renderScope: "visible" },
       { renderBudget: "normal", renderScope: "visible" },
     ])
@@ -3459,7 +3459,7 @@ describe("Runelight Studio shell", () => {
     scheduler.advanceTime(300)
     scheduler.flushAnimationFrames()
     expect(requestPolicies).toEqual([
-      { renderBudget: "canvas-movement", renderScope: "buffer" },
+      { renderBudget: "canvas-movement", renderScope: "visible" },
       { renderBudget: "normal", renderScope: "visible" },
       { renderBudget: "normal", renderScope: "visible" },
       { renderBudget: "normal", renderScope: "buffer" },
@@ -3498,7 +3498,7 @@ describe("Runelight Studio shell", () => {
     clock.dispose()
   })
 
-  it("keeps moving-canvas runs on the render buffer with a smaller render task limit", () => {
+  it("keeps moving-canvas runs focused on visible previews with a smaller render task limit", () => {
     const input = {
       canvas: { x: 0, y: 0, scale: 1 },
       items: [
@@ -3517,7 +3517,7 @@ describe("Runelight Studio shell", () => {
           maximumConcurrentRenderTasksDuringCanvasMovement: 1,
           renderBufferMargin: 640,
         },
-        { includeBuffer: true, useCanvasMovementRenderTaskLimit: true },
+        { includeBuffer: false, useCanvasMovementRenderTaskLimit: true },
       ),
       maximumRenderTaskCount: 8,
       viewport: { bottom: 100, left: 0, right: 100, top: 0 },
@@ -3531,19 +3531,6 @@ describe("Runelight Studio shell", () => {
     })]).toEqual(["visible-a", "visible-b"])
     expect([...queuedStudioPreviewSessionIds({
       ...input,
-      completedSessionIds: new Set(["visible-a", "visible-b"]),
-      currentSessionIds: new Set(["visible-a", "visible-b"]),
-    })]).toEqual(["visible-a", "visible-b", "buffered-a"])
-    expect([...queuedStudioPreviewSessionIds({
-      ...input,
-      ...studioPreviewRenderQueueOptionsForRun(
-        {
-          maximumConcurrentRenderTasks: 8,
-          maximumConcurrentRenderTasksDuringCanvasMovement: 1,
-          renderBufferMargin: 640,
-        },
-        { includeBuffer: false, useCanvasMovementRenderTaskLimit: true },
-      ),
       completedSessionIds: new Set(["visible-a", "visible-b"]),
       currentSessionIds: new Set(["visible-a", "visible-b"]),
     })]).toEqual(["visible-a", "visible-b"])
