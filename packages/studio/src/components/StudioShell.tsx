@@ -161,30 +161,33 @@ function useStudioShellScope(props: StudioShellLoadedProps, view: StudioShellVie
   const filteredWorkspace = React.useMemo(() => studioWorkspaceWithProviderVariantFilters(workspace), [workspace])
   const previewFrames = React.useRef(new Map<string, HTMLIFrameElement>())
   const previewFrameMountedAt = React.useRef(new Map<string, number>())
-  const changesForPreview = view === "changes" ? props.changes : undefined
+  const changesPreviewTargets = React.useMemo(
+    () =>
+      currentStudioChangesPreviewTargets(
+        props.manifest,
+        props.changes,
+        canvasViewportPresetForWorkspace(filteredWorkspace),
+      ),
+    [filteredWorkspace, props.changes, props.manifest],
+  )
   const currentTargets = React.useMemo(
     () =>
       view === "design"
         ? currentStudioDesignPreviewTargets(props.manifest, canvasViewportPresetForWorkspace(filteredWorkspace))
         : view === "changes"
-          ? currentStudioChangesPreviewTargets(
-              props.manifest,
-              changesForPreview,
-              canvasViewportPresetForWorkspace(filteredWorkspace),
-            )
+          ? changesPreviewTargets
         : currentStudioPreviewTargets(props.manifest, filteredWorkspace),
-    [changesForPreview, props.manifest, filteredWorkspace, view],
+    [changesPreviewTargets, props.manifest, filteredWorkspace, view],
   )
-  const sessionIds = React.useMemo(() => new Set(currentTargets.map((target) => target.sessionId)), [currentTargets])
+  const messageTargets = React.useMemo(
+    () => uniqueStudioPreviewTargetsBySessionId([...currentTargets, ...changesPreviewTargets]),
+    [changesPreviewTargets, currentTargets],
+  )
+  const sessionIds = React.useMemo(() => new Set(messageTargets.map((target) => target.sessionId)), [messageTargets])
   const previewCacheNamespace = React.useMemo(() => studioPreviewIndexedDBNamespace(props.manifest), [props.manifest])
-  const manifestPreviewGeometryCacheKeys = React.useMemo(() => studioPreviewGeometryCacheKeys(props.manifest), [props.manifest])
   const previewGeometryCacheKeySignature = React.useMemo(
-    () =>
-      studioPreviewGeometryCacheKeySignature([
-        ...manifestPreviewGeometryCacheKeys,
-        ...currentTargets.map((target) => target.cacheKey),
-      ]),
-    [currentTargets, manifestPreviewGeometryCacheKeys],
+    () => studioShellPreviewGeometryCacheKeySignature(props.manifest),
+    [props.manifest],
   )
   const previewGeometryCacheKeys = React.useMemo(
     () => studioPreviewGeometryCacheKeysFromSignature(previewGeometryCacheKeySignature),
@@ -197,8 +200,8 @@ function useStudioShellScope(props: StudioShellLoadedProps, view: StudioShellVie
   const shouldHydratePreviewCacheBeforeLayout = shouldHydrateStudioPreviewCacheBeforeLayout(props.manifest)
   const [previewCacheReady, setPreviewCacheReady] = React.useState(true)
   const targetsBySessionId = React.useMemo(
-    () => new Map(currentTargets.map((target) => [target.sessionId, target] as const)),
-    [currentTargets],
+    () => new Map(messageTargets.map((target) => [target.sessionId, target] as const)),
+    [messageTargets],
   )
   const selectionRef = React.useRef(selection)
 
@@ -276,6 +279,7 @@ function useStudioShellScope(props: StudioShellLoadedProps, view: StudioShellVie
     return () => {
       window.removeEventListener("message", handleMessage)
       if (scheduledFrame) window.cancelAnimationFrame(scheduledFrame)
+      flushPreviewMessages()
     }
   }, [previewGeometryCacheStore, sessionIds, targetsBySessionId])
 
@@ -817,11 +821,13 @@ function StudioShellLoaded(props: StudioShellLoadedProps) {
   const studioContent =
     view === "changes" ? (
       <StudioChangesWorkspace
+        canvas={scope.canvas}
         changes={props.changes}
         changesLoading={props.changesLoading}
         debugPreviewPool={scope.debugPreviewPool}
         debugPreviewQueue={scope.debugPreviewQueue}
         manifest={props.manifest}
+        onChangeCanvas={scope.onChangeCanvas}
         onChangeViewportPreset={scope.onChangeCanvasViewportPreset}
         onPreviewFrameMount={scope.onPreviewFrameMount}
         previewCacheReady={scope.previewCacheReady}
@@ -980,6 +986,7 @@ function studioShellViewFromRouteValue(value: string | null): StudioShellView | 
 }
 
 function studioCanvasUrlScopeForView(view: StudioShellView): StudioCanvasUrlScope {
+  if (view === "changes") return "changes"
   return view === "design" ? "design" : "components"
 }
 
@@ -1111,9 +1118,25 @@ function uniqueStudioStrings(values: readonly string[]): string[] {
   return [...new Set(values)]
 }
 
+function uniqueStudioPreviewTargetsBySessionId(targets: readonly StudioPreviewTarget[]): StudioPreviewTarget[] {
+  const seen = new Set<string>()
+  const uniqueTargets: StudioPreviewTarget[] = []
+  for (const target of targets) {
+    if (seen.has(target.sessionId)) continue
+    seen.add(target.sessionId)
+    uniqueTargets.push(target)
+  }
+  return uniqueTargets
+}
+
 /** @internal */
 export function studioPreviewGeometryCacheKeySignature(values: readonly string[]): string {
   return JSON.stringify(uniqueStudioStrings(values).sort())
+}
+
+/** @internal */
+export function studioShellPreviewGeometryCacheKeySignature(manifest: StudioManifest): string {
+  return studioPreviewGeometryCacheKeySignature(studioPreviewGeometryCacheKeys(manifest))
 }
 
 function studioPreviewGeometryCacheKeysFromSignature(signature: string): string[] {

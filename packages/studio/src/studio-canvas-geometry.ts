@@ -70,6 +70,7 @@ export type MeasuredStudioColumnCardLayout = {
 const studioComponentCardColumnGap = 5
 const studioCanvasCardShellViewportStabilityMargin = 24
 const studioMeasuredCanvasLengthPrecision = 100
+const studioComponentUnknownFrameLayoutWidth = 280
 export const studioCanvasFixedFramePreviewScale = runelightPreviewFixedFrameScale
 
 export function domRectToStudioCanvasScreenRect(rect: DOMRect): StudioCanvasScreenRect {
@@ -584,17 +585,31 @@ function studioComponentFrameGridItems(
   frameStatesByName: Record<string, StudioPreviewFrameState | undefined>,
   viewportPreset: StudioViewportPreset,
 ): StudioFrameGridItemLayout[] {
+  const layoutBoundaryRectFallback = studioComponentLayoutBoundaryRectFallback(component, frameStatesByName)
   return component.frames.map((frame) => {
     const frameState = frameStatesByName[frame.name]
     const displaySize = studioPreviewFrameSize(viewportPreset, frameState?.size)
     const boundaryRect = studioBoundaryRectForComponent(frameState?.tree, component.coordinate)
-    const visibleBoundaryRect = clipPreviewBoundaryRectToViewport(boundaryRect, displaySize)
+    const visibleBoundaryRect = clipPreviewBoundaryRectToViewport(boundaryRect ?? layoutBoundaryRectFallback, displaySize)
+    if (!visibleBoundaryRect) return { height: displaySize.height, width: studioComponentUnknownFrameLayoutWidth }
 
     return {
       height: previewFrameLayoutHeight(displaySize, visibleBoundaryRect),
       width: Number(previewFrameLayoutWidth(displaySize, visibleBoundaryRect)),
     }
   })
+}
+
+function studioComponentLayoutBoundaryRectFallback(
+  component: StudioManifestComponent,
+  frameStatesByName: Record<string, StudioPreviewFrameState | undefined>,
+): GBoundaryRect | undefined {
+  for (const frame of component.frames) {
+    const boundaryRect = studioBoundaryRectForComponent(frameStatesByName[frame.name]?.tree, component.coordinate)
+    if (boundaryRect) return boundaryRect
+  }
+
+  return undefined
 }
 
 function studioComponentFallbackFramePreviewVisibilityItems(input: {

@@ -60,7 +60,7 @@ export type StudioCanvasTransform = {
   scale: number
 }
 
-export type StudioCanvasUrlScope = "components" | "design"
+export type StudioCanvasUrlScope = "changes" | "components" | "design"
 
 export type StudioCanvasScreenRect = {
   bottom: number
@@ -281,8 +281,8 @@ export function createStudioWorkspaceState(manifest: StudioManifest, selection?:
   }
 }
 
-export function defaultStudioCanvasTransform(): StudioCanvasTransform {
-  return { x: 40, y: 40, scale: 1 }
+export function defaultStudioCanvasTransform(canvasScope: StudioCanvasUrlScope = "components"): StudioCanvasTransform {
+  return { x: 40, y: 40, scale: canvasScope === "components" ? 1 : 0.6 }
 }
 
 export function selectStudioComponent(
@@ -1058,7 +1058,7 @@ export function createStudioCanvasTransformFromUrl(
   params: URLSearchParams,
   canvasScope: StudioCanvasUrlScope = "components",
 ): StudioCanvasTransform {
-  const fallback = defaultStudioCanvasTransform()
+  const fallback = defaultStudioCanvasTransform(canvasScope)
   const names = studioCanvasTransformUrlParamNames(canvasScope)
   return {
     x: numberUrlParam(params, names.x, fallback.x),
@@ -1248,7 +1248,7 @@ function formatProviderVariantSelection(selection: string | string[]): string {
 
 export const studioCanvasMinScale = 0.325
 const studioCanvasMaxScale = 2.5
-const studioCanvasUrlScopes = ["components", "design"] as const
+const studioCanvasUrlScopes = ["components", "changes", "design"] as const
 
 function setStudioCanvasTransformUrlParams(
   params: URLSearchParams,
@@ -1261,13 +1261,21 @@ function setStudioCanvasTransformUrlParams(
   params.delete(names.scale)
   if (!canvas) return
 
-  const fallback = defaultStudioCanvasTransform()
+  const fallback = defaultStudioCanvasTransform(canvasScope)
   if (canvas.x !== fallback.x) params.set(names.x, formatStudioCanvasNumber(canvas.x))
   if (canvas.y !== fallback.y) params.set(names.y, formatStudioCanvasNumber(canvas.y))
   if (canvas.scale !== fallback.scale) params.set(names.scale, formatStudioCanvasNumber(canvas.scale))
 }
 
 function studioCanvasTransformUrlParamNames(canvasScope: StudioCanvasUrlScope): { scale: string; x: string; y: string } {
+  if (canvasScope === "changes") {
+    return {
+      x: "changesCanvasX",
+      y: "changesCanvasY",
+      scale: "changesCanvasScale",
+    }
+  }
+
   if (canvasScope === "design") {
     return {
       x: "designCanvasX",

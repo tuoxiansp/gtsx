@@ -21,9 +21,11 @@ import {
   normalizeRunelightPreviewFrameOverride,
   readRunelightPreviewFrameOverridesFromSearchParams,
   RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT_ID,
+  G_RENDERED_SNAPSHOT_VERSION,
   type GBoundaryTreeNode,
   type GPreviewRenderTarget,
   type GRuntimeValuesSnapshot,
+  readGRenderedSnapshot,
 } from "../src/preview-protocol.js"
 
 const tree = [
@@ -244,4 +246,119 @@ describe("Runelight preview iframe protocol", () => {
     expect(RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT).toContain("runelight:render-accepted")
     expect(RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT).toContain("runelight:pool-ready")
   })
+
+  it("omits margin styles from rendered snapshots because geometry already captures visual layout", () => {
+    const withMargins = readGRenderedSnapshot(renderedSnapshotDocument({
+      marginLeft: "160px",
+      marginRight: "160px",
+    }))
+    const withoutMargins = readGRenderedSnapshot(renderedSnapshotDocument({
+      marginLeft: "0px",
+      marginRight: "0px",
+    }))
+
+    expect(withMargins.version).toBe(G_RENDERED_SNAPSHOT_VERSION)
+    expect(withMargins.nodes[0]?.styles).toEqual({
+      color: "rgb(23, 32, 51)",
+      display: "block",
+    })
+    expect(withMargins.nodes[0]?.styles).not.toHaveProperty("margin-left")
+    expect(withMargins.nodes[0]?.styles).not.toHaveProperty("margin-right")
+    expect(withMargins.hash).toBe(withoutMargins.hash)
+  })
+
+  it("omits framework route announcers from rendered snapshots without shifting visible paths", () => {
+    const withAnnouncer = readGRenderedSnapshot(renderedSnapshotDocumentWithIgnoredChild("before"))
+    const withoutAnnouncer = readGRenderedSnapshot(renderedSnapshotDocumentWithIgnoredChild("none"))
+
+    expect(withAnnouncer.version).toBe(G_RENDERED_SNAPSHOT_VERSION)
+    expect(withAnnouncer.nodes.map((node) => node.path)).toEqual(["body", "body/main[0]"])
+    expect(withAnnouncer.nodes.some((node) => node.tag === "next-route-announcer")).toBe(false)
+    expect(withAnnouncer.hash).toBe(withoutAnnouncer.hash)
+  })
 })
+
+function renderedSnapshotDocument(styles: { marginLeft: string; marginRight: string }): Document {
+  const element = {
+    childNodes: [],
+    children: [],
+    getAttribute() {
+      return null
+    },
+    getBoundingClientRect() {
+      return { height: 1024, left: 160, top: 0, width: 448 }
+    },
+    tagName: "MAIN",
+  }
+
+  return {
+    body: element,
+    defaultView: {
+      getComputedStyle(_element: unknown, pseudo?: string) {
+        return {
+          getPropertyValue(property: string) {
+            if (pseudo && property === "content") return "none"
+            if (property === "color") return "rgb(23, 32, 51)"
+            if (property === "display") return "block"
+            if (property === "margin-left") return styles.marginLeft
+            if (property === "margin-right") return styles.marginRight
+            return ""
+          },
+        }
+      },
+      innerHeight: 1024,
+      innerWidth: 768,
+    },
+    documentElement: { clientHeight: 1024, clientWidth: 768 },
+  } as unknown as Document
+}
+
+function renderedSnapshotDocumentWithIgnoredChild(position: "before" | "none"): Document {
+  const main = renderedSnapshotElement("MAIN", [], { height: 200, width: 300, x: 12, y: 34 })
+  const children = position === "before"
+    ? [renderedSnapshotElement("NEXT-ROUTE-ANNOUNCER"), main]
+    : [main]
+  const body = renderedSnapshotElement("BODY", children, { height: 1024, width: 768, x: 0, y: 0 })
+
+  return {
+    body,
+    defaultView: {
+      getComputedStyle(_element: unknown, pseudo?: string) {
+        return {
+          getPropertyValue(property: string) {
+            if (pseudo && property === "content") return "none"
+            if (property === "color") return "rgb(23, 32, 51)"
+            if (property === "display") return "block"
+            return ""
+          },
+        }
+      },
+      innerHeight: 1024,
+      innerWidth: 768,
+    },
+    documentElement: { clientHeight: 1024, clientWidth: 768 },
+  } as unknown as Document
+}
+
+function renderedSnapshotElement(
+  tagName: string,
+  children: unknown[] = [],
+  rect: { height: number; width: number; x: number; y: number } = { height: 0, width: 0, x: 0, y: 0 },
+) {
+  return {
+    childNodes: [],
+    children,
+    getAttribute() {
+      return null
+    },
+    getBoundingClientRect() {
+      return {
+        height: rect.height,
+        left: rect.x,
+        top: rect.y,
+        width: rect.width,
+      }
+    },
+    tagName,
+  }
+}

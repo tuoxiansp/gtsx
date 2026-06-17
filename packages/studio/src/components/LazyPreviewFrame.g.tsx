@@ -28,6 +28,9 @@ type LazyPreviewFrameProps = {
   debugPreviewQueue?: boolean
   dimmed?: boolean
   frameState?: StudioPreviewFrameState
+  layoutBoundaryRect?: GBoundaryRect
+  layoutPending?: boolean
+  layoutSize?: { height: number; width: number }
   onSelect?: () => void
   onPreviewFrameMount?: (
     sessionId: string,
@@ -72,10 +75,11 @@ const useLazyPreviewFrameScope = createGScopeHook(useRealLazyPreviewFrameScope)
 export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
   const scope = useLazyPreviewFrameScope(props)
   const shouldLoad = scope.shouldLoad
-  const layoutHeight = previewFrameLayoutHeight(props.size, props.boundaryRect)
-  const layoutWidth = previewFrameLayoutWidth(props.size, props.boundaryRect)
-  const visualBleed = previewFrameVisualBleed(props.size, props.boundaryRect)
-  const viewportOffset = previewFrameViewportOffset(props.boundaryRect, visualBleed)
+  const layoutBoundaryRect = props.layoutBoundaryRect ?? props.boundaryRect
+  const layoutHeight = props.layoutSize?.height ?? previewFrameLayoutHeight(props.size, layoutBoundaryRect)
+  const layoutWidth = props.layoutSize?.width ?? previewFrameLayoutWidth(props.size, layoutBoundaryRect)
+  const visualBleed = previewFrameVisualBleed(props.size, layoutBoundaryRect)
+  const viewportOffset = previewFrameViewportOffset(layoutBoundaryRect, visualBleed)
   const iframePlacementKey = `${layoutWidth}:${layoutHeight}:${viewportOffset.x}:${viewportOffset.y}:${props.debugIndicatorScale ?? 1}`
   const overlayRect = normalizeBoundaryRect(props.boundaryRect, visualBleed)
   const selectedOverlayRect = normalizeBoundaryRect(props.selectedBoundaryRect, visualBleed)
@@ -93,6 +97,7 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
     <div
       data-runelight-preview-session-id={props["data-runelight-preview-session-id"]}
       data-runelight-preview-src={props.previewUrl}
+      data-runelight-preview-layout-pending={props.layoutPending ? "true" : undefined}
       data-runelight-viewport-preset={props.viewportPreset}
       style={{
         height: layoutHeight,
@@ -113,6 +118,7 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
             pointerEvents: "none",
             position: "absolute",
             top: 0,
+            visibility: props.layoutPending ? "hidden" : undefined,
             width: layoutWidth,
             zIndex: 1,
           }}

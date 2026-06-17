@@ -9,7 +9,7 @@ import {
   findManifestComponent,
   mergeStudioPreviewFrameState,
   previewSessionId,
-  studioPreviewCacheKey,
+  type StudioCanvasTransform,
   type StudioPreviewCacheEntry,
   type StudioPreviewFrameState,
   type StudioViewportPreset,
@@ -30,12 +30,14 @@ import StudioComponentCardSlot from "./StudioComponentCardSlot"
 import ViewportPresetTabs from "./ViewportPresetTabs.g"
 
 export type StudioChangesWorkspaceProps = {
+  canvas?: StudioCanvasTransform
   changes?: StudioWorkspaceChanges
   changesLoading?: boolean
   debugPreviewPool?: boolean
   debugPreviewQueue?: boolean
   frameStates?: Record<string, StudioPreviewFrameState>
   manifest: StudioManifest
+  onChangeCanvas?: (canvas: StudioCanvasTransform) => void
   onChangeViewportPreset?: (preset: StudioViewportPreset) => void
   onPreviewFrameMount?: (
     sessionId: string,
@@ -91,30 +93,38 @@ function StudioChangesWorkspaceView(props: StudioChangesWorkspaceProps) {
   const baselineManifest = changes?.base.kind === "git" ? changes.base.manifest : undefined
   const baselinePathPrefix = studioWorkspaceChangesBaselinePathPrefix(changes)
   const canvasController = useStudioCanvasController({
+    canvas: props.canvas,
+    onCanvasChange: props.onChangeCanvas,
     onCanvasMove() {},
     onCanvasPanEnd() {},
     shouldHandleWheelTarget: shouldHandleChangesCanvasWheelTarget,
   })
-  const previewGeometryCacheKeys = React.useMemo(
-    () => currentStudioChangesPreviewTargets(props.manifest, changes, viewportPreset).map((target) => target.cacheKey),
+  const previewGeometrySubscriptionKeys = React.useMemo(
+    () =>
+      currentStudioChangesPreviewTargets(props.manifest, changes, viewportPreset).flatMap((target) => [
+        target.cacheKey,
+        target.sessionId,
+      ]),
     [changes, props.manifest, viewportPreset],
   )
   const previewGeometryCacheVersion = useStudioPreviewGeometryCacheVersion(
     props.previewGeometryStore,
-    previewGeometryCacheKeys,
+    previewGeometrySubscriptionKeys,
   )
   const itemResolution = React.useMemo(
     () =>
       studioChangeItemsWithVisibleFrameDiffs(changes?.items ?? [], {
-          baselineManifest,
-          fallbackFrameStates: props.frameStates,
-          fallbackPreviewCache: props.previewCache,
-          manifest: props.manifest,
-          previewGeometryStore: props.previewGeometryStore,
-          viewportPreset,
+        baselineManifest,
+        baselinePathPrefix,
+        fallbackFrameStates: props.frameStates,
+        fallbackPreviewCache: props.previewCache,
+        manifest: props.manifest,
+        previewGeometryStore: props.previewGeometryStore,
+        viewportPreset,
       }),
     [
       baselineManifest,
+      baselinePathPrefix,
       changes,
       props.frameStates,
       props.manifest,
@@ -160,8 +170,13 @@ function StudioChangesWorkspaceView(props: StudioChangesWorkspaceProps) {
         entry.component.frames.map((frame) => previewSessionId(entry.component, frame.name, viewportPreset)),
       ),
     )
-    previewRenderSessionStore.setSessionIds(sessionIds, sessionIds)
-  }, [renderPreviewEntries, previewRenderSessionStore, viewportPreset])
+    const visibleSessionIds = new Set(
+      visiblePreviewEntries.flatMap((entry) =>
+        entry.component.frames.map((frame) => previewSessionId(entry.component, frame.name, viewportPreset)),
+      ),
+    )
+    previewRenderSessionStore.setSessionIds(sessionIds, visibleSessionIds)
+  }, [renderPreviewEntries, previewRenderSessionStore, viewportPreset, visiblePreviewEntries])
 
   const handleViewportPresetChange = React.useCallback(
     (preset: StudioViewportPreset) => {
@@ -735,8 +750,8 @@ function studioChangeCanvasGroups(
   const groups = new Map<string, StudioChangeCanvasGroup>()
 
   for (const item of items) {
-    const impactCount = Math.max(item.impacts.length, item.baselineImpacts?.length ?? 0)
-    if (impactCount === 0) {
+    const impactPairs = studioChangeItemImpactPairs(item, options.baselinePathPrefix)
+    if (impactPairs.length === 0) {
       appendStudioChangeCanvasGroup(groups, {
         baselineImpact: undefined,
         baselineManifest: options.baselineManifest,
@@ -753,10 +768,10 @@ function studioChangeCanvasGroups(
       continue
     }
 
-    for (let index = 0; index < impactCount; index += 1) {
-      const currentImpactFromItem = item.currentFile ? item.impacts[index] : undefined
+    for (const pair of impactPairs) {
+      const currentImpactFromItem = item.currentFile ? pair.currentImpact : undefined
       const baselineImpactFromItem = item.baselineFile
-        ? item.baselineImpacts?.[index] ?? (!item.currentFile ? item.impacts[index] : undefined)
+        ? pair.baselineImpact ?? (!item.currentFile ? pair.currentImpact : undefined)
         : undefined
       const baselineImpact = baselineImpactFromItem ??
         (currentImpactFromItem && options.baselineManifest
@@ -1066,12 +1081,12 @@ type StudioChangeRenderedFrameDiffStatus = "changed" | "same" | "pending" | "unk
 type StudioChangeRenderedSnapshotStatus =
   | { kind: "hash"; hash: string }
   | { kind: "pending" }
-  | { kind: "unavailable" }
 
 function studioChangeItemsWithVisibleFrameDiffs(
   items: readonly StudioWorkspaceChangeItem[],
   options: {
     baselineManifest?: StudioManifest
+    baselinePathPrefix?: string
     fallbackFrameStates?: Record<string, StudioPreviewFrameState>
     fallbackPreviewCache?: Record<string, StudioPreviewCacheEntry>
     manifest: StudioManifest
@@ -1092,6 +1107,7 @@ function studioChangeItemWithVisibleFrameDiffs(
   item: StudioWorkspaceChangeItem,
   options: {
     baselineManifest?: StudioManifest
+    baselinePathPrefix?: string
     fallbackFrameStates?: Record<string, StudioPreviewFrameState>
     fallbackPreviewCache?: Record<string, StudioPreviewCacheEntry>
     manifest: StudioManifest
@@ -1104,26 +1120,31 @@ function studioChangeItemWithVisibleFrameDiffs(
   }
 
   let pending = false
-  const impacts = item.impacts.flatMap((impact, index) => {
-    const resolution = studioChangeVisibleFramesForImpactPair({
-      baselineImpact: item.baselineImpacts?.[index],
-      currentImpact: impact,
-      options,
-    })
-    pending ||= resolution.pending
-    const frames = resolution.frames
-    return frames.length > 0 ? [{ ...impact, frameNames: frames.map((frame) => frame.name), frames }] : []
-  })
-  const baselineImpacts = item.baselineImpacts?.flatMap((baselineImpact, index) => {
+  const impactPairs = studioChangeItemImpactPairs(item, options.baselinePathPrefix)
+  const impacts = impactPairs.flatMap(({ baselineImpact, currentImpact }) => {
+    if (!currentImpact) return []
     const resolution = studioChangeVisibleFramesForImpactPair({
       baselineImpact,
-      currentImpact: item.impacts[index],
+      currentImpact,
       options,
     })
     pending ||= resolution.pending
     const frames = resolution.frames
-    return frames.length > 0 ? [{ ...baselineImpact, frameNames: frames.map((frame) => frame.name), frames }] : []
+    return frames.length > 0 ? [{ ...currentImpact, frameNames: frames.map((frame) => frame.name), frames }] : []
   })
+  const baselineImpacts = item.baselineImpacts
+    ? impactPairs.flatMap(({ baselineImpact, currentImpact }) => {
+        if (!baselineImpact) return []
+        const resolution = studioChangeVisibleFramesForImpactPair({
+          baselineImpact,
+          currentImpact,
+          options,
+        })
+        pending ||= resolution.pending
+        const frames = resolution.frames
+        return frames.length > 0 ? [{ ...baselineImpact, frameNames: frames.map((frame) => frame.name), frames }] : []
+      })
+    : undefined
   if (impacts.length === 0 && (baselineImpacts?.length ?? 0) === 0) return { pending }
 
   return {
@@ -1134,6 +1155,50 @@ function studioChangeItemWithVisibleFrameDiffs(
     },
     pending,
   }
+}
+
+type StudioChangeImpactPair = {
+  baselineImpact?: StudioWorkspaceChangeImpact
+  currentImpact?: StudioWorkspaceChangeImpact
+}
+
+function studioChangeItemImpactPairs(
+  item: StudioWorkspaceChangeItem,
+  baselinePathPrefix: string | undefined,
+): StudioChangeImpactPair[] {
+  const baselineImpacts = item.baselineImpacts ?? []
+  const usedBaselineIndexes = new Set<number>()
+  const pairs: StudioChangeImpactPair[] = []
+
+  for (const currentImpact of item.impacts) {
+    const baselineIndex = baselineImpacts.findIndex((baselineImpact, index) =>
+      !usedBaselineIndexes.has(index) && studioChangeImpactsShareVisualRoot(currentImpact, baselineImpact, baselinePathPrefix),
+    )
+    if (baselineIndex >= 0) {
+      usedBaselineIndexes.add(baselineIndex)
+      pairs.push({ baselineImpact: baselineImpacts[baselineIndex], currentImpact })
+    } else {
+      pairs.push({ currentImpact })
+    }
+  }
+
+  baselineImpacts.forEach((baselineImpact, index) => {
+    if (!usedBaselineIndexes.has(index)) pairs.push({ baselineImpact })
+  })
+
+  return pairs
+}
+
+function studioChangeImpactsShareVisualRoot(
+  currentImpact: StudioWorkspaceChangeImpact,
+  baselineImpact: StudioWorkspaceChangeImpact,
+  baselinePathPrefix: string | undefined,
+): boolean {
+  return (
+    studioCurrentCoordinateForBaselineCoordinate(baselineImpact.rootCoordinate, baselinePathPrefix) ===
+      studioCurrentCoordinateForBaselineCoordinate(currentImpact.rootCoordinate, baselinePathPrefix) ||
+    studioBaselineCoordinateForCurrentCoordinate(currentImpact.rootCoordinate, baselinePathPrefix) === baselineImpact.rootCoordinate
+  )
 }
 
 function studioChangeItemWithNonUnchangedFrames(item: StudioWorkspaceChangeItem): StudioWorkspaceChangeItem {
@@ -1164,16 +1229,25 @@ function studioChangeVisibleFramesForImpactPair(input: {
     viewportPreset: StudioViewportPreset
   }
 }): { frames: NonNullable<StudioWorkspaceChangeImpact["frames"]>; pending: boolean } {
-  let pending = false
-  const frames = studioChangeNonUnchangedFrames(input.currentImpact ?? input.baselineImpact).flatMap((frame) => {
+  const nonUnchangedFrames = studioChangeNonUnchangedFrames(input.currentImpact ?? input.baselineImpact)
+  const changedFrameStatuses = nonUnchangedFrames.flatMap((frame) => {
+    if (frame.kind !== "changed") return []
+    return [{
+      frame,
+      status: studioChangeRenderedFrameDiffStatus({
+        baselineImpact: input.baselineImpact,
+        currentImpact: input.currentImpact,
+        frameName: frame.name,
+        options: input.options,
+      }),
+    }]
+  })
+  const pending = changedFrameStatuses.some((entry) => entry.status === "pending")
+  const statusesByFrameName = new Map(changedFrameStatuses.map((entry) => [entry.frame.name, entry.status]))
+  const frames = nonUnchangedFrames.flatMap((frame) => {
     if (frame.kind !== "changed") return [frame]
-    const status = studioChangeRenderedFrameDiffStatus({
-      baselineImpact: input.baselineImpact,
-      currentImpact: input.currentImpact,
-      frameName: frame.name,
-      options: input.options,
-    })
-    if (status === "pending") pending = true
+    if (pending) return []
+    const status = statusesByFrameName.get(frame.name)
     if (status === "unknown") return [{ ...frame, kind: "unknown" as const }]
     return status === "changed" ? [frame] : []
   })
@@ -1203,7 +1277,6 @@ function studioChangeRenderedFrameDiffStatus(input: {
 
   const baselineSnapshot = studioChangeRenderedSnapshotStatus(baselineComponent, input.frameName, input.options)
   const currentSnapshot = studioChangeRenderedSnapshotStatus(currentComponent, input.frameName, input.options)
-  if (baselineSnapshot.kind === "unavailable" || currentSnapshot.kind === "unavailable") return "unknown"
   if (baselineSnapshot.kind === "pending" || currentSnapshot.kind === "pending") return "pending"
 
   return baselineSnapshot.hash !== currentSnapshot.hash ? "changed" : "same"
@@ -1220,17 +1293,11 @@ function studioChangeRenderedSnapshotStatus(
   },
 ): StudioChangeRenderedSnapshotStatus {
   const sessionId = previewSessionId(component, frameName, options.viewportPreset)
-  const cacheKey = studioPreviewCacheKey(component, frameName, options.viewportPreset)
-  const storeState = options.previewGeometryStore?.getMergedFrameState(sessionId, cacheKey)
-  const fallbackState = mergeStudioPreviewFrameState(
-    sessionId,
-    options.fallbackFrameStates?.[sessionId],
-    options.fallbackPreviewCache?.[cacheKey]?.frameState,
-  )
-  const state = storeState ?? fallbackState
+  const state = options.previewGeometryStore
+    ? options.previewGeometryStore.getFrameState(sessionId)
+    : mergeStudioPreviewFrameState(sessionId, options.fallbackFrameStates?.[sessionId], undefined)
   const snapshot = state?.renderedSnapshot
   if (snapshot && snapshot.version === G_RENDERED_SNAPSHOT_VERSION) return { kind: "hash", hash: snapshot.hash }
-  if (state?.error || state?.ready) return { kind: "unavailable" }
   return { kind: "pending" }
 }
 

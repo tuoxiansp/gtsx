@@ -622,6 +622,11 @@ function studioCanvasViewportElementSize(element: HTMLElement): { height: number
 }
 
 function queueStudioCanvasVirtualizationUpdate(callback: () => void): void {
+  if (typeof window !== "undefined") {
+    window.requestAnimationFrame(callback)
+    return
+  }
+
   if (typeof queueMicrotask === "function") {
     queueMicrotask(callback)
     return

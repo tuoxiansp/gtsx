@@ -59,6 +59,8 @@ type StudioCardSelectionSource = "keyboard" | "pointer"
 
 type ComponentCardFrameState = StudioPreviewFrameState
 
+const componentCardUnknownFrameLayoutWidth = 280
+
 type ComponentCardProps = {
   frameStatesByName?: Record<string, ComponentCardFrameState | undefined>
   layoutFrameStatesByName?: Record<string, ComponentCardFrameState | undefined>
@@ -109,6 +111,10 @@ function ComponentCardView(props: ComponentCardProps) {
       props.layoutFrameStatesByName?.[frame.name] ?? effectiveFrameStatesByName[frame.name],
     ]),
   ) as Record<string, ComponentCardFrameState | undefined>
+  const layoutBoundaryRectFallback = componentCardLayoutBoundaryRectFallback(
+    effectiveLayoutFrameStatesByName,
+    props.component.coordinate,
+  )
   const frameTiles = props.component.frames.map((frame) => {
     const frameState = effectiveFrameStatesByName[frame.name]
     const layoutFrameState = effectiveLayoutFrameStatesByName[frame.name]
@@ -118,27 +124,30 @@ function ComponentCardView(props: ComponentCardProps) {
       frameOverrides: previewFrameOverrides,
       static: true,
     })
-    const boundaryRect = boundaryRectForComponent(layoutFrameState?.tree, props.component.coordinate)
-    const visibleBoundaryRect = clipPreviewBoundaryRectToViewport(boundaryRect, displaySize)
-    const layoutWidth = Number(previewFrameLayoutWidth(displaySize, visibleBoundaryRect))
-    const layoutHeight = previewFrameLayoutHeight(displaySize, visibleBoundaryRect)
     const providerVariantStatus = studioProviderVariantFrameStatus(
       providerVariantComponent,
       frame,
       props.providerVariantContext,
     )
     const changeKind = props.frameChangeStates?.[frame.name]
+    const boundaryRect = boundaryRectForComponent(layoutFrameState?.tree, props.component.coordinate)
+    const layoutBoundaryRect = boundaryRect ?? layoutBoundaryRectFallback
+    const visibleBoundaryRect = clipPreviewBoundaryRectToViewport(boundaryRect, displaySize)
+    const visibleLayoutBoundaryRect = clipPreviewBoundaryRectToViewport(layoutBoundaryRect, displaySize)
+    const layoutSize = componentCardFrameLayoutSize(displaySize, visibleLayoutBoundaryRect)
 
     return {
       changeKind,
       displaySize,
       frameState,
-      layoutHeight,
-      layoutWidth,
+      layoutHeight: layoutSize.height,
+      layoutPending: !visibleLayoutBoundaryRect,
+      layoutWidth: layoutSize.width,
       name: frame.name,
       previewUrl,
       providerVariantStatus,
       sessionId,
+      visibleLayoutBoundaryRect,
       visibleBoundaryRect,
     }
   })
@@ -282,6 +291,9 @@ function ComponentCardView(props: ComponentCardProps) {
                         debugPreviewQueue={props.debugPreviewQueue}
                         dimmed={componentCardFrameDimmed(tile.changeKind, tile.providerVariantStatus.state)}
                         frameState={tile.frameState}
+                        layoutBoundaryRect={tile.visibleLayoutBoundaryRect}
+                        layoutPending={tile.layoutPending}
+                        layoutSize={{ height: tile.layoutHeight, width: tile.layoutWidth }}
                         onSelect={
                           props.onSelect
                             ? () => props.onSelect?.(props.component, effectiveFrameStatesByName, columnIndex, "pointer")
@@ -608,6 +620,35 @@ function componentCardPreviewFrameStateName(frameState: ComponentCardFrameState 
 
 function boundaryRectForComponent(tree: ComponentCardFrameState["tree"], coordinate: string): GBoundaryRect | undefined {
   return studioBoundaryRectForCoordinate(tree, coordinate)
+}
+
+function componentCardLayoutBoundaryRectFallback(
+  frameStatesByName: Record<string, ComponentCardFrameState | undefined>,
+  coordinate: string,
+): GBoundaryRect | undefined {
+  for (const frameState of Object.values(frameStatesByName)) {
+    const boundaryRect = boundaryRectForComponent(frameState?.tree, coordinate)
+    if (boundaryRect) return boundaryRect
+  }
+
+  return undefined
+}
+
+function componentCardFrameLayoutSize(
+  displaySize: { width: number | string; height: number },
+  boundaryRect: GBoundaryRect | undefined,
+): { height: number; width: number } {
+  if (!boundaryRect) {
+    return {
+      height: displaySize.height,
+      width: componentCardUnknownFrameLayoutWidth,
+    }
+  }
+
+  return {
+    height: previewFrameLayoutHeight(displaySize, boundaryRect),
+    width: Number(previewFrameLayoutWidth(displaySize, boundaryRect)),
+  }
 }
 
 function getPreviewError(component: StudioManifestComponent): string | undefined {

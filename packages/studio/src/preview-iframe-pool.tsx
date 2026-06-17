@@ -760,6 +760,7 @@ function applyBorrowInput(
   entry.frame.title = input.slot.title
   entry.frame.style.height = cssSize(input.size.height)
   entry.frame.style.width = cssSize(input.size.width)
+  if (renderInputChanged && !retainedRender) entry.frame.style.opacity = "0"
   applyStudioPreviewIframePoolEntryPlacement(entry)
   if (retainedRender) entry.frame.style.opacity = studioPreviewIframePoolFrameReadyOpacity(input)
 
@@ -776,7 +777,6 @@ function applyBorrowInput(
   if (renderInputChanged && !retainedRender) {
     clearStudioPreviewIframePoolCompletedRender(entry)
     clearStudioPreviewIframePoolPendingRenderDelivery(entry)
-    entry.frame.style.opacity = "0"
     schedulePendingRender(entry)
   }
 }

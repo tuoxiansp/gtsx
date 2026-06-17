@@ -12,7 +12,7 @@ export const G_PREVIEW_PROTOCOL_VERSION = 1
 /**
  * @internal Preview runtime to Studio rendered-diff protocol detail.
  */
-export const G_RENDERED_SNAPSHOT_VERSION = 1
+export const G_RENDERED_SNAPSHOT_VERSION = 3
 
 export const RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT_ID = "runelight-preview-ssr-bootstrap"
 
@@ -601,7 +601,7 @@ export function createGPreviewRenderAcceptedMessage(sessionId: string): GPreview
 
 const renderedSnapshotNodeLimit = 1500
 
-const renderedSnapshotIgnoredTags = new Set(["script", "style", "link", "meta", "noscript", "template"])
+const renderedSnapshotIgnoredTags = new Set(["script", "style", "link", "meta", "noscript", "template", "next-route-announcer"])
 
 const renderedSnapshotAttrs = [
   "alt",
@@ -658,10 +658,6 @@ const renderedSnapshotStyleProperties = [
   "justify-content",
   "letter-spacing",
   "line-height",
-  "margin-bottom",
-  "margin-left",
-  "margin-right",
-  "margin-top",
   "object-fit",
   "object-position",
   "opacity",
@@ -716,17 +712,17 @@ export function readGRenderedSnapshot(document: Document): GRenderedSnapshot {
   const nodes: GRenderedSnapshotNode[] = []
   let truncated = false
 
-  const visit = (element: Element, path: string) => {
+  const visit = (element: Element, path: string): boolean => {
     if (nodes.length >= renderedSnapshotNodeLimit) {
       truncated = true
-      return
+      return false
     }
 
     const tag = element.tagName.toLowerCase()
-    if (renderedSnapshotIgnoredTags.has(tag)) return
+    if (renderedSnapshotIgnoredTags.has(tag)) return false
 
     const style = win?.getComputedStyle(element)
-    if (style?.display === "none") return
+    if (style?.display === "none") return false
 
     const node = renderedSnapshotNode(element, path, tag, style, win)
     if (node) nodes.push(node)
@@ -734,10 +730,10 @@ export function readGRenderedSnapshot(document: Document): GRenderedSnapshot {
     let childIndex = 0
     for (const child of element.children) {
       const childTag = child.tagName.toLowerCase()
-      visit(child, `${path}/${childTag}[${childIndex}]`)
-      childIndex += 1
+      if (visit(child, `${path}/${childTag}[${childIndex}]`)) childIndex += 1
       if (truncated) break
     }
+    return true
   }
 
   visit(root, root.tagName.toLowerCase())
