@@ -590,30 +590,37 @@ function studioWorkspaceChangeImpacts(
     const target = componentsByCoordinate.get(targetCoordinate)
     if (!target) continue
 
-    for (const root of roots) {
-      const paths = root.coordinate === targetCoordinate
-        ? [[root]]
-        : dependencyPathsToTarget(root, targetCoordinate, componentsByCoordinate)
+    if (seen.has(target.coordinate)) continue
+    seen.add(target.coordinate)
 
-      for (const path of paths) {
-        const key = `${root.coordinate}->${targetCoordinate}:${path.map((component) => component.coordinate).join(">")}`
-        if (seen.has(key)) continue
-        seen.add(key)
-        impacts.push({
-          frameNames: root.frames.map((frame) => frame.name),
-          path: path.map((component) => ({
-            componentName: component.componentName,
-            coordinate: component.coordinate,
-          })),
-          rootComponentName: root.componentName,
-          rootCoordinate: root.coordinate,
-          surface,
-        })
-      }
-    }
+    const path = studioWorkspaceChangePathToTarget(target, roots, componentsByCoordinate)
+    impacts.push({
+      frameNames: target.frames.map((frame) => frame.name),
+      path: path.map((component) => ({
+        componentName: component.componentName,
+        coordinate: component.coordinate,
+      })),
+      rootComponentName: target.componentName,
+      rootCoordinate: target.coordinate,
+      surface,
+    })
   }
 
   return impacts
+}
+
+function studioWorkspaceChangePathToTarget(
+  target: StudioManifestComponent,
+  roots: StudioManifestComponent[],
+  componentsByCoordinate: ReadonlyMap<string, StudioManifestComponent>,
+): StudioManifestComponent[] {
+  for (const root of roots) {
+    if (root.coordinate === target.coordinate) return [target]
+    const [path] = dependencyPathsToTarget(root, target.coordinate, componentsByCoordinate)
+    if (path) return path
+  }
+
+  return [target]
 }
 
 function dependencyPathsToTarget(

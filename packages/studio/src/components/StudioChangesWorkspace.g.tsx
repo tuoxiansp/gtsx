@@ -1379,8 +1379,9 @@ StudioChangesWorkspace.frames = {
             impacts: [
               {
                 frameNames: ["ready"],
-                rootComponentName: "CheckoutPage",
-                rootCoordinate: "src/CheckoutPage.g.tsx#default",
+                frames: [{ kind: "changed", name: "ready" }],
+                rootComponentName: "PriceRow",
+                rootCoordinate: "src/PriceRow.g.tsx#default",
                 surface: "frames",
                 path: [
                   { coordinate: "src/CheckoutPage.g.tsx#default", componentName: "CheckoutPage" },
@@ -1433,6 +1434,24 @@ StudioChangesWorkspace.frames = {
                 frames: [{ kind: "pure", name: "ready" }],
                 providers: {},
                 dependencies: ["src/PriceRow.g.tsx#default"],
+                diagnostics: [],
+              },
+            ],
+            diagnostics: [],
+          },
+          {
+            path: "src/PriceRow.g.tsx",
+            sourceHash: "price-row-source",
+            components: [
+              {
+                coordinate: "src/PriceRow.g.tsx#default",
+                filePath: "src/PriceRow.g.tsx",
+                sourceHash: "price-row-source",
+                exportName: "default",
+                componentName: "PriceRow",
+                mode: "pure",
+                frames: [{ kind: "pure", name: "ready" }],
+                providers: {},
                 diagnostics: [],
               },
             ],

@@ -704,6 +704,7 @@ describe("Runelight Studio shell", () => {
     expect(deletedFrameOverlayHtml(html, "live")).toContain("width:")
     expect(deletedFrameOverlayHtml(html, "live")).not.toContain("inset:0")
     expect(html).toContain('data-runelight-frame-change-badge="deleted"')
+    expect(html).toContain(">DEL</span>")
     expect(html).not.toContain('data-runelight-studio-change-pane="current"')
     expect(html).not.toContain('data-runelight-studio-change-preview-empty="current"')
     expect(html).toContain('data-runelight-studio-change-deleted-card="true"')
@@ -725,6 +726,7 @@ describe("Runelight Studio shell", () => {
           impacts: [
             {
               frameNames: component.frames.map((frame) => frame.name),
+              frames: component.frames.map((frame) => ({ kind: "added" as const, name: frame.name })),
               rootComponentName: component.componentName,
               rootCoordinate: component.coordinate,
               surface: "frames" as const,
@@ -742,6 +744,8 @@ describe("Runelight Studio shell", () => {
     expect(html).toContain('data-runelight-studio-change-section-tag="added"')
     expect(html).toContain('data-runelight-studio-change-preview-components="current"')
     expect(html).toContain('data-runelight-card-coordinate="src/Card000.g.tsx#default"')
+    expect(html).toContain('data-runelight-frame-change-badge="added"')
+    expect(html).toContain(">NEW</span>")
     expect(frameTileHtml(html, "default")).toContain("cursor:grab")
     expect(frameTileHtml(html, "default")).not.toContain('role="button"')
     expect(changeSectionItemsHtml(html, "added")).toContain("gap:42px 42px")
@@ -847,7 +851,7 @@ describe("Runelight Studio shell", () => {
     expect(html).not.toContain(">quiet<")
   })
 
-  it("aggregates child component changes onto the affected root component canvas card", () => {
+  it("renders child component changes on the changed component canvas card", () => {
     const root = {
       coordinate: "src/Root.g.tsx#default",
       filePath: "src/Root.g.tsx",
@@ -931,8 +935,8 @@ describe("Runelight Studio shell", () => {
             {
               frameNames: ["default"],
               frames: [{ kind: "changed" as const, name: "default" }],
-              rootComponentName: baselineRoot.componentName,
-              rootCoordinate: baselineRoot.coordinate,
+              rootComponentName: baselineChild.componentName,
+              rootCoordinate: baselineChild.coordinate,
               surface: "frames" as const,
               path: [
                 { componentName: baselineRoot.componentName, coordinate: baselineRoot.coordinate },
@@ -944,8 +948,8 @@ describe("Runelight Studio shell", () => {
             {
               frameNames: ["default"],
               frames: [{ kind: "changed" as const, name: "default" }],
-              rootComponentName: root.componentName,
-              rootCoordinate: root.coordinate,
+              rootComponentName: child.componentName,
+              rootCoordinate: child.coordinate,
               surface: "frames" as const,
               path: [
                 { componentName: root.componentName, coordinate: root.coordinate },
@@ -957,13 +961,13 @@ describe("Runelight Studio shell", () => {
       ],
     }
     const frameStates = {
-      [previewSessionId(baselineRoot, "default", "tablet")]: readyRenderedPreviewFrameState(
-        baselineRoot,
+      [previewSessionId(baselineChild, "default", "tablet")]: readyRenderedPreviewFrameState(
+        baselineChild,
         "default",
         "before-child-render",
       ),
-      [previewSessionId(root, "default", "tablet")]: readyRenderedPreviewFrameState(
-        root,
+      [previewSessionId(child, "default", "tablet")]: readyRenderedPreviewFrameState(
+        child,
         "default",
         "current-child-render",
       ),
@@ -973,14 +977,14 @@ describe("Runelight Studio shell", () => {
       <StudioChangesWorkspace changes={changes} frameStates={frameStates} manifest={manifest} />,
     )
 
-    expect(html).toContain('data-runelight-studio-change-group="frames:src/Root.g.tsx#default"')
+    expect(html).toContain('data-runelight-studio-change-group="frames:src/Child.g.tsx#default"')
     expect(html).toContain('data-runelight-studio-change-item="src/Child.g.tsx"')
     expect(html).toContain('data-runelight-studio-change-kind="modified"')
     expect(html).toContain('data-runelight-studio-change-pane="before"')
     expect(html).toContain('data-runelight-studio-change-pane="current"')
     expect(cardCoordinates(html)).toEqual([
-      `${baselineRootPath}/src/Root.g.tsx#default`,
-      "src/Root.g.tsx#default",
+      `${baselineRootPath}/src/Child.g.tsx#default`,
+      "src/Child.g.tsx#default",
     ])
   })
 
@@ -1195,6 +1199,7 @@ describe("Runelight Studio shell", () => {
     expect(html).toContain('data-runelight-studio-change-item="src/Card000.g.tsx"')
     expect(html).toContain('data-runelight-studio-change-pane="current"')
     expect(html).not.toContain('data-runelight-studio-change-pane="before"')
+    expect(html).not.toContain('data-runelight-studio-change-preview-empty="before"')
     expect(html).toContain('data-runelight-frame-tile="newFrame"')
     expect(html).toContain('data-runelight-frame-change-state="added"')
   })
@@ -1611,6 +1616,7 @@ describe("Runelight Studio shell", () => {
     expect(html).toContain('data-runelight-studio-change-item="src/Card000.g.tsx"')
     expect(html).toContain('data-runelight-studio-change-pane="current"')
     expect(html).not.toContain('data-runelight-studio-change-pane="before"')
+    expect(html).not.toContain('data-runelight-studio-change-preview-empty="before"')
     expect(html).not.toContain('data-runelight-card-coordinate=".runelight/baselines/HEAD/src/Card000.g.tsx#default"')
     expect(html).not.toContain('data-runelight-frame-tile="existing"')
     expect(html).toContain('data-runelight-frame-tile="newFrame"')
@@ -1723,6 +1729,7 @@ describe("Runelight Studio shell", () => {
     expect(html).toContain('data-runelight-studio-change-item="src/Card000.g.tsx"')
     expect(html).toContain('data-runelight-studio-change-pane="current"')
     expect(html).not.toContain('data-runelight-studio-change-pane="before"')
+    expect(html).not.toContain('data-runelight-studio-change-preview-empty="before"')
     expect(html).not.toContain('data-runelight-frame-tile="invitePanel"')
     expect(html).toContain('data-runelight-frame-tile="midAutumnNormal"')
     expect(html).toContain('data-runelight-frame-tile="midAutumnInvitePanel"')
@@ -1901,7 +1908,7 @@ describe("Runelight Studio shell", () => {
     ])
   })
 
-  it("derives changes preview targets from affected roots", () => {
+  it("derives changes preview targets from changed components", () => {
     const manifest = buildLargeStudioManifest(2)
     const root = manifest.files[0].components[0]
     const changed = manifest.files[1]
@@ -1946,9 +1953,9 @@ describe("Runelight Studio shell", () => {
           baselineFile: baselineManifest.files[1],
           baselineImpacts: [
             {
-              frameNames: baselineRoot.frames.map((frame) => frame.name),
-              rootComponentName: baselineRoot.componentName,
-              rootCoordinate: baselineRoot.coordinate,
+              frameNames: baselineChanged.frames.map((frame) => frame.name),
+              rootComponentName: baselineChanged.componentName,
+              rootCoordinate: baselineChanged.coordinate,
               surface: "frames" as const,
               path: [
                 { componentName: baselineRoot.componentName, coordinate: baselineRoot.coordinate },
@@ -1958,9 +1965,9 @@ describe("Runelight Studio shell", () => {
           ],
           impacts: [
             {
-              frameNames: root.frames.map((frame) => frame.name),
-              rootComponentName: root.componentName,
-              rootCoordinate: root.coordinate,
+              frameNames: changed.components[0].frames.map((frame) => frame.name),
+              rootComponentName: changed.components[0].componentName,
+              rootCoordinate: changed.components[0].coordinate,
               surface: "frames" as const,
               path: [
                 { componentName: root.componentName, coordinate: root.coordinate },
@@ -1973,8 +1980,8 @@ describe("Runelight Studio shell", () => {
     }
 
     expect(currentStudioChangesPreviewTargets(manifest, changes, "tablet").map((target) => target.sessionId)).toEqual([
-      ".runelight/baselines/HEAD/src/Card000.g.tsx#default:default",
-      "src/Card000.g.tsx#default:default",
+      ".runelight/baselines/HEAD/src/Card001.g.tsx#default:default",
+      "src/Card001.g.tsx#default:default",
     ])
   })
 

@@ -575,9 +575,9 @@ function componentCardFrameChangeTextColor(changeKind: StudioWorkspaceChangeFram
 }
 
 function componentCardFrameChangeBadgeLabel(changeKind: StudioWorkspaceChangeFrameKind | undefined): string | undefined {
-  if (changeKind === "added") return "new"
-  if (changeKind === "deleted") return "del"
-  if (changeKind === "changed") return "chg"
+  if (changeKind === "added") return "NEW"
+  if (changeKind === "deleted") return "DEL"
+  if (changeKind === "changed") return "CHG"
   if (changeKind === "unknown") return "?"
   return undefined
 }

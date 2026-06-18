@@ -321,7 +321,7 @@ describe("Runelight Studio manifest", () => {
     }
   })
 
-  it("describes Git workspace changes and affected root paths", () => {
+  it("describes Git workspace changes and changed component paths", () => {
     const cwd = mkdtempSync(join(tmpdir(), "runelight-studio-changes-"))
 
     try {
@@ -395,6 +395,8 @@ describe("Runelight Studio manifest", () => {
         ["added", "src/New.g.tsx"],
       ])
       expect(changes.items[0].impacts[0].path.map((segment) => segment.componentName)).toEqual(["Root", "Child"])
+      expect(changes.items[0].impacts[0].rootComponentName).toBe("Child")
+      expect(changes.items[0].impacts[0].rootCoordinate).toBe("src/Child.g.tsx#default")
       expect(changes.items[1].deletedSummary?.componentNames).toEqual(["DeletedCard"])
       expect(changes.items[1].baselineFile?.path).toBe("src/app/runelight/.runelight/baselines/HEAD/src/Deleted.g.tsx")
       expect(changes.items[1].baselineFile?.components[0]?.componentName).toBe("DeletedCard")
