@@ -58,7 +58,7 @@ export default defineRunelightConfig({
 })
 ```
 
-Use the detected package manager's exec form in `host.command`: `npx vite ...` for npm, `pnpm exec vite ...` for pnpm. `runelight serve` substitutes `{port}` with the Runelight-owned port, sets `RUNELIGHT_DEV=1`, and prints the serve and Studio URLs. Routes are fixed and not configurable: `/runelight`, `/runelight/studio`, `/runelight/studio/manifest`, plus adapter-owned internal Studio sidecar routes `/runelight/studio/events` and `/runelight/studio/changes`.
+Use the detected package manager's exec form in `host.command`: `npx vite ...` for npm, `pnpm exec vite ...` for pnpm. `runelight serve` substitutes `{port}` with the Runelight-owned port, sets `RUNELIGHT_DEV=1`, and prints the serve and Studio URLs. User-facing routes are fixed and not configurable: `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest`.
 
 Recommended `package.json` scripts:
 

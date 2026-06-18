@@ -55,10 +55,6 @@ Routes are fixed and not configurable:
 | `/runelight` | Preview client (`entry`, `frame`, `frameOverride` search params) |
 | `/runelight/studio` | Prebuilt Studio app (`/runelight/studio/assets/*` for assets) |
 | `/runelight/studio/manifest` | Project manifest JSON |
-| `/runelight/studio/events` | Internal Studio refresh event stream |
-| `/runelight/studio/changes` | Internal Studio Changes JSON |
-
-The internal Studio routes are adapter/Studio sidecar protocol details, not `runelight.config.ts` keys.
 
 ## Production Behavior
 
