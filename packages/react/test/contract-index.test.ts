@@ -208,7 +208,7 @@ describe("Runelight project index", () => {
     }
   })
 
-  it("keeps React visual signatures stable when only frame mock data changes", () => {
+  it("keeps React visual signatures stable when only unused frame mock data changes", () => {
     const cwd = mkdtempSync(join(tmpdir(), "runelight-react-frame-mock-signature-"))
 
     try {
@@ -216,10 +216,10 @@ describe("Runelight project index", () => {
       writeFileSync(
         join(cwd, "src/Card.g.tsx"),
         [
-          "export default function Card(props: { label: string }) {",
+          "export default function Card(props: { label: string; unused: string }) {",
           "  return <span>{props.label}</span>",
           "}",
-          'Card.frames = { ready: { props: { label: "Before" } } }',
+          'Card.frames = { ready: { props: { label: "Label", unused: "Before" } } }',
           "",
         ].join("\n"),
       )
@@ -229,10 +229,10 @@ describe("Runelight project index", () => {
       writeFileSync(
         join(cwd, "src/Card.g.tsx"),
         [
-          "export default function Card(props: { label: string }) {",
+          "export default function Card(props: { label: string; unused: string }) {",
           "  return <span>{props.label}</span>",
           "}",
-          'Card.frames = { ready: { props: { label: "After" } } }',
+          'Card.frames = { ready: { props: { label: "Label", unused: "After" } } }',
           "",
         ].join("\n"),
       )
@@ -241,6 +241,44 @@ describe("Runelight project index", () => {
 
       expect(secondComponent?.visualSignature).toBe(firstComponent?.visualSignature)
       expect(secondComponent?.frameVisualSignatures?.ready).toBe(firstComponent?.frameVisualSignatures?.ready)
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("projects rendered frame prop values into React frame visual signatures", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-react-frame-prop-signature-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      writeFileSync(
+        join(cwd, "src/Card.g.tsx"),
+        [
+          "export default function Card(props: { detail: string; tone: string }) {",
+          "  return <section data-tone={props.tone}>{props.detail}</section>",
+          "}",
+          'Card.frames = { ready: { props: { detail: "Ready", tone: "ok" } }, warning: { props: { detail: "Before", tone: "warn" } } }',
+          "",
+        ].join("\n"),
+      )
+      const before = buildRunelightProjectIndex({ contracts: [runelightReactContract], cwd, sourceRoot: "src" })
+      const beforeComponent = before.files[0]?.components[0]
+
+      writeFileSync(
+        join(cwd, "src/Card.g.tsx"),
+        [
+          "export default function Card(props: { detail: string; tone: string }) {",
+          "  return <section data-tone={props.tone}>{props.detail}</section>",
+          "}",
+          'Card.frames = { ready: { props: { detail: "Ready", tone: "ok" } }, warning: { props: { detail: "After", tone: "warn" } } }',
+          "",
+        ].join("\n"),
+      )
+      const after = buildRunelightProjectIndex({ contracts: [runelightReactContract], cwd, sourceRoot: "src" })
+      const afterComponent = after.files[0]?.components[0]
+
+      expect(afterComponent?.frameVisualSignatures?.ready).toBe(beforeComponent?.frameVisualSignatures?.ready)
+      expect(afterComponent?.frameVisualSignatures?.warning).not.toBe(beforeComponent?.frameVisualSignatures?.warning)
     } finally {
       rmSync(cwd, { force: true, recursive: true })
     }

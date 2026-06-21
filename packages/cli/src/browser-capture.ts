@@ -1,4 +1,5 @@
-import { join } from "node:path"
+import { mkdirSync } from "node:fs"
+import { dirname, resolve } from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
 
 import { chromium } from "playwright"
@@ -22,7 +23,9 @@ export async function capturePreviewPage(options: RunelightCaptureOptions): Prom
     await gotoWhenReady(page, options.url)
     await waitForPreviewCaptureLayout(page)
     const clip = await previewCaptureClip(page)
-    await page.screenshot({ path: join(options.cwd, options.out), omitBackground: true, ...(clip ? { clip } : { fullPage: true }) })
+    const outputPath = resolve(options.cwd, options.out)
+    mkdirSync(dirname(outputPath), { recursive: true })
+    await page.screenshot({ path: outputPath, omitBackground: true, ...(clip ? { clip } : { fullPage: true }) })
   } finally {
     try {
       await browser?.close()

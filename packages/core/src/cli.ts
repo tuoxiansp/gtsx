@@ -400,13 +400,14 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
         return { exitCode: 0, stdout: `${serveSession.stdout}Captured ${selectedEntry} contact sheet to ${outPath}\n`, stderr: context.stderr }
       }
 
+      const outPath = outForSingleFrame(out, selectedEntry, selectedFrame)
       await captureBackend.capturePreviewPage({
         cwd,
         url: captureUrl,
         viewport,
-        out,
+        out: outPath,
       })
-      return { exitCode: 0, stdout: `${serveSession.stdout}Captured ${selectedFrame} to ${out}\n`, stderr: context.stderr }
+      return { exitCode: 0, stdout: `${serveSession.stdout}Captured ${selectedFrame} to ${outPath}\n`, stderr: context.stderr }
     } catch (error) {
       return diagnosticsResult([
         {
@@ -1023,6 +1024,14 @@ function outForEntryContactSheet(out: string, entry: string): string {
 
   const fileName = outputPathForEntry(entry).split(/[\\/]/).pop() ?? "runelight-capture.png"
   return join(out, fileName)
+}
+
+function outForSingleFrame(out: string, entry: string, frameName: string): string {
+  if (out.endsWith(".png")) return out
+
+  const fileName = outputPathForEntry(entry).split(/[\\/]/).pop() ?? "runelight-capture.png"
+  const baseName = fileName.replace(/\.png$/, "")
+  return join(out, `${baseName}.${sanitizeFilePathSegment(frameName)}.png`)
 }
 
 function outForDirectoryContactSheet(out: string, entry: string): string {

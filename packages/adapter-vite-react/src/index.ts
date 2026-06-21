@@ -130,6 +130,9 @@ export function runelightViteReact(options: RunelightViteReactOptions = {}): Plu
         define: {
           __RUNELIGHT_DEV__: JSON.stringify(isRunelightDevMode()),
         },
+        resolve: {
+          dedupe: ["react", "react-dom"],
+        },
         optimizeDeps: {
           include: [
             "@runelight/react > react-tracked",

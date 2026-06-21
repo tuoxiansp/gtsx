@@ -20,6 +20,9 @@ type TestRunelightViteReactPlugin = {
       exclude: string[]
       include: string[]
     }
+    resolve: {
+      dedupe: string[]
+    }
   }
   configResolved(config: { command?: "build" | "serve"; root: string }): void
   configureServer(server: unknown): void
@@ -91,6 +94,16 @@ describe("runelight Vite React adapter", () => {
     expect(plugin.config()).toMatchObject({
       define: {
         __RUNELIGHT_DEV__: "true",
+      },
+    })
+  })
+
+  it("dedupes React runtime packages for linked local Runelight packages", () => {
+    const plugin = runelightViteReact({ root: "/repo" })
+
+    expect(plugin.config()).toMatchObject({
+      resolve: {
+        dedupe: ["react", "react-dom"],
       },
     })
   })

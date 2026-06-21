@@ -540,7 +540,7 @@ describe("Runelight Studio manifest", () => {
     }
   })
 
-  it("omits modified components when only frame mock data changes", () => {
+  it("omits modified components when only unused frame mock data changes", () => {
     const cwd = mkdtempSync(join(tmpdir(), "runelight-studio-frame-mock-only-changes-"))
 
     try {
@@ -548,10 +548,10 @@ describe("Runelight Studio manifest", () => {
       writeFileSync(
         join(cwd, "src/Card.g.tsx"),
         [
-          "export default function Card(props: { label: string }) {",
+          "export default function Card(props: { label: string; tone: string }) {",
           "  return <span>{props.label}</span>",
           "}",
-          'Card.frames = { ready: { props: { label: "Before" } } }',
+          'Card.frames = { ready: { props: { label: "Label", tone: "Before" } } }',
           "",
         ].join("\n"),
       )
@@ -563,10 +563,10 @@ describe("Runelight Studio manifest", () => {
       writeFileSync(
         join(cwd, "src/Card.g.tsx"),
         [
-          "export default function Card(props: { label: string }) {",
+          "export default function Card(props: { label: string; tone: string }) {",
           "  return <span>{props.label}</span>",
           "}",
-          'Card.frames = { ready: { props: { label: "After" } } }',
+          'Card.frames = { ready: { props: { label: "Label", tone: "After" } } }',
           "",
         ].join("\n"),
       )

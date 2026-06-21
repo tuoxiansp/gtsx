@@ -62,7 +62,7 @@ describe("runelight CLI", () => {
         `import { defineRunelightConfig } from "@runelight/core"
 
 export default defineRunelightConfig({
-  contracts: ["@runelight/react/contract"],
+  contracts: [${JSON.stringify(join(repositoryRoot, "packages/react/src/contract.ts"))}],
   project: {
     sourceRoot: "src",
     entryRoot: "src",
@@ -175,6 +175,88 @@ Link.frames = {
         {
           coordinate: "src/Button.g.tsx#default",
           file: "src/Button.g.tsx",
+        },
+      ])
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("reports rendered frame prop changes as UI changes", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-cli-frame-prop-changes-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      writeFileSync(
+        join(cwd, "tsconfig.json"),
+        JSON.stringify({ compilerOptions: { jsx: "react-jsx", module: "ESNext", moduleResolution: "Bundler", target: "ES2022" }, include: ["src"] }),
+      )
+      writeFileSync(
+        join(cwd, "runelight.config.ts"),
+        `import { defineRunelightConfig } from "@runelight/core"
+
+export default defineRunelightConfig({
+  contracts: [${JSON.stringify(join(repositoryRoot, "packages/react/src/contract.ts"))}],
+  project: {
+    sourceRoot: "src",
+    entryRoot: "src",
+    tsconfig: "tsconfig.json",
+  },
+})
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Card.g.tsx"),
+        `import type { GFrames } from "@runelight/react"
+
+type CardProps = { detail: string; tone: "ready" | "warning" }
+
+export default function Card(props: CardProps) {
+  return <section data-tone={props.tone}>{props.detail}</section>
+}
+
+Card.frames = {
+  ready: { props: { detail: "Ready", tone: "ready" } },
+  warning: { props: { detail: "Before", tone: "warning" } },
+} satisfies GFrames<CardProps>
+`,
+      )
+      spawnSync("git", ["init"], { cwd, encoding: "utf8" })
+      spawnSync("git", ["add", "."], { cwd, encoding: "utf8" })
+      spawnSync("git", ["-c", "user.email=runelight@example.test", "-c", "user.name=Runelight Test", "commit", "-m", "baseline"], {
+        cwd,
+        encoding: "utf8",
+      })
+      writeFileSync(
+        join(cwd, "src/Card.g.tsx"),
+        `import type { GFrames } from "@runelight/react"
+
+type CardProps = { detail: string; tone: "ready" | "warning" }
+
+export default function Card(props: CardProps) {
+  return <section data-tone={props.tone}>{props.detail}</section>
+}
+
+Card.frames = {
+  ready: { props: { detail: "Ready", tone: "ready" } },
+  warning: { props: { detail: "After", tone: "warning" } },
+} satisfies GFrames<CardProps>
+`,
+      )
+
+      const result = await runCLI(["changes", "--json", "--ui-only"], { cwd, stdout: "", stderr: "" })
+      const report = JSON.parse(result.stdout)
+
+      expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0)
+      expect(report.summary.ui.changed).toBe(1)
+      expect(report.components).toMatchObject([
+        {
+          coordinate: "src/Card.g.tsx#default",
+          uiStatus: "changed",
+          frames: [
+            { name: "ready", status: "unchanged" },
+            { name: "warning", status: "changed" },
+          ],
         },
       ])
     } finally {
@@ -366,6 +448,25 @@ export default defineRunelightConfig({
     expect(result.stderr).toContain("Host output reported PID 987654321")
     expect(result.stderr).toContain("lsof -nP -iTCP:4300 -sTCP:LISTEN")
     expect(result.stderr).toContain("preview-server-not-ready")
+  })
+
+  it("adds the same process hint when foreground Host output is streamed to the terminal", async () => {
+    const streamedStderr: string[] = []
+    const result = await runCLI(["serve", "--port", "4558"], {
+      cwd: join(import.meta.dirname, "fixtures/serve-next-conflict"),
+      hostStdio: "inherit",
+      stdout: "",
+      stderr: "",
+      writeStderr: (chunk) => streamedStderr.push(chunk),
+    })
+    const combinedStderr = `${streamedStderr.join("")}${result.stderr}`
+
+    expect(result.exitCode).toBe(1)
+    expect(combinedStderr).toContain("Another next dev server is already running")
+    expect(combinedStderr).toContain("host-process-hint")
+    expect(combinedStderr).toContain("Host output reported PID 987654321")
+    expect(combinedStderr).toContain("lsof -nP -iTCP:4300 -sTCP:LISTEN")
+    expect(combinedStderr).toContain("preview-server-not-ready")
   })
 
   it("stops the foreground Host and removes the serve registry on SIGINT", async () => {
@@ -964,6 +1065,63 @@ export default defineRunelightConfig({
       })
       expect(readRunelightServeSession(cwd)?.sessionId).toBe(sessionId)
       expect(() => readFileSync(logFile, "utf8")).toThrow()
+    } finally {
+      await server?.close()
+      if (previousSessionDir === undefined) {
+        delete process.env.RUNELIGHT_SESSION_DIR
+      } else {
+        process.env.RUNELIGHT_SESSION_DIR = previousSessionDir
+      }
+      rmSync(sessionDir, { recursive: true, force: true })
+      rmSync(logFile, { force: true })
+    }
+  })
+
+  it("treats single-frame capture output without a png extension as a directory", async () => {
+    const cwd = join(import.meta.dirname, "fixtures/check-project")
+    const logFile = join(cwd, "runelight-command-log.jsonl")
+    const sessionDir = mkdtempSync(join(tmpdir(), "runelight-cli-sessions-"))
+    const previousSessionDir = process.env.RUNELIGHT_SESSION_DIR
+    const sessionId = createRunelightServeSessionId()
+    const projectKey = runelightServeSessionProjectKey(cwd)
+    const captureBackend = {
+      capturePreviewPage: vi.fn(async () => undefined),
+    }
+    let server: Awaited<ReturnType<typeof startHealthyRunelightServer>> | undefined
+
+    rmSync(logFile, { force: true })
+    process.env.RUNELIGHT_SESSION_DIR = sessionDir
+
+    try {
+      server = await startHealthyRunelightServer({ projectKey, sessionId })
+      writeRunelightServeSession(cwd, {
+        baseUrl: server.baseUrl,
+        hostPid: process.pid,
+        mode: "runelight-dev",
+        port: server.port,
+        sessionId,
+        startedAt: new Date().toISOString(),
+        supervisorPid: process.pid,
+      })
+
+      const result = await runCLI(["capture", "src/Badge.g.tsx", "--frame", "neutral", "--out", "frames"], {
+        captureBackend,
+        cwd,
+        stdout: "",
+        stderr: "",
+      })
+
+      expect(result).toEqual({
+        exitCode: 0,
+        stdout: "Captured neutral to frames/Badge.neutral.png\n",
+        stderr: "",
+      })
+      expect(captureBackend.capturePreviewPage).toHaveBeenCalledWith({
+        cwd,
+        out: "frames/Badge.neutral.png",
+        url: `${server.baseUrl}/runelight?entry=src%2FBadge.g.tsx%23default&frame=neutral&chrome=0`,
+        viewport: "1440x900",
+      })
     } finally {
       await server?.close()
       if (previousSessionDir === undefined) {

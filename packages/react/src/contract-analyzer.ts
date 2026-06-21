@@ -2686,8 +2686,10 @@ function projectVisualExpressionText(
   const reference = factorReferenceForExpression(value, context)
   if (reference) {
     const key = factorReferenceKey(reference)
+    const frameValue = staticBranchValueForReference(frameValues, reference)
+    if (frameValue) return `value:${formatStaticBranchValue(frameValue)}`
     if (reference.root === "static") {
-      const staticValue = staticBranchValueForReference(frameValues, reference) ?? context.staticValues.get(key)
+      const staticValue = context.staticValues.get(key)
       return `static:${staticValue ? formatStaticBranchValue(staticValue) : "unknown"}`
     }
     return `ref:${key}`

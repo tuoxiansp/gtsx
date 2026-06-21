@@ -377,8 +377,7 @@ async function startHostServer(
     }
   }
 
-  const stdio: ["ignore", "inherit" | "pipe", "inherit" | "pipe"] =
-    params.hostStdio === "inherit" ? ["ignore", "inherit", "inherit"] : ["ignore", "pipe", "pipe"]
+  const stdio: ["ignore", "pipe", "pipe"] = ["ignore", "pipe", "pipe"]
   const stopStrategy: HostStopStrategy = params.hostStdio === "inherit" ? "process-tree" : "process-group"
   const detached = stopStrategy === "process-group" && process.platform !== "win32"
   const child = spawn(expandCommand(serveCommand, { cwd, port: params.port }), {
@@ -400,12 +399,20 @@ async function startHostServer(
   child.stdout?.on("data", (chunk) => {
     const text = String(chunk)
     stdout += text
-    params.writeStdout?.(text)
+    if (params.hostStdio === "inherit") {
+      ;(params.writeStdout ?? ((value: string) => process.stdout.write(value)))(text)
+    } else {
+      params.writeStdout?.(text)
+    }
   })
   child.stderr?.on("data", (chunk) => {
     const text = String(chunk)
     stderr += text
-    params.writeStderr?.(text)
+    if (params.hostStdio === "inherit") {
+      ;(params.writeStderr ?? ((value: string) => process.stderr.write(value)))(text)
+    } else {
+      params.writeStderr?.(text)
+    }
   })
 
   let stopPromise: Promise<void> | undefined

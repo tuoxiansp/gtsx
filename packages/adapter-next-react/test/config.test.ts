@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { createRequire } from "node:module"
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -309,6 +309,40 @@ describe("runelight Next React adapter", () => {
       ],
     })
     expect(config.turbopack?.resolveAlias?.["@runelight/adapter-next-react/preview-entries"]).toBe(`./${defaultPreviewEntriesFile}`)
+  })
+
+  it("aliases adapter route helpers for Turbopack package subpath resolution", () => {
+    const withRunelight = runelightNextReact({ config: productionRunelightConfig, root: "/repo" })
+    const config = withRunelight({})
+
+    expect(config.turbopack?.resolveAlias).toMatchObject({
+      "@runelight/adapter-next-react/preview": expect.stringMatching(/preview\.(ts|js)$/),
+      "@runelight/adapter-next-react/preview-route": expect.stringMatching(/preview-route\.(ts|js)$/),
+      "@runelight/adapter-next-react/studio-route": expect.stringMatching(/studio-route\.(ts|js)$/),
+      "@runelight/adapter-next-react/studio-manifest-route": expect.stringMatching(/studio-manifest-route\.(ts|js)$/),
+    })
+  })
+
+  it("widens the Turbopack root when a linked adapter package points outside the project", () => {
+    const root = mkdtempSync(join(tmpdir(), "runelight-next-turbopack-root-"))
+    const linkedAdapter = mkdtempSync(join(tmpdir(), "runelight-next-linked-adapter-"))
+
+    try {
+      mkdirSync(join(root, "node_modules/@runelight"), { recursive: true })
+      mkdirSync(join(linkedAdapter, "dist"), { recursive: true })
+      writeFileSync(join(linkedAdapter, "dist/preview.js"), "export {}\n")
+      symlinkSync(linkedAdapter, join(root, "node_modules/@runelight/adapter-next-react"), "dir")
+
+      const config = runelightNextReact({ config: productionRunelightConfig, root })({})
+      const turbopackRoot = config.turbopack?.root
+
+      expect(turbopackRoot).toEqual(expect.any(String))
+      expect(realpathSync(root).startsWith(turbopackRoot)).toBe(true)
+      expect(realpathSync(linkedAdapter).startsWith(turbopackRoot)).toBe(true)
+    } finally {
+      rmSync(root, { force: true, recursive: true })
+      rmSync(linkedAdapter, { force: true, recursive: true })
+    }
   })
 
   it("externalizes Runelight server-only packages while preserving user Next config", () => {

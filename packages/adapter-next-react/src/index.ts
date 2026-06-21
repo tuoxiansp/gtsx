@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, watch, writeFileSync, type Dirent, type FSWatcher } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, watch, writeFileSync, type Dirent, type FSWatcher } from "node:fs"
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http"
 import { createRequire } from "node:module"
 import { dirname, relative, resolve, sep } from "node:path"
@@ -84,6 +84,12 @@ const runelightServerExternalPackages = ["@runelight/core", "@runelight/studio"]
 const globalPreviewEntryWatcherSymbol = Symbol.for("runelight.next.preview-entry.watchers")
 const globalStudioEventsServerSymbol = Symbol.for("runelight.next.studio.events.servers")
 const previewImportQuery = "runelight-preview"
+const runelightNextAdapterSubpathFiles = {
+  "@runelight/adapter-next-react/preview": "preview",
+  "@runelight/adapter-next-react/preview-route": "preview-route",
+  "@runelight/adapter-next-react/studio-manifest-route": "studio-manifest-route",
+  "@runelight/adapter-next-react/studio-route": "studio-route",
+} as const
 
 type GlobalPreviewEntryWatcher = typeof globalThis & {
   [globalPreviewEntryWatcherSymbol]?: Map<string, { close(): void }>
@@ -176,8 +182,10 @@ function withRunelightTurbopackConfig(
 
   return {
     ...turbopack,
+    ...(turbopack?.root ? {} : runelightNextTurbopackRootOption(root)),
     resolveAlias: {
       ...(turbopack?.resolveAlias ?? {}),
+      ...runelightNextAdapterTurbopackResolveAliases(root),
       ...(previewEntries ? { [defaultPreviewEntriesModuleId]: toTurbopackResolveAliasPath(root, previewEntries.outputPath) } : {}),
     },
     rules: {
@@ -185,6 +193,53 @@ function withRunelightTurbopackConfig(
       "*.g.tsx": prependRule(runelightRule, rules["*.g.tsx"]),
     },
   }
+}
+
+function runelightNextAdapterTurbopackResolveAliases(root: string): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(runelightNextAdapterSubpathFiles).map(([moduleId, fileName]) => [
+      moduleId,
+      toTurbopackResolveAliasPath(root, resolve(root, `node_modules/@runelight/adapter-next-react/dist/${fileName}.js`)),
+    ]),
+  )
+}
+
+function runelightNextTurbopackRootOption(root: string): { root: string } | Record<string, never> {
+  const projectRoot = realpathIfExists(root) ?? resolve(root)
+  const adapterFile = realpathIfExists(resolve(root, "node_modules/@runelight/adapter-next-react/dist/preview.js"))
+  if (!adapterFile || isPathInsideDirectory(adapterFile, projectRoot)) return {}
+
+  return { root: commonPathAncestor(projectRoot, adapterFile) }
+}
+
+function realpathIfExists(path: string): string | undefined {
+  try {
+    return realpathSync(path)
+  } catch {
+    return undefined
+  }
+}
+
+function isPathInsideDirectory(path: string, directory: string): boolean {
+  const normalizedPath = resolve(path)
+  const normalizedDirectory = resolve(directory)
+  return normalizedPath === normalizedDirectory || normalizedPath.startsWith(`${normalizedDirectory}${sep}`)
+}
+
+function commonPathAncestor(left: string, right: string): string {
+  const leftParts = resolve(left).split(sep)
+  const rightParts = resolve(right).split(sep)
+  const common: string[] = []
+  const length = Math.min(leftParts.length, rightParts.length)
+
+  for (let index = 0; index < length; index += 1) {
+    if (leftParts[index] !== rightParts[index]) break
+    common.push(leftParts[index] as string)
+  }
+
+  if (common.length === 0) return resolve(sep)
+  if (common.length === 1 && common[0] === "") return sep
+  return common.join(sep) || sep
 }
 
 function prependRule(
