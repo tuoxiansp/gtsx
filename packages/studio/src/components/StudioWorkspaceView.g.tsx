@@ -67,6 +67,8 @@ import {
   studioFontFamily,
   studioLayoutNeutralDrilldownColumnEnterCss,
   studioLayoutNeutralDrilldownColumnEnterStyle,
+  studioLayoutNeutralDrilldownColumnExitMotionMs,
+  studioLayoutNeutralDrilldownColumnExitStyle,
   studioProviderVariantButtonStyle,
   studioRadii,
   studioShellStyle,
@@ -130,6 +132,8 @@ type StudioWorkspaceViewScope = {
   onPreviewGeometryChange: () => void
   previewRenderSessionStore: StudioPreviewRenderSessionStore
   framePreviewScale: number
+  dismissRetainedColumn: (id: string) => void
+  retainedColumns: RetainedStudioDrilldownColumn[]
   selected: { id: string; components: StudioManifestComponent[] }
   selectedCardPathKey?: string
   setCanvasViewportElement: (element: HTMLDivElement | null) => void
@@ -149,11 +153,29 @@ type PendingStudioCanvasViewportPresetAnchor = {
   targetViewportPoint: StudioCanvasViewportAnchorPoint
 }
 
+type StudioWorkspaceColumn = StudioWorkspaceState["columns"][number]
+
+type RetainedStudioDrilldownColumn = {
+  column: StudioWorkspaceColumn
+  columnIndex: number
+  id: string
+  layout?: StudioColumnLayout
+  measurement?: ReturnType<typeof useStudioCanvasLayout>["columnMeasurementsByIndex"][number]
+  selectedCardPathKey?: string
+  visibleCards: StudioCanvasCardIndexEntry[]
+  workspace: StudioWorkspaceState
+}
+
+type StudioDrilldownColumnSnapshot = {
+  columns: RetainedStudioDrilldownColumn[]
+}
+
 const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
 const canvasWheelExemptSelector = "[data-runelight-canvas-wheel-exempt]"
 const studioCanvasRevealMargin = 24
 const defaultStudioCanvasVirtualViewportSize = { height: 720, width: 1280 }
 const studioCanvasViewportPresetAnchorPreservationAttempts = 4
+const retainedStudioDrilldownColumnFallbackMs = studioLayoutNeutralDrilldownColumnExitMotionMs + 120
 
 function shouldHandleCanvasWheelTarget(target: EventTarget | null): boolean {
   return !(typeof Element !== "undefined" && target instanceof Element && target.closest(canvasWheelExemptSelector))
@@ -253,6 +275,13 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
   })
   const visibleCardsByColumnIndexRef = React.useRef(visibleCardsByColumnIndex)
   visibleCardsByColumnIndexRef.current = visibleCardsByColumnIndex
+  const { dismissRetainedColumn, retainedColumns } = useRetainedStudioDrilldownColumns({
+    columnLayoutByIndex: layout.columnLayoutByIndex,
+    columnMeasurementsByIndex: layout.columnMeasurementsByIndex,
+    selectedCardPathKey,
+    visibleCardsByColumnIndex,
+    workspace: props.workspace,
+  })
 
   const { flushPreviewRender, requestCanvasPreviewRender, requestPreviewRender } = useStudioPreviewRenderScheduler({
     canvasRef: canvasController.canvasRef,
@@ -515,8 +544,10 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     onPreviewGeometryChange: layout.scheduleMeasurement,
     onViewportPresetChange: handleViewportPresetChange,
     framePreviewScale: layout.framePreviewScale,
+    dismissRetainedColumn,
     renderObservationSnapshot,
     renderExpansionCenterPulse,
+    retainedColumns,
     visibleCardsByColumnIndex,
     previewRenderSessionStore,
     selected,
@@ -526,6 +557,131 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
     setCardElement: layout.setCardElement,
     setColumnElement: layout.setColumnElement,
   }
+}
+
+function useRetainedStudioDrilldownColumns(input: {
+  columnLayoutByIndex: Record<number, StudioColumnLayout>
+  columnMeasurementsByIndex: ReturnType<typeof useStudioCanvasLayout>["columnMeasurementsByIndex"]
+  selectedCardPathKey?: string
+  visibleCardsByColumnIndex: Record<number, StudioCanvasCardIndexEntry[]>
+  workspace: StudioWorkspaceState
+}): {
+  dismissRetainedColumn: (id: string) => void
+  retainedColumns: RetainedStudioDrilldownColumn[]
+} {
+  const [retainedColumns, setRetainedColumns] = React.useState<RetainedStudioDrilldownColumn[]>([])
+  const currentSnapshot = React.useMemo(
+    () =>
+      createStudioDrilldownColumnSnapshot({
+        columnLayoutByIndex: input.columnLayoutByIndex,
+        columnMeasurementsByIndex: input.columnMeasurementsByIndex,
+        selectedCardPathKey: input.selectedCardPathKey,
+        visibleCardsByColumnIndex: input.visibleCardsByColumnIndex,
+        workspace: input.workspace,
+      }),
+    [
+      input.columnLayoutByIndex,
+      input.columnMeasurementsByIndex,
+      input.selectedCardPathKey,
+      input.visibleCardsByColumnIndex,
+      input.workspace,
+    ],
+  )
+  const previousSnapshotRef = React.useRef<StudioDrilldownColumnSnapshot | undefined>(undefined)
+  const exitingColumnsFromPreviousRender = React.useMemo(
+    () => exitingStudioDrilldownColumns(previousSnapshotRef.current, currentSnapshot),
+    [currentSnapshot],
+  )
+  const columnsToRender = React.useMemo(
+    () => mergeRetainedStudioDrilldownColumns(retainedColumns, exitingColumnsFromPreviousRender, currentSnapshot),
+    [currentSnapshot, exitingColumnsFromPreviousRender, retainedColumns],
+  )
+
+  useStudioLayoutEffect(() => {
+    const exitingColumns = exitingStudioDrilldownColumns(previousSnapshotRef.current, currentSnapshot)
+    previousSnapshotRef.current = currentSnapshot
+
+    setRetainedColumns((current) => {
+      const next = mergeRetainedStudioDrilldownColumns(current, exitingColumns, currentSnapshot)
+      return sameRetainedStudioDrilldownColumnIds(current, next) ? current : next
+    })
+  }, [currentSnapshot])
+
+  React.useEffect(() => {
+    if (retainedColumns.length === 0 || typeof window === "undefined") return
+
+    const timers = retainedColumns.map((column) =>
+      window.setTimeout(() => {
+        setRetainedColumns((current) => current.filter((retained) => retained.id !== column.id))
+      }, retainedStudioDrilldownColumnFallbackMs),
+    )
+
+    return () => {
+      for (const timer of timers) window.clearTimeout(timer)
+    }
+  }, [retainedColumns])
+
+  const dismissRetainedColumn = React.useCallback((id: string) => {
+    setRetainedColumns((current) => current.filter((column) => column.id !== id))
+  }, [])
+
+  return { dismissRetainedColumn, retainedColumns: columnsToRender }
+}
+
+function createStudioDrilldownColumnSnapshot(input: {
+  columnLayoutByIndex: Record<number, StudioColumnLayout>
+  columnMeasurementsByIndex: ReturnType<typeof useStudioCanvasLayout>["columnMeasurementsByIndex"]
+  selectedCardPathKey?: string
+  visibleCardsByColumnIndex: Record<number, StudioCanvasCardIndexEntry[]>
+  workspace: StudioWorkspaceState
+}): StudioDrilldownColumnSnapshot {
+  return {
+    columns: input.workspace.columns.map((column, columnIndex) => ({
+      column,
+      columnIndex,
+      id: layoutNeutralDrilldownColumnEnterIdentity(input.workspace, columnIndex, column),
+      layout: input.columnLayoutByIndex[columnIndex],
+      measurement: input.columnMeasurementsByIndex[columnIndex],
+      selectedCardPathKey: input.selectedCardPathKey,
+      visibleCards: input.visibleCardsByColumnIndex[columnIndex] ?? [],
+      workspace: input.workspace,
+    })),
+  }
+}
+
+function exitingStudioDrilldownColumns(
+  previousSnapshot: StudioDrilldownColumnSnapshot | undefined,
+  currentSnapshot: StudioDrilldownColumnSnapshot,
+): RetainedStudioDrilldownColumn[] {
+  if (!previousSnapshot) return []
+
+  const currentIds = new Set(currentSnapshot.columns.map((column) => column.id))
+  return previousSnapshot.columns.filter((column) => column.columnIndex > 0 && !currentIds.has(column.id))
+}
+
+function mergeRetainedStudioDrilldownColumns(
+  current: RetainedStudioDrilldownColumn[],
+  next: RetainedStudioDrilldownColumn[],
+  currentSnapshot: StudioDrilldownColumnSnapshot,
+): RetainedStudioDrilldownColumn[] {
+  const liveIds = new Set(currentSnapshot.columns.map((column) => column.id))
+  const retainedById = new Map<string, RetainedStudioDrilldownColumn>()
+
+  for (const column of current) {
+    if (!liveIds.has(column.id)) retainedById.set(column.id, column)
+  }
+  for (const column of next) {
+    if (!liveIds.has(column.id)) retainedById.set(column.id, column)
+  }
+
+  return [...retainedById.values()].sort((a, b) => a.columnIndex - b.columnIndex)
+}
+
+function sameRetainedStudioDrilldownColumnIds(
+  a: RetainedStudioDrilldownColumn[],
+  b: RetainedStudioDrilldownColumn[],
+): boolean {
+  return a.length === b.length && a.every((column, index) => column.id === b[index]?.id)
 }
 
 function useVisibleStudioCanvasCardsByColumnIndex(input: {
@@ -702,6 +858,23 @@ export default function Studio(props: StudioWorkspaceViewProps) {
   const previewCacheReady = props.previewCacheReady ?? true
   const canvasSurfaceTransform = studioCanvasTransformStyle(scope.canvas)
   const rootProviderVariantAxes = studioManifestProviderVariantAxes(props.manifest, props.workspace.rootProviderVariants)
+  const renderedColumns = [
+    ...props.workspace.columns.map((column, columnIndex) => ({
+      column,
+      columnIndex,
+      id: layoutNeutralDrilldownColumnEnterIdentity(props.workspace, columnIndex, column),
+      isExiting: false,
+      layout: scope.columnLayoutByIndex[columnIndex],
+      measurement: scope.columnMeasurementsByIndex[columnIndex],
+      selectedCardPathKey: scope.selectedCardPathKey,
+      visibleCards: scope.visibleCardsByColumnIndex[columnIndex] ?? [],
+      workspace: props.workspace,
+    })),
+    ...scope.retainedColumns.map((column) => ({
+      ...column,
+      isExiting: true,
+    })),
+  ]
 
   return (
     <StudioPreviewRenderSessionStoreProvider store={scope.previewRenderSessionStore}>
@@ -806,45 +979,61 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                   transformOrigin: "0px 0px",
                 }}
               >
-                {props.workspace.columns.map((column, columnIndex) => {
-                  const drilldownColumnEnterIdentity = layoutNeutralDrilldownColumnEnterIdentity(
-                    props.workspace,
-                    columnIndex,
-                    column,
-                  )
-                  const columnElement = (
+                {renderedColumns.map((renderedColumn) => {
+                  const column = renderedColumn.column
+                  const columnIndex = renderedColumn.columnIndex
+                  return (
                     <section
                       data-runelight-column-index={columnIndex}
-                      data-runelight-column-layout-x={scope.columnLayoutByIndex[columnIndex]?.x ?? 0}
-                      data-runelight-column-layout-y={scope.columnLayoutByIndex[columnIndex]?.y ?? 0}
+                      data-runelight-column-layout-x={renderedColumn.layout?.x ?? 0}
+                      data-runelight-column-layout-y={renderedColumn.layout?.y ?? 0}
                       data-runelight-column-parent-coordinate={column.parentCoordinate}
-                      data-runelight-drilldown-column-enter={columnIndex > 0 ? "true" : undefined}
-                      data-runelight-drilldown-column-enter-identity={columnIndex > 0 ? drilldownColumnEnterIdentity : undefined}
-                      key={drilldownColumnEnterIdentity}
-                      ref={(element) => scope.setColumnElement(columnIndex, element)}
+                      data-runelight-drilldown-column-enter={columnIndex > 0 && !renderedColumn.isExiting ? "true" : undefined}
+                      data-runelight-drilldown-column-enter-identity={columnIndex > 0 && !renderedColumn.isExiting ? renderedColumn.id : undefined}
+                      data-runelight-drilldown-column-exit={renderedColumn.isExiting ? "true" : undefined}
+                      data-runelight-drilldown-column-exit-identity={renderedColumn.isExiting ? renderedColumn.id : undefined}
+                      key={renderedColumn.id}
+                      onAnimationEnd={
+                        renderedColumn.isExiting
+                          ? (event) => {
+                              if (event.currentTarget !== event.target) return
+                              scope.dismissRetainedColumn(renderedColumn.id)
+                            }
+                          : undefined
+                      }
+                      ref={renderedColumn.isExiting ? undefined : (element) => scope.setColumnElement(columnIndex, element)}
                       style={{
                         display: "block",
-                        height: scope.columnMeasurementsByIndex[columnIndex]?.height ?? 0,
-                        left: scope.columnLayoutByIndex[columnIndex]?.x ?? 0,
+                        height: renderedColumn.measurement?.height ?? 0,
+                        left: renderedColumn.layout?.x ?? 0,
+                        pointerEvents: renderedColumn.isExiting ? "none" : undefined,
                         position: "absolute",
-                        top: scope.columnLayoutByIndex[columnIndex]?.y ?? 0,
+                        top: renderedColumn.layout?.y ?? 0,
                         width: "max-content",
-                        ...(columnIndex > 0 ? studioLayoutNeutralDrilldownColumnEnterStyle() : {}),
+                        ...(renderedColumn.isExiting
+                          ? studioLayoutNeutralDrilldownColumnExitStyle()
+                          : columnIndex > 0
+                            ? studioLayoutNeutralDrilldownColumnEnterStyle()
+                            : {}),
                       }}
                     >
-                      {(scope.visibleCardsByColumnIndex[columnIndex] ?? []).map((card) => {
+                      {renderedColumn.visibleCards.map((card) => {
                         const component = card.component
                         const cardRect =
-                          card.rect ?? scope.columnMeasurementsByIndex[columnIndex]?.cardRectsByCoordinate[component.coordinate]
+                          card.rect ?? renderedColumn.measurement?.cardRectsByCoordinate[component.coordinate]
                         const providerVariantPath = studioComponentPathForColumn(
-                          props.workspace,
+                          renderedColumn.workspace,
                           columnIndex,
                           component.coordinate,
                         )
                         return (
                           <div
                             key={component.coordinate}
-                            ref={(element) => scope.setCardElement(columnIndex, component.coordinate, element)}
+                            ref={
+                              renderedColumn.isExiting
+                                ? undefined
+                                : (element) => scope.setCardElement(columnIndex, component.coordinate, element)
+                            }
                             style={{
                               display: "grid",
                               left: cardRect?.left ?? 0,
@@ -867,28 +1056,15 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                               onSelect={scope.onSelectCard}
                               previewGeometryStore={props.previewGeometryStore}
                               providerVariantComponent={findManifestComponent(props.manifest, component.coordinate) ?? component}
-                              providerVariantContext={studioProviderVariantContextForPath(props.workspace, providerVariantPath)}
-                              selected={scope.selectedCardPathKey === card.pathKey}
-                              selectedFrameName={selectedStudioFrameName(props.workspace, component)}
+                              providerVariantContext={studioProviderVariantContextForPath(renderedColumn.workspace, providerVariantPath)}
+                              selected={renderedColumn.selectedCardPathKey === card.pathKey}
+                              selectedFrameName={selectedStudioFrameName(renderedColumn.workspace, component)}
                               viewportPreset={scope.canvasViewportPreset}
                             />
                           </div>
                         )
                       })}
                     </section>
-                  )
-                  if (columnIndex === 0) return columnElement
-
-                  return (
-                    <React.ViewTransition
-                      default="none"
-                      enter="none"
-                      exit="runelight-studio-drilldown-column-exit"
-                      key={drilldownColumnEnterIdentity}
-                      update="none"
-                    >
-                      {columnElement}
-                    </React.ViewTransition>
                   )
                 })}
               </div>
@@ -1157,6 +1333,7 @@ Studio.frames = {
       framePreviewScale: 1,
       columnLayoutByIndex: {},
       columnMeasurementsByIndex: {},
+      dismissRetainedColumn() {},
       onCanvasPointerCancel() {},
       onCanvasPointerDown() {},
       onCanvasPointerMove() {},
@@ -1166,6 +1343,7 @@ Studio.frames = {
       onSelectCard() {},
       onViewportPresetChange() {},
       previewRenderSessionStore: createStudioPreviewRenderSessionStore(),
+      retainedColumns: [],
       selected: { id: "file:src/MultiExport.g.tsx", components: [] },
       setCanvasSurfaceElement() {},
       setCanvasViewportElement() {},
@@ -1257,6 +1435,7 @@ Studio.frames = {
       framePreviewScale: 1,
       columnLayoutByIndex: {},
       columnMeasurementsByIndex: {},
+      dismissRetainedColumn() {},
       onCanvasPointerCancel() {},
       onCanvasPointerDown() {},
       onCanvasPointerMove() {},
@@ -1285,6 +1464,7 @@ Studio.frames = {
           visibleSessionCount: 1,
         },
       },
+      retainedColumns: [],
       selected: { id: "file:src/UserCard.g.tsx", components: [] },
       setCanvasSurfaceElement() {},
       setCanvasViewportElement() {},

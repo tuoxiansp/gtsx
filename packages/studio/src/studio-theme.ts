@@ -78,7 +78,11 @@ export const studioViewportHighlightEasing = "cubic-bezier(0.34, 1.26, 0.64, 1)"
 
 export const studioLayoutNeutralDrilldownColumnEnterMotionMs = 180
 
+export const studioLayoutNeutralDrilldownColumnExitMotionMs = 180
+
 export const studioLayoutNeutralDrilldownColumnEnterEasing = "cubic-bezier(0.22, 1, 0.36, 1)"
+
+export const studioLayoutNeutralDrilldownColumnExitEasing = "cubic-bezier(0.16, 1, 0.3, 1)"
 
 export const studioLayoutNeutralDrilldownColumnEnterCss = `@keyframes runelight-studio-layout-neutral-drilldown-column-enter {
   from {
@@ -96,7 +100,7 @@ export const studioLayoutNeutralDrilldownColumnEnterCss = `@keyframes runelight-
   }
   to {
     opacity: 0;
-    translate: -12px 0;
+    translate: -14px 0;
   }
 }
 
@@ -115,24 +119,10 @@ export const studioLayoutNeutralDrilldownColumnEnterCss = `@keyframes runelight-
   animation: runelight-studio-layout-neutral-drilldown-chrome-enter ${studioLayoutNeutralDrilldownColumnEnterMotionMs}ms ${studioLayoutNeutralDrilldownColumnEnterEasing} both;
 }
 
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;
-}
-
-::view-transition-old(.runelight-studio-drilldown-column-exit) {
-  animation: runelight-studio-layout-neutral-drilldown-column-exit ${studioLayoutNeutralDrilldownColumnEnterMotionMs}ms ${studioLayoutNeutralDrilldownColumnEnterEasing} both;
-}
-
-::view-transition-new(.runelight-studio-drilldown-column-exit) {
-  animation: none;
-}
-
 @media (prefers-reduced-motion: reduce) {
   [data-runelight-drilldown-column-enter="true"],
   [data-runelight-drilldown-column-enter="true"] [data-runelight-canvas-screen-stable-chrome] > *,
-  ::view-transition-old(.runelight-studio-drilldown-column-exit),
-  ::view-transition-new(.runelight-studio-drilldown-column-exit) {
+  [data-runelight-drilldown-column-exit="true"] {
     animation: none !important;
     opacity: 1 !important;
     translate: 0 0 !important;
@@ -142,6 +132,12 @@ export const studioLayoutNeutralDrilldownColumnEnterCss = `@keyframes runelight-
 export function studioLayoutNeutralDrilldownColumnEnterStyle(): CSSProperties {
   return {
     animation: `runelight-studio-layout-neutral-drilldown-column-enter ${studioLayoutNeutralDrilldownColumnEnterMotionMs}ms ${studioLayoutNeutralDrilldownColumnEnterEasing} both`,
+  }
+}
+
+export function studioLayoutNeutralDrilldownColumnExitStyle(): CSSProperties {
+  return {
+    animation: `runelight-studio-layout-neutral-drilldown-column-exit ${studioLayoutNeutralDrilldownColumnExitMotionMs}ms ${studioLayoutNeutralDrilldownColumnExitEasing} both`,
   }
 }
 

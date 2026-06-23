@@ -290,11 +290,11 @@ importers:
         specifier: ^5.1.2
         version: 5.2.0(vite@8.0.14(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.3))
       react:
-        specifier: 19.3.0-canary-99e86060-20260623
-        version: 19.3.0-canary-99e86060-20260623
+        specifier: ^19.2.6
+        version: 19.2.6
       react-dom:
-        specifier: 19.3.0-canary-99e86060-20260623
-        version: 19.3.0-canary-99e86060-20260623(react@19.3.0-canary-99e86060-20260623)
+        specifier: ^19.2.6
+        version: 19.2.6(react@19.2.6)
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -1254,11 +1254,6 @@ packages:
     peerDependencies:
       react: ^19.2.6
 
-  react-dom@19.3.0-canary-99e86060-20260623:
-    resolution: {integrity: sha512-ox2ngIK4fRcekee2XZVml8rZL9vS8CKrAo2GNBx0Kyo+PyAvnHVC6WXoCnC6obEurhKDvq/LyYgj37ZYRkZe3g==}
-    peerDependencies:
-      react: 19.3.0-canary-99e86060-20260623
-
   react-is@19.2.6:
     resolution: {integrity: sha512-XjBR15BhXuylgWGuslhDKqlSayuqvqBX91BP8pauG8kd1zY8kotkNWbXksTCNRarse4kuGbe2kIY05ARtwNIvw==}
 
@@ -1281,10 +1276,6 @@ packages:
     resolution: {integrity: sha512-sfWGGfavi0xr8Pg0sVsyHMAOziVYKgPLNrS7ig+ivMNb3wbCBw3KxtflsGBAwD3gYQlE/AEZsTLgToRrSCjb0Q==}
     engines: {node: '>=0.10.0'}
 
-  react@19.3.0-canary-99e86060-20260623:
-    resolution: {integrity: sha512-cYp73nENggAeMC9iuZd60niGZ/0MtmxkiQ1BC5wjxgAtQqhEWgozuzP3S6YasnBm7dv8KNdOcfVgQv2I1seS5A==}
-    engines: {node: '>=0.10.0'}
-
   rolldown@1.0.2:
     resolution: {integrity: sha512-oZx5zVDtVB44AW3eaifgDml1gWRDZGvjcfdxonE4swNPG98PrrXjaO/KrnUjzlMnztCCRVlUueA1kCXhARGk6g==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -1292,9 +1283,6 @@ packages:
 
   scheduler@0.27.0:
     resolution: {integrity: sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q==}
-
-  scheduler@0.28.0-canary-99e86060-20260623:
-    resolution: {integrity: sha512-tFMalvb4VKgSY70GSVteZ+0sI8mQ78hhRiReV0taYxicP73XH1D2jxHJ/eWL4ze+I4Nl/dxuKdcf2jjQf2x28w==}
 
   semver@6.3.1:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
@@ -2276,11 +2264,6 @@ snapshots:
       react: 19.2.6
       scheduler: 0.27.0
 
-  react-dom@19.3.0-canary-99e86060-20260623(react@19.3.0-canary-99e86060-20260623):
-    dependencies:
-      react: 19.3.0-canary-99e86060-20260623
-      scheduler: 0.28.0-canary-99e86060-20260623
-
   react-is@19.2.6: {}
 
   react-refresh@0.18.0: {}
@@ -2299,8 +2282,6 @@ snapshots:
       use-context-selector: 2.0.0(react@19.2.6)(scheduler@0.27.0)
 
   react@19.2.6: {}
-
-  react@19.3.0-canary-99e86060-20260623: {}
 
   rolldown@1.0.2:
     dependencies:
@@ -2324,8 +2305,6 @@ snapshots:
       '@rolldown/binding-win32-x64-msvc': 1.0.2
 
   scheduler@0.27.0: {}
-
-  scheduler@0.28.0-canary-99e86060-20260623: {}
 
   semver@6.3.1: {}
 

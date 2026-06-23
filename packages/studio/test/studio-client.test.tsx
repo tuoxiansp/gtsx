@@ -5786,7 +5786,7 @@ describe("Runelight Studio shell", () => {
     expect(html).toContain("runelight-studio-layout-neutral-drilldown-column-enter")
     expect(html).toContain("runelight-studio-layout-neutral-drilldown-column-exit")
     expect(html).toContain("runelight-studio-layout-neutral-drilldown-chrome-enter")
-    expect(html).toContain("runelight-studio-drilldown-column-exit")
+    expect(html).toContain("data-runelight-drilldown-column-exit")
     expect(columnHtml(html, 1)).toContain('data-runelight-drilldown-column-enter="true"')
     expect(columnHtml(html, 1)).toContain("animation:runelight-studio-layout-neutral-drilldown-column-enter")
     expect(columnHtml(html, 1)).not.toContain("transform:")
