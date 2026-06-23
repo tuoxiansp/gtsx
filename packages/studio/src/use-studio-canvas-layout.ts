@@ -50,7 +50,7 @@ export type StudioCanvasLayout = {
 }
 
 const useStudioLayoutEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
-const studioColumnGap = 40
+const studioColumnGap = 60
 
 export function useStudioCanvasLayout(input: {
   canvasRef: MutableRef<StudioCanvasTransform>

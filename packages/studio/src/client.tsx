@@ -295,6 +295,10 @@ export function selectStudioComponent(
   const selectedColumnIndex = studioSelectedColumnIndexForCoordinate(state, coordinate, options.columnIndex)
   if (selectedColumnIndex < 0) return state
 
+  if (shouldCollapseStudioSelectedDrilldown(state, coordinate, selectedColumnIndex)) {
+    return collapseStudioSelectedDrilldown(state, selectedColumnIndex)
+  }
+
   const nextColumns = state.columns.slice(0, selectedColumnIndex + 1)
   const selectedPath = [...state.selectedCoordinatePath.slice(0, selectedColumnIndex), coordinate]
   const childComponents = directChildComponentsForCoordinate(manifest, normalizeStudioBoundaryTrees(tree), coordinate)
@@ -312,6 +316,45 @@ export function selectStudioComponent(
       state.selectedProviderVariantsByPath,
       nextColumns.flatMap((column, columnIndex) =>
         column.components.map((component) => studioProviderVariantPathKey(pathForWorkspaceColumn(nextColumns, selectedPath, columnIndex, component.coordinate))),
+      ),
+    ),
+    selectedRuntimeInstanceByCoordinate: state.selectedRuntimeInstanceByCoordinate,
+    selectedViewportPresetByCoordinate: state.selectedViewportPresetByCoordinate,
+  }
+}
+
+function shouldCollapseStudioSelectedDrilldown(
+  state: StudioWorkspaceState,
+  coordinate: string,
+  selectedColumnIndex: number,
+): boolean {
+  const hasSelectedDrilldownColumn = state.columns[selectedColumnIndex + 1]?.parentCoordinate === coordinate
+  const isHighlightedFramePath = Boolean(state.selectedFrameByCoordinate[coordinate])
+  return (
+    state.selectedCoordinatePath[selectedColumnIndex] === coordinate &&
+    (hasSelectedDrilldownColumn || !isHighlightedFramePath)
+  )
+}
+
+function collapseStudioSelectedDrilldown(
+  state: StudioWorkspaceState,
+  selectedColumnIndex: number,
+): StudioWorkspaceState {
+  const nextColumns = state.columns.slice(0, selectedColumnIndex + 1)
+  const selectedPath = state.selectedCoordinatePath.slice(0, selectedColumnIndex)
+
+  return {
+    canvasViewportPreset: canvasViewportPresetForWorkspace(state),
+    columns: nextColumns,
+    rootProviderVariants: state.rootProviderVariants,
+    selectedFrameByCoordinate: keepStudioSelectedFrames(state.selectedFrameByCoordinate, selectedPath),
+    selectedCoordinatePath: selectedPath,
+    selectedProviderVariantsByPath: omitStudioSelectedProviderVariantsByPath(
+      state.selectedProviderVariantsByPath,
+      nextColumns.flatMap((column, columnIndex) =>
+        column.components.map((component) =>
+          studioProviderVariantPathKey(pathForWorkspaceColumn(nextColumns, selectedPath, columnIndex, component.coordinate)),
+        ),
       ),
     ),
     selectedRuntimeInstanceByCoordinate: state.selectedRuntimeInstanceByCoordinate,
@@ -989,6 +1032,14 @@ function omitStudioSelectedFrames(
   return next
 }
 
+function keepStudioSelectedFrames(
+  selectedFrameByCoordinate: Record<string, string>,
+  coordinates: string[],
+): Record<string, string> {
+  const kept = new Set(coordinates)
+  return Object.fromEntries(Object.entries(selectedFrameByCoordinate).filter(([coordinate]) => kept.has(coordinate)))
+}
+
 function omitStudioSelectedProviderVariantsByPath(
   selectedProviderVariantsByPath: Record<string, StudioProviderVariantContext>,
   keptPathKeys: string[],
@@ -1404,8 +1455,17 @@ export function applyStudioCardSelectionAction(
 ): string | undefined {
   if (action.type === "clear") return undefined
   if (action.source === "keyboard") return undefined
-  if (action.coordinate === current) return current
+  if (action.coordinate === current) return undefined
   return action.coordinate
+}
+
+export function applyStudioCardPathSelectionAction(
+  currentPathKey: string | undefined,
+  pathKey: string,
+  source: StudioCardSelectionSource,
+): string | undefined {
+  if (source === "keyboard") return undefined
+  return pathKey === currentPathKey ? undefined : pathKey
 }
 
 function wheelDeltaModeMultiplier(deltaMode: number): number {

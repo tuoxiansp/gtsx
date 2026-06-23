@@ -70,9 +70,14 @@
     "@runelight/react": "workspace:*"
   },
   "peerDependencies": {
-    "next": ">=13",
-    "react": ">=18",
     "@runelight/core": "workspace:*",
-    "@runelight/studio": "workspace:*"
+    "@runelight/studio": "workspace:*",
+    "next": ">=13",
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "next": "16.2.4",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
   }
 }

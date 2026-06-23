@@ -3008,6 +3008,14 @@ describe("Runelight Studio shell", () => {
       }),
     ).toBe("src/MultiExport.g.tsx#NamedBadge")
 
+    expect(
+      applyStudioCardSelectionAction("src/UserCard.g.tsx#default", {
+        type: "activate-card",
+        coordinate: "src/UserCard.g.tsx#default",
+        source: "pointer",
+      }),
+    ).toBeUndefined()
+
     expect(applyStudioCardSelectionAction("src/MultiExport.g.tsx#NamedBadge", { type: "clear" })).toBeUndefined()
   })
 
@@ -5576,6 +5584,59 @@ describe("Runelight Studio shell", () => {
     expect(nextState.selectedCoordinatePath).toEqual(["src/UserCard.g.tsx#default"])
   })
 
+  it("toggles a selected root drilldown component closed", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
+    const coordinate = "src/UserCard.g.tsx#default"
+    const tree = [
+      {
+        id: "root",
+        coordinate,
+        children: [{ id: "child", coordinate: "src/MultiExport.g.tsx#NamedBadge", children: [] }],
+      },
+    ]
+    const state = selectStudioComponent(createStudioWorkspaceState(manifest, `component:${coordinate}`), manifest, coordinate, tree)
+
+    const nextState = selectStudioComponent(state, manifest, coordinate, tree)
+
+    expect(nextState.columns.map((column) => column.components.map((component) => component.coordinate))).toEqual([
+      [coordinate],
+    ])
+    expect(nextState.selectedCoordinatePath).toEqual([])
+  })
+
+  it("toggles a selected nested drilldown component back to its parent path", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
+    const parentCoordinate = "src/UserCard.g.tsx#default"
+    const childCoordinate = "src/MultiExport.g.tsx#default"
+    const leafCoordinate = "src/MultiExport.g.tsx#NamedBadge"
+    const parentState = selectStudioComponent(createStudioWorkspaceState(manifest, `component:${parentCoordinate}`), manifest, parentCoordinate, [
+      {
+        id: "parent",
+        coordinate: parentCoordinate,
+        children: [{ id: "child", coordinate: childCoordinate, children: [] }],
+      },
+    ])
+    const childState = selectStudioComponent(parentState, manifest, childCoordinate, [
+      {
+        id: "child",
+        coordinate: childCoordinate,
+        children: [{ id: "leaf", coordinate: leafCoordinate, children: [] }],
+      },
+    ], { columnIndex: 1 })
+
+    const framedState = changeStudioComponentFrame(childState, parentCoordinate, "ready", { keepDrilldown: true })
+    const nextState = selectStudioComponent(framedState, manifest, childCoordinate, [], { columnIndex: 1 })
+
+    expect(nextState.columns.map((column) => column.components.map((component) => component.coordinate))).toEqual([
+      [parentCoordinate],
+      [childCoordinate],
+    ])
+    expect(nextState.selectedFrameByCoordinate).toEqual({
+      [parentCoordinate]: "ready",
+    })
+    expect(nextState.selectedCoordinatePath).toEqual([parentCoordinate])
+  })
+
   it("creates a child column from static dependencies even when they are absent from the current render tree", () => {
     const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
     const coordinate = "src/ImportedHookDependency.g.tsx#default"
@@ -5723,7 +5784,9 @@ describe("Runelight Studio shell", () => {
     expect(cardCoordinates(html)).toEqual(["src/UserCard.g.tsx#default", "src/MultiExport.g.tsx#NamedBadge"])
     expect(html).toContain('data-runelight-column-parent-coordinate="src/UserCard.g.tsx#default"')
     expect(html).toContain("runelight-studio-layout-neutral-drilldown-column-enter")
+    expect(html).toContain("runelight-studio-layout-neutral-drilldown-column-exit")
     expect(html).toContain("runelight-studio-layout-neutral-drilldown-chrome-enter")
+    expect(html).toContain("runelight-studio-drilldown-column-exit")
     expect(columnHtml(html, 1)).toContain('data-runelight-drilldown-column-enter="true"')
     expect(columnHtml(html, 1)).toContain("animation:runelight-studio-layout-neutral-drilldown-column-enter")
     expect(columnHtml(html, 1)).not.toContain("transform:")

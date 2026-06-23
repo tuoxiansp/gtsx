@@ -5,7 +5,7 @@ import { createGScopeHook, type GFrames } from "@runelight/react/runtime"
 
 import type { StudioManifest, StudioManifestComponent } from "../manifest"
 import {
-  applyStudioCardSelectionAction,
+  applyStudioCardPathSelectionAction,
   canvasViewportPresetForWorkspace,
   revealStudioCanvasRect,
   resolveStudioSelection,
@@ -459,14 +459,9 @@ function useRealStudioWorkspaceViewScope(props: StudioWorkspaceViewProps): Studi
       source: "keyboard" | "pointer",
     ) => {
       const nextSelectedCardPathKey = studioPathKey(studioComponentPathForColumn(workspaceRef.current, columnIndex, component.coordinate))
-      setSelectedCardPathKey((current) => {
-        const nextCoordinate = applyStudioCardSelectionAction(current === nextSelectedCardPathKey ? component.coordinate : undefined, {
-          type: "activate-card",
-          coordinate: component.coordinate,
-          source,
-        })
-        return nextCoordinate ? nextSelectedCardPathKey : undefined
-      })
+      setSelectedCardPathKey((current) =>
+        applyStudioCardPathSelectionAction(current, nextSelectedCardPathKey, source),
+      )
       onSelectComponentRef.current?.(component, frameStatesByName, { columnIndex })
       scheduleRevealCardOnCanvas(columnIndex, component.coordinate, {
         preserveVerticalCanvasPosition: source === "pointer",
@@ -817,7 +812,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                     columnIndex,
                     column,
                   )
-                  return (
+                  const columnElement = (
                     <section
                       data-runelight-column-index={columnIndex}
                       data-runelight-column-layout-x={scope.columnLayoutByIndex[columnIndex]?.x ?? 0}
@@ -881,6 +876,19 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                         )
                       })}
                     </section>
+                  )
+                  if (columnIndex === 0) return columnElement
+
+                  return (
+                    <React.ViewTransition
+                      default="none"
+                      enter="none"
+                      exit="runelight-studio-drilldown-column-exit"
+                      key={drilldownColumnEnterIdentity}
+                      update="none"
+                    >
+                      {columnElement}
+                    </React.ViewTransition>
                   )
                 })}
               </div>

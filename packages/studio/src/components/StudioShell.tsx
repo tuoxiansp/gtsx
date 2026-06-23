@@ -313,13 +313,15 @@ function useStudioShellScope(props: StudioShellLoadedProps, view: StudioShellVie
   }, [canvasUrlScope, canvasUrlState.flushPendingCanvasUrlCommit, canvasUrlState.restoreCanvasFromUrl, props.manifest])
 
   const commitWorkspace = React.useCallback((updater: (current: StudioWorkspaceState) => StudioWorkspaceState) => {
-    setWorkspace((current) => {
-      const next = updater(current)
-      pushStudioWorkspaceUrlState(selectionRef.current, next, {
-        canvas: canvasUrlState.liveCanvasRef.current,
-        canvasScope: canvasUrlScope,
+    React.startTransition(() => {
+      setWorkspace((current) => {
+        const next = updater(current)
+        pushStudioWorkspaceUrlState(selectionRef.current, next, {
+          canvas: canvasUrlState.liveCanvasRef.current,
+          canvasScope: canvasUrlScope,
+        })
+        return next
       })
-      return next
     })
   }, [canvasUrlScope, canvasUrlState.liveCanvasRef])
 

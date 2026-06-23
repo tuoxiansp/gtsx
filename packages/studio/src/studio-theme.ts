@@ -89,6 +89,17 @@ export const studioLayoutNeutralDrilldownColumnEnterCss = `@keyframes runelight-
   }
 }
 
+@keyframes runelight-studio-layout-neutral-drilldown-column-exit {
+  from {
+    opacity: 1;
+    translate: 0 0;
+  }
+  to {
+    opacity: 0;
+    translate: -12px 0;
+  }
+}
+
 @keyframes runelight-studio-layout-neutral-drilldown-chrome-enter {
   from {
     opacity: 0;
@@ -104,9 +115,24 @@ export const studioLayoutNeutralDrilldownColumnEnterCss = `@keyframes runelight-
   animation: runelight-studio-layout-neutral-drilldown-chrome-enter ${studioLayoutNeutralDrilldownColumnEnterMotionMs}ms ${studioLayoutNeutralDrilldownColumnEnterEasing} both;
 }
 
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+::view-transition-old(.runelight-studio-drilldown-column-exit) {
+  animation: runelight-studio-layout-neutral-drilldown-column-exit ${studioLayoutNeutralDrilldownColumnEnterMotionMs}ms ${studioLayoutNeutralDrilldownColumnEnterEasing} both;
+}
+
+::view-transition-new(.runelight-studio-drilldown-column-exit) {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-runelight-drilldown-column-enter="true"],
-  [data-runelight-drilldown-column-enter="true"] [data-runelight-canvas-screen-stable-chrome] > * {
+  [data-runelight-drilldown-column-enter="true"] [data-runelight-canvas-screen-stable-chrome] > *,
+  ::view-transition-old(.runelight-studio-drilldown-column-exit),
+  ::view-transition-new(.runelight-studio-drilldown-column-exit) {
     animation: none !important;
     opacity: 1 !important;
     translate: 0 0 !important;

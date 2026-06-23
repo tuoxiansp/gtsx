@@ -4,7 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "noEmit": true,
-    "types": ["node", "vite/client"],
+    "types": ["node", "vite/client", "react/canary"],
     "paths": {
       "@runelight/adapter-vite-react": ["../adapter-vite-react/src/index.ts"],
       "@runelight/adapter-vite-react/preview": ["../adapter-vite-react/src/preview.ts"],
