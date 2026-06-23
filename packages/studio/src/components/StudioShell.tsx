@@ -62,6 +62,7 @@ export type StudioShellLoadedProps = {
   manifest: StudioManifest
   previewRenderQueue?: StudioPreviewRenderQueueOptions
   selection?: string
+  urlHash?: string
   urlSearch?: string
 }
 
@@ -70,6 +71,7 @@ export type StudioShellDeferredProps = {
   manifestUrl?: string
   previewRenderQueue?: StudioPreviewRenderQueueOptions
   selection?: string
+  urlHash?: string
   urlSearch?: string
 }
 
@@ -715,6 +717,7 @@ function StudioShellManifestLoader(props: StudioShellDeferredProps) {
         changesLoading={changesLoading}
         previewRenderQueue={props.previewRenderQueue}
         selection={props.selection}
+        urlHash={props.urlHash}
         urlSearch={props.urlSearch}
       />
     )
@@ -816,7 +819,7 @@ function StudioShellLoadingFrame(props: {
 }
 
 function StudioShellLoaded(props: StudioShellLoadedProps) {
-  const [view, setView] = useStudioShellView(props.urlSearch, props.changes, { changesLoading: props.changesLoading })
+  const [view, setView] = useStudioShellView(props.urlHash, props.changes, { changesLoading: props.changesLoading })
   const scope = useStudioShellScope(props, view)
   const canvasViewportPreset = canvasViewportPresetForWorkspace(scope.workspace)
 
@@ -904,18 +907,18 @@ function StudioShellLoaded(props: StudioShellLoadedProps) {
 }
 
 function useStudioShellView(
-  urlSearch: string | undefined,
+  urlHash: string | undefined,
   changes: StudioWorkspaceChanges | undefined,
   options: { changesLoading?: boolean } = {},
 ): [StudioShellView, (view: StudioShellView) => void] {
   const [view, setView] = React.useState<StudioShellView>(() =>
-    studioShellViewFromSearch(urlSearch, changes, options))
+    studioShellViewFromHashOrDefault(urlHash, changes, options))
 
   useStudioLayoutEffect(() => {
     if (typeof window === "undefined") return undefined
 
     const handleLocationChange = () => {
-      setView(studioShellViewFromLocation(undefined, undefined, changes, options))
+      setView(studioShellViewFromLocation(changes, options))
     }
 
     handleLocationChange()
@@ -947,32 +950,22 @@ function useStudioShellView(
 }
 
 function studioShellViewFromLocation(
-  search: string | undefined = undefined,
-  hash: string | undefined = undefined,
   changes: StudioWorkspaceChanges | undefined = undefined,
   options: { changesLoading?: boolean } = {},
 ): StudioShellView {
-  if (search === undefined && hash === undefined && typeof window === "undefined") return "components"
-
-  const sourceHash = hash ?? (typeof window === "undefined" ? "" : window.location.hash)
-  const hashView = studioShellViewFromHash(sourceHash)
-  if (hashView) return hashView
-
-  const source = search ?? (typeof window === "undefined" ? "" : window.location.search)
-  const params = new URLSearchParams(source.startsWith("?") ? source.slice(1) : source)
-  return studioShellViewFromRouteValue(params.get("view")) ?? defaultStudioShellView(changes, options)
+  return studioShellViewFromHashOrDefault(
+    typeof window === "undefined" ? undefined : window.location.hash,
+    changes,
+    options,
+  )
 }
 
-function studioShellViewFromSearch(
-  search: string | undefined,
+function studioShellViewFromHashOrDefault(
+  hash: string | undefined,
   changes: StudioWorkspaceChanges | undefined,
   options: { changesLoading?: boolean } = {},
 ): StudioShellView {
-  if (search === undefined) return defaultStudioShellView(changes, options)
-
-  const source = search.startsWith("?") ? search.slice(1) : search
-  const params = new URLSearchParams(source)
-  return studioShellViewFromRouteValue(params.get("view")) ?? defaultStudioShellView(changes, options)
+  return studioShellViewFromHash(hash ?? "") ?? defaultStudioShellView(changes, options)
 }
 
 function studioShellViewFromHash(hash: string): StudioShellView | undefined {

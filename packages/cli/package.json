@@ -1,6 +1,6 @@
 {
   "name": "@runelight/cli",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "Runelight command line interface for starting Studio, capture, and project checks.",
   "license": "MIT",
   "type": "module",

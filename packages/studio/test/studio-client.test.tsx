@@ -627,7 +627,7 @@ describe("Runelight Studio shell", () => {
 
   it("opens a lightweight changes workspace for an explicit changes route while deferred changes are loading", () => {
     const manifest = buildLargeStudioManifest(4)
-    const html = renderToStaticMarkup(<StudioShell changesLoading manifest={manifest} urlSearch="?view=changes" />)
+    const html = renderToStaticMarkup(<StudioShell changesLoading manifest={manifest} urlHash="#/changes" />)
 
     expect(html).toContain('data-runelight-studio-changes-workspace="true"')
     expect(html).toContain('data-runelight-studio-changes-loading="true"')
@@ -1788,7 +1788,11 @@ describe("Runelight Studio shell", () => {
     })
 
     const html = renderToStaticMarkup(
-      <StudioShell manifest={manifest} urlSearch="view=drafts&rootProviderVariant=ThemeProvider:dark&debug=pool" />,
+      <StudioShell
+        manifest={manifest}
+        urlHash="#/drafts"
+        urlSearch="rootProviderVariant=ThemeProvider:dark&debug=pool"
+      />,
     )
 
     expect(html).toContain('data-runelight-studio-design-workspace="true"')
@@ -1803,6 +1807,30 @@ describe("Runelight Studio shell", () => {
     expect(html).not.toContain("data-runelight-root-env-controls")
     expect(html).not.toContain('data-runelight-frame-provider-variant-state="mismatch"')
     expect(html).not.toContain("data-runelight-studio-design-frame-preview")
+  })
+
+  it("ignores legacy view query params when choosing the initial Studio route", () => {
+    const manifest = buildStudioManifest({
+      cwd: fixtureRoot,
+      sourceRoot: "src",
+      design: {
+        frames: [
+          {
+            id: "src/UserCard.g.tsx#default:ready",
+            entry: "src/UserCard.g.tsx#default",
+            filePath: "src/UserCard.g.tsx",
+            title: "UserCard",
+            exportName: "default",
+            frameName: "ready",
+          },
+        ],
+      },
+    })
+
+    const html = renderToStaticMarkup(<StudioShell manifest={manifest} urlSearch="view=drafts" />)
+
+    expect(html).not.toContain('data-runelight-studio-design-workspace="true"')
+    expect(html).toContain('data-runelight-canvas-viewport="true"')
   })
 
   it("packs design cards to measured iframe width without the default component card minimum", () => {
@@ -6647,7 +6675,8 @@ describe("Runelight Studio shell", () => {
       <StudioShell
         changes={changes}
         manifest={manifest}
-        urlSearch="view=changes&canvasX=120&canvasY=-30&canvasScale=1.25&changesCanvasX=340&changesCanvasY=-80&changesCanvasScale=0.75"
+        urlHash="#/changes"
+        urlSearch="canvasX=120&canvasY=-30&canvasScale=1.25&changesCanvasX=340&changesCanvasY=-80&changesCanvasScale=0.75"
       />,
     )
 
@@ -6675,7 +6704,8 @@ describe("Runelight Studio shell", () => {
     const html = renderToStaticMarkup(
       <StudioShell
         manifest={manifest}
-        urlSearch="view=drafts&canvasX=120&canvasY=-30&canvasScale=1.25&designCanvasX=340&designCanvasY=-80&designCanvasScale=0.75"
+        urlHash="#/drafts"
+        urlSearch="canvasX=120&canvasY=-30&canvasScale=1.25&designCanvasX=340&designCanvasY=-80&designCanvasScale=0.75"
       />,
     )
 

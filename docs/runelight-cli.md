@@ -65,5 +65,5 @@ Renders a preview to a PNG screenshot:
 - Capture always requires an explicit entry or directory target; unlike `check`, it has no project-wide default.
 - Omit `--frame` to capture all frames as a contact sheet. Pass `--frame <name>` to capture one frame.
 - `--frame-override <entry#export:frame>` pins child component frames during capture; repeatable.
-- `--viewport` defaults to `1440x900`. For a single frame, `--out` defaults to `runelight-capture.png`. For contact sheets and directory capture, `--out` defaults to the `runelight-captures` directory.
+- `--viewport` defaults to `1440x900`. For a single frame, `--out` defaults to `runelight-capture.png`; a value ending in `.png` is used as the file path, while any other value is treated as a directory and receives `<entry>.<frame>.png`. For contact sheets and directory capture, `--out` defaults to the `runelight-captures` directory.
 - With a foreground `runelight serve` already running for the same project, capture attaches to that session and leaves it running. Otherwise it starts a temporary Host from `host.command`, captures, and always stops the temporary Host afterwards.
