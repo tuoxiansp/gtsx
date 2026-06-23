@@ -110,8 +110,8 @@ async function startNewRunelightServeSession(
       projectKey,
       readyUrl: studioUrl,
       sessionId,
-      writeStderr: hostStdio === "pipe" ? params.writeStderr : undefined,
-      writeStdout: hostStdio === "pipe" ? params.writeStdout : undefined,
+      writeStderr: params.writeStderr,
+      writeStdout: params.writeStdout,
     })
 
     if (host.exitCode !== 0) {
@@ -387,6 +387,7 @@ async function startHostServer(
     stdio,
     env: {
       ...process.env,
+      ...hostForegroundColorEnv(params.hostStdio),
       [RUNELIGHT_DEV_ENV]: "1",
       ...(params.projectKey ? { [RUNELIGHT_PROJECT_KEY_ENV]: params.projectKey } : {}),
       ...(params.sessionId ? { [RUNELIGHT_SESSION_ID_ENV]: params.sessionId } : {}),
@@ -454,6 +455,7 @@ async function startHostServer(
       exitCode: exitCode && exitCode !== 0 ? exitCode : 1,
       stdout,
       stderr: hostServerNotReadyStderr({
+        includeHostOutput: params.hostStdio !== "inherit",
         ready,
         readyUrl: params.readyUrl,
         stderr,
@@ -689,14 +691,29 @@ function isProcessGroupAlive(pgid: number): boolean {
 }
 
 function hostServerNotReadyStderr(input: {
+  includeHostOutput?: boolean
   ready: "exit" | "timeout"
   readyUrl: string
   stderr: string
   stdout: string
 }): string {
-  const stderr = input.stderr.endsWith("\n") || input.stderr.length === 0 ? input.stderr : `${input.stderr}\n`
+  const stderr =
+    input.includeHostOutput === false
+      ? input.stderr.length > 0 && !input.stderr.endsWith("\n")
+        ? "\n"
+        : ""
+      : input.stderr.endsWith("\n") || input.stderr.length === 0
+        ? input.stderr
+        : `${input.stderr}\n`
   const hint = hostProcessHint(`${input.stdout}\n${input.stderr}`)
   return `${stderr}${hint}[adapter-configuration] preview-server-not-ready: Preview server did not make ${input.readyUrl} reachable before ${input.ready}.\n`
+}
+
+function hostForegroundColorEnv(hostStdio: HostStdioMode): NodeJS.ProcessEnv {
+  if (hostStdio !== "inherit") return {}
+  if (process.env.FORCE_COLOR !== undefined || process.env.NO_COLOR !== undefined) return {}
+  if (!process.stdout.isTTY && !process.stderr.isTTY) return {}
+  return { FORCE_COLOR: "1" }
 }
 
 function hostProcessHint(output: string): string {

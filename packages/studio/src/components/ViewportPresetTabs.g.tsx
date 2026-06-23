@@ -22,9 +22,9 @@ type ViewportPresetTabsProps = {
 const presets = ["phone", "tablet", "desktop"] satisfies ViewportPreset[]
 
 const presetLabels: Record<ViewportPreset, string> = {
-  phone: "375",
-  tablet: "768",
-  desktop: "full",
+  phone: "phone",
+  tablet: "laptop",
+  desktop: "desktop",
 }
 
 function ViewportPresetTabsView(props: ViewportPresetTabsProps) {
@@ -51,7 +51,10 @@ function ViewportPresetTabsView(props: ViewportPresetTabsProps) {
             }),
       }}
     >
-      <span aria-hidden="true" style={{ ...studioSegmentedControlLabelStyle(), position: "relative", zIndex: 1 }}>
+      <span
+        aria-hidden="true"
+        style={{ ...studioSegmentedControlLabelStyle(), fontWeight: 400, position: "relative", zIndex: 1 }}
+      >
         Viewport
       </span>
       <div
@@ -77,7 +80,7 @@ function ViewportPresetTabsView(props: ViewportPresetTabsProps) {
           const pressed = props.selectedPreset === preset
           return (
             <button
-              aria-label={`Viewport ${preset}`}
+              aria-label={`Viewport ${presetLabels[preset]}`}
               data-runelight-viewport-control={preset}
               key={preset}
               onClick={() => props.onChange?.(preset)}
@@ -85,9 +88,10 @@ function ViewportPresetTabsView(props: ViewportPresetTabsProps) {
                 ...(props.floating ? studioViewportTabButtonStyle(pressed) : studioSegmentedControlButtonStyle(pressed)),
                 cursor: props.onChange ? "pointer" : "default",
                 flex: props.floating ? 1 : undefined,
+                fontWeight: 600,
                 minWidth: props.floating ? 0 : undefined,
               }}
-              title={preset}
+              title={presetLabels[preset]}
               type="button"
             >
               {presetLabels[preset]}

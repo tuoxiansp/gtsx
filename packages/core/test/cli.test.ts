@@ -469,6 +469,74 @@ export default defineRunelightConfig({
     expect(combinedStderr).toContain("preview-server-not-ready")
   })
 
+  it("preserves foreground Host ANSI color output while capturing output for diagnostics", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-host-color-output-"))
+    const previousNoColor = process.env.NO_COLOR
+    const previousForceColor = process.env.FORCE_COLOR
+    const previousStdoutIsTTY = Object.getOwnPropertyDescriptor(process.stdout, "isTTY")
+    const previousStderrIsTTY = Object.getOwnPropertyDescriptor(process.stderr, "isTTY")
+
+    try {
+      delete process.env.NO_COLOR
+      delete process.env.FORCE_COLOR
+      Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: true })
+      Object.defineProperty(process.stderr, "isTTY", { configurable: true, value: true })
+
+      mkdirSync(join(cwd, "scripts"), { recursive: true })
+      writeFileSync(
+        join(cwd, "runelight.config.ts"),
+        `import { defineRunelightConfig } from "@runelight/core"
+
+export default defineRunelightConfig({
+  contracts: ["@runelight/react/contract"],
+  project: {
+    sourceRoot: "src",
+    entryRoot: "app/runelight",
+  },
+  host: {
+    command: "node scripts/color-output.mjs {port}",
+  },
+})
+`,
+      )
+      writeFileSync(
+        join(cwd, "scripts/color-output.mjs"),
+        `const message = process.env.FORCE_COLOR ? "\\x1b[31mcolored host output\\x1b[39m" : "plain host output"
+process.stderr.write(message + "\\n")
+process.exit(1)
+`,
+      )
+
+      const streamedStderr: string[] = []
+      const result = await runCLI(["serve", "--port", "4559"], {
+        cwd,
+        hostStdio: "inherit",
+        stdout: "",
+        stderr: "",
+        writeStderr: (chunk) => streamedStderr.push(chunk),
+      })
+      const combinedStderr = `${streamedStderr.join("")}${result.stderr}`
+
+      expect(result.exitCode).toBe(1)
+      expect(streamedStderr.join("")).toContain("\u001b[31mcolored host output\u001b[39m")
+      expect(streamedStderr.join("")).not.toContain("plain host output")
+      expect(result.stderr).not.toContain("colored host output")
+      expect(combinedStderr).toContain("preview-server-not-ready")
+    } finally {
+      if (previousNoColor === undefined) delete process.env.NO_COLOR
+      else process.env.NO_COLOR = previousNoColor
+      if (previousForceColor === undefined) delete process.env.FORCE_COLOR
+      else process.env.FORCE_COLOR = previousForceColor
+
+      if (previousStdoutIsTTY) Object.defineProperty(process.stdout, "isTTY", previousStdoutIsTTY)
+      else Reflect.deleteProperty(process.stdout, "isTTY")
+      if (previousStderrIsTTY) Object.defineProperty(process.stderr, "isTTY", previousStderrIsTTY)
+      else Reflect.deleteProperty(process.stderr, "isTTY")
+
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
   it("stops the foreground Host and removes the serve registry on SIGINT", async () => {
     const cwd = join(import.meta.dirname, "fixtures/serve-until-signal")
     const logFile = join(cwd, "runelight-command-log.jsonl")
