@@ -10,6 +10,7 @@ import {
   revealStudioCanvasRect,
   resolveStudioSelection,
   selectedStudioFrameName,
+  studioComponentRuntimeInputState,
   studioManifestProviderVariantAxes,
   studioProviderVariantContextForPath,
   type StudioPreviewCacheEntry,
@@ -1026,6 +1027,12 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                           columnIndex,
                           component.coordinate,
                         )
+                        const runtimeInputState = studioComponentRuntimeInputState(
+                          props.manifest,
+                          renderedColumn.workspace,
+                          providerVariantPath,
+                          props.frameStates,
+                        )
                         return (
                           <div
                             key={component.coordinate}
@@ -1057,6 +1064,7 @@ export default function Studio(props: StudioWorkspaceViewProps) {
                               previewGeometryStore={props.previewGeometryStore}
                               providerVariantComponent={findManifestComponent(props.manifest, component.coordinate) ?? component}
                               providerVariantContext={studioProviderVariantContextForPath(renderedColumn.workspace, providerVariantPath)}
+                              runtimeInputState={runtimeInputState}
                               selected={renderedColumn.selectedCardPathKey === card.pathKey}
                               selectedFrameName={selectedStudioFrameName(renderedColumn.workspace, component)}
                               viewportPreset={scope.canvasViewportPreset}

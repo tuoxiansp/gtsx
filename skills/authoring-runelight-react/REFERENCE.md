@@ -314,7 +314,9 @@ Notification.frames = {
 } satisfies GFrames<NotificationProps>
 ```
 
-The child (`Badge.g`) has its own frames for isolated preview. The parent's frames exercise the composition — Studio shows both, with children reachable by drilldown.
+The child (`Badge.g`) has its own frames for isolated preview. When the child appears inside a parent frame, the props produced by the parent render are authoritative. If the parent frame's `scope` or providers shaped those props, that is still normal parent-to-child input for the child.
+
+Child frame scope and provider mocks are used for isolated child preview or explicit child frame overrides. They should not be treated as replacements for props or provider values that the parent actually rendered.
 
 ## Pattern 9: Traceable Collection Branches
 

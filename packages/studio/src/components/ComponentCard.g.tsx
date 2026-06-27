@@ -13,6 +13,7 @@ import {
   studioPreviewFrameSize,
   studioProviderVariantFrameStatus,
   sameStudioProviderVariantContext,
+  type StudioComponentRuntimeInputState,
   type StudioPreviewFrameOverride,
   type StudioProviderVariantContext,
   type StudioPreviewFrameState,
@@ -88,6 +89,7 @@ type ComponentCardProps = {
   providerVariantComponent?: StudioManifestComponent
   providerVariantContext?: StudioProviderVariantContext
   previewFrameOverrides?: readonly StudioPreviewFrameOverride[]
+  runtimeInputState?: StudioComponentRuntimeInputState
   selected: boolean
   selectedFrameName: string
   viewportPreset: StudioViewportPreset
@@ -203,6 +205,18 @@ function ComponentCardView(props: ComponentCardProps) {
           >
             {props.component.componentName}
           </span>
+          {props.runtimeInputState ? (
+            <span
+              data-runelight-card-runtime-input-boundary-id={props.runtimeInputState.boundaryId}
+              data-runelight-card-runtime-input-source-coordinate={props.runtimeInputState.sourceCoordinate}
+              data-runelight-card-runtime-input-source-frame={props.runtimeInputState.sourceFrameName}
+              data-runelight-card-runtime-input-state={props.runtimeInputState.valuesState}
+              style={componentCardRuntimeInputChipStyle(props.runtimeInputState.valuesState)}
+              title={`Rendered from ${props.runtimeInputState.sourceFrameName} parent frame`}
+            >
+              parent frame
+            </span>
+          ) : null}
         </span>
       </div>
       {previewError ? (
@@ -509,6 +523,7 @@ function areComponentCardPropsEqual(previous: ComponentCardProps, next: Componen
     previous.providerVariantComponent !== next.providerVariantComponent ||
     !sameStudioProviderVariantContext(previous.providerVariantContext, next.providerVariantContext) ||
     previous.previewFrameOverrides !== next.previewFrameOverrides ||
+    !sameComponentCardRuntimeInputState(previous.runtimeInputState, next.runtimeInputState) ||
     previous.selected !== next.selected ||
     previous.selectedFrameName !== next.selectedFrameName ||
     previous.viewportPreset !== next.viewportPreset
@@ -531,6 +546,37 @@ function areComponentCardPropsEqual(previous: ComponentCardProps, next: Componen
   }
 
   return true
+}
+
+function sameComponentCardRuntimeInputState(
+  previous: StudioComponentRuntimeInputState | undefined,
+  next: StudioComponentRuntimeInputState | undefined,
+): boolean {
+  return (
+    previous === next ||
+    (previous?.boundaryId === next?.boundaryId &&
+      previous?.sourceCoordinate === next?.sourceCoordinate &&
+      previous?.sourceFrameName === next?.sourceFrameName &&
+      previous?.sourceSessionId === next?.sourceSessionId &&
+      previous?.valuesState === next?.valuesState)
+  )
+}
+
+function componentCardRuntimeInputChipStyle(valuesState: StudioComponentRuntimeInputState["valuesState"]): React.CSSProperties {
+  return {
+    background: valuesState === "resolved" ? studioColors.accentMuted : "rgba(136,136,136,0.16)",
+    border: `1px solid ${valuesState === "resolved" ? studioColors.accentBorder : studioColors.panelBorder}`,
+    borderRadius: studioRadii.sm,
+    color: valuesState === "resolved" ? studioColors.accentText : studioColors.textMuted,
+    flexShrink: 0,
+    fontSize: 8,
+    fontWeight: 700,
+    letterSpacing: 0,
+    lineHeight: 1,
+    padding: "2px 3px",
+    textTransform: "lowercase",
+    whiteSpace: "nowrap",
+  }
 }
 
 function componentCardFrameDimmed(

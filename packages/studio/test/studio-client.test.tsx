@@ -11,6 +11,7 @@ import {
   StudioWorkspaceView,
   type StudioManifest,
   type StudioManifestComponent,
+  type StudioPreviewFrameState,
   createStudioManifest,
   discoverStudioDesignManifest,
   applyStudioCardSelectionAction,
@@ -56,6 +57,7 @@ import {
   selectedStudioFrameName,
   selectStudioRuntimeInstance,
   selectStudioComponent,
+  studioComponentRuntimeInputState,
   studioDesignManifestComponents,
   studioFilteredFramesForProviderVariantContext,
   studioManifestProviderVariantAxes,
@@ -6450,6 +6452,67 @@ describe("Runelight Studio shell", () => {
         boundaryId: "child-1",
       },
     })
+  })
+
+  it("labels selected child cards as parent-rendered runtime instances", () => {
+    const manifest = buildStudioManifest({ cwd: fixtureRoot, sourceRoot: "src" })
+    const parentCoordinate = "src/UserCard.g.tsx#default"
+    const childCoordinate = "src/MultiExport.g.tsx#NamedBadge"
+    const parentTree = [
+      {
+        id: "parent",
+        coordinate: parentCoordinate,
+        children: [{ id: "child-1", coordinate: childCoordinate, children: [] }],
+      },
+    ]
+    const parentState = selectStudioComponent(
+      createStudioWorkspaceState(manifest, `component:${parentCoordinate}`),
+      manifest,
+      parentCoordinate,
+      parentTree,
+    )
+    const childState = selectStudioRuntimeInstance(
+      selectStudioComponent(parentState, manifest, childCoordinate, []),
+      childCoordinate,
+      "child-1",
+    )
+    const frameStates = {
+      [`${parentCoordinate}:loading`]: {
+        expectedSessionId: `${parentCoordinate}:loading`,
+        ready: true,
+        tree: parentTree,
+        valuesByBoundaryId: {
+          "child-1": {
+            boundaryId: "child-1",
+            props: {
+              type: "object",
+              constructorName: "Object",
+              entries: [{ key: "label", value: { type: "string", value: "Agent inbox" } }],
+            },
+            providerValues: [],
+          },
+        },
+      },
+    } satisfies Record<string, StudioPreviewFrameState>
+
+    expect(studioComponentRuntimeInputState(manifest, childState, [parentCoordinate, childCoordinate], frameStates)).toEqual({
+      boundaryId: "child-1",
+      sourceCoordinate: parentCoordinate,
+      sourceFrameName: "loading",
+      sourceSessionId: `${parentCoordinate}:loading`,
+      valuesState: "resolved",
+    })
+
+    const html = renderToStaticMarkup(
+      <StudioWorkspaceView frameStates={frameStates} manifest={manifest} workspace={childState} />,
+    )
+    const childCard = cardHtml(html, childCoordinate)
+
+    expect(childCard).toContain('data-runelight-card-runtime-input-state="resolved"')
+    expect(childCard).toContain('data-runelight-card-runtime-input-boundary-id="child-1"')
+    expect(childCard).toContain('data-runelight-card-runtime-input-source-frame="loading"')
+    expect(childCard).toContain(">parent frame<")
+    expect(childCard).not.toContain("Agent inbox")
   })
 
   it("does not render runtime values in the removed Inspector panel", () => {

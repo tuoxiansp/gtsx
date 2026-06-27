@@ -66,7 +66,7 @@ export type GPreviewProviderProps = {
 export function GPreviewProvider(props: GPreviewProviderProps) {
   props.boundaryCollector?.reset()
   const previewValue: PreviewRuntimeValue = {
-    ...(Object.prototype.hasOwnProperty.call(props, "scope") ? { scope: props.scope } : {}),
+    ...(hasOwnProperty(props, "scope") ? { scope: props.scope } : {}),
     providerValues: props.providerValues ?? new Map(),
     frameOverrides: props.frameOverrides ?? new Map(),
     boundaryCollector: props.boundaryCollector,
@@ -226,7 +226,8 @@ export function createGScopeHook<Props, Providers extends readonly GProvider<any
     }
 
     const preview = React.useContext(PreviewRuntimeContext)
-    if (preview && "scope" in preview) {
+    const boundaryId = React.useContext(BoundaryParentContext)
+    if (preview && boundaryId === null && hasOwnProperty(preview, "scope")) {
       return preview.scope as Scope
     }
 
@@ -291,29 +292,37 @@ export function defineGComponent<Props extends object>(
     const stableBoundaryId = `runelight-boundary:${React.useId()}`
     const preview = React.useContext(PreviewRuntimeContext)
     const parentBoundaryId = React.useContext(BoundaryParentContext)
-    const boundaryId = preview?.boundaryCollector?.registerBoundary(coordinate, parentBoundaryId, stableBoundaryId) ?? null
-    const activeFrame = preview ? resolveComponentFrame(coordinate, GComponentBoundary.frames, preview) : null
-    if (preview && boundaryId) {
-      preview.boundaryCollector?.updateBoundaryValues(boundaryId, {
+    const contextBoundaryId = preview ? stableBoundaryId : null
+    const collectedBoundaryId = preview?.boundaryCollector?.registerBoundary(coordinate, parentBoundaryId, stableBoundaryId) ?? null
+    const activeFrame = preview
+      ? resolveComponentFrame(coordinate, GComponentBoundary.frames, preview, { allowDefaultFrame: parentBoundaryId === null })
+      : null
+    if (preview && collectedBoundaryId) {
+      const scopeSnapshot = readScopeSnapshot(activeFrame, preview, parentBoundaryId === null)
+      preview.boundaryCollector?.updateBoundaryValues(collectedBoundaryId, {
         props: serializeGRuntimeValue(props),
-        scope: serializeGRuntimeValue(readScopeSnapshot(activeFrame, preview)),
+        ...(scopeSnapshot.found ? { scope: serializeGRuntimeValue(scopeSnapshot.value) } : {}),
         providerValues: serializeProviderValues(preview.providerValues),
       })
     }
-    const rendered = activeFrame ? (
-      <ActiveComponentFrameContext.Provider value={activeFrame as GFrame<unknown, unknown>}>
+    const rendered = preview ? (
+      <ActiveComponentFrameContext.Provider value={activeFrame as GFrame<unknown, unknown> | null}>
         <Component {...props} />
       </ActiveComponentFrameContext.Provider>
     ) : (
       <Component {...props} />
     )
 
-    if (!boundaryId) return rendered
+    if (!contextBoundaryId) return rendered
     return (
-      <BoundaryParentContext.Provider value={boundaryId}>
-        <div data-runelight-boundary-id={boundaryId} style={{ display: "contents" }}>
-          {rendered}
-        </div>
+      <BoundaryParentContext.Provider value={contextBoundaryId}>
+        {collectedBoundaryId ? (
+          <div data-runelight-boundary-id={collectedBoundaryId} style={{ display: "contents" }}>
+            {rendered}
+          </div>
+        ) : (
+          rendered
+        )}
       </BoundaryParentContext.Provider>
     )
   }) as React.ComponentType<Props> & { frames?: AnyComponentFrames<Props>; displayName?: string }
@@ -322,9 +331,14 @@ export function defineGComponent<Props extends object>(
   return GComponentBoundary
 }
 
-function readScopeSnapshot(activeFrame: object | null, preview: PreviewRuntimeValue): unknown {
-  if (activeFrame && "scope" in activeFrame) return (activeFrame as { scope: unknown }).scope
-  return preview.scope
+function readScopeSnapshot(
+  activeFrame: object | null,
+  preview: PreviewRuntimeValue,
+  allowPreviewScopeFallback: boolean,
+): { found: true; value: unknown } | { found: false } {
+  if (activeFrame && hasOwnProperty(activeFrame, "scope")) return { found: true, value: activeFrame.scope }
+  if (allowPreviewScopeFallback && hasOwnProperty(preview, "scope")) return { found: true, value: preview.scope }
+  return { found: false }
 }
 
 function serializeProviderValues(providerValues: Map<AnyGProvider, unknown>): GRuntimeValuesSnapshot["providerValues"] {
@@ -354,6 +368,7 @@ function resolveComponentFrame<Props extends object>(
   coordinate: string,
   frames: AnyComponentFrames<Props> | undefined,
   preview: PreviewRuntimeValue,
+  options: { allowDefaultFrame: boolean },
 ): GFrame<Props> | GFrame<Props, unknown> | null {
   if (!frames) return null
 
@@ -366,5 +381,13 @@ function resolveComponentFrame<Props extends object>(
     return overrideFrame
   }
 
+  if (!options.allowDefaultFrame) return null
   return Object.values(frames)[0] ?? null
+}
+
+function hasOwnProperty<ObjectValue extends object, Key extends PropertyKey>(
+  value: ObjectValue,
+  key: Key,
+): value is ObjectValue & Record<Key, unknown> {
+  return Object.prototype.hasOwnProperty.call(value, key)
 }

@@ -172,7 +172,15 @@ Avoid `case1`, `fixture2`, `foo`, or data-shaped names.
 
 ## Child Components
 
-Plain Vue child components can run normally if their script is safe in dev preview. If a business child has remote data, auth, router, or store assumptions that break preview, use one of these paths:
+Plain Vue child components can run normally if their script is safe in dev preview. When a `.g.vue` parent renders a `.g.vue` child, normal Vue composition still decides the child's inputs:
+
+- props passed by the parent render are the child's props;
+- Vue injection values from an ancestor provider are the child's injected context;
+- the parent's frame scope does not become the child's scope.
+
+An unselected nested `.g.vue` child renders as an ordinary SFC with its `<g:frames>` block removed, so the child's first isolated frame cannot accidentally replace parent-rendered props or injection values. Current Vue preview does not yet support React-style explicit nested child frame overrides inside a parent preview.
+
+If a business child has remote data, auth, router, or store assumptions that break preview, use one of these paths:
 
 - make the child a `.g.vue` protocol component too;
 - keep the parent frame focused on parent-owned state and test the child separately;

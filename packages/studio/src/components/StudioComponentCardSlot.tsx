@@ -6,6 +6,7 @@ import type { GBoundaryTreeNode } from "@runelight/core/preview-protocol"
 import {
   type StudioPreviewFrameState,
   type StudioPreviewCacheEntry,
+  type StudioComponentRuntimeInputState,
   type StudioProviderVariantContext,
   type StudioViewportPreset,
   sameStudioProviderVariantContext,
@@ -51,6 +52,7 @@ type StudioComponentCardSlotProps = {
   previewGeometryStore?: StudioPreviewGeometryCacheStore
   providerVariantComponent?: StudioManifestComponent
   providerVariantContext?: StudioProviderVariantContext
+  runtimeInputState?: StudioComponentRuntimeInputState
   selected: boolean
   selectedFrameName: string
   viewportPreset: StudioViewportPreset
@@ -138,6 +140,7 @@ function StudioComponentCardSlotView(props: StudioComponentCardSlotProps) {
       onSelect={props.onSelect ? handleSelect : undefined}
       providerVariantComponent={props.providerVariantComponent}
       providerVariantContext={props.providerVariantContext}
+      runtimeInputState={props.runtimeInputState}
       selected={props.selected}
       selectedFrameName={props.selectedFrameName}
       viewportPreset={props.viewportPreset}
@@ -171,9 +174,24 @@ function areStudioComponentCardSlotPropsEqual(
     previous.previewGeometryStore === next.previewGeometryStore &&
     previous.providerVariantComponent === next.providerVariantComponent &&
     sameStudioProviderVariantContext(previous.providerVariantContext, next.providerVariantContext) &&
+    sameStudioComponentRuntimeInputState(previous.runtimeInputState, next.runtimeInputState) &&
     previous.selected === next.selected &&
     previous.selectedFrameName === next.selectedFrameName &&
     previous.viewportPreset === next.viewportPreset
+  )
+}
+
+function sameStudioComponentRuntimeInputState(
+  previous: StudioComponentRuntimeInputState | undefined,
+  next: StudioComponentRuntimeInputState | undefined,
+): boolean {
+  return (
+    previous === next ||
+    (previous?.boundaryId === next?.boundaryId &&
+      previous?.sourceCoordinate === next?.sourceCoordinate &&
+      previous?.sourceFrameName === next?.sourceFrameName &&
+      previous?.sourceSessionId === next?.sourceSessionId &&
+      previous?.valuesState === next?.valuesState)
   )
 }
 

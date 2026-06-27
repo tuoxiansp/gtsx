@@ -380,6 +380,122 @@ describe("Runelight runtime", () => {
     expect(html).toBe("<span>open</span>")
   })
 
+  it("lets parent-rendered props and provider values drive an unselected nested component", () => {
+    type Tone = "local" | "staging"
+    const ToneProvider = createGProvider((props: { tone: Tone }) => [props.tone, () => {}] as const)
+
+    type ChildProps = {
+      unread: number
+    }
+    const useChildScope = createGScopeHook((props: ChildProps) => ({
+      label: props.unread > 0 ? `external:${props.unread}` : "empty",
+    }))
+
+    const Child = defineGComponent("src/Child.g.tsx#default", function ChildImpl(props: ChildProps) {
+      const scope = useChildScope(props)
+      const tone = useGContext(ToneProvider)
+      return <span>{`${scope.label}:${tone}`}</span>
+    })
+    Child.frames = {
+      quiet: {
+        props: { unread: 0 },
+        providers: [[ToneProvider, "local"]],
+        scope: { label: "child-frame" },
+      },
+      expanded: {
+        props: { unread: 9 },
+        providers: [[ToneProvider, "staging"]],
+        scope: { label: "child-expanded-frame" },
+      },
+    } satisfies GFrames<ChildProps, { label: string }, [typeof ToneProvider]>
+
+    type ParentScope = {
+      tone: Tone
+      unread: number
+    }
+    const useParentScope = createGScopeHook((): ParentScope => ({ tone: "local", unread: 0 }))
+    const Parent = defineGComponent("src/Parent.g.tsx#default", function ParentImpl() {
+      const scope = useParentScope()
+      return (
+        <ToneProvider tone={scope.tone}>
+          <Child unread={scope.unread} />
+        </ToneProvider>
+      )
+    })
+    const parentReviewScope = { tone: "staging", unread: 5 } satisfies ParentScope
+    Parent.frames = {
+      review: {
+        props: {},
+        scope: parentReviewScope,
+      },
+    } satisfies GFrames<Record<string, never>, ParentScope>
+
+    const html = renderToStaticMarkup(
+      <GPreviewProvider
+        frameOverrides={new Map([["src/Parent.g.tsx#default", "review"]])}
+        scope={parentReviewScope}
+      >
+        <Parent />
+      </GPreviewProvider>,
+    )
+
+    expect(html).toBe("<span>external:5:staging</span>")
+  })
+
+  it("keeps parent-rendered props when a nested frame override supplies child-local scope", () => {
+    type ChildProps = {
+      unread: number
+    }
+    const useChildScope = createGScopeHook((props: ChildProps) => ({ label: `real:${props.unread}` }))
+
+    const Child = defineGComponent("src/Child.g.tsx#default", function ChildImpl(props: ChildProps) {
+      const scope = useChildScope(props)
+      return <span>{`${scope.label}:${props.unread}`}</span>
+    })
+    Child.frames = {
+      quiet: {
+        props: { unread: 0 },
+        scope: { label: "quiet-frame" },
+      },
+      expanded: {
+        props: { unread: 99 },
+        scope: { label: "expanded-frame" },
+      },
+    } satisfies GFrames<ChildProps, { label: string }>
+
+    type ParentScope = {
+      unread: number
+    }
+    const useParentScope = createGScopeHook((): ParentScope => ({ unread: 0 }))
+    const Parent = defineGComponent("src/Parent.g.tsx#default", function ParentImpl() {
+      const scope = useParentScope()
+      return <Child unread={scope.unread} />
+    })
+    const parentReviewScope = { unread: 5 } satisfies ParentScope
+    Parent.frames = {
+      review: {
+        props: {},
+        scope: parentReviewScope,
+      },
+    } satisfies GFrames<Record<string, never>, ParentScope>
+
+    const html = renderToStaticMarkup(
+      <GPreviewProvider
+        frameOverrides={
+          new Map([
+            ["src/Parent.g.tsx#default", "review"],
+            ["src/Child.g.tsx#default", "expanded"],
+          ])
+        }
+        scope={parentReviewScope}
+      >
+        <Parent />
+      </GPreviewProvider>,
+    )
+
+    expect(html).toBe("<span>expanded-frame:5</span>")
+  })
+
   it("reports an unknown component frame override instead of falling back", () => {
     function ChildImpl() {
       return <span>child</span>

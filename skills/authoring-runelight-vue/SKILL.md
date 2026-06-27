@@ -19,6 +19,8 @@ Preview is template-first: frames provide the template-visible values needed to 
 
 Vue native `provide`/`inject` is an advanced authoring surface. Use it only when the component already injects Vue context. Frames may use `providers: [[key, value]]`; finite Studio axes need a typed `defineGInjectionKey` plus `GVueProviderFrame` marker.
 
+In composition, parent-rendered props and ancestor Vue injection values are authoritative for nested children. A child `.g.vue` frame is an isolated-preview mock unless the preview runtime explicitly selects that child frame. Current Vue preview preserves this by rendering unselected nested `.g.vue` children as ordinary SFCs with `<g:frames>` removed.
+
 ## Quick Start
 
 ```vue
@@ -80,7 +82,8 @@ runelight check
 - `scope` should include every non-prop template value that affects branch shape.
 - Opaque helpers are okay for formatting text, but not for structural directives.
 - For structural branches, prefer direct template expressions over opaque helper predicates.
-- Preserve ordinary Vue children when they are safe to run in dev. Business children with unsafe script state should become `.g.vue` entries or be stubbed by the host.
+- Preserve ordinary Vue children when they are safe to run in dev. Parent props and injection values should flow normally into child components; do not write child frames expecting them to replace values the parent actually passes.
+- Current Vue preview does not support React-style explicit nested child frame overrides. Business children with unsafe script state should become `.g.vue` entries and be inspected in isolation, or be stubbed by the host.
 - Do not put secrets or customer data in frames.
 
 ## Template Contract

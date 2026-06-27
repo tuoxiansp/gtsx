@@ -110,6 +110,7 @@ Rename `.g.tsx` → `.tsx` or `.g.vue` → `.vue`, delete frames, remove the Stu
 - [Design](docs/runelight-design.md) — architecture, sidecar model, and guarantees
 - [.g Protocol](docs/g-protocol.md) — the source-level model behind frames, seams, and static checks
 - [Static Contract](docs/runelight-static-contract.md) — the type-level contract, JSX branch coverage, and provider variant model
+- [Composable Frame Inputs](docs/runelight-composable-inputs.md) — target contract for parent-rendered props, provider environments, and local scope in composition
 
 **For AI agents:**
 

@@ -44,3 +44,44 @@ body {
   font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
   text-transform: uppercase;
 }
+
+.inbox-shell {
+  background: #172033;
+  border: 1px solid #2f435f;
+  border-radius: 8px;
+  box-shadow: 0 18px 42px rgb(15 23 42 / 0.18);
+  color: #f8fafc;
+  display: grid;
+  gap: 12px;
+  padding: 24px;
+  width: 380px;
+}
+
+.inbox-shell h1,
+.inbox-shell p,
+.inbox-badge h2,
+.inbox-badge p {
+  margin: 0;
+}
+
+.inbox-shell .eyebrow,
+.inbox-badge .eyebrow {
+  color: #8dd9d3;
+  font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-transform: uppercase;
+}
+
+.inbox-badge {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #172033;
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.inbox-badge[data-tone="staging"] {
+  border-color: #5eead4;
+  box-shadow: inset 4px 0 0 #2dd4bf;
+}

@@ -1,37 +1,56 @@
-import { createGScopeHook, type GFrames } from "@runelight/react/runtime"
+import { createGProvider, createGScopeHook, useGContext, type GFrames } from "@runelight/react/runtime"
+
+export type NotificationBellEnvironment = {
+  environment: "local" | "staging"
+  reviewLane: "debug" | "release"
+}
+
+export const NotificationBellEnvironmentProvider = createGProvider(
+  (props: { value: NotificationBellEnvironment }) => [props.value, () => {}] as const,
+)
 
 type NotificationBellProps = {
   label: string
+  unread: number
+  expanded: boolean
+  items: string[]
 }
 
 type NotificationBellScope = {
-  unread: number
   expanded: boolean
+  items: string[]
 }
 
-function useRealNotificationBellScope(): NotificationBellScope {
-  return { unread: 0, expanded: false }
+function useRealNotificationBellScope(props: NotificationBellProps): NotificationBellScope {
+  return {
+    expanded: props.expanded,
+    items: props.items,
+  }
 }
 
 const useNotificationBellGScope = createGScopeHook(useRealNotificationBellScope)
 
 export default function NotificationBell(props: NotificationBellProps) {
-  const scope = useNotificationBellGScope()
+  const scope = useNotificationBellGScope(props)
+  const environment = useGContext(NotificationBellEnvironmentProvider)
 
   return (
-    <aside className="notification-bell" data-expanded={scope.expanded}>
+    <aside className="notification-bell" data-expanded={scope.expanded} data-environment={environment.environment}>
       <header>
-        <span>{props.label}</span>
-        <strong>{scope.unread}</strong>
+        <span>
+          {props.label}
+          <small>{environment.reviewLane}</small>
+        </span>
+        <strong>{props.unread}</strong>
       </header>
       {scope.expanded ? (
         <ul>
-          <li>Build completed</li>
-          <li>Design review requested</li>
-          <li>Preview capture ready</li>
+          {scope.items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
         </ul>
       ) : (
-        <p>Collapsed notification summary</p>
+        <p>{environment.environment === "staging" ? "Staging quiet period" : "Collapsed notification summary"}</p>
       )}
     </aside>
   )
@@ -39,11 +58,21 @@ export default function NotificationBell(props: NotificationBellProps) {
 
 NotificationBell.frames = {
   quiet: {
-    props: { label: "Notifications" },
-    scope: { unread: 0, expanded: false },
+    props: { label: "Notifications", unread: 0, expanded: false, items: [] },
+    providers: [[NotificationBellEnvironmentProvider, { environment: "local", reviewLane: "debug" }]],
+    scope: { expanded: false, items: [] },
   },
   expanded: {
-    props: { label: "Notifications" },
-    scope: { unread: 3, expanded: true },
+    props: {
+      label: "Notifications",
+      unread: 3,
+      expanded: true,
+      items: ["Build completed", "Design review requested", "Preview capture ready"],
+    },
+    providers: [[NotificationBellEnvironmentProvider, { environment: "staging", reviewLane: "release" }]],
+    scope: {
+      expanded: true,
+      items: ["Build completed", "Design review requested", "Preview capture ready"],
+    },
   },
-} satisfies GFrames<NotificationBellProps, NotificationBellScope>
+} satisfies GFrames<NotificationBellProps, NotificationBellScope, [typeof NotificationBellEnvironmentProvider]>

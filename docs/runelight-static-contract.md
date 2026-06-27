@@ -114,6 +114,18 @@ Child projection frames supplement Studio expression. They do not replace the pa
 
 If Runelight sees provider-derived props flowing into an unmarked child, it reports a non-blocking warning - an agent can decide whether projection markers are needed.
 
+### Composition input precedence
+
+When a `.g` component renders another `.g` component, the child instance is rendered through normal framework composition first.
+
+- Parent-rendered props are authoritative for that child instance, even when those props were derived from the parent's frame `scope`.
+- Ancestor provider values are authoritative for that child instance. Child frame provider values are isolated-preview or explicit-override mocks.
+- Scope is local to the component seam. A parent frame scope can shape child props or provider values, but it is not inherited as the child's scope.
+
+The checker's branch-coverage question is still component-local: does at least one frame make each branch reachable? Composition input precedence explains how preview should render nested instances; it does not expand `runelight check` into a proof of every parent-child state combination.
+
+See [Composable Frame Inputs](./runelight-composable-inputs.md) for edge cases such as multiple child instances, framework-specific child frame override support, and children whose real seam is not preview-safe.
+
 ### Studio expression
 
 Declared variants become environment controls in Studio. A root-level selection constrains the canvas. A component-level selection overrides locally. Matching and mismatching frames are distinguished visually rather than filtered away, so you always see the full state model.

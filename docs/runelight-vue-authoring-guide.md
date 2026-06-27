@@ -80,6 +80,12 @@ Preview never runs `useResource`; `status`, `title`, and `items` come from the s
 
 Vue context uses native `provide`/`inject`. When the injection should appear as a finite Studio axis (role, theme, locale, auth state, platform), define a typed key with `defineGInjectionKey(..., { variants })`, import the same key in `<g:frames lang="ts">`, supply runtime values through `providers: [[key, value]]`, and mark coverage with `GVueProviderFrame`. See [.g Protocol — Vue Provide/Inject](./g-protocol.md#vue-provideinject) for a complete example.
 
+## Composition
+
+When a `.g.vue` parent renders a `.g.vue` child, the parent render remains authoritative. Props passed by the parent are the child's props, and ancestor Vue injection values are the child's injected context. The parent's frame `scope` can shape those props or provider values, but it does not become the child's scope.
+
+Current Vue preview preserves this by rendering unselected nested `.g.vue` children as ordinary SFCs with `<g:frames>` removed. Inspect child frames in isolation when you need the child's own frame mocks; React-style explicit nested child frame overrides are not available in Vue preview yet.
+
 ## Frames
 
 - Frame names describe what appears on screen: `ready`, `loading`, `empty`, `error`, `disabled`, `overflowing`, `anonymous`.

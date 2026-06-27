@@ -5,7 +5,12 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { buildRunelightProjectIndex } from "../../core/src/project-index.js"
-import { analyzeRunelightVueEntry as analyzeEntry, runelightVueContract, transformRunelightVuePreviewSfc } from "../src/contract.js"
+import {
+  analyzeRunelightVueEntry as analyzeEntry,
+  runelightVueContract,
+  transformRunelightVuePreviewModule,
+  transformRunelightVuePreviewSfc,
+} from "../src/contract.js"
 
 describe("Runelight Vue support", () => {
   it("indexes .g.vue files with <g:frames> default exports", () => {
@@ -190,6 +195,40 @@ describe("Runelight Vue support", () => {
     expect(transformed).toContain("import { authKey } from './auth'")
     expect(transformed).toContain("const auth = inject(authKey)!")
     expect(transformed).toContain("providers: [[authKey, { role: 'admin' }]]")
+  })
+
+  it("keeps unselected nested Vue .g.vue modules on ordinary parent-rendered props and providers", () => {
+    const transformed = transformRunelightVuePreviewModule({
+      filePath: "src/InboxBadge.g.vue",
+      code: [
+        "<template>",
+        "  <section :data-tone=\"environment.tone\">{{ label }} / {{ unread }}</section>",
+        "</template>",
+        "<script setup lang=\"ts\">",
+        "import { inject } from 'vue'",
+        "import { inboxEnvironmentKey } from './inboxEnvironment'",
+        "const props = defineProps<{ label: string; unread: number }>()",
+        "const environment = inject(inboxEnvironmentKey)!",
+        "const label = props.label",
+        "const unread = props.unread",
+        "</script>",
+        "<g:frames lang=\"ts\">",
+        "import { inboxEnvironmentKey } from './inboxEnvironment'",
+        "export default {",
+        "  localEmpty: {",
+        "    props: { label: 'Isolated child', unread: 0 },",
+        "    providers: [[inboxEnvironmentKey, { tone: 'local' }]],",
+        "  },",
+        "}",
+        "</g:frames>",
+      ].join("\n"),
+    })
+
+    expect(transformed?.code).toContain("const props = defineProps<{ label: string; unread: number }>()")
+    expect(transformed?.code).toContain("const environment = inject(inboxEnvironmentKey)!")
+    expect(transformed?.code).not.toContain("useRunelightVueFrame")
+    expect(transformed?.code).not.toContain("localEmpty")
+    expect(transformed?.code).not.toContain("Isolated child")
   })
 
   it("indexes Vue provide/inject frame variants from defineGInjectionKey", () => {

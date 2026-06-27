@@ -127,6 +127,20 @@ Supported frame fields:
 
 Frame data should be static and inspectable: object literals with statically enumerable keys. Protocol consumers should not need to execute application code to discover the frame list.
 
+## Composition
+
+Frames are authored on components, but components also render each other. In composition, Runelight keeps the framework's ordinary data-flow boundaries intact:
+
+- props passed by a parent render are the child's props;
+- provider values from an ancestor environment are the child's provider values;
+- scope remains local to the component seam whose frame selected it.
+
+A parent frame may use its own `scope` to compute props for a child. That is valid: the child receives normal external props. A parent may also render a provider environment around a child. The child reads that external provider value before any child-local frame provider mock.
+
+Child frames remain useful for isolated preview and, where the framework runtime supports it, explicit child frame overrides. They do not automatically replace child props or provider values that the parent actually produced.
+
+For the target contract and edge cases, see [Composable Frame Inputs](./runelight-composable-inputs.md).
+
 ## State Substitution
 
 The `.g` protocol keeps preview substitution at explicit source-level boundaries. The boundary is framework-specific, but the goal is the same: render a declared visual state without pretending to run the whole application.

@@ -58,6 +58,7 @@ Verify: `runelight check src/Badge.g.tsx`
 - No `scope: { node: <OldComponent /> }` unless a slot is the real public contract.
 - No secrets or customer data in frames.
 - Type frames: `satisfies GFrames<Props>`, `satisfies GFrames<Props, Scope>`, or `satisfies GFrames<Props, Scope, typeof providers>`.
+- In composition, parent-rendered props and ancestor provider values are authoritative for child instances. Child frames provide isolated-preview or explicit-override mocks; do not use them to replace props/providers that the parent actually renders.
 
 ## Diagnostics
 

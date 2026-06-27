@@ -25,7 +25,7 @@ describe("examples Vite host", () => {
     expect(check.stdout).toContain("Runelight pure entry: src/frames/language/PrimitiveProps.g.tsx")
     expect(check.stdout).toContain("Runelight pure entry: src/frames/ui/NotificationCenter.g.tsx")
     expect(check.stdout).toContain("Runelight scope entry: src/frames/stateful/UserCard.g.tsx")
-    expect(check.stdout).toContain("Runelight pure entry: src/frames/stateful/DashboardShell.g.tsx")
+    expect(check.stdout).toContain("Runelight scope entry: src/frames/stateful/DashboardShell.g.tsx")
     expect(check.stdout).toContain("Runelight scope entry: src/frames/stateful/NotificationBell.g.tsx")
 
     rmSync(snapshotsRoot, { recursive: true, force: true })

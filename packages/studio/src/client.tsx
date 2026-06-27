@@ -128,6 +128,14 @@ export type StudioRuntimeValuesRequest = {
   message: GPreviewRequestValuesMessage
 }
 
+export type StudioComponentRuntimeInputState = {
+  boundaryId: string
+  sourceCoordinate: string
+  sourceFrameName: string
+  sourceSessionId: string
+  valuesState: "pending" | "resolved"
+}
+
 export type StudioProviderVariantOption = {
   frameName?: string
   name: string
@@ -825,6 +833,35 @@ export function createStudioRuntimeValuesRequest(
   return {
     sessionId,
     message: createGPreviewRequestValuesMessage(sessionId, boundaryId),
+  }
+}
+
+export function studioComponentRuntimeInputState(
+  manifest: StudioManifest,
+  workspace: StudioWorkspaceState,
+  path: readonly string[],
+  frameStates?: Record<string, StudioPreviewFrameState | undefined>,
+): StudioComponentRuntimeInputState | undefined {
+  const coordinate = path.at(-1)
+  const sourceCoordinate = path.at(-2)
+  if (!coordinate || !sourceCoordinate) return undefined
+
+  const boundaryId = workspace.selectedRuntimeInstanceByCoordinate[coordinate]
+  if (!boundaryId) return undefined
+
+  const sourceComponent = findManifestComponent(manifest, sourceCoordinate)
+  if (!sourceComponent) return undefined
+
+  const sourceFrameName = selectedStudioFrameName(workspace, sourceComponent)
+  const sourceSessionId = previewSessionId(sourceComponent, sourceFrameName, canvasViewportPresetForWorkspace(workspace))
+  const values = frameStates?.[sourceSessionId]?.valuesByBoundaryId?.[boundaryId]
+
+  return {
+    boundaryId,
+    sourceCoordinate,
+    sourceFrameName,
+    sourceSessionId,
+    valuesState: values ? "resolved" : "pending",
   }
 }
 

@@ -262,11 +262,28 @@ body {
   background: linear-gradient(135deg, #312e81 0%, #0f172a 100%);
 }
 
+.notification-bell[data-environment="staging"] {
+  border: 1px solid rgb(250 204 21 / 32%);
+}
+
 .notification-bell header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.notification-bell header span {
+  display: grid;
+  gap: 4px;
+}
+
+.notification-bell small {
+  color: #bae6fd;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .notification-bell strong {
