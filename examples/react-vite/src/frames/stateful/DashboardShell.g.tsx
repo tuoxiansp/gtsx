@@ -45,8 +45,8 @@ export default function DashboardShell(props: DashboardShellProps) {
         <span className="dashboard-kicker">{props.environment}</span>
         <h1>{props.title}</h1>
         <p>
-          This parent frame owns the page state. The nested notification bell receives props and provider environment
-          from this render instead of falling back to its isolated frames.
+          This parent frame owns the page data. The nested notification bell keeps its child-local frame state while
+          receiving props and provider environment from this render.
         </p>
       </section>
       <NotificationBellEnvironmentProvider value={{ environment: props.environment, reviewLane }}>

@@ -124,7 +124,7 @@ When a `.g` component renders another `.g` component, the child instance is rend
 
 The checker's branch-coverage question is still component-local: does at least one frame make each branch reachable? Composition input precedence explains how preview should render nested instances; it does not expand `runelight check` into a proof of every parent-child state combination.
 
-See [Composable Frame Inputs](./runelight-composable-inputs.md) for edge cases such as multiple child instances, framework-specific child frame override support, and children whose real seam is not preview-safe.
+See [Composable Frame Inputs](./runelight-composable-inputs.md) for edge cases such as multiple child instances, framework-specific child frame override support, and child-local scope mocks in parent renders.
 
 ### Studio expression
 

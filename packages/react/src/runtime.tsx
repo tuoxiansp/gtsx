@@ -294,9 +294,7 @@ export function defineGComponent<Props extends object>(
     const parentBoundaryId = React.useContext(BoundaryParentContext)
     const contextBoundaryId = preview ? stableBoundaryId : null
     const collectedBoundaryId = preview?.boundaryCollector?.registerBoundary(coordinate, parentBoundaryId, stableBoundaryId) ?? null
-    const activeFrame = preview
-      ? resolveComponentFrame(coordinate, GComponentBoundary.frames, preview, { allowDefaultFrame: parentBoundaryId === null })
-      : null
+    const activeFrame = preview ? resolveComponentFrame(coordinate, GComponentBoundary.frames, preview) : null
     if (preview && collectedBoundaryId) {
       const scopeSnapshot = readScopeSnapshot(activeFrame, preview, parentBoundaryId === null)
       preview.boundaryCollector?.updateBoundaryValues(collectedBoundaryId, {
@@ -368,7 +366,6 @@ function resolveComponentFrame<Props extends object>(
   coordinate: string,
   frames: AnyComponentFrames<Props> | undefined,
   preview: PreviewRuntimeValue,
-  options: { allowDefaultFrame: boolean },
 ): GFrame<Props> | GFrame<Props, unknown> | null {
   if (!frames) return null
 
@@ -381,7 +378,6 @@ function resolveComponentFrame<Props extends object>(
     return overrideFrame
   }
 
-  if (!options.allowDefaultFrame) return null
   return Object.values(frames)[0] ?? null
 }
 

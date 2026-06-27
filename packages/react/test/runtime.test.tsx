@@ -380,21 +380,24 @@ describe("Runelight runtime", () => {
     expect(html).toBe("<span>open</span>")
   })
 
-  it("lets parent-rendered props and provider values drive an unselected nested component", () => {
+  it("uses the first nested child frame for scope while parent-rendered props and providers win", () => {
     type Tone = "local" | "staging"
     const ToneProvider = createGProvider((props: { tone: Tone }) => [props.tone, () => {}] as const)
 
     type ChildProps = {
       unread: number
     }
-    const useChildScope = createGScopeHook((props: ChildProps) => ({
-      label: props.unread > 0 ? `external:${props.unread}` : "empty",
-    }))
+    type ChildScope = {
+      label: string
+    }
+    const useChildScope = createGScopeHook((_props: ChildProps): ChildScope => {
+      throw new Error("Nested preview should not run the real child scope hook.")
+    })
 
     const Child = defineGComponent("src/Child.g.tsx#default", function ChildImpl(props: ChildProps) {
       const scope = useChildScope(props)
       const tone = useGContext(ToneProvider)
-      return <span>{`${scope.label}:${tone}`}</span>
+      return <span>{`${scope.label}:${props.unread}:${tone}`}</span>
     })
     Child.frames = {
       quiet: {
@@ -439,7 +442,7 @@ describe("Runelight runtime", () => {
       </GPreviewProvider>,
     )
 
-    expect(html).toBe("<span>external:5:staging</span>")
+    expect(html).toBe("<span>child-frame:5:staging</span>")
   })
 
   it("keeps parent-rendered props when a nested frame override supplies child-local scope", () => {

@@ -37,10 +37,10 @@ For a child rendered inside a parent frame:
 ```text
 B.props     = props produced by the parent render
 B.providers = nearest ancestor provider values, if present
-B.scope     = B's selected frame scope, or B's real seam result
+B.scope     = B's selected frame scope, or B's first frame scope
 ```
 
-The child component's authored frame props never replace props that the parent actually passed. The child component's authored provider values never replace an external provider environment. The child component's authored scope is used only when that child coordinate has been explicitly selected or overridden.
+The child component's authored frame props never replace props that the parent actually passed. The child component's authored provider values never replace an external provider environment. The child frame still names the child-local state; its `scope` is the mock seam value, while its `props` and `providers` are fallback data for isolated preview or missing external inputs.
 
 ## Explicit Child Frame Selection
 
@@ -77,11 +77,11 @@ A.frame.scope -> A render -> <ThemeProvider value={theme}> -> B
 
 `B` reads the provider environment. `B.frames.*.providers` are isolated-preview mocks unless `B` is explicitly selected.
 
-### Child Scope With No Explicit Mock
+### Child Scope Without Explicit Override
 
-If `B` uses a Runelight scope hook and no child frame is selected for `B`, `B` should not inherit `A.scope`. It should either run its real seam from its external props/providers, or the preview surface should report that the child needs an explicit scope mock.
+If `B` uses a Runelight scope hook and no child frame override is selected for `B`, `B` should not inherit `A.scope` and should not run its real seam. It should use `B`'s first frame as the child-local state frame, while keeping parent-rendered props and external providers authoritative.
 
-The first React implementation allows the real seam to run for unselected nested children. Authors should keep child seams preview-safe when those children are intended to render inside parent frames.
+This keeps the render frame-first: frames say which state is being shown; data comes from parent inputs when those inputs exist, otherwise from the frame mocks.
 
 ### Multiple Instances Of The Same Child
 
@@ -102,9 +102,9 @@ Provider variant markers are Studio axes. They can help select matching frames, 
 React `.g.tsx` preview implements the full precedence model for nested Runelight components:
 
 - root previews still use the selected frame as isolated mock input;
-- unselected nested children do not default to their first frame;
+- unselected nested children default to their first frame for child-local scope and fallback provider mocks;
 - explicit child frame overrides apply only child-local scope/provider mocks;
-- parent-rendered props and real ancestor provider values stay authoritative;
+- parent-rendered props and real ancestor provider values stay authoritative over child frame props/provider mocks;
 - Studio can label a selected child card as a parent-rendered runtime instance when runtime values are available for that boundary.
 
 ### Vue
