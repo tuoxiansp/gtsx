@@ -44,6 +44,7 @@ function ExamplePreviewComponent(props: ExamplePreviewProps) {
 
 PreviewFrameSheet.frames = {
   chromeVisible: {
+    description: "chromeVisible frame",
     props: {
       component: ExamplePreviewComponent,
       entry: "src/components/ExamplePreview.g.tsx#default",
@@ -51,6 +52,7 @@ PreviewFrameSheet.frames = {
         {
           name: "ready",
           frame: {
+            description: "Ready preview card inside visible chrome",
             props: { label: "Ready preview", tone: "neutral" },
           },
         },
@@ -58,6 +60,7 @@ PreviewFrameSheet.frames = {
     },
   },
   chromeHidden: {
+    description: "chromeHidden frame",
     props: {
       component: ExamplePreviewComponent,
       entry: "src/components/ExamplePreview.g.tsx#default",
@@ -65,6 +68,7 @@ PreviewFrameSheet.frames = {
         {
           name: "selected",
           frame: {
+            description: "Selected preview card without chrome",
             props: { label: "Selected preview", tone: "selected" },
           },
         },

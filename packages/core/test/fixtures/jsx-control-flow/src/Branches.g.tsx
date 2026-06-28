@@ -93,8 +93,8 @@ export function CoveredByProps({ showChild = false }: Props) {
 }
 
 CoveredByProps.frames = {
-  hidden: { props: {} },
-  shown: { props: { showChild: true } },
+  hidden: { description: "hidden frame", props: {} },
+  shown: { description: "shown frame", props: { showChild: true } },
 } satisfies GFrames<Props>
 
 export function UncoveredByProps({ showChild = false }: Props) {
@@ -102,7 +102,7 @@ export function UncoveredByProps({ showChild = false }: Props) {
 }
 
 UncoveredByProps.frames = {
-  hidden: { props: {} },
+  hidden: { description: "hidden frame", props: {} },
 } satisfies GFrames<Props>
 
 export function CoveredByScope(props: Props) {
@@ -113,10 +113,12 @@ export function CoveredByScope(props: Props) {
 
 CoveredByScope.frames = {
   loading: {
+    description: "loading frame",
     props: {},
     scope: { status: "loading" },
   },
   ready: {
+    description: "ready frame",
     props: {},
     scope: { status: "ready" },
   },
@@ -130,9 +132,11 @@ export function CoveredByContext() {
 
 CoveredByContext.frames = {
   login: {
+    description: "login frame",
     props: {},
   } satisfies GProviderFrame<typeof LoginProvider, "login">,
   anonymous: {
+    description: "anonymous frame",
     props: {},
   } satisfies GProviderFrame<typeof LoginProvider, "anonymous">,
 } satisfies GFrames<Record<string, never>>
@@ -146,8 +150,8 @@ export function OpaqueByHelper({ mode = "hide" }: Props) {
 }
 
 OpaqueByHelper.frames = {
-  hidden: { props: {} },
-  shown: { props: { mode: "show" } },
+  hidden: { description: "hidden frame", props: {} },
+  shown: { description: "shown frame", props: { mode: "show" } },
 } satisfies GFrames<Props>
 
 export function CoveredByMapItem({ items }: ListProps) {
@@ -162,8 +166,8 @@ export function CoveredByMapItem({ items }: ListProps) {
 }
 
 CoveredByMapItem.frames = {
-  hidden: { props: { items: [{ label: "Hidden", show: false }] } },
-  shown: { props: { items: [{ label: "Shown", show: true }] } },
+  hidden: { description: "hidden frame", props: { items: [{ label: "Hidden", show: false }] } },
+  shown: { description: "shown frame", props: { items: [{ label: "Shown", show: true }] } },
 } satisfies GFrames<ListProps>
 
 export function CoveredByMapItemNegation({ items }: ListProps) {
@@ -171,7 +175,7 @@ export function CoveredByMapItemNegation({ items }: ListProps) {
 }
 
 CoveredByMapItemNegation.frames = {
-  mixed: { props: { items: [{ label: "Hidden", show: false }, { label: "Shown", show: true }] } },
+  mixed: { description: "mixed frame", props: { items: [{ label: "Hidden", show: false }, { label: "Shown", show: true }] } },
 } satisfies GFrames<ListProps>
 
 export function CoveredByStaticConstMap() {
@@ -185,7 +189,7 @@ export function CoveredByStaticConstMap() {
 }
 
 CoveredByStaticConstMap.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function CoveredByStaticConstMapItem() {
@@ -193,7 +197,7 @@ export function CoveredByStaticConstMapItem() {
 }
 
 CoveredByStaticConstMapItem.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function CoveredByStaticConstBoolean() {
@@ -201,7 +205,7 @@ export function CoveredByStaticConstBoolean() {
 }
 
 CoveredByStaticConstBoolean.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function CoveredByStaticConstObject() {
@@ -209,7 +213,7 @@ export function CoveredByStaticConstObject() {
 }
 
 CoveredByStaticConstObject.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function CoveredByStaticConstComparison() {
@@ -217,7 +221,7 @@ export function CoveredByStaticConstComparison() {
 }
 
 CoveredByStaticConstComparison.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function CoveredByLocalStaticConst() {
@@ -227,7 +231,7 @@ export function CoveredByLocalStaticConst() {
 }
 
 CoveredByLocalStaticConst.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function CoveredByStaticConstWithoutConstAssertion() {
@@ -241,7 +245,7 @@ export function CoveredByStaticConstWithoutConstAssertion() {
 }
 
 CoveredByStaticConstWithoutConstAssertion.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function CoveredByStaticConstObjectSpread() {
@@ -249,7 +253,7 @@ export function CoveredByStaticConstObjectSpread() {
 }
 
 CoveredByStaticConstObjectSpread.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function CoveredByStaticConstArraySpread() {
@@ -257,7 +261,7 @@ export function CoveredByStaticConstArraySpread() {
 }
 
 CoveredByStaticConstArraySpread.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function CoveredByLocalStaticSpread() {
@@ -268,7 +272,7 @@ export function CoveredByLocalStaticSpread() {
 }
 
 CoveredByLocalStaticSpread.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function CoveredByImportedStaticConst() {
@@ -285,7 +289,7 @@ export function CoveredByImportedStaticConst() {
 }
 
 CoveredByImportedStaticConst.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function CoveredByNamespaceImportedStaticConst() {
@@ -293,7 +297,7 @@ export function CoveredByNamespaceImportedStaticConst() {
 }
 
 CoveredByNamespaceImportedStaticConst.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function CoveredByBarrelImportedStaticConst() {
@@ -306,7 +310,7 @@ export function CoveredByBarrelImportedStaticConst() {
 }
 
 CoveredByBarrelImportedStaticConst.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function CoveredByStarAndAliasImportedStaticConst() {
@@ -320,7 +324,7 @@ export function CoveredByStarAndAliasImportedStaticConst() {
 }
 
 CoveredByStarAndAliasImportedStaticConst.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function CoveredByNamespaceReExportedStaticConst() {
@@ -333,7 +337,7 @@ export function CoveredByNamespaceReExportedStaticConst() {
 }
 
 CoveredByNamespaceReExportedStaticConst.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function CoveredByImportedStaticSpread() {
@@ -346,7 +350,7 @@ export function CoveredByImportedStaticSpread() {
 }
 
 CoveredByImportedStaticSpread.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function UncoveredByMapItem({ items }: ListProps) {
@@ -361,7 +365,7 @@ export function UncoveredByMapItem({ items }: ListProps) {
 }
 
 UncoveredByMapItem.frames = {
-  hidden: { props: { items: [{ label: "Hidden", show: false }] } },
+  hidden: { description: "hidden frame", props: { items: [{ label: "Hidden", show: false }] } },
 } satisfies GFrames<ListProps>
 
 export function UncoveredByStaticConstMapItem() {
@@ -369,7 +373,7 @@ export function UncoveredByStaticConstMapItem() {
 }
 
 UncoveredByStaticConstMapItem.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function UncoveredByStaticConstObject() {
@@ -377,7 +381,7 @@ export function UncoveredByStaticConstObject() {
 }
 
 UncoveredByStaticConstObject.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 export function UncoveredByStaticConstObjectSpreadOverride() {
@@ -385,7 +389,7 @@ export function UncoveredByStaticConstObjectSpreadOverride() {
 }
 
 UncoveredByStaticConstObjectSpreadOverride.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>
 
 function shouldShowItem(item: Item) {
@@ -397,7 +401,7 @@ export function OpaqueByMapHelper({ items }: ListProps) {
 }
 
 OpaqueByMapHelper.frames = {
-  shown: { props: { items: [{ label: "Shown", show: true }] } },
+  shown: { description: "shown frame", props: { items: [{ label: "Shown", show: true }] } },
 } satisfies GFrames<ListProps>
 
 export function OpaqueBySwitch({ mode = "hide" }: Props) {
@@ -410,8 +414,8 @@ export function OpaqueBySwitch({ mode = "hide" }: Props) {
 }
 
 OpaqueBySwitch.frames = {
-  hidden: { props: {} },
-  shown: { props: { mode: "show" } },
+  hidden: { description: "hidden frame", props: {} },
+  shown: { description: "shown frame", props: { mode: "show" } },
 } satisfies GFrames<Props>
 
 export function OpaqueByStoredJSX({ showChild = false }: Props) {
@@ -420,8 +424,8 @@ export function OpaqueByStoredJSX({ showChild = false }: Props) {
 }
 
 OpaqueByStoredJSX.frames = {
-  hidden: { props: {} },
-  shown: { props: { showChild: true } },
+  hidden: { description: "hidden frame", props: {} },
+  shown: { description: "shown frame", props: { showChild: true } },
 } satisfies GFrames<Props>
 
 export function OpaqueByForOf({ items }: ListProps) {
@@ -433,7 +437,7 @@ export function OpaqueByForOf({ items }: ListProps) {
 }
 
 OpaqueByForOf.frames = {
-  shown: { props: { items: [{ label: "Shown", show: true }] } },
+  shown: { description: "shown frame", props: { items: [{ label: "Shown", show: true }] } },
 } satisfies GFrames<ListProps>
 
 function RenderList(_props: { items: Item[]; renderItem: (item: Item) => unknown }) {
@@ -445,8 +449,8 @@ export function CoveredByRenderProp({ items }: ListProps) {
 }
 
 CoveredByRenderProp.frames = {
-  hidden: { props: { items: [{ label: "Hidden", show: false }] } },
-  shown: { props: { items: [{ label: "Shown", show: true }] } },
+  hidden: { description: "hidden frame", props: { items: [{ label: "Hidden", show: false }] } },
+  shown: { description: "shown frame", props: { items: [{ label: "Shown", show: true }] } },
 } satisfies GFrames<ListProps>
 
 function Panel(_props: { footer: unknown }) {
@@ -458,5 +462,5 @@ export function CoveredBySlot() {
 }
 
 CoveredBySlot.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 } satisfies GFrames<Record<string, never>>

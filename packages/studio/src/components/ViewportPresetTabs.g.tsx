@@ -111,11 +111,13 @@ export default ViewportPresetTabs
 
 ViewportPresetTabs.frames = {
   tabletSelected: {
+    description: "tabletSelected frame",
     props: {
       selectedPreset: "tablet",
     },
   },
   floatingPhoneSelected: {
+    description: "floatingPhoneSelected frame",
     props: {
       floating: true,
       selectedPreset: "phone",

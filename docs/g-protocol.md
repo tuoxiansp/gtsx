@@ -40,8 +40,8 @@ export default function Badge(props: { tone: "neutral" | "warning"; label: strin
 }
 
 Badge.frames = {
-  neutral: { props: { tone: "neutral", label: "Ready" } },
-  warning: { props: { tone: "warning", label: "Needs review" } },
+  neutral: { description: "Neutral badge", props: { tone: "neutral", label: "Ready" } },
+  warning: { description: "Warning badge", props: { tone: "warning", label: "Needs review" } },
 } satisfies GFrames<{ tone: "neutral" | "warning"; label: string }>
 ```
 
@@ -69,10 +69,12 @@ const status = useRemoteStatus(props.userId)
 <g:frames>
 export default {
   loading: {
+    description: "Loading state while the remote user is unavailable",
     props: { userId: "user_1" },
     scope: { status: "loading" },
   },
   ready: {
+    description: "Ready state with loaded user details",
     props: { userId: "user_42" },
     scope: {
       status: "ready",
@@ -95,8 +97,8 @@ Simple React components often need only props:
 
 ```tsx
 Badge.frames = {
-  neutral: { props: { tone: "neutral", label: "Ready" } },
-  warning: { props: { tone: "warning", label: "Needs review" } },
+  neutral: { description: "Neutral badge", props: { tone: "neutral", label: "Ready" } },
+  warning: { description: "Warning badge", props: { tone: "warning", label: "Needs review" } },
 } satisfies GFrames<BadgeProps>
 ```
 
@@ -106,10 +108,12 @@ Vue frames use the same static object shape inside `<g:frames>`:
 <g:frames>
 export default {
   loading: {
+    description: "Loading state while the remote user is unavailable",
     props: { userId: "user_1" },
     scope: { status: "loading" },
   },
   ready: {
+    description: "Ready state with loaded user details",
     props: { userId: "user_42" },
     scope: { status: "ready", user: { name: "Ada Lovelace" } },
   },
@@ -121,7 +125,7 @@ Supported frame fields:
 
 | Field | Meaning |
 | --- | --- |
-| `description` | Optional static string for agents and tooling to understand what the frame is meant to show. |
+| `description` | Required static string for agents and tooling to understand what the frame is meant to show. |
 | `props` | Values passed as component props. In Vue preview they are also exposed through `props` and direct prop-key variables. |
 | `scope` | State supplied at a protocol seam. React scope hooks read this value; Vue preview exposes it as template-visible scope for the selected frame. |
 | `providers` | Runelight provider/injection seam values. React entries are G providers; Vue entries are native injection keys, and Vue preview calls `provide(injectionKey, value)` before rendering the frame. |
@@ -205,10 +209,12 @@ import type { GVueFrames, GVueProviderFrame } from "@runelight/vue/runtime"
 
 export default {
   admin: {
+    description: "Admin auth context showing admin tools",
     props: {},
     providers: [[authKey, { role: "admin" }]],
   } satisfies GVueProviderFrame<typeof authKey, "admin">,
   viewer: {
+    description: "Viewer auth context without admin tools",
     props: {},
     providers: [[authKey, { role: "viewer" }]],
   } satisfies GVueProviderFrame<typeof authKey, "viewer">,

@@ -53,6 +53,7 @@ export function ReleaseMeta(props: ReleaseMetaProps) {
 
 LayoutCase.frames = {
   comfortable: {
+    description: "comfortable frame",
     props: {
       density: "comfortable",
       title: "Release notes",
@@ -60,6 +61,7 @@ LayoutCase.frames = {
     },
   },
   compact: {
+    description: "compact frame",
     props: {
       density: "compact",
       title: "Release notes",
@@ -67,6 +69,7 @@ LayoutCase.frames = {
     },
   },
   overflowing: {
+    description: "overflowing frame",
     props: {
       density: "comfortable",
       title: "Release notes",
@@ -78,6 +81,7 @@ LayoutCase.frames = {
 
 ReleaseNoteCard.frames = {
   comfortable: {
+    description: "comfortable frame",
     props: {
       density: "comfortable",
       title: "Release notes",
@@ -86,6 +90,7 @@ ReleaseNoteCard.frames = {
     },
   },
   compact: {
+    description: "compact frame",
     props: {
       density: "compact",
       title: "Release notes",
@@ -97,9 +102,11 @@ ReleaseNoteCard.frames = {
 
 ReleaseMeta.frames = {
   viewport: {
+    description: "viewport frame",
     props: { label: "viewport", value: "reader viewport" },
   },
   branch: {
+    description: "branch frame",
     props: { label: "branch", value: "comfortable" },
   },
 } satisfies GFrames<ReleaseMetaProps>

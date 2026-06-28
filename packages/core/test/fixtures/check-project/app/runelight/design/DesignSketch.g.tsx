@@ -9,5 +9,5 @@ export default function DesignSketch(props: DesignSketchProps) {
 }
 
 DesignSketch.frames = {
-  ready: { props: { label: "Design ready" } },
+  ready: { description: "ready frame", props: { label: "Design ready" } },
 } satisfies GFrames<DesignSketchProps>

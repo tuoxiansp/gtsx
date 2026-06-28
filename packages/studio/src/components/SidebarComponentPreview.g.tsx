@@ -117,6 +117,7 @@ export default function SidebarComponentPreview(props: SidebarComponentPreviewPr
 
 SidebarComponentPreview.frames = {
   tabletLoaded: {
+    description: "tabletLoaded frame",
     props: {
       component: {
         coordinate: "src/UserCard.g.tsx#default",

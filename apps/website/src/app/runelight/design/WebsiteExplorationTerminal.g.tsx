@@ -33,5 +33,5 @@ export default function WebsiteExplorationTerminal() {
 }
 
 WebsiteExplorationTerminal.frames = {
-  live: { props: {} },
+  live: { description: "Terminal-style website exploration draft", props: {} },
 } satisfies GFrames<Record<string, never>>

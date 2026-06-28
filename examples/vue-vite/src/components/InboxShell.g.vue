@@ -35,6 +35,7 @@ type Scope = {
 
 export default {
   stagingReview: {
+    description: "stagingReview frame",
     props: {},
     scope: {
       badgeLabel: "Parent review queue",
@@ -46,6 +47,7 @@ export default {
     providers: [[inboxEnvironmentKey, { tone: "staging" }]],
   } satisfies GVueProviderFrame<typeof inboxEnvironmentKey, "staging", Props, Scope>,
   localQuiet: {
+    description: "localQuiet frame",
     props: {},
     scope: {
       badgeLabel: "Parent local queue",

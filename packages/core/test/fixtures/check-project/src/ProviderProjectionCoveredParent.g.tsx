@@ -10,10 +10,12 @@ export default function ProviderProjectionCoveredParent() {
 
 ProviderProjectionCoveredParent.frames = {
   login: {
+    description: "login frame",
     props: {},
     providers: [[LoginProvider, { kind: "login", name: "Ada" }]],
   } satisfies GProviderFrame<typeof LoginProvider, "login">,
   anonymous: {
+    description: "anonymous frame",
     props: {},
     providers: [[LoginProvider, { kind: "anonymous" }]],
   } satisfies GProviderFrame<typeof LoginProvider, "anonymous">,

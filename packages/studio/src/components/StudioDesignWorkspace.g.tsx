@@ -526,6 +526,7 @@ export default StudioDesignWorkspace
 
 StudioDesignWorkspace.frames = {
   designFrames: {
+    description: "designFrames frame",
     props: {
       manifest: {
         version: 1,

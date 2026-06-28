@@ -26,12 +26,14 @@ describe("Runelight analyzer", () => {
     expect(result.mode).toBe("scope")
     expect(result.frames).toEqual([
       {
+        description: "loading frame",
         kind: "scope",
         name: "loading",
         providerVariants: { ThemeProvider: "light" },
         providers: ["ThemeProvider"],
       },
       {
+        description: "ready frame",
         kind: "scope",
         name: "ready",
         providerVariants: { ThemeProvider: "dark" },
@@ -76,6 +78,7 @@ describe("Runelight analyzer", () => {
     expect(result.mode).toBe("pure")
     expect(result.frames).toEqual([
       {
+        description: "light frame",
         kind: "pure",
         name: "light",
         providers: ["ThemeProvider"],
@@ -91,6 +94,7 @@ describe("Runelight analyzer", () => {
     expect(result.mode).toBe("pure")
     expect(result.frames).toEqual([
       {
+        description: "ready frame",
         kind: "pure",
         name: "ready",
         providers: ["ImportedScopeProvider"],
@@ -180,11 +184,13 @@ describe("Runelight analyzer", () => {
     expect(result.diagnostics).toEqual([])
     expect(result.frames).toEqual([
       {
+        description: "loginName frame",
         kind: "pure",
         name: "loginName",
         providerVariants: { LoginProvider: "login" },
       },
       {
+        description: "anonymousName frame",
         kind: "pure",
         name: "anonymousName",
         providerVariants: { LoginProvider: "anonymous" },
@@ -221,6 +227,7 @@ describe("Runelight analyzer", () => {
     expect(result.diagnostics).toEqual([])
     expect(result.frames).toEqual([
       {
+        description: "loading frame",
         kind: "pure",
         name: "loading",
         providerVariants: { LoginProvider: ["login", "anonymous"] },

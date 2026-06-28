@@ -10,6 +10,7 @@ export default function ProviderProjectionDelegatingMissingCoverage() {
 
 ProviderProjectionDelegatingMissingCoverage.frames = {
   loading: {
+    description: "loading frame",
     props: {},
     providers: [[LoginProvider, { kind: "anonymous" }]],
   },

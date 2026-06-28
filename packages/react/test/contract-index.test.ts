@@ -38,8 +38,8 @@ describe("Runelight project index", () => {
                 success: [],
               },
               frames: [
-                { kind: "pure", name: "neutral" },
-                { kind: "pure", name: "success" },
+                { description: "neutral frame", kind: "pure", name: "neutral" },
+                { description: "success frame", kind: "pure", name: "success" },
               ],
               providers: {},
               visualSignature: expect.any(String),
@@ -68,8 +68,8 @@ describe("Runelight project index", () => {
                 loading: [],
               },
               frames: [
-                { kind: "pure", name: "loading" },
-                { kind: "pure", name: "error" },
+                { description: "loading frame", kind: "pure", name: "loading" },
+                { description: "error frame", kind: "pure", name: "error" },
               ],
               providers: {},
               visualSignature: expect.any(String),

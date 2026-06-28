@@ -22,6 +22,7 @@ export { ScopeSource, useImportedScope }
 
 ScopeSource.frames = {
   ready: {
+    description: "ready frame",
     props: {},
     providers: [[ImportedScopeProvider, { label: "source" }]],
   },

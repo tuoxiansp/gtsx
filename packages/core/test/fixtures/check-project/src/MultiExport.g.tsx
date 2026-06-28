@@ -9,7 +9,7 @@ export function NamedBadge(props: BadgeProps) {
 }
 
 NamedBadge.frames = {
-  ready: { props: { label: "Named" } },
+  ready: { description: "ready frame", props: { label: "Named" } },
 } satisfies GFrames<BadgeProps>
 
 type DefaultBadgeProps = {
@@ -21,5 +21,5 @@ export default function DefaultBadge(props: DefaultBadgeProps) {
 }
 
 DefaultBadge.frames = {
-  defaultReady: { props: { label: "Default" } },
+  defaultReady: { description: "defaultReady frame", props: { label: "Default" } },
 } satisfies GFrames<DefaultBadgeProps>

@@ -11,5 +11,5 @@ export default function Included(props: Props) {
 }
 
 Included.frames = {
-  ready: { props: { label: "Included" } },
+  ready: { description: "ready frame", props: { label: "Included" } },
 } satisfies GFrames<Props>

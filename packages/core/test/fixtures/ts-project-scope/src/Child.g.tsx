@@ -9,7 +9,7 @@ export default function Child(props: Props) {
 }
 
 Child.frames = {
-  ready: { props: { label: "Child" } },
+  ready: { description: "ready frame", props: { label: "Child" } },
 } satisfies GFrames<Props>
 
 export { Child }

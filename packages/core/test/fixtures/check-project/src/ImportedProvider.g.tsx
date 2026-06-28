@@ -8,6 +8,7 @@ export function ImportedProviderPanel() {
 
 ImportedProviderPanel.frames = {
   light: {
+    description: "light frame",
     props: {},
     providers: [[ThemeProvider, { mode: "light" }]],
   },

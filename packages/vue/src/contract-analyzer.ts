@@ -384,9 +384,21 @@ function readVueFramesObject(
     const providers = readProviderSelections(frameValue)
     const providerVariants = readProviderVariantMarkers(property.initializer)
     const description = readFrameDescription(frameValue)
+    if (description === undefined) {
+      diagnostics.push({
+        stage: "contract-extraction",
+        severity: "error",
+        code: hasStaticProperty(frameValue, "description") ? "non-static-frame-description" : "missing-frame-description",
+        message: hasStaticProperty(frameValue, "description")
+          ? `Vue frame "${frameName}" description must be a static string.`
+          : `Vue frame "${frameName}" must declare a static description string.`,
+        file,
+        frameName,
+      })
+    }
     const kind = hasStaticProperty(frameValue, "scope") ? "scope" : "pure"
     frames.push({
-      ...(description !== undefined ? { description } : {}),
+      description: description ?? "",
       kind,
       name: frameName,
       ...(providerVariants && Object.keys(providerVariants).length > 0 ? { providerVariants } : {}),

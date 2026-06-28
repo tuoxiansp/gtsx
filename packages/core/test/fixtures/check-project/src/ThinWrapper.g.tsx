@@ -12,6 +12,7 @@ export default function OrderPreview() {
 
 OrderPreview.frames = {
   ready: {
+    description: "ready frame",
     props: {},
   },
 } satisfies GFrames<Record<string, never>>

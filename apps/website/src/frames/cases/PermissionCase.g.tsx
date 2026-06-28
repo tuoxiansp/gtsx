@@ -68,10 +68,12 @@ export function PermissionMetric(props: { label: string; value: string }) {
 
 PermissionCase.frames = {
   viewer: {
+    description: "viewer frame",
     props: { section: "Workspace settings" },
     providers: [[AccessProvider, { role: "viewer" }]],
   } satisfies GProviderFrame<typeof AccessProvider, "viewer">,
   admin: {
+    description: "admin frame",
     props: { section: "Workspace settings" },
     providers: [[AccessProvider, { role: "admin" }]],
   } satisfies GProviderFrame<typeof AccessProvider, "admin">,
@@ -79,21 +81,25 @@ PermissionCase.frames = {
 
 ViewerWorkspaceSummary.frames = {
   readOnly: {
+    description: "readOnly frame",
     props: { section: "Workspace settings" },
   },
 } satisfies GFrames<PermissionSurfaceProps>
 
 AdminWorkspacePolicy.frames = {
   editable: {
+    description: "editable frame",
     props: { section: "Workspace settings" },
   },
 } satisfies GFrames<PermissionSurfaceProps>
 
 PermissionMetric.frames = {
   zero: {
+    description: "zero frame",
     props: { label: "editable controls", value: "0" },
   },
   active: {
+    description: "active frame",
     props: { label: "guarded branches", value: "2" },
   },
 } satisfies GFrames<{ label: string; value: string }>

@@ -47,6 +47,7 @@ export default function BufferedPreviewIframe(props: BufferedPreviewIframeProps)
 
 BufferedPreviewIframe.frames = {
   active: {
+    description: "active frame",
     props: {
       size: { width: 390, height: 844 },
       slot: {

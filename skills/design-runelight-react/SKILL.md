@@ -46,7 +46,7 @@ export default function CheckoutFlowConcept() {
 }
 
 CheckoutFlowConcept.frames = {
-  live: { props: {} },
+  live: { description: "Live checkout flow concept", props: {} },
 } satisfies GFrames<Record<string, never>>
 ```
 

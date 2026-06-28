@@ -37,6 +37,7 @@ export default function ComponentBoundsHitTarget(props: ComponentBoundsHitTarget
 
 ComponentBoundsHitTarget.frames = {
   userCardBounds: {
+    description: "userCardBounds frame",
     props: {
       coordinate: "src/UserCard.g.tsx#default",
       rect: { x: 12, y: 20, width: 320, height: 88 },

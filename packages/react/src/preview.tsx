@@ -40,6 +40,7 @@ import { GPreviewProvider, createGBoundaryCollector, type GBoundaryCollector } f
 import type { AnyGProvider } from "./types.js"
 
 export type RunelightReactPreviewFrame<Props extends object = Record<string, unknown>> = {
+  description: string
   props: Props
   providers?: readonly (readonly [AnyGProvider, unknown])[]
   scope?: unknown

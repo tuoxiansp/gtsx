@@ -39,5 +39,5 @@ export default function WebsiteExplorationSplit() {
 }
 
 WebsiteExplorationSplit.frames = {
-  live: { props: {} },
+  live: { description: "Split-layout website exploration draft", props: {} },
 } satisfies GFrames<Record<string, never>>

@@ -26,9 +26,11 @@ export default function Alert(props: AlertProps) {
 
 Alert.frames = {
   info: {
+    description: "Informational alert with dismiss action",
     props: { severity: "info", message: "Saved.", dismissible: true },
   },
   errorNonDismissible: {
+    description: "Persistent error alert without dismiss action",
     props: { severity: "error", message: "Connection lost.", dismissible: false },
   },
 } satisfies GFrames<AlertProps>
@@ -72,10 +74,12 @@ export default function Search(props: SearchProps) {
 
 Search.frames = {
   empty: {
+    description: "Search field before any query results",
     props: { placeholder: "Search…" },
     scope: { query: "", results: [], onSearch() {} },
   },
   withResults: {
+    description: "Search field with matching results",
     props: { placeholder: "Search…" },
     scope: { query: "react", results: ["React", "React Native"], onSearch() {} },
   },
@@ -123,14 +127,17 @@ export default function Resource(props: Props) {
 
 Resource.frames = {
   loading: {
+    description: "Loading state while resource data is unavailable",
     props: { resourceId: "res_1" },
     scope: { status: "loading" },
   },
   error: {
+    description: "Retryable resource error state",
     props: { resourceId: "res_1" },
     scope: { status: "error", message: "Timeout", retry() {} },
   },
   ready: {
+    description: "Ready state with resource data loaded",
     props: { resourceId: "res_1" },
     scope: { status: "ready", title: "Dashboard", data: [1, 2, 3] },
   },
@@ -161,10 +168,12 @@ export default function Card(props: CardProps) {
 
 Card.frames = {
   lightCard: {
+    description: "Card rendered under the light theme",
     props: { title: "Settings" },
     providers: [[ThemeProvider, { mode: "light", accent: "#0066cc" }]],
   } satisfies GProviderFrame<typeof ThemeProvider, "light", CardProps, never, [typeof ThemeProvider]>,
   darkCard: {
+    description: "Card rendered under the dark theme",
     props: { title: "Settings" },
     providers: [[ThemeProvider, { mode: "dark", accent: "#66ccff" }]],
   } satisfies GProviderFrame<typeof ThemeProvider, "dark", CardProps, never, [typeof ThemeProvider]>,
@@ -192,7 +201,7 @@ export function PrimaryButton(props: ButtonProps) {
 }
 
 PrimaryButton.frames = {
-  ready: { props: { label: "Submit", variant: "primary" } },
+  ready: { description: "Primary submit button", props: { label: "Submit", variant: "primary" } },
 } satisfies GFrames<ButtonProps>
 
 export default function GhostButton(props: ButtonProps) {
@@ -200,7 +209,7 @@ export default function GhostButton(props: ButtonProps) {
 }
 
 GhostButton.frames = {
-  ready: { props: { label: "Cancel", variant: "ghost" } },
+  ready: { description: "Secondary cancel button", props: { label: "Cancel", variant: "ghost" } },
 } satisfies GFrames<ButtonProps>
 ```
 
@@ -229,8 +238,8 @@ export default function UserStatus(props: Props) {
 }
 
 UserStatus.frames = {
-  online:  { props: { userId: "u1" }, scope: { name: "Ada", online: true } },
-  offline: { props: { userId: "u2" }, scope: { name: "Bob", online: false } },
+  online:  { description: "Online user status", props: { userId: "u1" }, scope: { name: "Ada", online: true } },
+  offline: { description: "Offline user status", props: { userId: "u2" }, scope: { name: "Bob", online: false } },
 } satisfies GFrames<Props, Scope>
 ```
 
@@ -274,11 +283,13 @@ export default function Page(props: Props) {
 
 Page.frames = {
   adminView: {
+    description: "Editable page under admin auth",
     props: { pageId: "p1" },
     providers: [[AuthProvider, { role: "admin" }]],
     scope: { title: "Dashboard", canEdit: true },
   } satisfies GProviderFrame<typeof AuthProvider, "admin", Props, Scope, typeof providers>,
   viewerView: {
+    description: "Read-only page under viewer auth",
     props: { pageId: "p1" },
     providers: [[AuthProvider, { role: "viewer" }]],
     scope: { title: "Dashboard", canEdit: false },
@@ -309,8 +320,8 @@ export default function Notification(props: NotificationProps) {
 }
 
 Notification.frames = {
-  noUnread: { props: { title: "Inbox", unread: 0 } },
-  withUnread: { props: { title: "Inbox", unread: 3 } },
+  noUnread: { description: "Inbox notification with no unread badge", props: { title: "Inbox", unread: 0 } },
+  withUnread: { description: "Inbox notification showing unread count", props: { title: "Inbox", unread: 3 } },
 } satisfies GFrames<NotificationProps>
 ```
 
@@ -337,8 +348,8 @@ export default function RowList(props: Props) {
 }
 
 RowList.frames = {
-  allHidden: { props: { rows: [{ id: "1", label: "Draft", visible: false }] } },
-  visibleRow: { props: { rows: [{ id: "2", label: "Published", visible: true }] } },
+  allHidden: { description: "List with every row hidden", props: { rows: [{ id: "1", label: "Draft", visible: false }] } },
+  visibleRow: { description: "List with one visible row", props: { rows: [{ id: "2", label: "Published", visible: true }] } },
 } satisfies GFrames<Props>
 ```
 
@@ -360,9 +371,11 @@ export default function AccountName(props: Props) {
 
 AccountName.frames = {
   loginName: {
+    description: "Account name projected from logged-in auth",
     props: { userName: "Ada" },
   } satisfies GProviderFrame<typeof UserSignProvider, "login", Props>,
   anonymousName: {
+    description: "Anonymous account label",
     props: { userName: "Guest" },
   } satisfies GProviderFrame<typeof UserSignProvider, "anonymous", Props>,
 } satisfies GFrames<Props>
@@ -374,6 +387,7 @@ Unmarked frames are neutral in Studio, but they do not count as coverage for a c
 
 ```tsx
 loading: {
+  description: "Loading state shared across auth variants",
   props: { status: "loading" },
 } satisfies GProviderFrame<typeof UserSignProvider, "login" | "anonymous", Props>
 ```

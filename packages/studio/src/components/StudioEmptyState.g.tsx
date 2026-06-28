@@ -59,6 +59,7 @@ export default function StudioEmptyState(props: StudioEmptyStateProps) {
 
 StudioEmptyState.frames = {
   empty: {
+    description: "empty frame",
     props: {
       title: "No components selected",
       detail: "Studio can inspect this package the same way it inspects any other Runelight project.",

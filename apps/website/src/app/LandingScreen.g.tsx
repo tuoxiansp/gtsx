@@ -23,7 +23,7 @@ export function LandingScreen() {
 }
 
 LandingScreen.frames = {
-  live: { props: {} },
+  live: { description: "Complete landing page with all sections", props: {} },
 } satisfies GFrames<EmptyProps>
 
 function LandingBackground() {
@@ -47,7 +47,7 @@ export function LandingHeader() {
 }
 
 LandingHeader.frames = {
-  live: { props: {} },
+  live: { description: "Landing header with Runelight brand", props: {} },
 } satisfies GFrames<EmptyProps>
 
 export function LandingHero() {
@@ -65,7 +65,7 @@ export function LandingHero() {
 }
 
 LandingHero.frames = {
-  live: { props: {} },
+  live: { description: "Landing hero headline and payoff copy", props: {} },
 } satisfies GFrames<EmptyProps>
 
 export function LandingVisualProof() {
@@ -93,7 +93,7 @@ export function LandingVisualProof() {
 }
 
 LandingVisualProof.frames = {
-  live: { props: {} },
+  live: { description: "Landing proof section with Studio capture", props: {} },
 } satisfies GFrames<EmptyProps>
 
 export function LandingCta() {
@@ -115,7 +115,7 @@ export function LandingCta() {
 }
 
 LandingCta.frames = {
-  live: { props: {} },
+  live: { description: "Landing call-to-action section", props: {} },
 } satisfies GFrames<EmptyProps>
 
 export function LandingFooter() {
@@ -130,5 +130,5 @@ export function LandingFooter() {
 }
 
 LandingFooter.frames = {
-  live: { props: {} },
+  live: { description: "Landing footer metadata links", props: {} },
 } satisfies GFrames<EmptyProps>

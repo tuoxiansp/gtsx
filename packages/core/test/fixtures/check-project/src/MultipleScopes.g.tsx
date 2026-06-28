@@ -14,5 +14,5 @@ export default function MultipleScopes(props: Props) {
 }
 
 MultipleScopes.frames = {
-  ready: { props: { id: "1" }, scope: { label: "first" } },
+  ready: { description: "ready frame", props: { id: "1" }, scope: { label: "first" } },
 } satisfies GFrames<Props, { label: string }>

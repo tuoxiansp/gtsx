@@ -74,6 +74,7 @@ export type GProviderOptions<Variants extends readonly string[] = readonly strin
 }
 
 export type GFrame<Props, Scope = never, Providers extends readonly unknown[] = readonly unknown[]> = {
+  description: string
   props: Props
   providers?: GProviderEntriesFor<Providers>
 } & ([Scope] extends [never] ? unknown : { scope?: Scope })

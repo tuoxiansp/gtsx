@@ -83,8 +83,8 @@ export default defineRunelightConfig({
 }
 
 Child.frames = {
-  compact: { props: {} },
-  expanded: { props: {} },
+  compact: { description: "compact frame", props: {} },
+  expanded: { description: "expanded frame", props: {} },
 }
 `,
       )
@@ -99,8 +99,8 @@ export default function Root(props: RootProps) {
 }
 
 Root.frames = {
-  plain: { props: { mode: "plain" } },
-  withChild: { props: { mode: "withChild" } },
+  plain: { description: "plain frame", props: { mode: "plain" } },
+  withChild: { description: "withChild frame", props: { mode: "withChild" } },
 }
 `,
       )
@@ -170,8 +170,8 @@ export function Toast({ message }: ToastProps) {
 }
 
 Toast.frames = {
-  ready: { props: { message: "Saved" } },
-  empty: { props: { message: "" } },
+  ready: { description: "ready frame", props: { message: "Saved" } },
+  empty: { description: "empty frame", props: { message: "" } },
 }
 `,
       )
@@ -186,8 +186,8 @@ export default function Root(props: RootProps) {
 }
 
 Root.frames = {
-  webReady: { props: { toastMessage: "" } },
-  toast: { props: { toastMessage: "Saved" } },
+  webReady: { description: "webReady frame", props: { toastMessage: "" } },
+  toast: { description: "toast frame", props: { toastMessage: "Saved" } },
 }
 `,
       )
@@ -414,7 +414,7 @@ export default defineRunelightConfig({
 }
 
 Root.frames = {
-${Array.from({ length: 25 }, (_, index) => `  frame${index}: { props: {} },`).join("\n")}
+${Array.from({ length: 25 }, (_, index) => `  frame${index}: { description: "frame${index} frame", props: {} },`).join("\n")}
 }
 `,
       )
@@ -484,7 +484,7 @@ export default function Button(props: ButtonProps) {
 }
 
 Button.frames = {
-  ready: { props: { label: "Save" } },
+  ready: { description: "ready frame", props: { label: "Save" } },
 } satisfies GFrames<ButtonProps>
 `,
       )
@@ -499,7 +499,7 @@ export default function Link(props: LinkProps) {
 }
 
 Link.frames = {
-  ready: { props: { label: "Docs" } },
+  ready: { description: "ready frame", props: { label: "Docs" } },
 } satisfies GFrames<LinkProps>
 `,
       )
@@ -520,7 +520,7 @@ export default function Button(props: ButtonProps) {
 }
 
 Button.frames = {
-  ready: { props: { label: "Save" } },
+  ready: { description: "ready frame", props: { label: "Save" } },
 } satisfies GFrames<ButtonProps>
 `,
       )
@@ -535,7 +535,7 @@ export default function Link(props: LinkProps) {
 }
 
 Link.frames = {
-  ready: { props: { label: "Docs" } },
+  ready: { description: "ready frame", props: { label: "Docs" } },
 } satisfies GFrames<LinkProps>
 `,
       )
@@ -618,8 +618,8 @@ export default function Card(props: CardProps) {
 }
 
 Card.frames = {
-  ready: { props: { detail: "Ready", tone: "ready" } },
-  warning: { props: { detail: "Before", tone: "warning" } },
+  ready: { description: "ready frame", props: { detail: "Ready", tone: "ready" } },
+  warning: { description: "warning frame", props: { detail: "Before", tone: "warning" } },
 } satisfies GFrames<CardProps>
 `,
       )
@@ -640,8 +640,8 @@ export default function Card(props: CardProps) {
 }
 
 Card.frames = {
-  ready: { props: { detail: "Ready", tone: "ready" } },
-  warning: { props: { detail: "After", tone: "warning" } },
+  ready: { description: "ready frame", props: { detail: "Ready", tone: "ready" } },
+  warning: { description: "warning frame", props: { detail: "After", tone: "warning" } },
 } satisfies GFrames<CardProps>
 `,
       )

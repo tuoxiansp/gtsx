@@ -26,10 +26,12 @@ function formatName(value: string) {
 <g:frames>
 export default {
   loading: {
+    description: "loading frame",
     props: { userId: "user_loading" },
     scope: { status: "loading" },
   },
   error: {
+    description: "error frame",
     props: { userId: "user_error" },
     scope: {
       status: "error",
@@ -37,6 +39,7 @@ export default {
     },
   },
   ready: {
+    description: "ready frame",
     props: { userId: "user_42" },
     scope: {
       status: "ready",

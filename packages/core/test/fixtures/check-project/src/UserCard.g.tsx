@@ -33,11 +33,13 @@ export default function UserCard(props: Props) {
 
 UserCard.frames = {
   loading: {
+    description: "loading frame",
     props: { userId: "user_1" },
     providers: [[ThemeProvider, { mode: "light" }]],
     scope: { status: "loading" },
   } satisfies GProviderFrame<typeof ThemeProvider, "light">,
   ready: {
+    description: "ready frame",
     props: { userId: "user_1" },
     providers: [[ThemeProvider, { mode: "dark" }]],
     scope: { status: "ready", title: "Ada Lovelace", onOpen: () => {} },

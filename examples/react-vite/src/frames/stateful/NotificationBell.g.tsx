@@ -58,11 +58,13 @@ export default function NotificationBell(props: NotificationBellProps) {
 
 NotificationBell.frames = {
   quiet: {
+    description: "quiet frame",
     props: { label: "Notifications", unread: 0, expanded: false, items: [] },
     providers: [[NotificationBellEnvironmentProvider, { environment: "local", reviewLane: "debug" }]],
     scope: { expanded: false, items: [] },
   },
   expanded: {
+    description: "expanded frame",
     props: {
       label: "Notifications",
       unread: 3,

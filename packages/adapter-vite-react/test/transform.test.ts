@@ -138,7 +138,7 @@ export default function Card(props: { label: string }) {
 }
 
 Card.frames = {
-  ready: { props: { label: "Ready" } },
+  ready: { description: "ready frame", props: { label: "Ready" } },
 }
 `,
       "/repo/src/Card.g.tsx?import",
@@ -157,7 +157,7 @@ export default function Card(props: { label: string }) {
 }
 
 Card.frames = {
-  ready: { props: { label: "Ready" } },
+  ready: { description: "ready frame", props: { label: "Ready" } },
 }
 `,
       "/repo/src/Card.g.tsx?runelight-preview",

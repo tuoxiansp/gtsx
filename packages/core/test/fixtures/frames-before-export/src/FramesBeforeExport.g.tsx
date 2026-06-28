@@ -1,7 +1,7 @@
 import type { GFrames } from "@runelight/react/runtime"
 
 FramesBeforeExport.frames = {
-  ready: { props: { label: "Ready" } },
+  ready: { description: "ready frame", props: { label: "Ready" } },
 } satisfies GFrames<FramesBeforeExportProps>
 
 type FramesBeforeExportProps = {

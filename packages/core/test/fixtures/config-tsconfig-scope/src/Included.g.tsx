@@ -10,6 +10,7 @@ export default function Included(props: IncludedProps) {
 
 Included.frames = {
   ready: {
+    description: "ready frame",
     props: {
       label: "ready",
     },

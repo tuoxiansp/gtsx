@@ -37,6 +37,7 @@ export type GVueProviderEntriesFor<Providers extends readonly unknown[]> = reado
     }
 
 export type GVueFrame<Props, Scope = never, Providers extends readonly unknown[] = readonly unknown[]> = {
+  description: string
   props: Props
   providers?: GVueProviderEntriesFor<Providers>
 } & ([Scope] extends [never] ? unknown : { scope?: Scope })

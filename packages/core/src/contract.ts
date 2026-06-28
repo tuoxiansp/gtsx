@@ -19,7 +19,7 @@ export type RunelightDiagnostic = {
 export type RunelightProviderVariantSelection = string | string[]
 
 export type RunelightFrameSummary = {
-  description?: string
+  description: string
   kind: "pure" | "scope"
   name: string
   providerVariants?: Record<string, RunelightProviderVariantSelection>

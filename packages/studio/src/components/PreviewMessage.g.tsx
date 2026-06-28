@@ -23,18 +23,21 @@ export default function PreviewMessage(props: PreviewMessageProps) {
 
 PreviewMessage.frames = {
   missingEntry: {
+    description: "missingEntry frame",
     props: {
       detail: "Pass ?entry=src/components/.../*.g.tsx to render a Studio package frame.",
       title: "Missing entry",
     },
   },
   unknownFrame: {
+    description: "unknownFrame frame",
     props: {
       detail: "No frames declared",
       title: "Unknown frame",
     },
   },
   loading: {
+    description: "loading frame",
     props: {
       detail: "src/components/StudioWorkspaceView.g.tsx",
       title: "Loading",

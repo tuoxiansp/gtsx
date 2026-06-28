@@ -21,6 +21,6 @@ Fetch skills/setup-runelight, then run setup-runelight.`}</pre>
 }
 
 WebsiteInstallPrompt.frames = {
-  default: { props: { copied: false } },
-  copied: { props: { copied: true } },
+  default: { description: "default frame", props: { copied: false } },
+  copied: { description: "copied frame", props: { copied: true } },
 } satisfies GFrames<WebsiteInstallPromptProps>

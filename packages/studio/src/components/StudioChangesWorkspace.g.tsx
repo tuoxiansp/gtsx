@@ -1367,6 +1367,7 @@ export default StudioChangesWorkspace
 
 StudioChangesWorkspace.frames = {
   modifiedSmallComponent: {
+    description: "modifiedSmallComponent frame",
     props: {
       changes: {
         version: 1,

@@ -118,10 +118,12 @@ export function InboxErrorPanel(props: InboxErrorPanelProps) {
 
 DataCase.frames = {
   empty: {
+    description: "empty frame",
     props: { title: "Agent inbox" },
     scope: { status: "empty" },
   },
   populated: {
+    description: "populated frame",
     props: { title: "Agent inbox" },
     scope: {
       status: "ready",
@@ -133,6 +135,7 @@ DataCase.frames = {
     },
   },
   error: {
+    description: "error frame",
     props: { title: "Agent inbox" },
     scope: { status: "error", message: "The inbox service timed out while loading visual branches." },
   },
@@ -140,12 +143,14 @@ DataCase.frames = {
 
 EmptyInboxPanel.frames = {
   default: {
+    description: "default frame",
     props: { title: "Agent inbox" },
   },
 } satisfies GFrames<InboxPanelProps>
 
 InboxReviewQueue.frames = {
   populated: {
+    description: "populated frame",
     props: {
       items: [
         { id: "1", title: "Review auth branches", meta: "SessionPanel · 2 frames", priority: "high" },
@@ -159,18 +164,22 @@ InboxReviewQueue.frames = {
 
 InboxTaskRow.frames = {
   high: {
+    description: "high frame",
     props: { item: { id: "1", title: "Review auth branches", meta: "SessionPanel · 2 frames", priority: "high" } },
   },
   medium: {
+    description: "medium frame",
     props: { item: { id: "2", title: "Verify layout overflow", meta: "ContentPanel · 3 frames", priority: "medium" } },
   },
   low: {
+    description: "low frame",
     props: { item: { id: "3", title: "Approve agent diff", meta: "StudioBoard · 4 frames", priority: "low" } },
   },
 } satisfies GFrames<InboxTaskRowProps>
 
 InboxErrorPanel.frames = {
   timeout: {
+    description: "timeout frame",
     props: {
       message: "The inbox service timed out while loading visual branches.",
       title: "Agent inbox",

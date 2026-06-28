@@ -9,5 +9,5 @@ export function MissingDefault(props: Props) {
 }
 
 MissingDefault.frames = {
-  ready: { props: { label: "Ready" } },
+  ready: { description: "ready frame", props: { label: "Ready" } },
 } satisfies GFrames<Props>

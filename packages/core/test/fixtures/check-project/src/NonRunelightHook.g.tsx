@@ -12,5 +12,5 @@ export default function NonRunelightHook(props: Props) {
 }
 
 NonRunelightHook.frames = {
-  ready: { props: { label: "Ready" } },
+  ready: { description: "ready frame", props: { label: "Ready" } },
 } satisfies GFrames<Props>

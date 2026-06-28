@@ -10,6 +10,6 @@ export default function Badge(props: BadgeProps) {
 }
 
 Badge.frames = {
-  neutral: { props: { tone: "neutral", label: "Ready" } },
-  warning: { props: { tone: "warning", label: "Needs review" } },
+  neutral: { description: "neutral frame", props: { tone: "neutral", label: "Ready" } },
+  warning: { description: "warning frame", props: { tone: "warning", label: "Needs review" } },
 } satisfies GFrames<BadgeProps>

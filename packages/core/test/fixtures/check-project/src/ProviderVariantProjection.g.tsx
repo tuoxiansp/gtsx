@@ -12,9 +12,11 @@ export default function ProviderVariantProjection(props: Props) {
 
 ProviderVariantProjection.frames = {
   loginName: {
+    description: "loginName frame",
     props: { userName: "Ada" },
   } satisfies GProviderFrame<typeof LoginProvider, "login">,
   anonymousName: {
+    description: "anonymousName frame",
     props: { userName: "Guest" },
   } satisfies GProviderFrame<typeof LoginProvider, "anonymous">,
 } satisfies GFrames<Props>

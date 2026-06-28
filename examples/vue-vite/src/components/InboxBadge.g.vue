@@ -25,10 +25,12 @@ type Props = { label: string; unread: number }
 
 export default {
   localEmpty: {
+    description: "localEmpty frame",
     props: { label: "Isolated inbox", unread: 0 },
     providers: [[inboxEnvironmentKey, { tone: "local" }]],
   } satisfies GVueProviderFrame<typeof inboxEnvironmentKey, "local", Props>,
   stagingSingle: {
+    description: "stagingSingle frame",
     props: { label: "Isolated staging inbox", unread: 1 },
     providers: [[inboxEnvironmentKey, { tone: "staging" }]],
   } satisfies GVueProviderFrame<typeof inboxEnvironmentKey, "staging", Props>,

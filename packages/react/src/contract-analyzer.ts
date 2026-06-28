@@ -3916,9 +3916,25 @@ function readFramesObject(
     const frameValue = unwrapExpression(property.initializer)
     const providers = ts.isObjectLiteralExpression(frameValue) ? readProviderSelections(frameValue) : undefined
     const description = ts.isObjectLiteralExpression(frameValue) ? readFrameDescription(frameValue) : undefined
+    if (description === undefined) {
+      diagnostics.push({
+        stage: "contract-extraction",
+        severity: "error",
+        code:
+          ts.isObjectLiteralExpression(frameValue) && hasStaticProperty(frameValue, "description")
+            ? "non-static-frame-description"
+            : "missing-frame-description",
+        message:
+          ts.isObjectLiteralExpression(frameValue) && hasStaticProperty(frameValue, "description")
+            ? `Runelight frame "${frameName}" description must be a static string.`
+            : `Runelight frame "${frameName}" must declare a static description string.`,
+        file: sourceFile.fileName,
+        frameName,
+      })
+    }
     const kind = ts.isObjectLiteralExpression(frameValue) && hasStaticProperty(frameValue, "scope") ? "scope" : "pure"
     frames.push({
-      ...(description !== undefined ? { description } : {}),
+      description: description ?? "",
       kind,
       name: frameName,
       ...(providerVariants && Object.keys(providerVariants).length > 0 ? { providerVariants } : {}),

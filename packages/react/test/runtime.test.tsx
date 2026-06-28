@@ -142,6 +142,7 @@ describe("Runelight runtime", () => {
 
     const frames = {
       ready: {
+        description: "Ready preview scope",
         props: { userId: "user_1" },
         providers: [[PreviewThemeProvider, { mode: "dark" }]],
         scope: { title: "Ada Lovelace" },
@@ -222,6 +223,7 @@ describe("Runelight runtime", () => {
     })
     Card.frames = {
       preview: {
+        description: "Preview frame with provider-derived scope",
         props: { userId: "user_1" },
         providers: [
           [ThemeProvider, { color: "#f0a" }],
@@ -295,6 +297,7 @@ describe("Runelight runtime", () => {
     })
     ThemeLabel.frames = {
       dark: {
+        description: "Dark theme label",
         props: {},
         providers: [[ThemeProvider, { mode: "dark" }]],
       },
@@ -330,6 +333,7 @@ describe("Runelight runtime", () => {
     })
     ThemeButton.frames = {
       preview: {
+        description: "Theme button preview state",
         props: {},
         providers: [[ThemeProvider, { mode: "light" }]],
       },
@@ -363,8 +367,8 @@ describe("Runelight runtime", () => {
 
     const Child = defineGComponent("src/Child.g.tsx#Child", ChildImpl)
     Child.frames = {
-      closed: { props: {}, scope: { label: "closed" } },
-      open: { props: {}, scope: { label: "open" } },
+      closed: { description: "Closed child state", props: {}, scope: { label: "closed" } },
+      open: { description: "Open child state", props: {}, scope: { label: "open" } },
     } satisfies GFrames<Record<string, never>, { label: string }>
 
     function Parent() {
@@ -401,11 +405,13 @@ describe("Runelight runtime", () => {
     })
     Child.frames = {
       quiet: {
+        description: "Quiet child frame",
         props: { unread: 0 },
         providers: [[ToneProvider, "local"]],
         scope: { label: "child-frame" },
       },
       expanded: {
+        description: "Expanded child frame",
         props: { unread: 9 },
         providers: [[ToneProvider, "staging"]],
         scope: { label: "child-expanded-frame" },
@@ -428,6 +434,7 @@ describe("Runelight runtime", () => {
     const parentReviewScope = { tone: "staging", unread: 5 } satisfies ParentScope
     Parent.frames = {
       review: {
+        description: "Parent review state",
         props: {},
         scope: parentReviewScope,
       },
@@ -457,10 +464,12 @@ describe("Runelight runtime", () => {
     })
     Child.frames = {
       quiet: {
+        description: "Quiet child frame",
         props: { unread: 0 },
         scope: { label: "quiet-frame" },
       },
       expanded: {
+        description: "Expanded child frame",
         props: { unread: 99 },
         scope: { label: "expanded-frame" },
       },
@@ -477,6 +486,7 @@ describe("Runelight runtime", () => {
     const parentReviewScope = { unread: 5 } satisfies ParentScope
     Parent.frames = {
       review: {
+        description: "Parent review state",
         props: {},
         scope: parentReviewScope,
       },
@@ -517,11 +527,13 @@ describe("Runelight runtime", () => {
     })
     Child.frames = {
       hidden: {
+        description: "Hidden child toast",
         props: { message: "" },
         providers: [[ToneProvider, "quiet"]],
         scope: { placement: "hidden-frame" },
       },
       top: {
+        description: "Top child toast",
         props: { message: "Network restored" },
         providers: [[ToneProvider, "urgent"]],
         scope: { placement: "top-frame" },
@@ -552,7 +564,7 @@ describe("Runelight runtime", () => {
 
     const Child = defineGComponent("src/Child.g.tsx#Child", ChildImpl)
     Child.frames = {
-      closed: { props: {} },
+      closed: { description: "Closed child state", props: {} },
     } satisfies GFrames<Record<string, never>>
 
     expect(() =>
@@ -571,7 +583,7 @@ describe("Runelight runtime", () => {
 
     const Child = defineGComponent("src/Child.g.tsx#Child", ChildImpl)
     Child.frames = {
-      closed: { props: {} },
+      closed: { description: "Closed child state", props: {} },
     } satisfies GFrames<Record<string, never>>
 
     expect(() =>
@@ -736,6 +748,7 @@ describe("Runelight runtime", () => {
     })
     ProfileCard.frames = {
       ready: {
+        description: "Ready profile card",
         props: { user: { name: "Ada" }, onOpen },
         scope: { selectedUserId: "user_1" },
       },

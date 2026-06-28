@@ -28,6 +28,7 @@ export default function PrimitiveProps(props: PrimitiveProps) {
 
 PrimitiveProps.frames = {
   neutralEmpty: {
+    description: "neutralEmpty frame",
     props: {
       title: "Primitive props",
       count: 0,
@@ -37,6 +38,7 @@ PrimitiveProps.frames = {
     },
   },
   positiveActive: {
+    description: "positiveActive frame",
     props: {
       title: "Active language fixture",
       count: 42,
@@ -46,6 +48,7 @@ PrimitiveProps.frames = {
     },
   },
   warningLongText: {
+    description: "warningLongText frame",
     props: {
       title: "Long text should remain legible inside the contact sheet frame",
       count: 7,

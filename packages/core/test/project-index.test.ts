@@ -141,7 +141,7 @@ function fakeContract(id: string, componentName = "Card"): RunelightContract {
         entry,
         mode: "pure",
         defaultExport: true,
-        frames: [{ kind: "pure", name: "ready" }],
+        frames: [{ description: "Ready mock frame", kind: "pure", name: "ready" }],
         providers: {},
         diagnostics: [],
       }

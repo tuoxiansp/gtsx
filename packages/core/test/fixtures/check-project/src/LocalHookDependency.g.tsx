@@ -11,5 +11,5 @@ export default function LocalHookDependency() {
 }
 
 LocalHookDependency.frames = {
-  ready: { props: {} },
+  ready: { description: "ready frame", props: {} },
 } satisfies GFrames<Record<string, never>>

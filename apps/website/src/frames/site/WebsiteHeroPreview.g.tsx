@@ -25,6 +25,7 @@ export default function WebsiteHeroPreview(props: WebsiteHeroPreviewProps) {
 
 WebsiteHeroPreview.frames = {
   anonymous: {
+    description: "anonymous frame",
     props: {
       branchLabel: "anonymous",
       headline: "Sign in to review branches",
@@ -32,6 +33,7 @@ WebsiteHeroPreview.frames = {
     },
   },
   signedIn: {
+    description: "signedIn frame",
     props: {
       branchLabel: "signed-in",
       headline: "Ada Lovelace · workspace ready",

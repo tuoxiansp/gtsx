@@ -451,6 +451,7 @@ export default ComponentCard
 
 ComponentCard.frames = {
   selectedReady: {
+    description: "selectedReady frame",
     props: {
       component: {
         coordinate: "src/UserCard.g.tsx#default",

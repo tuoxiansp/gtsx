@@ -11,5 +11,5 @@ export default function ReactMemberHook(props: Props) {
 }
 
 ReactMemberHook.frames = {
-  ready: { props: { label: "Ready" } },
+  ready: { description: "ready frame", props: { label: "Ready" } },
 } satisfies GFrames<Props>

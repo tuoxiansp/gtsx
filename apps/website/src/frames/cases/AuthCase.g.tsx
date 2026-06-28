@@ -79,10 +79,12 @@ export function SignedInWorkspaceCard(props: SignedInSurfaceProps) {
 
 AuthCase.frames = {
   anonymous: {
+    description: "anonymous frame",
     props: { productName: "Runelight" },
     providers: [[SessionProvider, { variant: "anonymous" }]],
   } satisfies GProviderFrame<typeof SessionProvider, "anonymous">,
   signedIn: {
+    description: "signedIn frame",
     props: { productName: "Runelight" },
     providers: [[SessionProvider, { variant: "signed-in", user: { name: "Ada Lovelace", role: "Preview systems engineer" } }]],
   } satisfies GProviderFrame<typeof SessionProvider, "signed-in">,
@@ -90,12 +92,14 @@ AuthCase.frames = {
 
 AnonymousWorkspaceCard.frames = {
   default: {
+    description: "default frame",
     props: { productName: "Runelight" },
   },
 } satisfies GFrames<AuthSurfaceProps>
 
 SignedInWorkspaceCard.frames = {
   ready: {
+    description: "ready frame",
     props: {
       productName: "Runelight",
       role: "Preview systems engineer",

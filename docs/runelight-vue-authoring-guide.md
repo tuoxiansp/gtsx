@@ -63,10 +63,12 @@ const { status, title, items } = useResource(props.resourceId)
 <g:frames>
 export default {
   loading: {
+    description: "Loading state while resource data is unavailable",
     props: { resourceId: "res_1" },
     scope: { status: "loading" },
   },
   ready: {
+    description: "Ready state with resource items loaded",
     props: { resourceId: "res_1" },
     scope: { status: "ready", title: "Dashboard", items: [1, 2, 3] },
   },
@@ -90,6 +92,7 @@ Current Vue preview preserves this by rendering unselected nested `.g.vue` child
 
 - Frame names describe what appears on screen: `ready`, `loading`, `empty`, `error`, `disabled`, `overflowing`, `anonymous`.
 - Happy-path frame first, then edge states.
+- Every frame has a required static `description` string.
 - Frames are static object literals with enumerable keys — no computed keys, no runtime generation, no top-level spread.
 - No secrets or customer data.
 
@@ -121,6 +124,8 @@ Common diagnostics and fixes:
 | `missing-frames` | Add a `<g:frames>` block with `export default { ... }` |
 | `malformed-frames` | Use one direct `export default { ... }` object; no spread composition |
 | `non-static-frame-key` | Use literal frame keys |
+| `missing-frame-description` | Add a static `description` string to the frame |
+| `non-static-frame-description` | Replace the frame `description` with a literal string |
 | `opaque-vue-template-control-flow` | Make structural directives depend directly on props/scope/injected values |
 | `uncovered-vue-template-branch` | Add a frame that makes the template branch reachable |
 | `missing-provider-variant-frames` | Mark frames with `GVueProviderFrame` for every declared injection variant |

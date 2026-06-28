@@ -9,6 +9,7 @@ export default function MultiVariantProviderFrame() {
 
 MultiVariantProviderFrame.frames = {
   loading: {
+    description: "loading frame",
     props: {},
     providers: [[LoginProvider, { kind: "anonymous" }]],
   } satisfies GProviderFrame<typeof LoginProvider, "login" | "anonymous">,

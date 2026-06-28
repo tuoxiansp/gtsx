@@ -14,6 +14,7 @@ export function CastScopeHook() {
 
 CastScopeHook.frames = {
   ready: {
+    description: "ready frame",
     props: {},
     scope: { label: "Preview" },
   },

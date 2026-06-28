@@ -21,11 +21,13 @@ export default function HeroSystemMap(props: HeroSystemMapProps) {
         </header>
         <pre>{`AuthCase.frames = {
   anonymous: {
+    description: "anonymous frame",
     providers: [[SessionProvider, {
       variant: "anonymous"
     }]],
   },
   signedIn: {
+    description: "signedIn frame",
     providers: [[SessionProvider, {
       variant: "signed-in",
       user: { name: "Ada Lovelace" }
@@ -79,6 +81,7 @@ export default function HeroSystemMap(props: HeroSystemMapProps) {
 
 HeroSystemMap.frames = {
   live: {
+    description: "Hero system map with Studio and case-study captures",
     props: {
       studioImage: "/captures/studio-components.png",
       authImage: "/captures/cases/auth-case.png",

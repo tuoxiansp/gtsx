@@ -47,5 +47,5 @@ export default function WebsiteExplorationLight() {
 }
 
 WebsiteExplorationLight.frames = {
-  live: { props: {} },
+  live: { description: "Light website exploration draft", props: {} },
 } satisfies GFrames<Record<string, never>>

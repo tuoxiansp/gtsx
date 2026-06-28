@@ -84,7 +84,7 @@ type ContractResolution = {
 }
 
 type RunelightInspectFrame = {
-  description?: string
+  description: string
   name: string
   kind: "pure" | "scope"
   providerVariants?: Record<string, string | string[]>
@@ -118,7 +118,7 @@ type RunelightPreviewTargetsWalkOrder = "breadth-first" | "depth-first"
 type RunelightPreviewTargetsPathNode = {
   coordinate: string
   frame: string
-  description?: string
+  description: string
   cycle?: true
   cyclePath?: string[]
 }
@@ -819,7 +819,7 @@ function toRunelightInspectNode(
     })
 
     return {
-      ...(frame.description !== undefined ? { description: frame.description } : {}),
+      description: frame.description,
       name: frame.name,
       kind: frame.kind,
       ...(frame.providerVariants ? { providerVariants: frame.providerVariants } : {}),
@@ -960,7 +960,7 @@ function toRunelightPreviewTargetsPathNode(
   return {
     coordinate: node.coordinate,
     frame: frame.name,
-    ...(frame.description !== undefined ? { description: frame.description } : {}),
+    description: frame.description,
   }
 }
 

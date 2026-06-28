@@ -30,8 +30,8 @@ describe("Runelight Vue support", () => {
           "</script>",
           "<g:frames>",
           "export default {",
-          "  loading: { props: { userId: 'user_1' }, scope: { status: 'loading' } },",
-          "  ready: { props: { userId: 'user_2' }, scope: { status: 'ready', user: { name: 'Ada' } } },",
+          "  loading: { description: 'Loading user data', props: { userId: 'user_1' }, scope: { status: 'loading' } },",
+          "  ready: { description: 'Ready user card', props: { userId: 'user_2' }, scope: { status: 'ready', user: { name: 'Ada' } } },",
           "}",
           "</g:frames>",
         ].join("\n"),
@@ -261,10 +261,12 @@ describe("Runelight Vue support", () => {
           "type Props = { userId: string }",
           "export default {",
           "  admin: {",
+          "    description: 'Admin auth context',",
           "    props: { userId: 'admin_1' },",
           "    providers: [[authKey, { role: 'admin' }]],",
           '  } satisfies GVueProviderFrame<typeof authKey, "admin", Props>,',
           "  viewer: {",
+          "    description: 'Viewer auth context',",
           "    props: { userId: 'viewer_1' },",
           "    providers: [[authKey, { role: 'viewer' }]],",
           '  } satisfies GVueProviderFrame<typeof authKey, "viewer", Props>,',
@@ -283,12 +285,14 @@ describe("Runelight Vue support", () => {
       })
       expect(analysis.frames).toEqual([
         {
+          description: "Admin auth context",
           kind: "pure",
           name: "admin",
           providers: ["authKey"],
           providerVariants: { authKey: "admin" },
         },
         {
+          description: "Viewer auth context",
           kind: "pure",
           name: "viewer",
           providers: ["authKey"],
@@ -327,7 +331,7 @@ describe("Runelight Vue support", () => {
           "<g:frames lang=\"ts\">",
           'import { authKey } from "./auth"',
           "export default {",
-          "  ready: { props: {}, provide: [[authKey, { role: 'admin' }]] },",
+          "  ready: { description: 'Ready legacy provide field', props: {}, provide: [[authKey, { role: 'admin' }]] },",
           "}",
           "</g:frames>",
         ].join("\n"),
@@ -336,7 +340,7 @@ describe("Runelight Vue support", () => {
       const analysis = analyzeEntry({ cwd, entry: "src/UserCard.g.vue" })
 
       expect(analysis.diagnostics).toEqual([])
-      expect(analysis.frames).toEqual([{ kind: "pure", name: "ready" }])
+      expect(analysis.frames).toEqual([{ description: "Ready legacy provide field", kind: "pure", name: "ready" }])
     } finally {
       rmSync(cwd, { force: true, recursive: true })
     }
@@ -371,6 +375,7 @@ describe("Runelight Vue support", () => {
           'import type { GVueFrames, GVueProviderFrame } from "@runelight/vue/runtime"',
           "export default {",
           "  admin: {",
+          "    description: 'Admin auth context',",
           "    props: {},",
           "    providers: [[authKey, { role: 'admin' }]],",
           '  } satisfies GVueProviderFrame<typeof authKey, "admin">,',
@@ -412,8 +417,8 @@ describe("Runelight Vue support", () => {
           "</script>",
           "<g:frames>",
           "export default {",
-          "  ready: { scope: { status: 'ready' } },",
-          "  loading: { scope: { status: 'loading' } },",
+          "  ready: { description: 'Ready status', scope: { status: 'ready' } },",
+          "  loading: { description: 'Loading status', scope: { status: 'loading' } },",
           "}",
           "</g:frames>",
         ].join("\n"),
@@ -450,7 +455,7 @@ describe("Runelight Vue support", () => {
           "</script>",
           "<g:frames>",
           "export default {",
-          "  empty: { scope: { users: [] } },",
+          "  empty: { description: 'Empty user list', scope: { users: [] } },",
           "}",
           "</g:frames>",
         ].join("\n"),
@@ -501,10 +506,12 @@ describe("Runelight Vue support", () => {
           'import type { GVueFrames, GVueProviderFrame } from "@runelight/vue/runtime"',
           "export default {",
           "  admin: {",
+          "    description: 'Admin auth context',",
           "    props: {},",
           "    providers: [[authKey, { role: 'admin' }]],",
           '  } satisfies GVueProviderFrame<typeof authKey, "admin">,',
           "  viewer: {",
+          "    description: 'Viewer auth context',",
           "    props: {},",
           "    providers: [[authKey, { role: 'viewer' }]],",
           '  } satisfies GVueProviderFrame<typeof authKey, "viewer">,',
@@ -538,7 +545,7 @@ describe("Runelight Vue support", () => {
           "</script>",
           "<g:frames>",
           "export default {",
-          "  ready: { scope: { status: 'ready' } },",
+          "  ready: { description: 'Ready opaque status', scope: { status: 'ready' } },",
           "}",
           "</g:frames>",
         ].join("\n"),

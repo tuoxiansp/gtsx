@@ -368,6 +368,7 @@ describe("Runelight Studio shell", () => {
           {
             name: "ready",
             frame: {
+              description: "Ready preview card",
               props: { label: "Ready preview" },
             },
           },

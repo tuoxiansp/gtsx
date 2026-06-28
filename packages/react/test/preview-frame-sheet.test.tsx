@@ -34,9 +34,11 @@ describe("RunelightReactPreviewFrameSheet", () => {
     const Preview = (() => <span>Ready preview</span>) as RunelightReactPreviewComponent
     Preview.frames = {
       ready: {
+        description: "ready frame",
         props: {},
       },
       error: {
+        description: "error frame",
         props: {},
       },
     }
@@ -46,8 +48,8 @@ describe("RunelightReactPreviewFrameSheet", () => {
         component={Preview}
         entry="src/components/UserCard.g.tsx#default"
         selectedFrames={[
-          { name: "ready", frame: Preview.frames.ready },
-          { name: "error", frame: Preview.frames.error },
+          { name: "ready", frame: Preview.frames!.ready },
+          { name: "error", frame: Preview.frames!.error },
         ]}
       />,
     )
@@ -65,6 +67,7 @@ describe("RunelightReactPreviewFrameSheet", () => {
     const Preview = (() => <span>Selected preview</span>) as RunelightReactPreviewComponent
     Preview.frames = {
       selected: {
+        description: "selected frame",
         props: {},
       },
     }
@@ -73,7 +76,7 @@ describe("RunelightReactPreviewFrameSheet", () => {
       <RunelightReactPreviewFrameSheet
         component={Preview}
         entry="src/components/UserCard.g.tsx#default"
-        selectedFrames={[{ name: "selected", frame: Preview.frames.selected }]}
+        selectedFrames={[{ name: "selected", frame: Preview.frames!.selected }]}
         showChrome={false}
       />,
     )
@@ -96,6 +99,7 @@ describe("RunelightReactPreviewFrameSheet", () => {
     const Parent = (() => <Child />) as RunelightReactPreviewComponent
     Parent.frames = {
       ready: {
+        description: "ready frame",
         props: {},
       },
     }
@@ -104,7 +108,7 @@ describe("RunelightReactPreviewFrameSheet", () => {
       <RunelightReactPreviewFrameSheet
         component={Parent}
         entry="src/Parent.g.tsx#default"
-        selectedFrames={[{ name: "ready", frame: Parent.frames.ready }]}
+        selectedFrames={[{ name: "ready", frame: Parent.frames!.ready }]}
       />,
     )
 
@@ -124,6 +128,7 @@ describe("RunelightReactPreviewFrameSheet", () => {
     }) as RunelightReactPreviewComponent
     Message.frames = {
       ready: {
+        description: "ready frame",
         props: {},
         providers: [[MessageProvider, "frame provider value"]],
       },
@@ -133,7 +138,7 @@ describe("RunelightReactPreviewFrameSheet", () => {
       <RunelightReactPreviewFrameSheet
         component={Message}
         entry="src/Message.g.tsx#default"
-        selectedFrames={[{ name: "ready", frame: Message.frames.ready }]}
+        selectedFrames={[{ name: "ready", frame: Message.frames!.ready }]}
       />,
     )
 

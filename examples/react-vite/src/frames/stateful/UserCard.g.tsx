@@ -51,14 +51,17 @@ export default function UserCard(props: UserCardProps) {
 
 UserCard.frames = {
   loading: {
+    description: "loading frame",
     props: { userId: "user_1" },
     scope: { status: "loading" },
   },
   error: {
+    description: "error frame",
     props: { userId: "user_1" },
     scope: { status: "error", message: "The profile service timed out.", onRetry: () => {} },
   },
   ready: {
+    description: "ready frame",
     props: { userId: "user_42" },
     scope: {
       status: "ready",

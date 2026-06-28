@@ -65,6 +65,7 @@ ThemeProvider.useUpdate
 
 const validFrames = {
   ready: {
+    description: "Ready state with providers",
     props: { userId: "user_1" },
     providers: [
       [ThemeProvider, { color: "#0af" }],
@@ -78,6 +79,7 @@ void validFrames
 
 const wrongOrderFrames = {
   ready: {
+    description: "Ready state with invalid provider order",
     props: { userId: "user_1" },
     providers: [
       // @ts-expect-error provider entries must match the declared provider order.

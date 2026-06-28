@@ -93,6 +93,7 @@ export default function FileGroupLink(props: FileGroupLinkProps) {
 
 FileGroupLink.frames = {
   selectedComponent: {
+    description: "selectedComponent frame",
     props: {
       file: {
         path: "src/UserCard.g.tsx",

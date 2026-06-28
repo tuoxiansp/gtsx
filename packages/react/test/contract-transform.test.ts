@@ -20,7 +20,7 @@ export default function Card(props: { label: string }) {
 }
 
 Card.frames = {
-  ready: { props: { label: "Ready" } },
+  ready: { description: "ready frame", props: { label: "Ready" } },
 }
 `,
     })
@@ -43,7 +43,7 @@ export default function Card(props: { label: string }) {
 }
 
 Card.frames = {
-  ready: { props: { label: "Ready" } },
+  ready: { description: "ready frame", props: { label: "Ready" } },
 }
 `,
     })
@@ -61,7 +61,7 @@ export function NamedCard(props: { label: string }) {
 }
 
 NamedCard.frames = {
-  ready: { props: { label: "Ready" } },
+  ready: { description: "ready frame", props: { label: "Ready" } },
 }
 `,
     })
@@ -83,7 +83,7 @@ function NamedCard(props: { label: string }) {
 }
 
 NamedCard.frames = {
-  ready: { props: { label: "Ready" } },
+  ready: { description: "ready frame", props: { label: "Ready" } },
 }
 
 function Helper() {
@@ -111,7 +111,7 @@ const Toaster = (props: { richColors?: boolean }) => {
 }
 
 Toaster.frames = {
-  default: { props: {} },
+  default: { description: "default frame", props: {} },
 }
 
 export { Toaster }
@@ -134,7 +134,7 @@ export function NamedCard(props: { label: string }) {
 }
 
 NamedCard.frames = {
-  ready: { props: { label: "Ready" } },
+  ready: { description: "ready frame", props: { label: "Ready" } },
 }
 
 export default NamedCard
@@ -160,7 +160,7 @@ export function First() {
 }
 
 First.frames = {
-  ready: { props: {} },
+  ready: { description: "ready frame", props: {} },
 }
 
 export function Second() {
@@ -168,7 +168,7 @@ export function Second() {
 }
 
 Second.frames = {
-  ready: { props: {} },
+  ready: { description: "ready frame", props: {} },
 }
 `,
     })
@@ -194,7 +194,7 @@ export function Card(props: ChildProps) {
 }
 
 Card.frames = {
-  ready: { props: { label: "Ready" } },
+  ready: { description: "ready frame", props: { label: "Ready" } },
 }
 `,
     })
@@ -256,7 +256,7 @@ export function Card() {
 }
 
 Card.frames = {
-  ready: { props: {} },
+  ready: { description: "ready frame", props: {} },
 }
 `,
     })

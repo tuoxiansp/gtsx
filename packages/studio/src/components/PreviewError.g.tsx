@@ -51,6 +51,7 @@ export default function PreviewError(props: PreviewErrorProps) {
 
 PreviewError.frames = {
   renderFailure: {
+    description: "renderFailure frame",
     props: {
       frameName: "ready",
       coordinate: "src/UserCard.g.tsx#default",

@@ -9,5 +9,5 @@ export default function Outside(props: Props) {
 }
 
 Outside.frames = {
-  ready: { props: { label: "Outside" } },
+  ready: { description: "ready frame", props: { label: "Outside" } },
 } satisfies GFrames<Props>

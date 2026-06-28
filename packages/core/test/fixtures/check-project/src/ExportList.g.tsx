@@ -9,7 +9,7 @@ function ExportListBadge(props: ExportListBadgeProps) {
 }
 
 ExportListBadge.frames = {
-  ready: { props: { label: "Export list" } },
+  ready: { description: "ready frame", props: { label: "Export list" } },
 } satisfies GFrames<ExportListBadgeProps>
 
 function ExportListHelper() {

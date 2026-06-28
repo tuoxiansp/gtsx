@@ -47,6 +47,7 @@ Minimal frame:
 <g:frames>
 export default {
   live: {
+    description: "Live checkout flow concept",
     props: {},
     scope: {},
   },
@@ -67,6 +68,7 @@ When the template needs sample data, make it frame-visible:
 <g:frames>
 export default {
   live: {
+    description: "Live checkout flow concept",
     props: {},
     scope: {
       title: "Gift checkout",

@@ -16,6 +16,7 @@ export default function MissingProviderVariant() {
 
 MissingProviderVariant.frames = {
   login: {
+    description: "login frame",
     props: {},
     providers: [[LoginProvider, { kind: "login", name: "Ada" }]],
   } satisfies GProviderFrame<typeof LoginProvider, "login">,

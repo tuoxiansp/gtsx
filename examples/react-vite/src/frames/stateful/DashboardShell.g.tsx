@@ -63,6 +63,7 @@ export default function DashboardShell(props: DashboardShellProps) {
 
 DashboardShell.frames = {
   stagingReview: {
+    description: "stagingReview frame",
     props: {
       title: "Staging review",
       environment: "staging",
@@ -76,6 +77,7 @@ DashboardShell.frames = {
     },
   },
   localDebug: {
+    description: "localDebug frame",
     props: {
       title: "Local debug dashboard",
       environment: "local",

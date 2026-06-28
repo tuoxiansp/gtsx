@@ -28,6 +28,7 @@ export default function SelectedBoundaryOutline(props: SelectedBoundaryOutlinePr
 
 SelectedBoundaryOutline.frames = {
   userCardSelected: {
+    description: "userCardSelected frame",
     props: {
       rect: { x: 12, y: 20, width: 320, height: 88 },
     },

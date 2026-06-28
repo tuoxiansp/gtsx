@@ -9,7 +9,10 @@
       "@runelight/core/contract": ["../core/src/contract.ts"],
       "@runelight/core/frame-grid-layout": ["../core/src/frame-grid-layout.ts"],
       "@runelight/core/preview-protocol": ["../core/src/preview-protocol.ts"],
-      "@runelight/core/runtime-values": ["../core/src/runtime-values.ts"]
+      "@runelight/core/runtime-values": ["../core/src/runtime-values.ts"],
+      "@runelight/react/contract": ["./src/contract.ts"],
+      "@runelight/react/preview": ["./src/preview.tsx"],
+      "@runelight/react/runtime": ["./src/index.ts"]
     }
   },
   "include": ["src", "test/**/*.ts", "test/**/*.tsx"]

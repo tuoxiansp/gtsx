@@ -38,6 +38,7 @@ export default function NotificationCenter(props: NotificationCenterProps) {
 
 NotificationCenter.frames = {
   empty: {
+    description: "empty frame",
     props: {
       heading: "Notification center",
       tag: "empty",
@@ -45,6 +46,7 @@ NotificationCenter.frames = {
     },
   },
   mixedPriority: {
+    description: "mixedPriority frame",
     props: {
       heading: "Deploy monitor",
       tag: "live",

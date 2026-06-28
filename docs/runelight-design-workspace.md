@@ -50,7 +50,7 @@ export default function CheckoutFlow() {
 }
 
 CheckoutFlow.frames = {
-  live: { props: {} },
+  live: { description: "Live checkout flow concept", props: {} },
 } satisfies GFrames<Record<string, never>>
 ```
 
@@ -66,6 +66,7 @@ Minimal Vue frame:
 <g:frames>
 export default {
   live: {
+    description: "Live checkout flow concept",
     props: {},
     scope: {},
   },

@@ -15,5 +15,5 @@ export default function HelperHook(props: Props) {
 }
 
 HelperHook.frames = {
-  ready: { props: { label: "Ready" } },
+  ready: { description: "ready frame", props: { label: "Ready" } },
 } satisfies GFrames<Props>

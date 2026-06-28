@@ -91,6 +91,7 @@ Frames mark which variant they represent:
 ```tsx
 Panel.frames = {
   light: {
+    description: "Settings panel in the light theme",
     props: { title: "Settings" },
     providers: [[ThemeProvider, { mode: "light" }]],
   } satisfies GProviderFrame<typeof ThemeProvider, "light", PanelProps, never, [typeof ThemeProvider]>,
@@ -144,6 +145,8 @@ These report entries that do not yet satisfy the `.g` protocol shape, before any
 | `missing-frames` | React, Vue | A component has no frames declaration |
 | `malformed-frames` | React, Vue | Frames are not a statically enumerable object literal, or use unsupported spread composition |
 | `non-static-frame-key` | React, Vue | A frame key is computed instead of a literal |
+| `missing-frame-description` | React, Vue | A frame does not declare a `description` |
+| `non-static-frame-description` | React, Vue | A frame `description` is not a static string |
 | `frames-before-component-export` | React | `Component.frames` is assigned before the component declaration |
 | `non-runelight-hook` | React | A component body calls a raw React/library hook instead of a `createGScopeHook` hook or `useGContext` |
 | `multiple-scope-hooks` | React | A component calls more than one primary scope hook |

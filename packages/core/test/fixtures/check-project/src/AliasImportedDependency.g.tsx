@@ -9,5 +9,5 @@ export default function AliasImportedDependency() {
 }
 
 AliasImportedDependency.frames = {
-  ready: { props: {} },
+  ready: { description: "ready frame", props: {} },
 } satisfies GFrames<Record<string, never>>

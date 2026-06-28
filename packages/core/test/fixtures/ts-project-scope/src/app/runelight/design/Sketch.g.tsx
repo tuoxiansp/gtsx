@@ -5,5 +5,5 @@ export default function Sketch() {
 }
 
 Sketch.frames = {
-  live: { props: {} },
+  live: { description: "live frame", props: {} },
 } satisfies GFrames<Record<string, never>>

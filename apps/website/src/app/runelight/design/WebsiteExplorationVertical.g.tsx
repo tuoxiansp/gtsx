@@ -36,5 +36,5 @@ export default function WebsiteExplorationVertical() {
 }
 
 WebsiteExplorationVertical.frames = {
-  live: { props: {} },
+  live: { description: "Vertical website exploration draft", props: {} },
 } satisfies GFrames<Record<string, never>>

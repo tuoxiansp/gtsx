@@ -1278,6 +1278,7 @@ function providerVariantAxisLabel(providerName: string): string {
 
 Studio.frames = {
   multiExportFile: {
+    description: "multiExportFile frame",
     props: {
       manifest: {
         version: 1,
@@ -1361,6 +1362,7 @@ Studio.frames = {
     },
   },
   debugQueueObserved: {
+    description: "debugQueueObserved frame",
     props: {
       debugPreviewQueue: true,
       manifest: {

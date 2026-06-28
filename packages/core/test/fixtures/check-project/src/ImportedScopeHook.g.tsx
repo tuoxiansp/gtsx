@@ -12,6 +12,7 @@ export function ImportedScopeConsumer() {
 
 ImportedScopeConsumer.frames = {
   ready: {
+    description: "ready frame",
     props: {},
     providers: [[ImportedScopeProvider, { label: "imported" }]],
   },

@@ -42,7 +42,8 @@ Verify: `runelight check src/Badge.g.tsx`
 2. **Write the `.g.tsx` file** — see [REFERENCE.md](./REFERENCE.md) for patterns.
 3. **Attach `Component.frames`** with `satisfies GFrames<…>` and concise static `description` strings for meaningful states.
 4. **Run `runelight check`** — fix diagnostics.
-5. **Add edge-state frames** — empty, error, loading, overflow.
+5. **Use `runelight inspect --json` when composing UI** — inspect the reachable GUI map for the entry you are building and choose related preview targets deliberately.
+6. **Add edge-state frames** — empty, error, loading, overflow.
 
 ## Rules
 
@@ -67,6 +68,8 @@ Verify: `runelight check src/Badge.g.tsx`
 |------|-----|
 | `missing-frames` | Add `Component.frames = { ... } satisfies GFrames<…>` |
 | `non-static-frame-key` | Replace computed key with string literal |
+| `missing-frame-description` | Add a static `description` string to the frame |
+| `non-static-frame-description` | Replace the frame `description` with a literal string |
 | `non-runelight-hook` | Wrap with `createGScopeHook(useRealHook)`, call only the returned hook |
 | `scope-hook-frames-unsupported` | Move `.frames` from scope hook to component export |
 | `missing-provider-variant-frames` | Mark frames with `GProviderFrame` for every consumed provider variant |
@@ -82,6 +85,7 @@ Verify: `runelight check src/Badge.g.tsx`
 ```sh
 runelight check <file.g.tsx|dir>         # validate contracts
 runelight check -p tsconfig.app.json .   # explicit project
+runelight inspect <file.g.tsx> --json    # inspect static GUI dependencies for one entry
 runelight serve                          # start Studio server
 runelight capture <file.g.tsx>           # screenshot all frames
 runelight preview-targets <file.g.tsx> --json  # paged preview paths, default 20

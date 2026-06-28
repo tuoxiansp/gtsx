@@ -15,6 +15,6 @@ export default function StatusPanel(props: StatusPanelProps) {
 }
 
 StatusPanel.frames = {
-  loading: { props: { state: "loading", message: "Fetching data" } },
-  error: { props: { state: "error", message: "Request failed" } },
+  loading: { description: "loading frame", props: { state: "loading", message: "Fetching data" } },
+  error: { description: "error frame", props: { state: "error", message: "Request failed" } },
 } satisfies GFrames<StatusPanelProps>

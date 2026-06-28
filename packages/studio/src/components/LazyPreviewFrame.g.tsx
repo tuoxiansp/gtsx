@@ -258,6 +258,7 @@ export default function LazyPreviewFrame(props: LazyPreviewFrameProps) {
 
 LazyPreviewFrame.frames = {
   loadedPhone: {
+    description: "loadedPhone frame",
     props: {
       "data-runelight-preview-session-id": "src/UserCard.g.tsx#default:ready",
       boundaryRect: { x: 10, y: 20, width: 320, height: 88 },
@@ -272,6 +273,7 @@ LazyPreviewFrame.frames = {
     },
   },
   debugQueue: {
+    description: "debugQueue frame",
     props: {
       "data-runelight-preview-session-id": "src/UserCard.g.tsx#default:ready",
       boundaryRect: { x: 10, y: 20, width: 320, height: 88 },

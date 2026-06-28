@@ -14,5 +14,5 @@ export default function AliasChainHookDependency() {
 }
 
 AliasChainHookDependency.frames = {
-  ready: { props: {} },
+  ready: { description: "ready frame", props: {} },
 } satisfies GFrames<Record<string, never>>

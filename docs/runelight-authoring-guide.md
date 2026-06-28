@@ -68,8 +68,8 @@ export default function Badge(props: BadgeProps) {
 }
 
 Badge.frames = {
-  neutral: { props: { tone: "neutral", label: "Ready" } },
-  warning: { props: { tone: "warning", label: "Needs review" } },
+  neutral: { description: "Neutral badge", props: { tone: "neutral", label: "Ready" } },
+  warning: { description: "Warning badge", props: { tone: "warning", label: "Needs review" } },
 } satisfies GFrames<BadgeProps>
 ```
 
@@ -97,8 +97,8 @@ export default function Counter(props: CounterProps) {
 }
 
 Counter.frames = {
-  zero: { props: { title: "Counter" }, scope: { count: 0, increment() {} } },
-  five: { props: { title: "Counter" }, scope: { count: 5, increment() {} } },
+  zero: { description: "Initial zero-count state", props: { title: "Counter" }, scope: { count: 0, increment() {} } },
+  five: { description: "Counter after several increments", props: { title: "Counter" }, scope: { count: 5, increment() {} } },
 } satisfies GFrames<CounterProps, CounterScope>
 ```
 
@@ -131,6 +131,7 @@ Frames are static object literals attached to the component export.
 
 - Happy-path frame first, then edge states.
 - At least two frames (unless the component truly has one stable visual state).
+- Required static `description` strings for every frame.
 - Static object literals only — no computed keys, no dynamic generation.
 - No secrets or customer data.
 - No-op functions for callbacks: `increment() {}`.
@@ -154,6 +155,8 @@ runelight check src                # directory
 |-----------|-----|
 | `missing-frames` | Add `Component.frames = { ... } satisfies GFrames<…>` |
 | `non-static-frame-key` | Use literal frame keys |
+| `missing-frame-description` | Add a static `description` string to the frame |
+| `non-static-frame-description` | Replace the frame `description` with a literal string |
 | `non-runelight-hook` | Wrap with `createGScopeHook`, call only the returned hook |
 | `scope-hook-frames-unsupported` | Move `.frames` from scope hook to component export |
 | `missing-provider-variant-frames` | Mark frames with `GProviderFrame` for every consumed provider variant |

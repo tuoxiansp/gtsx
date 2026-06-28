@@ -5,5 +5,5 @@ export default function Child() {
 }
 
 Child.frames = {
-  ready: { props: {} },
+  ready: { description: "ready frame", props: {} },
 } satisfies GFrames<Record<string, never>>

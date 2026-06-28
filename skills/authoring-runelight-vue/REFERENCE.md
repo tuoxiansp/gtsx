@@ -18,9 +18,11 @@ defineProps<{ tone: "ok" | "warn"; label: string }>()
 <g:frames>
 export default {
   ok: {
+    description: "Ready badge",
     props: { tone: "ok", label: "Ready" },
   },
   warn: {
+    description: "Warning badge for a review-needed state",
     props: { tone: "warn", label: "Needs review" },
   },
 }
@@ -54,14 +56,17 @@ const status = useRemoteStatus(props.resourceId)
 <g:frames>
 export default {
   loading: {
+    description: "Loading state while resource data is unavailable",
     props: { resourceId: "res_1" },
     scope: { status: "loading" },
   },
   error: {
+    description: "Retryable resource error state",
     props: { resourceId: "res_1" },
     scope: { status: "error", message: "Retry" },
   },
   ready: {
+    description: "Ready state with resource items loaded",
     props: { resourceId: "res_1" },
     scope: { status: "ready", title: "Dashboard", items: [1, 2, 3] },
   },
@@ -89,6 +94,7 @@ function formatName(value: string) {
 <g:frames>
 export default {
   ready: {
+    description: "Ready state with formatted user name",
     scope: { user: { name: "Ada Lovelace" } },
   },
 }
@@ -143,10 +149,12 @@ import type { GVueFrames, GVueProviderFrame } from "@runelight/vue/runtime"
 
 export default {
   admin: {
+    description: "Admin auth context showing admin tools",
     props: {},
     providers: [[authKey, { role: "admin" }]],
   } satisfies GVueProviderFrame<typeof authKey, "admin">,
   viewer: {
+    description: "Viewer auth context without admin tools",
     props: {},
     providers: [[authKey, { role: "viewer" }]],
   } satisfies GVueProviderFrame<typeof authKey, "viewer">,

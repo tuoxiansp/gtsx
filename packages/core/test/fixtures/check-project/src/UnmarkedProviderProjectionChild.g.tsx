@@ -10,9 +10,11 @@ export default function UnmarkedProviderProjectionChild(props: Props) {
 
 UnmarkedProviderProjectionChild.frames = {
   guest: {
+    description: "guest frame",
     props: { userName: "Guest" },
   },
   named: {
+    description: "named frame",
     props: { userName: "Ada" },
   },
 } satisfies GFrames<Props>

@@ -16,5 +16,5 @@ export default function ProviderUseUpdate() {
 }
 
 ProviderUseUpdate.frames = {
-  ready: { props: {} },
+  ready: { description: "ready frame", props: {} },
 } satisfies GFrames<Record<string, never>>

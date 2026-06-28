@@ -11,5 +11,5 @@ export default function AliasPureDependency() {
 }
 
 AliasPureDependency.frames = {
-  ready: { props: {} },
+  ready: { description: "ready frame", props: {} },
 } satisfies GFrames<Record<string, never>>

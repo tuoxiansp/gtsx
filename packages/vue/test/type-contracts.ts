@@ -39,10 +39,12 @@ publicAnalysisCache.sourceFilesByPath
 
 const frames = {
   admin: {
+    description: "Admin auth context",
     props: { userId: "user_1" },
     providers: [[authKey, { role: "admin" }]],
   } satisfies GVueProviderFrame<typeof authKey, "admin", Props>,
   viewer: {
+    description: "Viewer auth context",
     props: { userId: "user_2" },
     providers: [[authKey, { role: "viewer" }]],
   } satisfies GVueProviderFrame<typeof authKey, "viewer", Props>,

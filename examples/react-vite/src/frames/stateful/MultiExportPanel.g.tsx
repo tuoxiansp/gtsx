@@ -9,7 +9,7 @@ export function NamedPanel(props: PanelProps) {
 }
 
 NamedPanel.frames = {
-  namedReady: { props: { label: "selected by file coordinate" } },
+  namedReady: { description: "namedReady frame", props: { label: "selected by file coordinate" } },
 } satisfies GFrames<PanelProps>
 
 export default function DefaultPanel(props: PanelProps) {
@@ -17,5 +17,5 @@ export default function DefaultPanel(props: PanelProps) {
 }
 
 DefaultPanel.frames = {
-  defaultReady: { props: { label: "default coordinate" } },
+  defaultReady: { description: "defaultReady frame", props: { label: "default coordinate" } },
 } satisfies GFrames<PanelProps>
