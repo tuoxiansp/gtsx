@@ -75,7 +75,7 @@ export function LandingVisualProof() {
         <img
           className="landing-visual-shot"
           src={captureAssets.studioComponents}
-          alt="Runelight Studio showing every component and visual state on one screen"
+          alt="Runelight Studio showing covered frames and visual states in one workspace"
           loading="eager"
           decoding="async"
           fetchPriority="high"

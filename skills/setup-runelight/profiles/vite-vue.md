@@ -23,8 +23,8 @@ The adapter uses `@runelight/vue/preview` internally; user projects should not i
 - Vue frames use `props` and `scope`; do not generate or document `bindings`.
 - Vue native `provide`/`inject` preview works through static frame `providers` entries when the injected key is importable from `<g:frames>`.
 - Declared Vue injection variants need `defineGInjectionKey` and `GVueProviderFrame` markers.
-- Record the local Runelight entry directory in `project.entryRoot`. Design frames live in `${project.entryRoot}/design`; generated Runelight files live in `${project.entryRoot}/.runelight/`; ensure `.gitignore` contains `.runelight/`, which covers this generated folder at any depth. Use `src/app/runelight` when the project keeps authored source under `src`, or `app/runelight` for root-level source projects.
-- During setup, create the empty `${project.entryRoot}/design` directory. Do not add placeholder frames; the first `design-runelight-vue` request writes the first `.g.vue` frame.
+- Record the local Runelight entry directory in `project.entryRoot`. Generated Runelight files live in `${project.entryRoot}/.runelight/`; ensure `.gitignore` contains `.runelight/`, which covers this generated folder at any depth. Use `src/app/runelight` when the project keeps authored source under `src`, or `app/runelight` for root-level source projects.
+- During setup, do not create a design directory or placeholder frames.
 - Preserve the existing application render path. Only `/runelight` renders the preview app.
 
 `vite.config.ts`:
@@ -98,10 +98,7 @@ import {
 } from "@runelight/adapter-vite-vue/preview"
 import previewConfig from "virtual:runelight/preview-config"
 
-const modules = import.meta.glob<RunelightVuePreviewModule>(
-  ["/src/**/*.g.vue", "/src/app/runelight/design/**/*.g.vue"],
-  { query: "?runelight-preview" },
-)
+const modules = import.meta.glob<RunelightVuePreviewModule>("/src/**/*.g.vue", { query: "?runelight-preview" })
 const loadPreviewComponent = createRunelightViteVuePreviewComponentLoader(modules, {
   sourceRoot: previewConfig.project.sourceRoot,
 })
@@ -117,7 +114,7 @@ export function createRunelightVuePreviewApp() {
 }
 ```
 
-Generate these glob strings from the selected config: one root-anchored source glob for `project.sourceRoot`, and one root-anchored design glob for `${project.entryRoot}/design`. For example, `project.sourceRoot: "src"` becomes `"/src/**/*.g.vue"`, and `project.entryRoot: "src/app/runelight"` becomes `"/src/app/runelight/design/**/*.g.vue"`. Do not include multiple candidate design globs.
+Generate this glob string from the selected `project.sourceRoot`. For example, `project.sourceRoot: "src"` becomes `"/src/**/*.g.vue"`.
 
 `src/vite-env.d.ts`:
 

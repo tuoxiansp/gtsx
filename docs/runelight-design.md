@@ -2,7 +2,7 @@
 
 How Runelight works - the architecture, the sidecar model, and what it does and doesn't touch in your project.
 
-For the type-level contract and branch coverage rules, see [Static Contract](./runelight-static-contract.md). For the design workspace, see [Design Workspace](./runelight-design-workspace.md). For the command and configuration surface, see [CLI Reference](./runelight-cli.md) and [Configuration Reference](./runelight-configuration.md).
+For the type-level contract and branch coverage rules, see [Static Contract](./runelight-static-contract.md). For the command and configuration surface, see [CLI Reference](./runelight-cli.md) and [Configuration Reference](./runelight-configuration.md).
 
 ---
 

@@ -12,14 +12,14 @@ export default function WebsiteExplorationLight() {
 
       <section className="wd-light-hero">
         <h1>
-          The visual workspace
+          The visual feedback loop
           <br />
-          for agent-built apps.
+          for agent-polished UI.
         </h1>
         <hr />
         <p>
-          Typed frames live beside source. Studio shows every branch at once. Review before merge — not after
-          clicking through flows.
+          Typed frames live beside source. Agents observe exact preview targets, edit source, and re-observe before
+          merge.
         </p>
       </section>
 
@@ -30,11 +30,11 @@ export default function WebsiteExplorationLight() {
         </article>
         <article>
           <span>02</span>
-          <strong>Studio</strong>
+          <strong>observe</strong>
         </article>
         <article>
           <span>03</span>
-          <strong>GitHub</strong>
+          <strong>polish</strong>
         </article>
       </section>
 

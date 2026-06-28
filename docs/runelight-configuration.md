@@ -34,7 +34,7 @@ export default defineRunelightConfig({
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `sourceRoot` | — (required) | Root that scopes configured `.g` entry discovery for analysis, Studio, and preview. Use `"."` for root-level `app`, `pages`, `components`, or `lib`; use `"src"` when app source lives under `src`. |
-| `entryRoot` | — (required) | Filesystem directory that owns the local `/runelight` entry. Design frames live in `${entryRoot}/design`, and generated Runelight files live in `${entryRoot}/.runelight/`. Add `.runelight/` to the project `.gitignore`; that pattern covers the generated directory at any depth. Use `src/app/runelight` when source lives under `src`; use `app/runelight` for root-level source projects. |
+| `entryRoot` | — (required) | Filesystem directory that owns the local `/runelight` entry. Generated Runelight files live in `${entryRoot}/.runelight/`. Add `.runelight/` to the project `.gitignore`; that pattern covers the generated directory at any depth. Use `src/app/runelight` when source lives under `src`; use `app/runelight` for root-level source projects. |
 | `namespace` | — | Optional stable cache namespace. Runelight does not derive a default from the project directory name. Use the package name or repo slug when you want Studio browser caches to survive path or manifest-shape changes; omit it when no stable project identity is available. |
 | `tsconfig` | nearest `tsconfig.json` | Optional TypeScript project override used for discovery and analysis. It replaces the nearest-tsconfig fallback rather than merging with it. Point it at the app config (such as `tsconfig.app.json`) when the root config is a references container. CLI `-p` overrides this field. |
 

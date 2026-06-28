@@ -10,13 +10,13 @@ export default function WebsiteExplorationSplit() {
       <section className="wd-split-copy">
         <p className="wd-split-index">01 / website</p>
         <h1>
-          Every
+          Observe
           <br />
-          UI state.
+          polish
           <br />
-          <span>One screen.</span>
+          <span>verify.</span>
         </h1>
-        <p>Source declares branches. Studio renders them all. GitHub is the front door.</p>
+        <p>Source declares frames. Studio and capture give agents the loop before merge.</p>
         <span className="wd-split-cta">github.com/tuoxiansp/runelight →</span>
       </section>
 
@@ -31,7 +31,7 @@ export default function WebsiteExplorationSplit() {
         </div>
         <div className="wd-split-tile wd-split-tile-c">
           <span>Studio</span>
-          <strong>all frames · one URL</strong>
+          <strong>covered frames · one URL</strong>
         </div>
       </section>
     </WebsiteBrowserShell>

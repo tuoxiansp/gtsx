@@ -1,11 +1,11 @@
 ---
 name: design-runelight-react
-description: Create and iterate product GUI design drafts for React Runelight projects using Studio design frames in project.entryRoot/design/*.g.tsx. Use when the user asks for design exploration, UI drafts, visual prototypes, making a product surface look good, or adjusting an existing Runelight design board in a React project.
+description: Legacy/internal optional workflow for React Runelight design drafts in project.entryRoot/design/*.g.tsx. Use only when the user explicitly asks to continue design-draft work or names this skill; setup does not install it by default.
 ---
 
 # Design Runelight React
 
-Use this framework-specific skill when the user wants an AI-assisted product/UI design pass inside a React Runelight workspace. Setup installs this skill for React projects; for Vue projects use `design-runelight-vue`.
+Use this framework-specific skill only for explicit legacy/internal design-draft work inside a React Runelight workspace. Setup does not install this skill by default; for the current recommended visual-improvement path, create `.g.tsx` coverage with authoring/refactor skills and use `polish`.
 
 Maintenance note: keep the Design Loop and Quality Gate semantically aligned with the Vue design skill. Framework file contracts may differ; design judgment should not. `DESIGN_REFERENCE.md` is intentionally byte-identical across both design skills (each skill must stay self-contained when copied into a target project); a repository test asserts the two copies never drift.
 
@@ -21,7 +21,7 @@ The user talks to the local agent. The agent edits local React design frames. St
 ## File Contract
 
 - Put React design drafts in `project.entryRoot/design/<FrameName>.g.tsx`, where `project.entryRoot` comes from `runelight.config.ts`.
-- If `project.entryRoot` is missing or the design directory is unavailable, setup is incomplete; use `setup-runelight` before writing design frames.
+- If `project.entryRoot` is missing, setup is incomplete; use `setup-runelight` before writing design frames. Create the design directory only for this explicit design-draft workflow.
 - Each design file should default-export one React component and expose one design frame named `live`.
 - Multiple alternatives are multiple files, not multiple frame keys. Use names such as `CheckoutFlowCalm.g.tsx`, `CheckoutFlowDense.g.tsx`, and `CheckoutFlowEditorial.g.tsx`.
 - Prefer self-contained TSX. Import existing design-system CSS, tokens, or simple presentational components only when they are stable in preview.

@@ -9,7 +9,8 @@ Polish existing Runelight GUI surfaces. The default scope is the current workspa
 
 ## Contract
 
-- A polish target is a `.g.tsx` / `.g.vue` entry, exported component coordinate, frame, or design draft.
+- A polish target is a Runelight-covered `.g.tsx` / `.g.vue` entry, exported component coordinate, frame, or derived preview path.
+- Legacy design drafts can be polished only when the user explicitly names that draft surface.
 - If the requested target does not resolve to Runelight coverage, report that clearly before editing.
 - Default to focused visual improvements: spacing, hierarchy, density, copy fit, responsive constraints, state styling, empty/loading/error states, and frame descriptions.
 - Keep product intent, framework wiring, routes, data flow, and host behavior intact.

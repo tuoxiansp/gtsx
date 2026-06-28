@@ -24,7 +24,7 @@ Command options are strict: unknown flags fail with `unknown-option`, known flag
 
 Validates the `.g` protocol contract for the configured project, one entry, or a directory:
 
-- With no target, checks the configured project: `project.sourceRoot` plus `${project.entryRoot}/design`.
+- With no target, checks the configured project scope.
 - A file argument checks that entry; `#export` narrows to one exported component.
 - A directory argument discovers and checks every entry supported by the configured `contracts`.
 - Exits non-zero when any fatal diagnostic is reported. Warnings (such as `unmarked-provider-variant-projection`) do not fail the check.
@@ -68,7 +68,7 @@ Builds browser-ready preview paths from the pruned static GUI graph for one Rune
 
 ## `runelight changes`
 
-Lists current Git workspace changes that affect Runelight frames or design drafts. The command compares the working tree against `HEAD`, builds the same static visual graph used by Studio changes, and does not start the Host or render screenshots.
+Lists current Git workspace changes that affect Runelight frames. The command compares the working tree against `HEAD`, builds the same static visual graph used by Studio changes, and does not start the Host or render screenshots.
 
 The Studio changes tab is UI-focused and hides unchanged visual entries. The CLI default is audit-focused and includes code changes whose `uiStatus` is `"unchanged"`; pass `--ui-only` for a Studio-like visual change list.
 

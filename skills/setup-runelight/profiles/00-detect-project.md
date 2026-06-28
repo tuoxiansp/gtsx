@@ -68,7 +68,7 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 - Preserve existing route files, config wrappers, browser-entry branches, URL conventions, preview commands, and local customizations.
 - Change glue only when typecheck, adapter exports/types, package examples/docs, generated-file errors, or runtime verification show that a version migration is required.
 - If the adapter package or wrapper must change, preserve the existing wrapper composition order and explain the change.
-- Ensure `runelight.config.ts` records `project.entryRoot`, then ensure `${project.entryRoot}/design` exists.
+- Ensure `runelight.config.ts` records `project.entryRoot`.
 - Verify the integration and report which existing glue files were intentionally left unchanged.
 
 ## Common Configuration Rules
@@ -78,7 +78,7 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 - Install `@runelight/adapter-vite-vue` only for Vite Vue 3 client-only hosts.
 - Install `@runelight/adapter-next-react` only for Next.js App Router.
 - Put selected framework contract, selected source root, selected local Runelight entry root, selected tsconfig when needed, and the Host dev command in `runelight.config.ts`. The valid keys are `contracts`, `project.{sourceRoot, entryRoot, namespace, tsconfig}` and `host.command`; user-facing routes are fixed and not configurable: `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest`.
-- Ensure the project `.gitignore` contains `.runelight/`. Do not add a path-specialized ignore rule such as `${project.entryRoot}/.runelight/`; `.runelight/` covers generated Runelight directories at any depth. Project-local generated Runelight files live under `${project.entryRoot}/.runelight/`; choose `project.entryRoot` inside the app's authored source tree so generated registries and baselines stay source-scoped and importable without user glue. Authored design frames stay under `${project.entryRoot}/design`.
+- Ensure the project `.gitignore` contains `.runelight/`. Do not add a path-specialized ignore rule such as `${project.entryRoot}/.runelight/`; `.runelight/` covers generated Runelight directories at any depth. Project-local generated Runelight files live under `${project.entryRoot}/.runelight/`; choose `project.entryRoot` inside the app's authored source tree so generated registries and baselines stay source-scoped and importable without user glue.
 - `project.namespace` is optional. When a stable package name or repo slug is available, use it as `project.namespace`; do not invent a file hash or derive it from a transient folder name.
 - Choose `project.sourceRoot: "src"` when app source lives under `src`; choose `project.sourceRoot: "."` for root-level `app`, `pages`, `components`, or `lib`.
 - Choose `project.entryRoot` as the filesystem directory that owns the local `/runelight` entry: use `src/app/runelight` when the project keeps authored source under `src`, or `app/runelight` for root-level source projects. Because generated files are derived under `${project.entryRoot}/.runelight/`, keep this entry root inside the source tree the host can import. For client-only hosts without filesystem routes, still create and record this logical entry root during setup.
@@ -91,11 +91,10 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 2. Run `runelight check` for the configured project. Use an explicit `.g.tsx` / `.g.vue` file only when narrowing a failing diagnostic.
 3. Start the host dev server through `runelight serve` (or the package script that wraps it).
 4. Open `/runelight/studio`.
-5. Open `/runelight/studio#/drafts`.
-6. Confirm the manifest contains `.g.tsx` or `.g.vue` entries, including design frames from `${project.entryRoot}/design` when present. A setup-only project may legitimately have zero entries; Studio should show its empty state.
-7. If at least one protocol entry exists, open one `/runelight?...` preview URL.
-8. Confirm no `Missing entry`, `Unknown Runelight entry`, or `Unknown Runelight frame` errors.
-9. Run `runelight capture <entry[#export]>` against one concrete entry when at least one protocol entry exists.
+5. Confirm the manifest contains `.g.tsx` or `.g.vue` entries when present. A setup-only project may legitimately have zero entries; Studio should show its empty state.
+6. If at least one protocol entry exists, open one `/runelight?...` preview URL.
+7. Confirm no `Missing entry`, `Unknown Runelight entry`, or `Unknown Runelight frame` errors.
+8. Run `runelight capture <entry[#export]>` against one concrete entry when at least one protocol entry exists.
 
 ## Report
 

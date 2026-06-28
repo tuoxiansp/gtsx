@@ -19,10 +19,9 @@ Use a validated adapter package when one matches the host. For custom server hos
 3. Add `/runelight/studio/manifest` and return the manifest from `createStudioManifestProvider`.
 4. Add `/runelight/studio` and `/runelight/studio/assets/*` by serving the prebuilt app from `@runelight/studio/static-app`.
 5. Add `/runelight` and delegate route parsing, SSR bootstrap scripts, and preview loading to a framework adapter or the low-level `@runelight/react/preview` APIs.
-6. Create the empty `${project.entryRoot}/design` directory. Do not add a `designRoot` config key or placeholder frames.
-7. Preserve all existing framework config wrappers and production routes.
-8. In upgrade/ensure mode, do not rewrite existing config, adapter wrappers, route files, or preview helpers if they already pass verification; after package upgrades, migrate only glue proven incompatible by typecheck, adapter contracts, or runtime verification.
-9. Verify project typecheck, `runelight check`, `/runelight/studio/manifest`, `/runelight/studio`, one `/runelight?...` preview URL, and an existing app route.
+6. Preserve all existing framework config wrappers and production routes.
+7. In upgrade/ensure mode, do not rewrite existing config, adapter wrappers, route files, or preview helpers if they already pass verification; after package upgrades, migrate only glue proven incompatible by typecheck, adapter contracts, or runtime verification.
+8. Verify project typecheck, `runelight check`, `/runelight/studio/manifest`, `/runelight/studio`, one `/runelight?...` preview URL, and an existing app route.
 
 ## Host Requirements
 

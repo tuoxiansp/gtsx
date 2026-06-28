@@ -15,11 +15,11 @@ export default function WebsiteExplorationTerminal() {
           <span className="wd-terminal-prompt">agent@repo</span> runelight serve
         </p>
         <p className="wd-terminal-muted">→ serving /runelight/studio through the project Host</p>
-        <p className="wd-terminal-muted">→ declaring .g frames beside components</p>
+        <p className="wd-terminal-muted">→ finding preview targets for covered UI</p>
         <p className="wd-terminal-out">
-          <strong>Every UI state on one screen.</strong>
+          <strong>Observe. Edit. Re-observe.</strong>
         </p>
-        <p className="wd-terminal-muted">auth · empty · admin · overflow — rendered without navigation</p>
+        <p className="wd-terminal-muted">auth · empty · admin · overflow — polished without navigation</p>
         <p>
           <span className="wd-terminal-prompt">agent@repo</span> open{" "}
           <span className="wd-terminal-link">https://github.com/tuoxiansp/runelight</span>

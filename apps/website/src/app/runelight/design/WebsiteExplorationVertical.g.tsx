@@ -11,14 +11,14 @@ export default function WebsiteExplorationVertical() {
       </header>
 
       <section className="wd-vertical-hero">
-        <p className="wd-vertical-kicker">The visual workspace for agent-built apps</p>
+        <p className="wd-vertical-kicker">The visual feedback loop for agent-polished UI</p>
         <h1>
-          Every UI
-          <em>state</em>
-          One screen.
+          See it
+          <em>change it</em>
+          see it again.
         </h1>
         <p className="wd-vertical-payoff">
-          Design, build, and review agent-built UI without clicking through your app.
+          Observe, polish, and verify Runelight-covered UI without clicking through your app.
         </p>
       </section>
 

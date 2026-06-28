@@ -26,19 +26,19 @@ export type SiteContent = {
 export const siteContent = {
   productName: "Runelight",
   githubUrl: "https://github.com/tuoxiansp/runelight",
-  kicker: "For agent-built apps",
+  kicker: "For agent-polished frontends",
   headline: {
-    lead: "Every component.",
-    emphasis: "Every state.",
-    tail: "One screen.",
+    lead: "See it.",
+    emphasis: "Change it.",
+    tail: "See it again.",
   },
   story: {
     steps: [
-      { label: ".g source", detail: "Agents declare UI states beside real components." },
-      { label: "typed frames", detail: "Auth, empty, admin — named branches, type-checked." },
-      { label: "/runelight/studio", detail: "Every component, every state — rendered at once." },
+      { label: ".g coverage", detail: "Agents expose real UI states beside source." },
+      { label: "preview targets", detail: "Runelight gives exact browser paths for meaningful states." },
+      { label: "polish loop", detail: "Observe, edit, and re-observe before merge." },
     ],
-    payoff: "Typed, checked, and maintained by your agent. Review on one URL.",
+    payoff: "A visual feedback loop for Runelight-covered UI.",
   },
   cta: {
     label: "View on GitHub",

@@ -107,7 +107,7 @@ The goal is to help agents make better micro-decisions under this project's actu
 - Even though: It can be tempting to turn design explorations into formal component coverage or to store screenshots/layout state.
 - Because: The design workspace is a scratchpad for product direction, while component `.g.*` files are the static coverage contract for production UI.
 - Reject: Design drafts under `.runelight`, placeholder frames during setup, multiple frame keys for alternatives, serialized DOM, screenshots, or browser layout positions in the repo.
-- Applies to: `docs/runelight-design-workspace.md`, design skills, setup profiles, examples, and Studio design code.
+- Applies to: legacy design skills, setup profiles, examples, and Studio design code.
 - Micro-decisions affected: File placement, frame naming, whether to create variants or multiple files, whether hooks are allowed, and what verification URL to use.
 - Exception: A design draft may import stable local styles/components when the preview environment can resolve them and the file remains easy to inspect.
 

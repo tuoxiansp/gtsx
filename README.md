@@ -1,36 +1,34 @@
 # Runelight
 
-**The visual workspace for agent-built apps.**
+**The visual feedback loop for agent-polished UI.**
 
 [runelight.ai](https://runelight.ai)
 
-Runelight is a GUI development workflow for the AI era. Your agent designs screens, builds components, and declares every visual state - typed and verifiable. You describe what you want, start `runelight serve`, open `/runelight/studio`, and see the full picture. Design, build, and review in one workspace.
+Runelight gives AI agents a visual feedback loop for front-end polish. In Runelight-covered UI, real components expose typed `.g` frames with agent-readable visual intent. Your agent can inspect reachable preview targets, observe the exact states it changes, edit source, and re-observe until the UI holds together.
 
-![Studio — every component, every state, one screen](docs/images/studio-components.jpeg)
+![Studio — Runelight-covered frames in one workspace](docs/images/studio-components.jpeg)
 
-## Design
+## Polish
 
-Explore directions before writing production code. Tell your agent "design a checkout flow" or "try three layouts for the settings page." It drafts visual frames in Studio's design workspace — you see them side by side, give feedback, iterate until the direction is right.
+Ask your agent to polish a Runelight-covered component or screen. The installed `polish` skill drives a tight observe-edit-reobserve loop over real preview targets, so visual fixes are grounded in what Studio and capture can actually render.
 
-Design and production live in the same workspace, so exploratory frames can move toward implementation without a separate handoff.
+Polish currently targets `.g.tsx` and `.g.vue` coverage: component frames, exported component coordinates, and the preview paths derived from them. It is not a promise to blindly edit arbitrary app routes without Runelight coverage.
 
-![Studio design workspace](docs/images/studio-design.jpeg)
+## Cover Existing UI
 
-## Build
-
-Ask your agent to build the component or screen you want, the same way you would in any supported app: a user card, a settings panel, a checkout step. In a Runelight project, the implementation does not stop at the happy path. The agent keeps meaningful visual states beside the component as frames, and `runelight check` validates that reachable branches are represented.
+Need coverage first? Ask your agent to author a new `.g` component or refactor an existing component into `.g` format. In a Runelight project, implementation does not stop at the happy path. The agent keeps meaningful visual states beside the component as frames, and `runelight check` validates that reachable branches are represented.
 
 For admin panels, role-specific views become provider variants. For pages that look different when data is empty or populated, those states become frames. They are visible in Studio without switching accounts or seeding databases.
 
 ## Review
 
-Run `runelight serve`, then open `/runelight/studio`. Every component in your project, every visual state — rendered on one screen. Toggle filters to see how your UI responds across contexts: admin vs. regular user, signed-in vs. anonymous, empty vs. loaded.
+Run `runelight serve`, then open `/runelight/studio`. Runelight-covered components and their declared visual states render in Studio. Toggle filters to see how your UI responds across contexts: admin vs. regular user, signed-in vs. anonymous, empty vs. loaded.
 
 Studio gives you one URL for scanning those branches without manually navigating app flows or preparing test data.
 
-![Toggle USERSIGN to anonymous — every component responds](docs/images/studio-variant-filter.jpeg)
+![Toggle USERSIGN to anonymous — covered frames respond](docs/images/studio-variant-filter.jpeg)
 
-Because every state is declared and type-checked, your agent can also verify its own work — catching visual drift before you even open Studio.
+Because covered states are declared and type-checked, your agent can verify its own work through the same preview and capture loop you can inspect.
 
 ## Get Started — One Prompt
 
@@ -51,7 +49,7 @@ After refreshing that setup skill, run `setup-runelight` in this project now.
 Follow it through setup and verification.
 ```
 
-The agent detects your project, installs packages, wires Studio, and verifies everything works.
+The agent detects your project, installs packages, wires Studio, installs the matching project-level authoring/refactor/polish skills, and verifies everything works.
 
 ## Supported Projects
 
@@ -59,7 +57,7 @@ Runelight currently supports TypeScript React projects and TypeScript Vue 3 proj
 
 Non-React/Vue frameworks are not in scope yet.
 
-Already have components? After setup, tell your agent to run the installed framework-specific refactor skill.
+Already have components? After setup, tell your agent to run the installed framework-specific refactor skill, then use `polish` on the Runelight-covered UI.
 
 ## Under the Hood
 
@@ -78,8 +76,14 @@ export default function Badge(props: BadgeProps) {
 }
 
 Badge.frames = {
-  neutral: { props: { tone: "neutral", label: "Ready" } },
-  warning: { props: { tone: "warning", label: "Needs review" } },
+  neutral: {
+    description: "Neutral badge showing a ready state",
+    props: { tone: "neutral", label: "Ready" },
+  },
+  warning: {
+    description: "Warning badge showing an item that needs review",
+    props: { tone: "warning", label: "Needs review" },
+  },
 } satisfies GFrames<BadgeProps>
 ```
 
@@ -103,21 +107,19 @@ Rename `.g.tsx` → `.tsx` or `.g.vue` → `.vue`, delete frames, remove the Stu
 - [Vue Refactor Guide](docs/runelight-vue-refactor-guide.md) — convert existing Vue SFCs into Runelight format
 - [CLI Reference](docs/runelight-cli.md) — `check`, `inspect`, `preview-targets`, `changes`, `serve`, and `capture`
 - [Configuration Reference](docs/runelight-configuration.md) — `runelight.config.ts` fields, defaults, and production behavior
-- [Design Workspace](docs/runelight-design-workspace.md) — AI-assisted product design drafts in Studio
 
 **Understanding Runelight:**
 
 - [Design](docs/runelight-design.md) — architecture, sidecar model, and guarantees
 - [.g Protocol](docs/g-protocol.md) — the source-level model behind frames, seams, and static checks
 - [Static Contract](docs/runelight-static-contract.md) — the type-level contract, JSX branch coverage, and provider variant model
-- [Composable Frame Inputs](docs/runelight-composable-inputs.md) — target contract for parent-rendered props, provider environments, and local scope in composition
 
 **For AI agents:**
 
-- [Skills](skills/) — agent-executable workflows: [`setup-runelight`](skills/setup-runelight/SKILL.md), [`authoring-runelight-react`](skills/authoring-runelight-react/SKILL.md), [`authoring-runelight-vue`](skills/authoring-runelight-vue/SKILL.md), [`refactor-to-runelight-react`](skills/refactor-to-runelight-react/SKILL.md), [`refactor-to-runelight-vue`](skills/refactor-to-runelight-vue/SKILL.md), [`design-runelight-react`](skills/design-runelight-react/SKILL.md), [`design-runelight-vue`](skills/design-runelight-vue/SKILL.md), [`polish`](skills/polish/SKILL.md)
+- [Skills](skills/) — agent-executable workflows: [`setup-runelight`](skills/setup-runelight/SKILL.md), [`authoring-runelight-react`](skills/authoring-runelight-react/SKILL.md), [`authoring-runelight-vue`](skills/authoring-runelight-vue/SKILL.md), [`refactor-to-runelight-react`](skills/refactor-to-runelight-react/SKILL.md), [`refactor-to-runelight-vue`](skills/refactor-to-runelight-vue/SKILL.md), [`polish`](skills/polish/SKILL.md)
 
 ## Contributing
 
 pnpm workspace. `pnpm install && pnpm build && pnpm test && pnpm typecheck`.
 
-Packages: `@runelight/cli` (the `runelight` command; user automation should use `runelight inspect --json` for static GUI maps, paged `runelight preview-targets --json` output for browser preview paths, `runelight capture <entry>` for ordinary screenshots, `runelight capture --path` for selected preview-target screenshots, and `runelight changes --json` for workspace changes), `@runelight/core` (framework-neutral protocol, config, and contract injection), `@runelight/changes` (shared implementation package for workspace change classification), `@runelight/react` (React runtime, preview, and contract modules), `@runelight/vue` (Vue runtime, preview, and contract modules), `@runelight/studio` (prebuilt Studio app and manifests), `@runelight/adapter-vite-react` (Vite React adapter), `@runelight/adapter-next-react` (Next.js adapter), and `@runelight/adapter-vite-vue` (Vite Vue adapter). The product website lives in [`apps/website`](apps/website/). Repository examples live under [`examples/`](examples/), including `react-vite` and `vue-vite`; agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).
+Packages: `@runelight/cli` (the `runelight` command; agent automation can use `runelight inspect --json` for static GUI maps, paged `runelight preview-targets --json` output for browser preview paths, `runelight capture <entry>` for ordinary screenshots, `runelight capture --path` for selected preview-target screenshots, and `runelight changes --json` for workspace changes), `@runelight/core` (framework-neutral protocol, config, and contract injection), `@runelight/changes` (shared implementation package for workspace change classification), `@runelight/react` (React runtime, preview, and contract modules), `@runelight/vue` (Vue runtime, preview, and contract modules), `@runelight/studio` (prebuilt Studio app and manifests), `@runelight/adapter-vite-react` (Vite React adapter), `@runelight/adapter-next-react` (Next.js adapter), and `@runelight/adapter-vite-vue` (Vite Vue adapter). The product website lives in [`apps/website`](apps/website/). Repository examples live under [`examples/`](examples/), including `react-vite` and `vue-vite`; agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).

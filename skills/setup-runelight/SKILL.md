@@ -26,9 +26,9 @@ This file is the router. Read the detection profile first, then enter exactly on
   - treat `@runelight/core`, `@runelight/studio`, the selected framework package, and the selected adapter package as one compatibility group; align them to compatible current npm versions and update the lockfile;
   - run an upgrade compatibility audit before deciding glue code is still valid;
   - preserve existing Runelight config, route files, framework config wrappers, browser entry branches, Studio URLs, preview URLs, and adapter-generated preview entry wiring unless the audit shows a package-version contract change requires a minimal migration;
-  - ensure the Runelight config records `project.entryRoot`, then create `${project.entryRoot}/design` if it is missing;
+  - ensure the Runelight config records `project.entryRoot`;
   - restart or ask the user to restart the dev server so adapter-generated files such as preview entry registries can be refreshed;
-  - verify `/runelight/studio`, `/runelight/studio#/drafts`, `/runelight/studio/manifest`, and at least one preview URL when entries exist.
+  - verify `/runelight/studio`, `/runelight/studio/manifest`, and at least one preview URL when entries exist.
 - Only use profile templates to fill missing or demonstrably broken glue. Do not overwrite working local integration code just to match the examples.
 
 ## Upgrade Compatibility Audit
@@ -51,7 +51,7 @@ When upgrade/ensure mode updates package versions, the agent must self-check whe
 - Keep preview route shells static. Do not wrap the preview client in production layouts or providers that run ordinary React hooks, auth/session clients, data fetchers, routers, or effects. If visual context is needed, prefer CSS imports, static wrapper elements, and Runelight `createGProvider` frames.
 - Do not reimplement preview runtime in the app. No custom `GPreviewProvider`, boundary collectors, iframe `postMessage` handlers, resize observers, boundary rect readers, frame override merging, or scope fallback logic.
 - Keep existing app routes, config wrappers, router entrypoints, providers, and production behavior intact.
-- Put generated project-local Runelight files under `${project.entryRoot}/.runelight/`, and ensure the project `.gitignore` contains the directory pattern `.runelight/`. Do not add a path-specialized ignore rule such as `${project.entryRoot}/.runelight/`; `.runelight/` covers generated Runelight directories at any depth. Choose `project.entryRoot` inside the app's authored source tree, such as `src/app/runelight` for `src/app` projects, so generated registries and baselines stay importable without user-authored glue imports or extra adapter output configuration. Do not put authored design drafts there; design frames live under `${project.entryRoot}/design`.
+- Put generated project-local Runelight files under `${project.entryRoot}/.runelight/`, and ensure the project `.gitignore` contains the directory pattern `.runelight/`. Do not add a path-specialized ignore rule such as `${project.entryRoot}/.runelight/`; `.runelight/` covers generated Runelight directories at any depth. Choose `project.entryRoot` inside the app's authored source tree, such as `src/app/runelight` for `src/app` projects, so generated registries and baselines stay importable without user-authored glue imports or extra adapter output configuration.
 - Treat the installer as idempotent: re-running it must not duplicate wrappers/routes, reset project structure, or erase local Runelight customizations.
 - Never write runtime props, scope, provider values, DOM rects, or serialized snapshots into public files.
 
@@ -63,10 +63,10 @@ Fetch or copy companion skill directories from the Runelight source repository i
 
 | Project type | Project-level skills to install |
 | --- | --- |
-| React | `skills/authoring-runelight-react`, `skills/refactor-to-runelight-react`, `skills/design-runelight-react` |
-| Vue | `skills/authoring-runelight-vue`, `skills/refactor-to-runelight-vue`, `skills/design-runelight-vue` |
+| React | `skills/authoring-runelight-react`, `skills/refactor-to-runelight-react`, `skills/polish` |
+| Vue | `skills/authoring-runelight-vue`, `skills/refactor-to-runelight-vue`, `skills/polish` |
 
-If a companion skill is already present, refresh it from the current Runelight source before relying on it. Do not install irrelevant framework skills.
+If a companion skill is already present, refresh it from the current Runelight source before relying on it. Do not install irrelevant framework skills. Do not install design skills by default; they are legacy/internal optional workflows for explicit design-draft work, not the setup path.
 
 ## After Setup
 
@@ -76,5 +76,4 @@ Route to sibling skills for component work:
 - `authoring-runelight-vue` — write new Vue `.g.vue` components and frames.
 - `refactor-to-runelight-react` — convert existing React TSX components into `.g.tsx`.
 - `refactor-to-runelight-vue` — convert existing Vue SFCs into `.g.vue`.
-- `design-runelight-react` — create and iterate React `.g.tsx` design frames in Studio's design workspace.
-- `design-runelight-vue` — create and iterate Vue `.g.vue` design frames in Studio's design workspace.
+- `polish` — polish Runelight-covered `.g.tsx` / `.g.vue` UI through an observe-edit-reobserve loop.
