@@ -121,6 +121,7 @@ Supported frame fields:
 
 | Field | Meaning |
 | --- | --- |
+| `description` | Optional static string for agents and tooling to understand what the frame is meant to show. |
 | `props` | Values passed as component props. In Vue preview they are also exposed through `props` and direct prop-key variables. |
 | `scope` | State supplied at a protocol seam. React scope hooks read this value; Vue preview exposes it as template-visible scope for the selected frame. |
 | `providers` | Runelight provider/injection seam values. React entries are G providers; Vue entries are native injection keys, and Vue preview calls `provide(injectionKey, value)` before rendering the frame. |
@@ -138,6 +139,8 @@ Frames are authored on components, but components also render each other. In com
 A parent frame may use its own `scope` to compute props for a child. That is valid: the child receives normal external props. A parent may also render a provider environment around a child. The child reads that external provider value before any child-local frame provider mock.
 
 Child frames remain useful for isolated preview and, where the framework runtime supports it, explicit child frame overrides. They do not automatically replace child props or provider values that the parent actually produced.
+
+Preview callers that need synthetic exploration can use `inputOverride=<coordinate>:<frame>` to explicitly overlay another frame's `props`, `scope`, and `providers` onto a rendered coordinate. That is a preview input override, not evidence that the state is reachable from the selected parent frame.
 
 For the target contract and edge cases, see [Composable Frame Inputs](./runelight-composable-inputs.md).
 

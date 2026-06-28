@@ -52,7 +52,7 @@ Routes are fixed and not configurable:
 
 | Route | Serves |
 | --- | --- |
-| `/runelight` | Preview client (`entry`, `frame`, `frameOverride` search params) |
+| `/runelight` | Preview client (`entry`, `frame`, `frameOverride`, `inputOverride` search params) |
 | `/runelight/studio` | Prebuilt Studio app (`/runelight/studio/assets/*` for assets) |
 | `/runelight/studio/manifest` | Project manifest JSON |
 

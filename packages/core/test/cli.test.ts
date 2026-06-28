@@ -40,12 +40,414 @@ describe("runelight CLI", () => {
 
     expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0)
     expect(result.stdout).toContain("runelight check [-p <tsconfig-or-dir>] [entry[#export]|dir]")
+    expect(result.stdout).toContain("runelight inspect [-p <tsconfig-or-dir>] <entry[#export]> [--json]")
+    expect(result.stdout).toContain(
+      "runelight preview-targets [-p <tsconfig-or-dir>] <entry[#export]> [--json] [--walk breadth-first|depth-first] [--max-depth <n>] [--max-targets <n>] [--limit <n>] [--offset <n>]",
+    )
     expect(result.stdout).toContain("runelight changes [-p <tsconfig-or-dir>] [--json]")
     expect(result.stdout).toContain("runelight serve [-p <tsconfig-or-dir>] [--port <port>]")
     expect(result.stdout).toContain("--frame-override <entry#export:frame>")
     expect(result.stdout).toContain("runelight capture [-p <tsconfig-or-dir>] <entry[#export]|dir>")
+    expect(result.stdout).toContain("runelight capture [-p <tsconfig-or-dir>] --path </runelight?...>")
     expect(result.stdout).not.toContain("runelight init")
     expect(result.stdout).not.toContain("runelight strip")
+  })
+
+  it("inspects frame-level static dependencies as JSON", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-cli-inspect-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      writeFileSync(
+        join(cwd, "tsconfig.json"),
+        JSON.stringify({ compilerOptions: { jsx: "react-jsx", module: "ESNext", moduleResolution: "Bundler", target: "ES2022" }, include: ["src"] }),
+      )
+      writeFileSync(
+        join(cwd, "runelight.config.ts"),
+        `import { defineRunelightConfig } from "@runelight/core"
+
+export default defineRunelightConfig({
+  contracts: [${JSON.stringify(join(repositoryRoot, "packages/react/src/contract.ts"))}],
+  project: {
+    sourceRoot: "src",
+    entryRoot: "src",
+    tsconfig: "tsconfig.json",
+  },
+})
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Child.g.tsx"),
+        `export default function Child() {
+  return <span>Child</span>
+}
+
+Child.frames = {
+  compact: { props: {} },
+  expanded: { props: {} },
+}
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Root.g.tsx"),
+        `import Child from "./Child.g"
+
+type RootProps = { mode: "plain" | "withChild" }
+
+export default function Root(props: RootProps) {
+  return <section>{props.mode === "withChild" ? <Child /> : <span>Plain</span>}</section>
+}
+
+Root.frames = {
+  plain: { props: { mode: "plain" } },
+  withChild: { props: { mode: "withChild" } },
+}
+`,
+      )
+
+      const result = await runCLI(["inspect", "src/Root.g.tsx", "--json"], { cwd, stdout: "", stderr: "" })
+      const report = JSON.parse(result.stdout)
+
+      expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0)
+      expect(report).toMatchObject({
+        schemaVersion: 1,
+        root: "src/Root.g.tsx#default",
+        nodes: [
+          {
+            coordinate: "src/Root.g.tsx#default",
+            dependencies: ["src/Child.g.tsx#default"],
+            frames: [
+              { name: "plain", dependencies: [] },
+              { name: "withChild", dependencies: ["src/Child.g.tsx#default"] },
+            ],
+          },
+          {
+            coordinate: "src/Child.g.tsx#default",
+            dependencies: [],
+            frames: [
+              { name: "compact", dependencies: [] },
+              { name: "expanded", dependencies: [] },
+            ],
+          },
+        ],
+        diagnostics: [],
+      })
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("prunes statically null child GUI dependencies from inspect JSON", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-cli-inspect-prune-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      writeFileSync(
+        join(cwd, "tsconfig.json"),
+        JSON.stringify({ compilerOptions: { jsx: "react-jsx", module: "ESNext", moduleResolution: "Bundler", target: "ES2022" }, include: ["src"] }),
+      )
+      writeFileSync(
+        join(cwd, "runelight.config.ts"),
+        `import { defineRunelightConfig } from "@runelight/core"
+
+export default defineRunelightConfig({
+  contracts: [${JSON.stringify(join(repositoryRoot, "packages/react/src/contract.ts"))}],
+  project: {
+    sourceRoot: "src",
+    entryRoot: "src",
+    tsconfig: "tsconfig.json",
+  },
+})
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Toast.g.tsx"),
+        `type ToastProps = { message: string }
+
+export function Toast({ message }: ToastProps) {
+  if (!message) return null
+  return <div>{message}</div>
+}
+
+Toast.frames = {
+  ready: { props: { message: "Saved" } },
+  empty: { props: { message: "" } },
+}
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Root.g.tsx"),
+        `import { Toast } from "./Toast.g"
+
+type RootProps = { toastMessage: string }
+
+export default function Root(props: RootProps) {
+  return <section><Toast message={props.toastMessage} /></section>
+}
+
+Root.frames = {
+  webReady: { props: { toastMessage: "" } },
+  toast: { props: { toastMessage: "Saved" } },
+}
+`,
+      )
+
+      const result = await runCLI(["inspect", "src/Root.g.tsx", "--json"], { cwd, stdout: "", stderr: "" })
+      const report = JSON.parse(result.stdout)
+
+      expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0)
+      expect(report.nodes[0]).toMatchObject({
+        coordinate: "src/Root.g.tsx#default",
+        dependencies: ["src/Toast.g.tsx#Toast"],
+        structuralDependencies: ["src/Toast.g.tsx#Toast"],
+        frames: [
+          {
+            name: "webReady",
+            dependencies: [],
+            structuralDependencies: ["src/Toast.g.tsx#Toast"],
+            prunedDependencies: [
+              {
+                coordinate: "src/Toast.g.tsx#Toast",
+                reason: "child-return-null",
+                evidence: 'props.message is statically ""',
+              },
+            ],
+          },
+          {
+            name: "toast",
+            dependencies: ["src/Toast.g.tsx#Toast"],
+            structuralDependencies: ["src/Toast.g.tsx#Toast"],
+          },
+        ],
+      })
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("lists preview target paths with traversal options and cycle markers", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-cli-preview-targets-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      writeFileSync(
+        join(cwd, "tsconfig.json"),
+        JSON.stringify({ compilerOptions: { jsx: "react-jsx", module: "ESNext", moduleResolution: "Bundler", target: "ES2022" }, include: ["src"] }),
+      )
+      writeFileSync(
+        join(cwd, "runelight.config.ts"),
+        `import { defineRunelightConfig } from "@runelight/core"
+
+export default defineRunelightConfig({
+  contracts: [${JSON.stringify(join(repositoryRoot, "packages/react/src/contract.ts"))}],
+  project: {
+    sourceRoot: "src",
+    entryRoot: "src",
+    tsconfig: "tsconfig.json",
+  },
+})
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Root.g.tsx"),
+        `import Alpha from "./Alpha.g"
+import Beta from "./Beta.g"
+
+export default function Root() {
+  return <section><Alpha /><Beta /></section>
+}
+
+Root.frames = {
+  ready: { description: "Root ready", props: {} },
+}
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Alpha.g.tsx"),
+        `import Leaf from "./Leaf.g"
+
+export default function Alpha() {
+  return <Leaf />
+}
+
+Alpha.frames = {
+  open: { description: "Alpha open", props: {} },
+}
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Beta.g.tsx"),
+        `export default function Beta() {
+  return <span>Beta</span>
+}
+
+Beta.frames = {
+  ready: { description: "Beta ready", props: {} },
+}
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Leaf.g.tsx"),
+        `import Root from "./Root.g"
+
+export default function Leaf() {
+  return <Root />
+}
+
+Leaf.frames = {
+  visible: { description: "Leaf visible", props: {} },
+}
+`,
+      )
+
+      const breadthFirst = await runCLI(["preview-targets", "src/Root.g.tsx", "--json"], { cwd, stdout: "", stderr: "" })
+      const breadthFirstReport = JSON.parse(breadthFirst.stdout)
+      const depthFirst = await runCLI(["preview-targets", "src/Root.g.tsx", "--json", "--walk", "depth-first"], { cwd, stdout: "", stderr: "" })
+      const depthFirstReport = JSON.parse(depthFirst.stdout)
+      const maxDepth = await runCLI(["preview-targets", "src/Root.g.tsx", "--json", "--max-depth", "1"], { cwd, stdout: "", stderr: "" })
+      const maxDepthReport = JSON.parse(maxDepth.stdout)
+      const maxTargets = await runCLI(["preview-targets", "src/Root.g.tsx", "--json", "--max-targets", "2"], { cwd, stdout: "", stderr: "" })
+      const maxTargetsReport = JSON.parse(maxTargets.stdout)
+      const secondPage = await runCLI(["preview-targets", "src/Root.g.tsx", "--json", "--limit", "2", "--offset", "2"], {
+        cwd,
+        stdout: "",
+        stderr: "",
+      })
+      const secondPageReport = JSON.parse(secondPage.stdout)
+
+      expect(breadthFirst.exitCode, `${breadthFirst.stdout}\n${breadthFirst.stderr}`).toBe(0)
+      expect(breadthFirstReport.page).toEqual({
+        offset: 0,
+        limit: 20,
+        currentPageSize: 4,
+        nextOffset: null,
+        hasMore: false,
+      })
+      expect(breadthFirstReport.traversal).toEqual({
+        order: "breadth-first",
+        maxDepth: null,
+        maxTargets: 1000,
+        generatedTargets: 4,
+        truncated: false,
+      })
+      expect(breadthFirstReport.targets.map((target: { path: string }) => target.path)).toEqual([
+        "/runelight?entry=src%2FRoot.g.tsx%23default&frame=ready&chrome=0",
+        "/runelight?entry=src%2FRoot.g.tsx%23default&frame=ready&chrome=0&frameOverride=src%252FAlpha.g.tsx%2523default%3Aopen",
+        "/runelight?entry=src%2FRoot.g.tsx%23default&frame=ready&chrome=0&frameOverride=src%252FBeta.g.tsx%2523default%3Aready",
+        "/runelight?entry=src%2FRoot.g.tsx%23default&frame=ready&chrome=0&frameOverride=src%252FAlpha.g.tsx%2523default%3Aopen&frameOverride=src%252FLeaf.g.tsx%2523default%3Avisible",
+      ])
+      expect(breadthFirstReport.targets[0].paths[0][0]).toEqual({
+        coordinate: "src/Root.g.tsx#default",
+        frame: "ready",
+        description: "Root ready",
+      })
+      expect(breadthFirstReport.targets[3].paths).toEqual(
+        expect.arrayContaining([
+          [
+            { coordinate: "src/Root.g.tsx#default", frame: "ready", description: "Root ready" },
+            { coordinate: "src/Alpha.g.tsx#default", frame: "open", description: "Alpha open" },
+            { coordinate: "src/Leaf.g.tsx#default", frame: "visible", description: "Leaf visible" },
+            {
+              coordinate: "src/Root.g.tsx#default",
+              frame: "ready",
+              description: "Root ready",
+              cycle: true,
+              cyclePath: ["src/Root.g.tsx#default", "src/Alpha.g.tsx#default", "src/Leaf.g.tsx#default", "src/Root.g.tsx#default"],
+            },
+          ],
+        ]),
+      )
+
+      expect(depthFirstReport.targets.map((target: { path: string }) => target.path)).toEqual([
+        "/runelight?entry=src%2FRoot.g.tsx%23default&frame=ready&chrome=0",
+        "/runelight?entry=src%2FRoot.g.tsx%23default&frame=ready&chrome=0&frameOverride=src%252FAlpha.g.tsx%2523default%3Aopen",
+        "/runelight?entry=src%2FRoot.g.tsx%23default&frame=ready&chrome=0&frameOverride=src%252FAlpha.g.tsx%2523default%3Aopen&frameOverride=src%252FLeaf.g.tsx%2523default%3Avisible",
+        "/runelight?entry=src%2FRoot.g.tsx%23default&frame=ready&chrome=0&frameOverride=src%252FBeta.g.tsx%2523default%3Aready",
+      ])
+      expect(maxDepthReport.targets.map((target: { path: string }) => target.path)).toHaveLength(3)
+      expect(maxDepthReport.targets.map((target: { path: string }) => target.path).join("\n")).not.toContain("Leaf.g.tsx")
+      expect(maxTargetsReport.traversal.truncated).toBe(true)
+      expect(maxTargetsReport.targets).toHaveLength(2)
+      expect(secondPageReport.page).toEqual({
+        offset: 2,
+        limit: 2,
+        currentPageSize: 2,
+        nextOffset: null,
+        hasMore: false,
+      })
+      expect(secondPageReport.targets.map((target: { path: string }) => target.path)).toEqual([
+        "/runelight?entry=src%2FRoot.g.tsx%23default&frame=ready&chrome=0&frameOverride=src%252FBeta.g.tsx%2523default%3Aready",
+        "/runelight?entry=src%2FRoot.g.tsx%23default&frame=ready&chrome=0&frameOverride=src%252FAlpha.g.tsx%2523default%3Aopen&frameOverride=src%252FLeaf.g.tsx%2523default%3Avisible",
+      ])
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("paginates preview targets to 20 targets by default", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-cli-preview-targets-page-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      writeFileSync(
+        join(cwd, "tsconfig.json"),
+        JSON.stringify({ compilerOptions: { jsx: "react-jsx", module: "ESNext", moduleResolution: "Bundler", target: "ES2022" }, include: ["src"] }),
+      )
+      writeFileSync(
+        join(cwd, "runelight.config.ts"),
+        `import { defineRunelightConfig } from "@runelight/core"
+
+export default defineRunelightConfig({
+  contracts: [${JSON.stringify(join(repositoryRoot, "packages/react/src/contract.ts"))}],
+  project: {
+    sourceRoot: "src",
+    entryRoot: "src",
+    tsconfig: "tsconfig.json",
+  },
+})
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Root.g.tsx"),
+        `export default function Root() {
+  return <section>Root</section>
+}
+
+Root.frames = {
+${Array.from({ length: 25 }, (_, index) => `  frame${index}: { props: {} },`).join("\n")}
+}
+`,
+      )
+
+      const firstPage = await runCLI(["preview-targets", "src/Root.g.tsx", "--json"], { cwd, stdout: "", stderr: "" })
+      const firstPageReport = JSON.parse(firstPage.stdout)
+      const secondPage = await runCLI(["preview-targets", "src/Root.g.tsx", "--json", "--offset", "20"], { cwd, stdout: "", stderr: "" })
+      const secondPageReport = JSON.parse(secondPage.stdout)
+
+      expect(firstPage.exitCode, `${firstPage.stdout}\n${firstPage.stderr}`).toBe(0)
+      expect(firstPageReport.page).toEqual({
+        offset: 0,
+        limit: 20,
+        currentPageSize: 20,
+        nextOffset: 20,
+        hasMore: true,
+      })
+      expect(firstPageReport.traversal.generatedTargets).toBe(25)
+      expect(firstPageReport.targets).toHaveLength(20)
+      expect(firstPageReport.targets[0].path).toContain("frame=frame0")
+      expect(firstPageReport.targets[19].path).toContain("frame=frame19")
+      expect(secondPageReport.page).toEqual({
+        offset: 20,
+        limit: 20,
+        currentPageSize: 5,
+        nextOffset: null,
+        hasMore: false,
+      })
+      expect(secondPageReport.targets).toHaveLength(5)
+      expect(secondPageReport.targets[0].path).toContain("frame=frame20")
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
   })
 
   it("lists current workspace UI changes as JSON", async () => {
@@ -1083,6 +1485,85 @@ process.exit(1)
       rmSync(sessionDir, { recursive: true, force: true })
       rmSync(logFile, { force: true })
     }
+  })
+
+  it("captures a preview-target path through the current project's active serve session", async () => {
+    const cwd = join(import.meta.dirname, "fixtures/check-project")
+    const logFile = join(cwd, "runelight-command-log.jsonl")
+    const sessionDir = mkdtempSync(join(tmpdir(), "runelight-cli-sessions-"))
+    const previousSessionDir = process.env.RUNELIGHT_SESSION_DIR
+    const sessionId = createRunelightServeSessionId()
+    const projectKey = runelightServeSessionProjectKey(cwd)
+    const captureBackend = {
+      capturePreviewPage: vi.fn(async () => undefined),
+    }
+    let server: Awaited<ReturnType<typeof startHealthyRunelightServer>> | undefined
+
+    rmSync(logFile, { force: true })
+    process.env.RUNELIGHT_SESSION_DIR = sessionDir
+
+    try {
+      server = await startHealthyRunelightServer({ projectKey, sessionId })
+      writeRunelightServeSession(cwd, {
+        baseUrl: server.baseUrl,
+        hostPid: process.pid,
+        mode: "runelight-dev",
+        port: server.port,
+        sessionId,
+        startedAt: new Date().toISOString(),
+        supervisorPid: process.pid,
+      })
+
+      const path = "/runelight?entry=src%2FBadge.g.tsx%23default&frame=neutral&chrome=0"
+      const result = await runCLI(["capture", "--path", path, "--out", "picked.png"], {
+        captureBackend,
+        cwd,
+        stdout: "",
+        stderr: "",
+      })
+
+      expect(result).toEqual({
+        exitCode: 0,
+        stdout: `Captured ${path} to picked.png\n`,
+        stderr: "",
+      })
+      expect(captureBackend.capturePreviewPage).toHaveBeenCalledTimes(1)
+      expect(captureBackend.capturePreviewPage).toHaveBeenCalledWith({
+        cwd,
+        out: "picked.png",
+        url: `${server.baseUrl}${path}`,
+        viewport: "1440x900",
+      })
+      expect(readRunelightServeSession(cwd)?.sessionId).toBe(sessionId)
+      expect(() => readFileSync(logFile, "utf8")).toThrow()
+    } finally {
+      await server?.close()
+      if (previousSessionDir === undefined) {
+        delete process.env.RUNELIGHT_SESSION_DIR
+      } else {
+        process.env.RUNELIGHT_SESSION_DIR = previousSessionDir
+      }
+      rmSync(sessionDir, { recursive: true, force: true })
+      rmSync(logFile, { force: true })
+    }
+  })
+
+  it("rejects capture --path arguments that are not preview paths", async () => {
+    const captureBackend = {
+      capturePreviewPage: vi.fn(async () => undefined),
+    }
+
+    const result = await runCLI(["capture", "--path", "https://example.test/runelight", "--out", "picked.png"], {
+      captureBackend,
+      cwd: process.cwd(),
+      stdout: "",
+      stderr: "",
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain("invalid-capture-path")
+    expect(result.stdout).toContain("relative /runelight path")
+    expect(captureBackend.capturePreviewPage).not.toHaveBeenCalled()
   })
 
   it("captures an entry contact sheet when no frame is specified", async () => {

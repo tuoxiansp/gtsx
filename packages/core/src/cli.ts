@@ -21,9 +21,20 @@ import {
   type RunelightContract,
   type RunelightDiagnostic,
 } from "./contract.js"
-import { buildRunelightProjectIndex } from "./project-index.js"
+import {
+  pruneInspectFrameDependencies,
+  type RunelightInspectPrunedDependency,
+} from "./inspect-pruning.js"
+import {
+  buildRunelightProjectIndex,
+  type RunelightProjectIndex,
+  type RunelightProjectIndexComponent,
+} from "./project-index.js"
 import { discoverRunelightProgramFiles, findNearestTSConfig } from "./project-scope.js"
-import { normalizeRunelightPreviewFrameOverride } from "./preview-protocol.js"
+import {
+  encodeRunelightPreviewFrameOverride,
+  normalizeRunelightPreviewFrameOverride,
+} from "./preview-protocol.js"
 import { runelightServeSessionPreviewUrl } from "./serve-session.js"
 import { acquireRunelightServeSession, runServeSupervisor, type HostStdioMode } from "./serve-supervisor.js"
 
@@ -72,13 +83,83 @@ type ContractResolution = {
   diagnostics: RunelightDiagnostic[]
 }
 
+type RunelightInspectFrame = {
+  description?: string
+  name: string
+  kind: "pure" | "scope"
+  providerVariants?: Record<string, string | string[]>
+  providers?: string[]
+  dependencies: string[]
+  prunedDependencies?: RunelightInspectPrunedDependency[]
+  structuralDependencies: string[]
+}
+
+type RunelightInspectNode = {
+  coordinate: string
+  filePath: string
+  exportName: string
+  componentName: string
+  mode: "pure" | "scope" | "unknown"
+  dependencies: string[]
+  frames: RunelightInspectFrame[]
+  structuralDependencies: string[]
+  diagnostics: RunelightDiagnostic[]
+}
+
+type RunelightInspectReport = {
+  schemaVersion: 1
+  root: string
+  nodes: RunelightInspectNode[]
+  diagnostics: RunelightDiagnostic[]
+}
+
+type RunelightPreviewTargetsWalkOrder = "breadth-first" | "depth-first"
+
+type RunelightPreviewTargetsPathNode = {
+  coordinate: string
+  frame: string
+  description?: string
+  cycle?: true
+  cyclePath?: string[]
+}
+
+type RunelightPreviewTarget = {
+  path: string
+  paths: RunelightPreviewTargetsPathNode[][]
+}
+
+type RunelightPreviewTargetsReport = {
+  schemaVersion: 1
+  page: {
+    offset: number
+    limit: number
+    currentPageSize: number
+    nextOffset: number | null
+    hasMore: boolean
+  }
+  traversal: {
+    order: RunelightPreviewTargetsWalkOrder
+    maxDepth: number | null
+    maxTargets: number
+    generatedTargets: number
+    truncated: boolean
+  }
+  targets: RunelightPreviewTarget[]
+  diagnostics: RunelightDiagnostic[]
+}
+
+const DEFAULT_PREVIEW_TARGETS_PAGE_LIMIT = 20
+
 const HELP = `runelight
 
 Usage:
   runelight check [-p <tsconfig-or-dir>] [entry[#export]|dir] [--json]
+  runelight inspect [-p <tsconfig-or-dir>] <entry[#export]> [--json]
+  runelight preview-targets [-p <tsconfig-or-dir>] <entry[#export]> [--json] [--walk breadth-first|depth-first] [--max-depth <n>] [--max-targets <n>] [--limit <n>] [--offset <n>]
   runelight changes [-p <tsconfig-or-dir>] [--json] [--ui-only] [--component <component-or-file>]
   runelight serve [-p <tsconfig-or-dir>] [--port <port>]
   runelight capture [-p <tsconfig-or-dir>] <entry[#export]|dir> [--frame <name>] [--frame-override <entry#export:frame>] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
+  runelight capture [-p <tsconfig-or-dir>] --path </runelight?...> [--viewport 1440x900] [--out <file.png>] [--port <port>]
 `
 
 export async function runCLI(args: string[], context: CLIContext): Promise<CLIResult> {
@@ -143,6 +224,150 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       json: args.includes("--json"),
       stderr: context.stderr,
     })
+  }
+
+  if (args[0] === "inspect") {
+    const commandArgs = parseCommandArguments(args, {
+      booleanOptions: ["--json"],
+      maxPositionals: 1,
+    })
+    if (commandArgs.diagnostics.length > 0) return diagnosticsResult(commandArgs.diagnostics)
+
+    const entry = commandArgs.positionals[0]
+    if (!entry) {
+      return diagnosticsResult([
+        {
+          stage: "adapter-configuration",
+          severity: "error",
+          code: "missing-inspect-entry",
+          message: "Pass an entry file or coordinate to runelight inspect.",
+        },
+      ])
+    }
+
+    const config = loadRunelightConfig(cwd)
+    if (!config.config) return diagnosticsResult(config.diagnostics)
+    const resolvedConfig = resolveRunelightConfig(config.config)
+    const contractResolution = await resolveCLIContracts(cwd)
+    if (contractResolution.diagnostics.length > 0) return diagnosticsResult(contractResolution.diagnostics)
+
+    if (projectSelection.tsconfigPath && !isEntryInRunelightScope(cwd, entry, projectSelection.tsconfigPath, contractResolution.contracts)) {
+      return entryOutsideProjectScopeResult(entry)
+    }
+
+    const index = buildRunelightProjectIndex({
+      additionalSourceRoots: [runelightDesignRootFromEntryRoot(resolvedConfig.project.entryRoot)],
+      contracts: contractResolution.contracts,
+      cwd,
+      sourceRoot: resolvedConfig.project.sourceRoot,
+      tsconfigPath: resolvedConfig.project.tsconfig ?? projectSelection.tsconfigPath,
+    })
+    const rootResolution = resolveInspectRootComponent(index, entry)
+    if (rootResolution.diagnostics.length > 0) return diagnosticsResult(rootResolution.diagnostics)
+    if (!rootResolution.component) {
+      return diagnosticsResult([
+        {
+          stage: "contract-extraction",
+          severity: "error",
+          code: "inspect-root-unresolved",
+          message: `Runelight inspect could not resolve ${entry}.`,
+          file: entryFile(entry),
+        },
+      ])
+    }
+
+    const report = createRunelightInspectReport(cwd, index, rootResolution.component)
+    return {
+      exitCode: hasErrorDiagnostics(report.diagnostics) ? 1 : 0,
+      stdout: args.includes("--json") ? `${JSON.stringify(report, null, 2)}\n` : formatRunelightInspectReport(report),
+      stderr: context.stderr,
+    }
+  }
+
+  if (args[0] === "preview-targets") {
+    const commandArgs = parseCommandArguments(args, {
+      booleanOptions: ["--json"],
+      maxPositionals: 1,
+      valueOptions: ["--limit", "--max-depth", "--max-targets", "--offset", "--walk"],
+    })
+    if (commandArgs.diagnostics.length > 0) return diagnosticsResult(commandArgs.diagnostics)
+
+    const entry = commandArgs.positionals[0]
+    if (!entry) {
+      return diagnosticsResult([
+        {
+          stage: "adapter-configuration",
+          severity: "error",
+          code: "missing-preview-targets-entry",
+          message: "Pass an entry file or coordinate to runelight preview-targets.",
+        },
+      ])
+    }
+
+    const walk = readOption(args, "--walk") ?? "breadth-first"
+    if (!isRunelightPreviewTargetsWalkOrder(walk)) {
+      return diagnosticsResult([
+        {
+          stage: "adapter-configuration",
+          severity: "error",
+          code: "invalid-preview-targets-walk",
+          message: `Invalid preview-targets walk order ${walk}. Use breadth-first or depth-first.`,
+        },
+      ])
+    }
+    const maxDepthResult = readOptionalNonNegativeIntegerOption(args, "--max-depth")
+    if (maxDepthResult.diagnostic) return diagnosticsResult([maxDepthResult.diagnostic])
+    const maxTargetsResult = readPositiveIntegerOption(args, "--max-targets", 1000)
+    if (maxTargetsResult.diagnostic) return diagnosticsResult([maxTargetsResult.diagnostic])
+    const limitResult = readPositiveIntegerOption(args, "--limit", DEFAULT_PREVIEW_TARGETS_PAGE_LIMIT)
+    if (limitResult.diagnostic) return diagnosticsResult([limitResult.diagnostic])
+    const offsetResult = readNonNegativeIntegerOption(args, "--offset", 0)
+    if (offsetResult.diagnostic) return diagnosticsResult([offsetResult.diagnostic])
+
+    const config = loadRunelightConfig(cwd)
+    if (!config.config) return diagnosticsResult(config.diagnostics)
+    const resolvedConfig = resolveRunelightConfig(config.config)
+    const contractResolution = await resolveCLIContracts(cwd)
+    if (contractResolution.diagnostics.length > 0) return diagnosticsResult(contractResolution.diagnostics)
+
+    if (projectSelection.tsconfigPath && !isEntryInRunelightScope(cwd, entry, projectSelection.tsconfigPath, contractResolution.contracts)) {
+      return entryOutsideProjectScopeResult(entry)
+    }
+
+    const index = buildRunelightProjectIndex({
+      additionalSourceRoots: [runelightDesignRootFromEntryRoot(resolvedConfig.project.entryRoot)],
+      contracts: contractResolution.contracts,
+      cwd,
+      sourceRoot: resolvedConfig.project.sourceRoot,
+      tsconfigPath: resolvedConfig.project.tsconfig ?? projectSelection.tsconfigPath,
+    })
+    const rootResolution = resolveInspectRootComponent(index, entry)
+    if (rootResolution.diagnostics.length > 0) return diagnosticsResult(rootResolution.diagnostics)
+    if (!rootResolution.component) {
+      return diagnosticsResult([
+        {
+          stage: "contract-extraction",
+          severity: "error",
+          code: "preview-targets-root-unresolved",
+          message: `Runelight preview-targets could not resolve ${entry}.`,
+          file: entryFile(entry),
+        },
+      ])
+    }
+
+    const inspectReport = createRunelightInspectReport(cwd, index, rootResolution.component)
+    const report = createRunelightPreviewTargetsReport(inspectReport, {
+      limit: limitResult.value,
+      maxDepth: maxDepthResult.value,
+      maxTargets: maxTargetsResult.value,
+      offset: offsetResult.value,
+      order: walk,
+    })
+    return {
+      exitCode: hasErrorDiagnostics(report.diagnostics) ? 1 : 0,
+      stdout: args.includes("--json") ? `${JSON.stringify(report, null, 2)}\n` : formatRunelightPreviewTargetsReport(report),
+      stderr: context.stderr,
+    }
   }
 
   if (args[0] === "changes") {
@@ -229,11 +454,61 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
 
     const commandArgs = parseCommandArguments(args, {
       maxPositionals: 1,
-      valueOptions: ["--frame", "--frame-override", "--out", "--port", "--viewport"],
+      valueOptions: ["--frame", "--frame-override", "--out", "--path", "--port", "--viewport"],
     })
     if (commandArgs.diagnostics.length > 0) return diagnosticsResult(commandArgs.diagnostics)
 
     const entry = commandArgs.positionals[0]
+    const previewPath = readOption(args, "--path")
+    if (previewPath !== undefined) {
+      const pathCaptureDiagnostic = validatePreviewPathCaptureArguments(args, entry, previewPath)
+      if (pathCaptureDiagnostic) return diagnosticsResult([pathCaptureDiagnostic])
+
+      const portOption = resolvePortOption(args)
+      if (portOption.diagnostic) return diagnosticsResult([portOption.diagnostic])
+
+      const viewport = readOption(args, "--viewport") ?? "1440x900"
+      const viewportDiagnostic = validateCaptureViewport(viewport)
+      if (viewportDiagnostic) return diagnosticsResult([viewportDiagnostic])
+      const out = readOption(args, "--out") ?? "runelight-capture.png"
+      const outDiagnostic = validatePreviewPathCaptureOutput(out)
+      if (outDiagnostic) return diagnosticsResult([outDiagnostic])
+
+      const captureBackend = context.captureBackend
+      if (!captureBackend) return missingCaptureBackendResult()
+
+      const config = loadRunelightConfig(cwd)
+      if (!config.config) return diagnosticsResult(config.diagnostics)
+
+      const serveSession = await acquireRunelightServeSession(cwd, config.config.host?.command, {
+        port: portOption.port,
+        stderr: context.stderr,
+      })
+      if (serveSession.exitCode !== 0 || !serveSession.baseUrl) return serveSession
+
+      const captureUrl = runelightPreviewPathCaptureUrl(serveSession.baseUrl, previewPath)
+      try {
+        await captureBackend.capturePreviewPage({
+          cwd,
+          url: captureUrl,
+          viewport,
+          out,
+        })
+        return { exitCode: 0, stdout: `${serveSession.stdout}Captured ${previewPath} to ${out}\n`, stderr: context.stderr }
+      } catch (error) {
+        return diagnosticsResult([
+          {
+            stage: "browser-capture",
+            severity: "error",
+            code: "browser-capture-failed",
+            message: error instanceof Error ? error.message : String(error),
+          },
+        ])
+      } finally {
+        serveSession.stop()
+      }
+    }
+
     if (!entry) {
       return diagnosticsStderrResult(context.stdout, [
         {
@@ -430,6 +705,329 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
       message: `Unknown command ${args[0] ?? ""}.`,
     },
   ])
+}
+
+function resolveInspectRootComponent(
+  index: RunelightProjectIndex,
+  entry: string,
+): { component: RunelightProjectIndexComponent; diagnostics: [] } | { component?: undefined; diagnostics: RunelightDiagnostic[] } {
+  if (hasExplicitExportCoordinate(entry)) {
+    const coordinate = normalizeEntryCoordinate(entry)
+    const component = index.files.flatMap((file) => file.components).find((candidate) => candidate.coordinate === coordinate)
+    if (component) return { component, diagnostics: [] }
+
+    return {
+      diagnostics: [
+        {
+          stage: "contract-extraction",
+          severity: "error",
+          code: "entry-not-found",
+          message: `Runelight entry does not exist: ${entry}.`,
+          file: entryFile(entry),
+        },
+      ],
+    }
+  }
+
+  const filePath = normalizeProjectPath(entryFile(entry))
+  const file = index.files.find((candidate) => candidate.path === filePath)
+  if (!file) {
+    return {
+      diagnostics: [
+        {
+          stage: "contract-extraction",
+          severity: "error",
+          code: "entry-not-found",
+          message: `Runelight entry does not exist: ${entry}.`,
+          file: entry,
+        },
+      ],
+    }
+  }
+  if (file.components.length > 1) {
+    return {
+      diagnostics: [
+        {
+          stage: "contract-extraction",
+          severity: "error",
+          code: "ambiguous-entry-coordinate",
+          message: `${entry} contains multiple Runelight component exports; pass one explicit coordinate such as ${file.components[0]?.coordinate}.`,
+          file: entry,
+        },
+      ],
+    }
+  }
+  const component = file.components[0]
+  if (component) return { component, diagnostics: [] }
+
+  return {
+    diagnostics: file.diagnostics.length > 0
+      ? file.diagnostics
+      : [
+          {
+            stage: "contract-extraction",
+            severity: "error",
+            code: "no-entries-found",
+            message: `No Runelight entries found in ${entry}.`,
+            file: entry,
+          },
+        ],
+  }
+}
+
+function createRunelightInspectReport(cwd: string, index: RunelightProjectIndex, root: RunelightProjectIndexComponent): RunelightInspectReport {
+  const componentsByCoordinate = new Map(index.files.flatMap((file) => file.components.map((component) => [component.coordinate, component] as const)))
+  const visited = new Set<string>()
+  const queue: RunelightProjectIndexComponent[] = [root]
+  const nodes: RunelightInspectNode[] = []
+
+  while (queue.length > 0) {
+    const component = queue.shift()
+    if (!component || visited.has(component.coordinate)) continue
+    visited.add(component.coordinate)
+    nodes.push(toRunelightInspectNode(cwd, component, index))
+
+    for (const dependency of inspectComponentStructuralDependencies(component)) {
+      const dependencyComponent = componentsByCoordinate.get(dependency)
+      if (dependencyComponent && !visited.has(dependencyComponent.coordinate)) {
+        queue.push(dependencyComponent)
+      }
+    }
+  }
+
+  return {
+    schemaVersion: 1,
+    root: root.coordinate,
+    nodes,
+    diagnostics: nodes.flatMap((node) => node.diagnostics),
+  }
+}
+
+function toRunelightInspectNode(
+  cwd: string,
+  component: RunelightProjectIndexComponent,
+  index: RunelightProjectIndex,
+): RunelightInspectNode {
+  const frames = component.frames.map((frame) => {
+    const structuralDependencies = inspectFrameStructuralDependencies(component, frame.name)
+    const dependencyResult = pruneInspectFrameDependencies({
+      component,
+      cwd,
+      frameName: frame.name,
+      index,
+      structuralDependencies,
+    })
+
+    return {
+      ...(frame.description !== undefined ? { description: frame.description } : {}),
+      name: frame.name,
+      kind: frame.kind,
+      ...(frame.providerVariants ? { providerVariants: frame.providerVariants } : {}),
+      ...(frame.providers ? { providers: frame.providers } : {}),
+      dependencies: dependencyResult.dependencies,
+      ...(dependencyResult.prunedDependencies.length > 0 ? { prunedDependencies: dependencyResult.prunedDependencies } : {}),
+      structuralDependencies: dependencyResult.structuralDependencies,
+    }
+  })
+
+  return {
+    coordinate: component.coordinate,
+    filePath: component.filePath,
+    exportName: component.exportName,
+    componentName: component.componentName,
+    mode: component.mode,
+    dependencies: uniqueSorted(frames.flatMap((frame) => frame.dependencies)),
+    frames,
+    structuralDependencies: inspectComponentStructuralDependencies(component),
+    diagnostics: component.diagnostics,
+  }
+}
+
+function createRunelightPreviewTargetsReport(
+  inspectReport: RunelightInspectReport,
+  options: {
+    limit: number
+    maxDepth: number | undefined
+    maxTargets: number
+    offset: number
+    order: RunelightPreviewTargetsWalkOrder
+  },
+): RunelightPreviewTargetsReport {
+  const nodesByCoordinate = new Map(inspectReport.nodes.map((node) => [node.coordinate, node] as const))
+  const root = nodesByCoordinate.get(inspectReport.root)
+  const targets: RunelightPreviewTarget[] = []
+  const targetsByPath = new Map<string, RunelightPreviewTarget>()
+  const worklist: RunelightPreviewTargetsPathNode[][] = []
+  let truncated = false
+
+  const addTarget = (
+    pathChain: readonly RunelightPreviewTargetsPathNode[],
+    visibleChain: readonly RunelightPreviewTargetsPathNode[] = pathChain,
+  ): boolean => {
+    const path = runelightPreviewTargetPath(inspectReport.root, pathChain)
+    let target = targetsByPath.get(path)
+    if (!target) {
+      if (targets.length >= options.maxTargets) {
+        truncated = true
+        return false
+      }
+      target = { path, paths: [] }
+      targetsByPath.set(path, target)
+      targets.push(target)
+    }
+
+    const signature = JSON.stringify(visibleChain)
+    if (!target.paths.some((candidate) => JSON.stringify(candidate) === signature)) {
+      target.paths.push(visibleChain.map((node) => ({ ...node })))
+    }
+    return true
+  }
+
+  if (root) {
+    const rootChains = root.frames.map((frame) => [toRunelightPreviewTargetsPathNode(root, frame)])
+    worklist.push(...(options.order === "breadth-first" ? rootChains : rootChains.reverse()))
+  }
+
+  while (worklist.length > 0 && !truncated) {
+    const chain = options.order === "breadth-first" ? worklist.shift() : worklist.pop()
+    if (!chain) continue
+    if (!addTarget(chain)) break
+
+    const depth = chain.length - 1
+    if (options.maxDepth !== undefined && depth >= options.maxDepth) continue
+
+    const current = chain[chain.length - 1]
+    if (!current) continue
+    const node = nodesByCoordinate.get(current.coordinate)
+    const frame = node?.frames.find((candidate) => candidate.name === current.frame)
+    if (!node || !frame) continue
+
+    const nextChains: RunelightPreviewTargetsPathNode[][] = []
+    for (const dependency of frame.dependencies) {
+      const dependencyNode = nodesByCoordinate.get(dependency)
+      if (!dependencyNode) continue
+
+      for (const dependencyFrame of dependencyNode.frames) {
+        const nextNode = toRunelightPreviewTargetsPathNode(dependencyNode, dependencyFrame)
+        const cycleStart = chain.findIndex((candidate) => candidate.coordinate === nextNode.coordinate)
+        if (cycleStart >= 0) {
+          const cycleNode = {
+            ...nextNode,
+            cycle: true as const,
+            cyclePath: [...chain.slice(cycleStart).map((candidate) => candidate.coordinate), nextNode.coordinate],
+          }
+          if (!addTarget(chain, [...chain, cycleNode])) break
+          continue
+        }
+
+        nextChains.push([...chain, nextNode])
+      }
+
+      if (truncated) break
+    }
+    worklist.push(...(options.order === "breadth-first" ? nextChains : nextChains.reverse()))
+  }
+
+  const totalTargets = targets.length
+  const pageTargets = targets.slice(options.offset, options.offset + options.limit)
+  const nextOffset = options.offset + pageTargets.length < totalTargets ? options.offset + pageTargets.length : null
+
+  return {
+    schemaVersion: 1,
+    page: {
+      offset: options.offset,
+      limit: options.limit,
+      currentPageSize: pageTargets.length,
+      nextOffset,
+      hasMore: nextOffset !== null,
+    },
+    traversal: {
+      order: options.order,
+      maxDepth: options.maxDepth ?? null,
+      maxTargets: options.maxTargets,
+      generatedTargets: totalTargets,
+      truncated,
+    },
+    targets: pageTargets,
+    diagnostics: inspectReport.diagnostics,
+  }
+}
+
+function toRunelightPreviewTargetsPathNode(
+  node: RunelightInspectNode,
+  frame: RunelightInspectFrame,
+): RunelightPreviewTargetsPathNode {
+  return {
+    coordinate: node.coordinate,
+    frame: frame.name,
+    ...(frame.description !== undefined ? { description: frame.description } : {}),
+  }
+}
+
+function runelightPreviewTargetPath(
+  rootCoordinate: string,
+  chain: readonly RunelightPreviewTargetsPathNode[],
+): string {
+  const rootFrame = chain[0]?.frame ?? ""
+  const searchParams = new URLSearchParams({
+    entry: rootCoordinate,
+    frame: rootFrame,
+    chrome: "0",
+  })
+
+  for (const node of chain.slice(1)) {
+    searchParams.append("frameOverride", encodeRunelightPreviewFrameOverride(node.coordinate, node.frame))
+  }
+
+  return `/runelight?${searchParams.toString()}`
+}
+
+function inspectComponentStructuralDependencies(component: RunelightProjectIndexComponent): string[] {
+  const dependencies = component.frameDependencies
+    ? Object.values(component.frameDependencies).flat()
+    : component.dependencies ?? []
+  return uniqueSorted(dependencies)
+}
+
+function inspectFrameStructuralDependencies(component: RunelightProjectIndexComponent, frameName: string): string[] {
+  if (component.frameDependencies) return uniqueSorted(component.frameDependencies[frameName] ?? [])
+  return uniqueSorted(component.dependencies ?? [])
+}
+
+function uniqueSorted(values: readonly string[]): string[] {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right))
+}
+
+function formatRunelightInspectReport(report: RunelightInspectReport): string {
+  const lines = [`Runelight inspect: ${report.root}`]
+  for (const node of report.nodes) {
+    lines.push(`${node.coordinate}`)
+    for (const frame of node.frames) {
+      const dependencies = frame.dependencies.length > 0 ? ` -> ${frame.dependencies.join(", ")}` : ""
+      lines.push(`  - ${frame.name}${dependencies}`)
+    }
+  }
+  for (const diagnostic of report.diagnostics) {
+    lines.push(formatDiagnostic(diagnostic))
+  }
+  return `${lines.join("\n")}\n`
+}
+
+function formatRunelightPreviewTargetsReport(report: RunelightPreviewTargetsReport): string {
+  const pageEnd = report.page.offset + report.targets.length
+  const truncated = report.traversal.truncated ? " (truncated by --max-targets)" : ""
+  const lines = [`Runelight preview targets ${report.page.offset}-${pageEnd} of ${report.traversal.generatedTargets} generated${truncated}`]
+  if (report.page.hasMore) lines.push(`Next page: --offset ${report.page.nextOffset}`)
+  lines.push(...report.targets.map((target) => target.path))
+  for (const diagnostic of report.diagnostics) {
+    lines.push(formatDiagnostic(diagnostic))
+  }
+  return `${lines.join("\n")}\n`
+}
+
+function normalizeEntryCoordinate(entry: string): string {
+  const [file, exportName] = entry.split("#", 2)
+  return `${normalizeProjectPath(file ?? entry)}#${exportName || "default"}`
 }
 
 function createCLIWorkspaceChangesReport(input: {
@@ -984,6 +1582,80 @@ function readOptions(args: string[], optionName: string): string[] {
   return values
 }
 
+function isRunelightPreviewTargetsWalkOrder(value: string): value is RunelightPreviewTargetsWalkOrder {
+  return value === "breadth-first" || value === "depth-first"
+}
+
+function readOptionalNonNegativeIntegerOption(
+  args: string[],
+  optionName: string,
+): { diagnostic?: RunelightDiagnostic; value?: number } {
+  if (!args.includes(optionName)) return {}
+
+  const value = readOption(args, optionName)
+  if (value !== undefined && /^[0-9]\d*$/.test(value)) {
+    const parsed = Number(value)
+    if (Number.isSafeInteger(parsed)) return { value: parsed }
+  }
+
+  return {
+    diagnostic: {
+      stage: "adapter-configuration",
+      severity: "error",
+      code: "invalid-non-negative-integer-option",
+      message: `Invalid value ${value ?? "<missing>"} for ${optionName}. Use 0 or a positive integer.`,
+    },
+  }
+}
+
+function readNonNegativeIntegerOption(
+  args: string[],
+  optionName: string,
+  defaultValue: number,
+): { diagnostic?: RunelightDiagnostic; value: number } {
+  if (!args.includes(optionName)) return { value: defaultValue }
+
+  const value = readOption(args, optionName)
+  if (value !== undefined && /^[0-9]\d*$/.test(value)) {
+    const parsed = Number(value)
+    if (Number.isSafeInteger(parsed)) return { value: parsed }
+  }
+
+  return {
+    value: defaultValue,
+    diagnostic: {
+      stage: "adapter-configuration",
+      severity: "error",
+      code: "invalid-non-negative-integer-option",
+      message: `Invalid value ${value ?? "<missing>"} for ${optionName}. Use 0 or a positive integer.`,
+    },
+  }
+}
+
+function readPositiveIntegerOption(
+  args: string[],
+  optionName: string,
+  defaultValue: number,
+): { diagnostic?: RunelightDiagnostic; value: number } {
+  if (!args.includes(optionName)) return { value: defaultValue }
+
+  const value = readOption(args, optionName)
+  if (value !== undefined && /^[1-9]\d*$/.test(value)) {
+    const parsed = Number(value)
+    if (Number.isSafeInteger(parsed)) return { value: parsed }
+  }
+
+  return {
+    value: defaultValue,
+    diagnostic: {
+      stage: "adapter-configuration",
+      severity: "error",
+      code: "invalid-positive-integer-option",
+      message: `Invalid value ${value ?? "<missing>"} for ${optionName}. Use a positive integer.`,
+    },
+  }
+}
+
 function resolvePortOption(args: string[]): { diagnostic?: RunelightDiagnostic; port?: string } {
   if (!args.includes("--port")) return {}
 
@@ -1017,6 +1689,69 @@ function validateCaptureViewport(viewport: string): RunelightDiagnostic | undefi
     code: "invalid-viewport",
     message: `Invalid viewport ${viewport}. Use WIDTHxHEIGHT, for example 1440x900.`,
   }
+}
+
+function validatePreviewPathCaptureArguments(
+  args: string[],
+  entry: string | undefined,
+  previewPath: string,
+): RunelightDiagnostic | undefined {
+  if (entry) {
+    return {
+      stage: "browser-capture",
+      severity: "error",
+      code: "capture-path-conflicts-with-entry",
+      message: "Use either capture --path </runelight?...> or capture <entry[#export]|dir>, not both.",
+      file: entry,
+    }
+  }
+
+  const conflictingOptions = ["--frame", "--frame-override"].filter((option) => args.includes(option))
+  if (conflictingOptions.length > 0) {
+    return {
+      stage: "browser-capture",
+      severity: "error",
+      code: "capture-path-conflicting-options",
+      message: `Do not pass ${conflictingOptions.join(", ")} with capture --path; include preview selection in the path instead.`,
+    }
+  }
+
+  if (!isRunelightPreviewPath(previewPath)) {
+    return {
+      stage: "browser-capture",
+      severity: "error",
+      code: "invalid-capture-path",
+      message: `Invalid capture path ${previewPath}. Use a relative /runelight path from preview-targets output.`,
+    }
+  }
+
+  return undefined
+}
+
+function validatePreviewPathCaptureOutput(out: string): RunelightDiagnostic | undefined {
+  if (out.endsWith(".png")) return undefined
+
+  return {
+    stage: "browser-capture",
+    severity: "error",
+    code: "capture-path-output-must-be-png",
+    message: "capture --path writes one image, so --out must be a .png file path.",
+  }
+}
+
+function isRunelightPreviewPath(value: string): boolean {
+  if (!value.startsWith("/")) return false
+
+  try {
+    const url = new URL(value, "http://runelight.local")
+    return url.origin === "http://runelight.local" && url.pathname === "/runelight"
+  } catch {
+    return false
+  }
+}
+
+function runelightPreviewPathCaptureUrl(baseUrl: string, previewPath: string): string {
+  return new URL(previewPath, baseUrl).toString()
 }
 
 function outForEntryContactSheet(out: string, entry: string): string {

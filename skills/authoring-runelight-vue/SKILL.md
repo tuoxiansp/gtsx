@@ -40,10 +40,12 @@ const status = useRemoteStatus(props.userId)
 <g:frames>
 export default {
   loading: {
+    description: "Loading state while remote user data is unavailable",
     props: { userId: "user_loading" },
     scope: { status: "loading" },
   },
   ready: {
+    description: "Ready state with loaded user details",
     props: { userId: "user_42" },
     scope: {
       status: "ready",
@@ -65,7 +67,7 @@ runelight check
 1. Create or edit a real `.g.vue` SFC.
 2. Keep one normal `<template>` and normal Vue script blocks.
 3. Add exactly one `<g:frames>` block with direct `export default { ... }`.
-4. Use `props` for public component inputs and `scope` for frame-supplied template state.
+4. Give each meaningful frame a concise static `description` string, then use `props` for public component inputs and `scope` for frame-supplied template state.
 5. Make structural template branches reachable through frame `props`, `scope`, or static injected values from frame `providers`.
 6. Run `runelight check`, then the host typecheck/build.
 
@@ -78,6 +80,7 @@ runelight check
 - Import the same injection key in `<g:frames>` that the component passes to `inject(key)`.
 - Use `GVueProviderFrame` only for meaningful finite axes such as role, theme, locale, auth state, or platform.
 - Frame keys must be statically enumerable object literal keys.
+- Frame `description` values should be static strings that explain the visible state or scenario for agents reading `preview-targets` output.
 - Keep frames static. Do not generate frame objects from runtime code.
 - `scope` should include every non-prop template value that affects branch shape.
 - Opaque helpers are okay for formatting text, but not for structural directives.

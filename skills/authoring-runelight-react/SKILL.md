@@ -29,8 +29,8 @@ export default function Badge(props: { tone: "ok" | "warn"; label: string }) {
 }
 
 Badge.frames = {
-  ok:   { props: { tone: "ok",   label: "Ready" } },
-  warn: { props: { tone: "warn", label: "Needs review" } },
+  ok:   { description: "Ready badge", props: { tone: "ok",   label: "Ready" } },
+  warn: { description: "Warning badge for a review-needed state", props: { tone: "warn", label: "Needs review" } },
 } satisfies GFrames<{ tone: "ok" | "warn"; label: string }>
 ```
 
@@ -40,7 +40,7 @@ Verify: `runelight check src/Badge.g.tsx`
 
 1. **Decide component kind** — pure (props only), stateful (`createGScopeHook`), or contextual (`createGProvider` + `useGContext`).
 2. **Write the `.g.tsx` file** — see [REFERENCE.md](./REFERENCE.md) for patterns.
-3. **Attach `Component.frames`** with `satisfies GFrames<…>`.
+3. **Attach `Component.frames`** with `satisfies GFrames<…>` and concise static `description` strings for meaningful states.
 4. **Run `runelight check`** — fix diagnostics.
 5. **Add edge-state frames** — empty, error, loading, overflow.
 
@@ -54,6 +54,7 @@ Verify: `runelight check src/Badge.g.tsx`
 - Frames are static object literals. No computed keys, no dynamic generation.
 - JSX-producing branches must be first-order over props, Runelight scope, or Runelight provider context. Use direct conditionals, `if` returns, `&&`, `||`, and traceable `map`/render callbacks. Avoid helper predicates, `switch`, JSX-returning loops, or local variables that store JSX.
 - Name frames by visual state: `default`, `disabled`, `empty`, `loading`, `errorRetryable`, `overflowing`.
+- Give each meaningful frame a short `description` that explains the visible state or scenario for agents reading `preview-targets` output.
 - Happy-path frame first, then edge states.
 - No `scope: { node: <OldComponent /> }` unless a slot is the real public contract.
 - No secrets or customer data in frames.
@@ -83,6 +84,8 @@ runelight check <file.g.tsx|dir>         # validate contracts
 runelight check -p tsconfig.app.json .   # explicit project
 runelight serve                          # start Studio server
 runelight capture <file.g.tsx>           # screenshot all frames
+runelight preview-targets <file.g.tsx> --json  # paged preview paths, default 20
+runelight capture --path "<target.path>"       # screenshot one selected path
 ```
 
 ## Reference

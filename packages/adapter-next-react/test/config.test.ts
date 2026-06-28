@@ -711,12 +711,13 @@ export default defineRunelightConfig({
     }
   })
 
-  it("reads preview props from Next search params including child frame overrides", () => {
+  it("reads preview props from Next search params including child frame and input overrides", () => {
     const props = readRunelightNextPreviewProps({
       frame: "ready",
       chrome: "0",
       entry: "src/Card.g.tsx#default",
       frameOverride: ["src/Child.g.tsx#default:open", "src/Menu.g.tsx#default:hover", "src%2FDialog.g.tsx%23default:open%3Aerror"],
+      inputOverride: ["src/Toast.g.tsx#Toast:top", "src%2FBanner.g.tsx%23default:warning"],
       pool: "1",
       sessionId: "session-1",
       static: "1",
@@ -734,6 +735,10 @@ export default defineRunelightConfig({
       ["src/Child.g.tsx#default", "open"],
       ["src/Menu.g.tsx#default", "hover"],
       ["src/Dialog.g.tsx#default", "open:error"],
+    ])
+    expect([...props.inputOverrides!]).toEqual([
+      ["src/Toast.g.tsx#Toast", "top"],
+      ["src/Banner.g.tsx#default", "warning"],
     ])
   })
 

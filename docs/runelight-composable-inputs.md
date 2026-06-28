@@ -44,7 +44,7 @@ The child component's authored frame props never replace props that the parent a
 
 ## Explicit Child Frame Selection
 
-Preview callers such as `runelight capture --frame-override` may still select a child frame deliberately:
+Preview paths may still select a child frame deliberately with `frameOverride`, and `runelight capture --path` can capture that exact path:
 
 ```text
 src/Parent.g.tsx#default:review
@@ -54,6 +54,33 @@ src/Parent.g.tsx#default:review
 That selection means "use `Child.expanded` for child-local mock inputs." It does not mean "ignore the props passed by the parent." Parent-produced props still win because props are explicit composition inputs.
 
 Where the framework runtime supports nested overrides, this lets a preview caller inspect a parent frame while experimenting with child-local scope or provider mocks, without rewriting the parent's render.
+
+## Synthetic Input Overrides
+
+Preview URLs may also use `inputOverride=<coordinate>:<frame>` to overlay the input payload from another frame:
+
+```text
+/runelight?entry=src/Parent.g.tsx#default&frame=review&inputOverride=src%2FChild.g.tsx%23default:expanded
+```
+
+This is synthetic exploration, not a reachability proof. It lets an agent ask "what would this parent render look like if this child boundary received the input payload from `Child.expanded`?"
+
+`frameOverride` and `inputOverride` are intentionally separate:
+
+| Query param | Meaning |
+| --- | --- |
+| `frameOverride` | Selects the named frame for a coordinate. |
+| `inputOverride` | Keeps the current frame selection, but shallowly overlays the named frame's `props`, `scope`, and `providers` as runtime input. |
+
+For React nested previews, an input override has the highest preview precedence for the matched coordinate:
+
+```text
+B.props     = parent-rendered props shallowly overlaid with inputOverride frame props
+B.scope     = inputOverride frame scope, when present; otherwise B's selected frame scope
+B.providers = inputOverride frame providers, when present; otherwise ancestor or selected frame providers
+```
+
+For Vue preview, `inputOverride` applies to the root preview entry. Nested `.g.vue` children still render through ordinary Vue composition and do not expose React-style runtime child boundaries yet.
 
 ## Edge Cases
 

@@ -2,7 +2,9 @@ import {
   G_PREVIEW_PROTOCOL_VERSION,
   createGPreviewRequestValuesMessage,
   decodeRunelightPreviewFrameOverride,
+  decodeRunelightPreviewInputOverride,
   encodeRunelightPreviewFrameOverride,
+  encodeRunelightPreviewInputOverride,
   type GBoundaryTreeNode,
   type GPreviewRenderTarget,
   type GPreviewRequestValuesMessage,
@@ -1704,7 +1706,11 @@ export function createStudioPreviewUrl(
   component: StudioManifestComponent,
   frameName: string,
   sessionId = previewSessionId(component, frameName),
-  options: { frameOverrides?: readonly StudioPreviewFrameOverride[]; static?: boolean } = {},
+  options: {
+    frameOverrides?: readonly StudioPreviewFrameOverride[]
+    inputOverrides?: readonly StudioPreviewFrameOverride[]
+    static?: boolean
+  } = {},
 ): string {
   const params = new URLSearchParams({
     entry: component.coordinate,
@@ -1717,6 +1723,12 @@ export function createStudioPreviewUrl(
     params.append(
       "frameOverride",
       encodeRunelightPreviewFrameOverride(override.coordinate, override.frameName),
+    )
+  }
+  for (const override of options.inputOverrides ?? []) {
+    params.append(
+      "inputOverride",
+      encodeRunelightPreviewInputOverride(override.coordinate, override.frameName),
     )
   }
   return appendStudioPreviewSearchParams(manifest.routes.preview, params)
@@ -1735,10 +1747,15 @@ export function studioPreviewRenderTargetFromUrl(
     const override = decodeRunelightPreviewFrameOverride(value)
     return override ? [override] : []
   })
+  const inputOverrides = url.searchParams.getAll("inputOverride").flatMap((value) => {
+    const override = decodeRunelightPreviewInputOverride(value)
+    return override ? [override] : []
+  })
 
   return {
     frameName: url.searchParams.get("frame"),
     ...(frameOverrides.length > 0 ? { frameOverrides } : {}),
+    ...(inputOverrides.length > 0 ? { inputOverrides } : {}),
     chrome: url.searchParams.get("chrome"),
     entry: url.searchParams.get("entry"),
     sessionId: url.searchParams.get("sessionId") ?? fallbackSessionId,

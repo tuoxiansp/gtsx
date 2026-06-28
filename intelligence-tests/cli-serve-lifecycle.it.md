@@ -6,7 +6,7 @@ Use a temporary project or fixture that exercises a realistic Host command chain
 
 Validate these outcomes:
 
-- `runelight --help` and the relevant command help expose the current public CLI surface for `check`, `changes`, `serve`, and `capture`, and do not advertise commands that are not implemented.
+- `runelight --help` and the relevant command help expose the current public CLI surface for `check`, `inspect`, `preview-targets`, `changes`, `serve`, and `capture`, and do not advertise commands that are not implemented.
 - `runelight serve` starts the configured Host command, prints the local Runelight serve URL and Studio URL, and makes `/runelight/studio/manifest` reachable with the expected project/session identity.
 - Studio is usable from the printed URL, and interacting with Studio does not depend on hidden terminal state after startup.
 - Pressing `Ctrl-C` in the terminal exits foreground `runelight serve` with interrupt semantics and removes the active serve session registry and lock for that project.
@@ -21,6 +21,7 @@ Validate these outcomes:
 - When the underlying framework reports that another dev server is already running and prints a PID, Runelight's error output preserves the framework message and adds reliable guidance to inspect or stop the whole process group or the actual port owner.
 - A user following the printed guidance can identify the real listener even when the reported PID is only one process in a package-manager or framework launch chain.
 - In the same real git worktree, `runelight changes --json --ui-only` can inspect committed-versus-working-tree `.g.*` changes without starting a Host command, attaching to a foreground serve session, opening Studio, or leaving any server process behind. Its JSON output should use `schemaVersion: 1`, include code status, UI status, and frame status, respect exact `--component` filters for component names, coordinates, file paths, and `file#export`, recalculate summaries for visible filtered components, and exit non-zero only for fatal analyzer diagnostics.
+- `runelight preview-targets --json` emits paged preview paths by default, reports the current page size in `page.currentPageSize`, reports the generated traversal size in `traversal.generatedTargets`, includes `page.nextOffset` when another generated page is available, and a selected `/runelight?...` path can be passed directly to `runelight capture --path` without decomposing it into frame flags.
 - With a foreground `runelight serve` running for the current project, `runelight capture` without `--port` attaches to that serve session by default. It should generate the requested screenshot, avoid starting a second Host command, avoid printing temporary-session startup text, and leave the foreground serve session running afterward.
 - `runelight capture` uses the same serve lifecycle behavior when it has to start a temporary preview server: it should fail with actionable diagnostics when the Host cannot become ready, and it should not leave a preview server running after success, failure, or interruption.
 

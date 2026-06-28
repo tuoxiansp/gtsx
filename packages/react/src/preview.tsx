@@ -14,6 +14,7 @@ import {
   isGPreviewRenderTarget,
   readGRenderedSnapshot,
   readRunelightPreviewFrameOverridesFromSearchParams,
+  readRunelightPreviewInputOverridesFromSearchParams,
   type GBoundaryTreeNode,
   type GPreviewRenderTarget,
   type GPreviewSessionMessage,
@@ -63,6 +64,7 @@ type LoadedRunelightPreviewEntry = {
 export type RunelightReactPreviewRouteParams = {
   frameName: string | null
   frameOverrides: Map<string, string>
+  inputOverrides: Map<string, string>
   chrome: string | null
   entry: string | null
   poolMode: boolean
@@ -85,6 +87,7 @@ type RunelightPreviewRenderTargetMailboxUpdate = {
 export type RunelightReactPreviewClientProps = {
   frameName?: string | null
   frameOverrides?: Map<string, string>
+  inputOverrides?: Map<string, string>
   chrome?: boolean | string | null
   defaultEntry?: string
   entry?: string | null
@@ -98,6 +101,7 @@ export type RunelightReactPreviewClientProps = {
 
 export type RunelightReactPreviewFrameSheetProps<Props extends object = Record<string, unknown>> = {
   frameOverrides?: Map<string, string>
+  inputOverrides?: Map<string, string>
   component: RunelightReactPreviewComponent<Props>
   entry: string
   selectedFrames: Array<{ name: string; frame: RunelightReactPreviewFrame<Props> }>
@@ -372,6 +376,7 @@ const runelightHiddenPreviewDocumentStyle = `html, body {
 export function RunelightReactPreviewClient({
   frameName = null,
   frameOverrides = new Map(),
+  inputOverrides = new Map(),
   chrome = null,
   defaultEntry,
   entry,
@@ -387,6 +392,7 @@ export function RunelightReactPreviewClient({
     () => ({
       frameName,
       frameOverrides,
+      inputOverrides,
       chrome: typeof chrome === "boolean" ? (chrome ? "1" : "0") : chrome,
       entry: entry ?? defaultEntry ?? null,
       poolMode: resolvedPoolMode,
@@ -394,7 +400,7 @@ export function RunelightReactPreviewClient({
       sessionId,
       staticMode,
     }),
-    [frameName, frameOverrides, chrome, defaultEntry, entry, resolvedPoolMode, sessionId, staticMode],
+    [frameName, frameOverrides, inputOverrides, chrome, defaultEntry, entry, resolvedPoolMode, sessionId, staticMode],
   )
   const renderTarget = useRunelightPreviewRenderTarget(routeTarget)
   const showChrome = showChromeForPreviewTarget(renderTarget.chrome)
@@ -418,6 +424,7 @@ export function RunelightReactPreviewClient({
       <RunelightEntryPreview
         frameName={renderTarget.frameName}
         frameOverrides={renderTarget.frameOverrides}
+        inputOverrides={renderTarget.inputOverrides}
         entry={renderTarget.entry}
         key={previewRenderTargetKey(renderTarget)}
         loadComponent={loadComponent}
@@ -432,6 +439,7 @@ export function RunelightReactPreviewClient({
 function RunelightEntryPreview({
   frameName,
   frameOverrides,
+  inputOverrides,
   entry,
   loadComponent,
   sessionId,
@@ -440,6 +448,7 @@ function RunelightEntryPreview({
 }: {
   frameName: string | null
   frameOverrides: Map<string, string>
+  inputOverrides: Map<string, string>
   entry: string
   loadComponent: RunelightReactPreviewComponentLoader
   sessionId: string | null
@@ -483,6 +492,7 @@ function RunelightEntryPreview({
     <LoadedRunelightEntryPreview
       frameName={frameName}
       frameOverrides={frameOverrides}
+      inputOverrides={inputOverrides}
       component={effectiveLoadedEntry.component}
       entry={entry}
       sessionId={sessionId}
@@ -536,6 +546,7 @@ function loadRunelightPreviewEntry(
 function LoadedRunelightEntryPreview({
   frameName,
   frameOverrides,
+  inputOverrides,
   component,
   entry,
   sessionId,
@@ -544,6 +555,7 @@ function LoadedRunelightEntryPreview({
 }: {
   frameName: string | null
   frameOverrides: Map<string, string>
+  inputOverrides: Map<string, string>
   component: RunelightReactPreviewComponent
   entry: string
   sessionId: string | null
@@ -566,6 +578,7 @@ function LoadedRunelightEntryPreview({
     <RunelightReactPreviewFrameSheetInternal
       boundaryCollector={collector}
       frameOverrides={frameOverrides}
+      inputOverrides={inputOverrides}
       component={component}
       entry={entry}
       selectedFrames={renderableFrames}
@@ -583,6 +596,7 @@ export function RunelightReactPreviewFrameSheet<Props extends object = Record<st
 function RunelightReactPreviewFrameSheetInternal<Props extends object = Record<string, unknown>>({
   boundaryCollector,
   frameOverrides = new Map(),
+  inputOverrides = new Map(),
   component: Component,
   entry,
   selectedFrames,
@@ -600,6 +614,7 @@ function RunelightReactPreviewFrameSheetInternal<Props extends object = Record<s
             <GPreviewProvider
               boundaryCollector={boundaryCollector}
               frameOverrides={frameOverridesForFrame(entry, name, frameOverrides)}
+              inputOverrides={inputOverrides}
               {...previewRuntimeProps(frame)}
             >
               <Component {...frame.props} />
@@ -613,6 +628,7 @@ function RunelightReactPreviewFrameSheetInternal<Props extends object = Record<s
   return (
     <RunelightPreviewContactSheetFrameGroup
       frameOverrides={frameOverrides}
+      inputOverrides={inputOverrides}
       component={Component}
       entry={entry}
       selectedFrames={selectedFrames}
@@ -622,11 +638,13 @@ function RunelightReactPreviewFrameSheetInternal<Props extends object = Record<s
 
 function RunelightPreviewContactSheetFrameGroup<Props extends object = Record<string, unknown>>({
   frameOverrides,
+  inputOverrides,
   component: Component,
   entry,
   selectedFrames,
 }: {
   frameOverrides: Map<string, string>
+  inputOverrides: Map<string, string>
   component: RunelightReactPreviewComponent<Props>
   entry: string
   selectedFrames: Array<{ name: string; frame: RunelightReactPreviewFrame<Props> }>
@@ -714,6 +732,7 @@ function RunelightPreviewContactSheetFrameGroup<Props extends object = Record<st
                         <GPreviewProvider
                           boundaryCollector={model.collector}
                           frameOverrides={frameOverridesForFrame(entry, model.name, frameOverrides)}
+                          inputOverrides={inputOverrides}
                           {...previewRuntimeProps(model.frame)}
                         >
                           <Component {...model.frame.props} />
@@ -1005,6 +1024,7 @@ export function readRunelightReactPreviewRouteParams(params: URLSearchParams): R
   return {
     frameName: params.get("frame"),
     frameOverrides: readRunelightReactPreviewFrameOverrides(params),
+    inputOverrides: readRunelightReactPreviewInputOverrides(params),
     chrome: params.get("chrome"),
     entry: params.get("entry"),
     poolMode: params.get("pool") === "1",
@@ -1122,6 +1142,7 @@ function previewRouteParamsFromRenderTarget(
   return {
     frameName: target.frameName,
     frameOverrides: new Map(target.frameOverrides ?? []),
+    inputOverrides: new Map(target.inputOverrides ?? []),
     chrome: target.chrome,
     entry: target.entry,
     poolMode: false,
@@ -1174,6 +1195,7 @@ function previewRenderTargetKey(target: RunelightReactPreviewRouteParams): strin
   return JSON.stringify({
     frameName: target.frameName,
     frameOverrides: [...target.frameOverrides],
+    inputOverrides: [...target.inputOverrides],
     chrome: target.chrome,
     entry: target.entry,
     poolMode: target.poolMode,
@@ -1187,6 +1209,7 @@ function previewRenderTargetContentKey(target: RunelightReactPreviewRouteParams)
   return JSON.stringify({
     frameName: target.frameName,
     frameOverrides: [...target.frameOverrides],
+    inputOverrides: [...target.inputOverrides],
     chrome: target.chrome,
     entry: target.entry,
     poolMode: target.poolMode,
@@ -1197,6 +1220,10 @@ function previewRenderTargetContentKey(target: RunelightReactPreviewRouteParams)
 
 function readRunelightReactPreviewFrameOverrides(params: URLSearchParams): Map<string, string> {
   return readRunelightPreviewFrameOverridesFromSearchParams(params)
+}
+
+function readRunelightReactPreviewInputOverrides(params: URLSearchParams): Map<string, string> {
+  return readRunelightPreviewInputOverridesFromSearchParams(params)
 }
 
 function frameOverridesForFrame(entry: string, frameName: string, childOverrides: Map<string, string>): Map<string, string> {

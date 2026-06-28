@@ -20,8 +20,8 @@ export const RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT = `(() => {
   if (window.__runelightPreviewPrehydrationMailboxInstalled) return;
   window.__runelightPreviewPrehydrationMailboxInstalled = true;
   const isStringOrNull = (value) => value === null || typeof value === "string";
-  const isFrameOverrides = (value) => value === undefined || (Array.isArray(value) && value.every((override) => Array.isArray(override) && override.length === 2 && typeof override[0] === "string" && typeof override[1] === "string"));
-  const isRenderTarget = (value) => value && typeof value === "object" && isStringOrNull(value.frameName) && isFrameOverrides(value.frameOverrides) && isStringOrNull(value.chrome) && isStringOrNull(value.entry) && typeof value.sessionId === "string" && typeof value.staticMode === "boolean";
+  const isFrameSelections = (value) => value === undefined || (Array.isArray(value) && value.every((selection) => Array.isArray(selection) && selection.length === 2 && typeof selection[0] === "string" && typeof selection[1] === "string"));
+  const isRenderTarget = (value) => value && typeof value === "object" && isStringOrNull(value.frameName) && isFrameSelections(value.frameOverrides) && isFrameSelections(value.inputOverrides) && isStringOrNull(value.chrome) && isStringOrNull(value.entry) && typeof value.sessionId === "string" && typeof value.staticMode === "boolean";
   const isRenderMessage = (value) => value && typeof value === "object" && value.type === "runelight:render" && value.protocolVersion === 1 && typeof value.sessionId === "string" && isRenderTarget(value.target) && value.target.sessionId === value.sessionId;
   const render = (target) => {
     window.__runelightPreviewPendingRenderTarget = target;
@@ -155,6 +155,7 @@ export type GPreviewValuesMessage = GPreviewProtocolBase & {
 export type GPreviewRenderTarget = {
   frameName: string | null
   frameOverrides?: [string, string][]
+  inputOverrides?: [string, string][]
   chrome: string | null
   entry: string | null
   sessionId: string
@@ -195,6 +196,7 @@ export function isGPreviewRenderTarget(value: unknown): value is GPreviewRenderT
     isObjectRecord(value) &&
     isStringOrNull(value.frameName) &&
     isPreviewFrameOverrides(value.frameOverrides) &&
+    isPreviewFrameOverrides(value.inputOverrides) &&
     isStringOrNull(value.chrome) &&
     isStringOrNull(value.entry) &&
     typeof value.sessionId === "string" &&
@@ -486,6 +488,27 @@ export function readRunelightPreviewFrameOverridesFromSearchParams(params: URLSe
   const overrides = new Map<string, string>()
   for (const value of params.getAll("frameOverride")) {
     const override = decodeRunelightPreviewFrameOverride(value)
+    if (override) overrides.set(override[0], override[1])
+  }
+  return overrides
+}
+
+export function encodeRunelightPreviewInputOverride(coordinate: string, frameName: string): string {
+  return encodeRunelightPreviewFrameOverride(coordinate, frameName)
+}
+
+export function decodeRunelightPreviewInputOverride(value: string): [string, string] | null {
+  return decodeRunelightPreviewFrameOverride(value)
+}
+
+export function normalizeRunelightPreviewInputOverride(value: string): string {
+  return normalizeRunelightPreviewFrameOverride(value)
+}
+
+export function readRunelightPreviewInputOverridesFromSearchParams(params: URLSearchParams): Map<string, string> {
+  const overrides = new Map<string, string>()
+  for (const value of params.getAll("inputOverride")) {
+    const override = decodeRunelightPreviewInputOverride(value)
     if (override) overrides.set(override[0], override[1])
   }
   return overrides

@@ -3915,8 +3915,10 @@ function readFramesObject(
     const providerVariants = readProviderVariantMarkers(property.initializer)
     const frameValue = unwrapExpression(property.initializer)
     const providers = ts.isObjectLiteralExpression(frameValue) ? readProviderSelections(frameValue) : undefined
+    const description = ts.isObjectLiteralExpression(frameValue) ? readFrameDescription(frameValue) : undefined
     const kind = ts.isObjectLiteralExpression(frameValue) && hasStaticProperty(frameValue, "scope") ? "scope" : "pure"
     frames.push({
+      ...(description !== undefined ? { description } : {}),
       kind,
       name: frameName,
       ...(providerVariants && Object.keys(providerVariants).length > 0 ? { providerVariants } : {}),
@@ -3926,6 +3928,13 @@ function readFramesObject(
   }
 
   return { frames, staticFrames }
+}
+
+function readFrameDescription(frameValue: ts.ObjectLiteralExpression): string | undefined {
+  const description = objectLiteralPropertyExpression(frameValue, "description")
+  if (!description) return undefined
+  if (ts.isStringLiteral(description) || ts.isNoSubstitutionTemplateLiteral(description)) return description.text
+  return undefined
 }
 
 function readProviderVariantMarkers(expression: ts.Expression): Record<string, RunelightProviderVariantSelection> | undefined {

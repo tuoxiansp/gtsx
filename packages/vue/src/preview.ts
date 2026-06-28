@@ -29,6 +29,7 @@ import {
   isGPreviewRenderTarget,
   readGRenderedSnapshot,
   readRunelightPreviewFrameOverridesFromSearchParams,
+  readRunelightPreviewInputOverridesFromSearchParams,
   type GBoundaryTreeNode,
   type GPreviewRenderTarget,
   type GPreviewSessionMessage,
@@ -57,6 +58,7 @@ export type RunelightVuePreviewComponentLoader = (entry: string) =>
 export type RunelightVuePreviewRouteParams = {
   frameName: string | null
   frameOverrides: Map<string, string>
+  inputOverrides: Map<string, string>
   chrome: string | null
   entry: string | null
   poolMode: boolean
@@ -87,6 +89,7 @@ export const RunelightVuePreviewClient = defineComponent({
     entry: { type: [String, null] as PropType<string | null>, default: null },
     frameName: { type: [String, null] as PropType<string | null>, default: null },
     frameOverrides: { type: Object as PropType<Map<string, string>>, default: () => new Map<string, string>() },
+    inputOverrides: { type: Object as PropType<Map<string, string>>, default: () => new Map<string, string>() },
     loadComponent: { type: Function as PropType<RunelightVuePreviewComponentLoader>, required: true },
     missingEntryDetail: {
       type: String,
@@ -102,6 +105,7 @@ export const RunelightVuePreviewClient = defineComponent({
     const routeTarget = computed<RunelightVuePreviewRouteParams>(() => ({
       frameName: props.frameName,
       frameOverrides: props.frameOverrides,
+      inputOverrides: props.inputOverrides,
       chrome: typeof props.chrome === "boolean" ? (props.chrome ? "1" : "0") : props.chrome,
       entry: props.entry ?? props.defaultEntry ?? null,
       poolMode: typeof props.pool === "boolean" ? props.pool : props.pool === "1" || props.poolMode,
@@ -133,6 +137,7 @@ export const RunelightVuePreviewClient = defineComponent({
           entry: renderTarget.value.entry,
           frameName: renderTarget.value.frameName,
           frameOverrides: renderTarget.value.frameOverrides,
+          inputOverrides: renderTarget.value.inputOverrides,
           sessionId: renderTarget.value.sessionId,
           showChrome: showChrome.value,
           staticMode: renderTarget.value.staticMode,
@@ -149,6 +154,7 @@ const RunelightVueEntryPreview = defineComponent({
     entry: { type: String, required: true },
     frameName: { type: [String, null] as PropType<string | null>, default: null },
     frameOverrides: { type: Object as PropType<Map<string, string>>, required: true },
+    inputOverrides: { type: Object as PropType<Map<string, string>>, required: true },
     sessionId: { type: [String, null] as PropType<string | null>, default: null },
     showChrome: { type: Boolean, required: true },
     staticMode: { type: Boolean, required: true },
@@ -193,6 +199,7 @@ const RunelightVueEntryPreview = defineComponent({
         entry: props.entry,
         frameName: props.frameName,
         frameOverrides: props.frameOverrides,
+        inputOverrides: props.inputOverrides,
         sessionId: props.sessionId,
         showChrome: props.showChrome,
         staticMode: props.staticMode,
@@ -208,6 +215,7 @@ const RunelightVueLoadedEntryPreview = defineComponent({
     entry: { type: String, required: true },
     frameName: { type: [String, null] as PropType<string | null>, default: null },
     frameOverrides: { type: Object as PropType<Map<string, string>>, required: true },
+    inputOverrides: { type: Object as PropType<Map<string, string>>, required: true },
     sessionId: { type: [String, null] as PropType<string | null>, default: null },
     showChrome: { type: Boolean, required: true },
     staticMode: { type: Boolean, required: true },
@@ -259,7 +267,13 @@ const RunelightVueLoadedEntryPreview = defineComponent({
                     `${props.entry} / ${name}`,
                   )
                 : null,
-              h(RunelightVueFrameProvider, { component: props.component, entry: props.entry, frame, frameName: name }),
+              h(RunelightVueFrameProvider, {
+                component: props.component,
+                entry: props.entry,
+                frame,
+                frameName: name,
+                inputOverrides: props.inputOverrides,
+              }),
             ],
           ),
         ),
@@ -275,11 +289,13 @@ const RunelightVueFrameProvider = defineComponent({
     entry: { type: String, required: true },
     frame: { type: Object as PropType<RunelightVuePreviewFrame>, required: true },
     frameName: { type: String, required: true },
+    inputOverrides: { type: Object as PropType<Map<string, string>>, required: true },
   },
   setup(props) {
-    const frameRef = shallowRef(props.frame)
+    const frame = resolveRunelightVueInputOverrideFrame(props.entry, props.component, props.frame, props.inputOverrides)
+    const frameRef = shallowRef(frame)
     provide(RunelightVueFrameSymbol, frameRef)
-    for (const [key, value] of runelightVuePreviewFrameProviderEntries(props.frame)) {
+    for (const [key, value] of runelightVuePreviewFrameProviderEntries(frame)) {
       provide(key, value)
     }
     return () => {
@@ -291,7 +307,7 @@ const RunelightVueFrameProvider = defineComponent({
           "data-runelight-boundary-coordinate": props.entry,
           style: { display: "contents" },
         },
-        [h(props.component, props.frame.props ?? {})],
+        [h(props.component, frame.props ?? {})],
       )
     }
   },
@@ -299,6 +315,53 @@ const RunelightVueFrameProvider = defineComponent({
 
 function runelightVuePreviewFrameProviderEntries(frame: RunelightVuePreviewFrame): readonly RunelightVuePreviewProviderEntry[] {
   return frame.providers ?? []
+}
+
+function resolveRunelightVueInputOverrideFrame(
+  entry: string,
+  component: RunelightVuePreviewComponent,
+  selectedFrame: RunelightVuePreviewFrame,
+  inputOverrides: Map<string, string>,
+): RunelightVuePreviewFrame {
+  const overrideName = inputOverrides.get(toComponentCoordinate(entry))
+  if (!overrideName) return selectedFrame
+
+  const overrideFrame = component.frames?.[overrideName]
+  if (!overrideFrame) {
+    throw new Error(`Unknown Runelight input override frame "${overrideName}" for ${toComponentCoordinate(entry)}.`)
+  }
+
+  return mergeRunelightVuePreviewFrame(selectedFrame, overrideFrame)
+}
+
+function mergeRunelightVuePreviewFrame(
+  selectedFrame: RunelightVuePreviewFrame,
+  inputOverrideFrame: RunelightVuePreviewFrame,
+): RunelightVuePreviewFrame {
+  return {
+    ...selectedFrame,
+    props: {
+      ...(selectedFrame.props ?? {}),
+      ...(inputOverrideFrame.props ?? {}),
+    },
+    ...(Object.prototype.hasOwnProperty.call(inputOverrideFrame, "scope") ? { scope: inputOverrideFrame.scope } : {}),
+    providers: mergeRunelightVuePreviewProviders(selectedFrame.providers, inputOverrideFrame.providers),
+  }
+}
+
+function mergeRunelightVuePreviewProviders(
+  selectedProviders: readonly RunelightVuePreviewProviderEntry[] | undefined,
+  inputOverrideProviders: readonly RunelightVuePreviewProviderEntry[] | undefined,
+): readonly RunelightVuePreviewProviderEntry[] | undefined {
+  if (!inputOverrideProviders) return selectedProviders
+
+  const providers = new Map<InjectionKey<any> | string, unknown>(selectedProviders ?? [])
+  for (const [provider, value] of inputOverrideProviders) providers.set(provider, value)
+  return [...providers.entries()]
+}
+
+function toComponentCoordinate(entry: string): string {
+  return entry.includes("#") ? entry : `${entry}#default`
 }
 
 export function useRunelightVueFrame(): Ref<RunelightVuePreviewFrame> {
@@ -353,6 +416,7 @@ export function readRunelightVuePreviewRouteParams(params: URLSearchParams): Run
   return {
     frameName: params.get("frame"),
     frameOverrides: readRunelightVuePreviewFrameOverrides(params),
+    inputOverrides: readRunelightVuePreviewInputOverrides(params),
     chrome: params.get("chrome"),
     entry: params.get("entry"),
     poolMode: params.get("pool") === "1",
@@ -531,6 +595,7 @@ function previewRouteParamsFromRenderTarget(
   return {
     frameName: target.frameName,
     frameOverrides: new Map(target.frameOverrides ?? []),
+    inputOverrides: new Map(target.inputOverrides ?? []),
     chrome: target.chrome,
     entry: target.entry,
     poolMode: false,
@@ -548,6 +613,7 @@ function previewRenderTargetKey(target: RunelightVuePreviewRouteParams): string 
   return JSON.stringify({
     frameName: target.frameName,
     frameOverrides: [...target.frameOverrides],
+    inputOverrides: [...target.inputOverrides],
     chrome: target.chrome,
     entry: target.entry,
     poolMode: target.poolMode,
@@ -559,6 +625,10 @@ function previewRenderTargetKey(target: RunelightVuePreviewRouteParams): string 
 
 function readRunelightVuePreviewFrameOverrides(params: URLSearchParams): Map<string, string> {
   return readRunelightPreviewFrameOverridesFromSearchParams(params)
+}
+
+function readRunelightVuePreviewInputOverrides(params: URLSearchParams): Map<string, string> {
+  return readRunelightPreviewInputOverridesFromSearchParams(params)
 }
 
 function useRunelightVuePreviewProtocolMessages(

@@ -20,7 +20,7 @@ Use a validated adapter package when one matches the host. For custom client hos
 4. Create the empty `${project.entryRoot}/design` directory. Do not add a `designRoot` config key or placeholder frames.
 5. Serve `/runelight/studio`, `/runelight/studio/assets/*`, and `/runelight/studio/manifest` from the host dev server using `@runelight/studio/static-app` and `createStudioManifestProvider` from `@runelight/studio/manifest-server`.
 6. In the browser entry, branch only on `/runelight` for preview. Every other browser route keeps the existing app/router; `/runelight/studio` is served by the host adapter, not rendered by the app entry.
-7. Load preview components through adapter helpers, or through `@runelight/react/preview` when writing a custom host adapter. Do not hand-roll `entry`, `frame`, `frameOverride`, module key normalization, boundary collection, or iframe protocol.
+7. Load preview components through adapter helpers, or through `@runelight/react/preview` when writing a custom host adapter. Do not hand-roll preview query parsing, module key normalization, boundary collection, or iframe protocol.
 8. In upgrade/ensure mode, do not rewrite existing config, bundler glue, browser-entry branches, or preview helpers if they already pass verification; after package upgrades, migrate only glue proven incompatible by typecheck, adapter contracts, or runtime verification.
 9. Verify the original app route still renders.
 

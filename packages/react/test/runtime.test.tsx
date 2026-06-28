@@ -499,6 +499,52 @@ describe("Runelight runtime", () => {
     expect(html).toBe("<span>expanded-frame:5</span>")
   })
 
+  it("overlays nested component input overrides onto parent-rendered props, scope, and providers", () => {
+    const ToneProvider = createGProvider((props: { tone: string }) => [props.tone, () => {}] as const)
+    type ChildProps = {
+      message: string
+    }
+    type ChildScope = {
+      placement: string
+    }
+
+    const useChildScope = createGScopeHook((props: ChildProps): ChildScope => ({ placement: props.message ? "real" : "empty" }))
+    const Child = defineGComponent("src/Child.g.tsx#default", function ChildImpl(props: ChildProps) {
+      const scope = useChildScope(props)
+      const tone = useGContext(ToneProvider)
+      if (!props.message) return null
+      return <span>{`${props.message}:${scope.placement}:${tone}`}</span>
+    })
+    Child.frames = {
+      hidden: {
+        props: { message: "" },
+        providers: [[ToneProvider, "quiet"]],
+        scope: { placement: "hidden-frame" },
+      },
+      top: {
+        props: { message: "Network restored" },
+        providers: [[ToneProvider, "urgent"]],
+        scope: { placement: "top-frame" },
+      },
+    } satisfies GFrames<ChildProps, ChildScope, [typeof ToneProvider]>
+
+    function Parent() {
+      return (
+        <ToneProvider tone="local">
+          <Child message="" />
+        </ToneProvider>
+      )
+    }
+
+    const html = renderToStaticMarkup(
+      <GPreviewProvider inputOverrides={new Map([["src/Child.g.tsx#default", "top"]])}>
+        <Parent />
+      </GPreviewProvider>,
+    )
+
+    expect(html).toBe("<span>Network restored:top-frame:urgent</span>")
+  })
+
   it("reports an unknown component frame override instead of falling back", () => {
     function ChildImpl() {
       return <span>child</span>
@@ -516,6 +562,25 @@ describe("Runelight runtime", () => {
         </GPreviewProvider>,
       ),
     ).toThrow('Unknown Runelight frame "missing" for src/Child.g.tsx#Child.')
+  })
+
+  it("reports an unknown component input override instead of falling back", () => {
+    function ChildImpl() {
+      return <span>child</span>
+    }
+
+    const Child = defineGComponent("src/Child.g.tsx#Child", ChildImpl)
+    Child.frames = {
+      closed: { props: {} },
+    } satisfies GFrames<Record<string, never>>
+
+    expect(() =>
+      renderToStaticMarkup(
+        <GPreviewProvider inputOverrides={new Map([["src/Child.g.tsx#Child", "missing"]])}>
+          <Child />
+        </GPreviewProvider>,
+      ),
+    ).toThrow('Unknown Runelight input override frame "missing" for src/Child.g.tsx#Child.')
   })
 
   it("records Runelight boundary parent-child relationships through runtime context", () => {

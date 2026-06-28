@@ -20,7 +20,7 @@ Every successful integration needs:
 1. TypeScript Program and source-root scope for `.g.tsx` or `.g.vue` discovery.
 2. React or Vue transform for component boundaries.
 3. Project index / manifest built from the selected source set.
-4. Preview route that maps `entry`, `frame`, and `frameOverride` search params to the preview client.
+4. Preview route that delegates Runelight preview query parsing and rendering to the selected adapter or runtime helper.
 5. Studio route that serves the prebuilt `@runelight/studio` app and manifest.
 6. A `host.command` in `runelight.config.ts` so `runelight serve` and `runelight capture` can manage the Host lifecycle for verification and capture.
 

@@ -12,7 +12,9 @@ import {
   createGPreviewTreeMessage,
   createGPreviewValuesMessage,
   decodeRunelightPreviewFrameOverride,
+  decodeRunelightPreviewInputOverride,
   encodeRunelightPreviewFrameOverride,
+  encodeRunelightPreviewInputOverride,
   isGPreviewPoolReadyMessage,
   isGPreviewRenderAcceptedMessage,
   isGPreviewRenderMessage,
@@ -20,6 +22,7 @@ import {
   isGPreviewSessionMessage,
   normalizeRunelightPreviewFrameOverride,
   readRunelightPreviewFrameOverridesFromSearchParams,
+  readRunelightPreviewInputOverridesFromSearchParams,
   RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT_ID,
   G_RENDERED_SNAPSHOT_VERSION,
   type GBoundaryTreeNode,
@@ -52,6 +55,7 @@ const values = {
 const renderTarget = {
   frameName: "ready",
   frameOverrides: [["src/Child.g.tsx#default", "open"]],
+  inputOverrides: [["src/Toast.g.tsx#Toast", "top"]],
   chrome: "0",
   entry: "src/Card.g.tsx#default",
   sessionId: "src/Card.g.tsx#default:ready",
@@ -135,6 +139,7 @@ describe("Runelight preview iframe protocol", () => {
     expect(isGPreviewRenderTarget({ ...renderTarget, sessionId: null })).toBe(false)
     expect(isGPreviewRenderTarget({ ...renderTarget, staticMode: "1" })).toBe(false)
     expect(isGPreviewRenderTarget({ ...renderTarget, frameOverrides: [["src/Child.g.tsx#default"]] })).toBe(false)
+    expect(isGPreviewRenderTarget({ ...renderTarget, inputOverrides: [["src/Toast.g.tsx#Toast"]] })).toBe(false)
     expect(
       isGPreviewRenderMessage({
         type: "runelight:render",
@@ -226,6 +231,22 @@ describe("Runelight preview iframe protocol", () => {
     expect(decodeRunelightPreviewFrameOverride(override)).toEqual(["src/Child.g.tsx#default", "open:error"])
     expect(normalizeRunelightPreviewFrameOverride("src/Child.g.tsx#default:open:error")).toBe(
       "src%2FChild.g.tsx%23default:open%3Aerror",
+    )
+  })
+
+  it("reads input overrides using the same coordinate and frame encoding as frame overrides", () => {
+    const override = encodeRunelightPreviewInputOverride("src/Toast.g.tsx#Toast", "top:urgent")
+    const params = new URLSearchParams(
+      `inputOverride=${encodeURIComponent(override)}&inputOverride=userId:user_1`,
+    )
+
+    expect(override).toBe("src%2FToast.g.tsx%23Toast:top%3Aurgent")
+    expect(decodeRunelightPreviewInputOverride(override)).toEqual(["src/Toast.g.tsx#Toast", "top:urgent"])
+    expect(readRunelightPreviewInputOverridesFromSearchParams(params)).toEqual(
+      new Map([
+        ["src/Toast.g.tsx#Toast", "top:urgent"],
+        ["userId", "user_1"],
+      ]),
     )
   })
 

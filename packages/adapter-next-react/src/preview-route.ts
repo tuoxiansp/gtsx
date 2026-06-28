@@ -2,6 +2,7 @@ import {
   RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT,
   RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT_ID,
   readRunelightPreviewFrameOverridesFromSearchParams,
+  readRunelightPreviewInputOverridesFromSearchParams,
 } from "@runelight/core/preview-protocol"
 import type { RunelightConfig } from "@runelight/core"
 import { isRunelightNextRouteEnabled } from "./route-enablement.js"
@@ -19,6 +20,7 @@ export type RunelightNextPreviewRouteOptions = {
 export type RunelightNextPreviewRouteProps = {
   frameName?: string | null
   frameOverrides?: Map<string, string>
+  inputOverrides?: Map<string, string>
   chrome?: string | null
   entry?: string | null
   pool?: string | null
@@ -38,6 +40,7 @@ export function readRunelightNextPreviewProps(searchParams: RunelightNextPreview
   return {
     frameName: params.get("frame"),
     frameOverrides: readRunelightPreviewFrameOverrides(params),
+    inputOverrides: readRunelightPreviewInputOverrides(params),
     chrome: params.get("chrome"),
     entry: params.get("entry"),
     pool: params.get("pool"),
@@ -86,4 +89,8 @@ function searchParamsFromNextRecord(searchParams: Record<string, string | string
 
 function readRunelightPreviewFrameOverrides(params: URLSearchParams): Map<string, string> {
   return readRunelightPreviewFrameOverridesFromSearchParams(params)
+}
+
+function readRunelightPreviewInputOverrides(params: URLSearchParams): Map<string, string> {
+  return readRunelightPreviewInputOverridesFromSearchParams(params)
 }

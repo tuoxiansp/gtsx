@@ -4444,21 +4444,24 @@ describe("Runelight Studio shell", () => {
     const previewUrl = createStudioPreviewUrl(manifest, component, "ready", "session-1", {
       static: true,
       frameOverrides: [{ coordinate: "src/Child.g.tsx#default", frameName: "open:error" }],
+      inputOverrides: [{ coordinate: "src/Toast.g.tsx#Toast", frameName: "top" }],
     })
     expect(previewUrl).toBe(
-      "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0&sessionId=session-1&static=1&frameOverride=src%252FChild.g.tsx%2523default%3Aopen%253Aerror",
+      "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0&sessionId=session-1&static=1&frameOverride=src%252FChild.g.tsx%2523default%3Aopen%253Aerror&inputOverride=src%252FToast.g.tsx%2523Toast%3Atop",
     )
     expect(studioPreviewRenderTargetFromUrl(previewUrl, "fallback-session")).toMatchObject({
       frameOverrides: [["src/Child.g.tsx#default", "open:error"]],
+      inputOverrides: [["src/Toast.g.tsx#Toast", "top"]],
     })
     expect(
       studioPreviewRenderTargetFromUrl(
-        "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0&sessionId=session-1&static=1&frameOverride=src%252FChild.g.tsx%2523default%3Aopen",
+        "/runelight?entry=src%2FUserCard.g.tsx%23default&frame=ready&chrome=0&sessionId=session-1&static=1&frameOverride=src%252FChild.g.tsx%2523default%3Aopen&inputOverride=src%252FToast.g.tsx%2523Toast%3Atop",
         "fallback-session",
       ),
     ).toEqual({
       frameName: "ready",
       frameOverrides: [["src/Child.g.tsx#default", "open"]],
+      inputOverrides: [["src/Toast.g.tsx#Toast", "top"]],
       chrome: "0",
       entry: "src/UserCard.g.tsx#default",
       sessionId: "session-1",

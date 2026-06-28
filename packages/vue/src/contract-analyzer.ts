@@ -383,8 +383,10 @@ function readVueFramesObject(
 
     const providers = readProviderSelections(frameValue)
     const providerVariants = readProviderVariantMarkers(property.initializer)
+    const description = readFrameDescription(frameValue)
     const kind = hasStaticProperty(frameValue, "scope") ? "scope" : "pure"
     frames.push({
+      ...(description !== undefined ? { description } : {}),
       kind,
       name: frameName,
       ...(providerVariants && Object.keys(providerVariants).length > 0 ? { providerVariants } : {}),
@@ -394,6 +396,13 @@ function readVueFramesObject(
   }
 
   return { frames, staticFrames }
+}
+
+function readFrameDescription(frameValue: ts.ObjectLiteralExpression): string | undefined {
+  const description = objectLiteralPropertyExpression(frameValue, "description")
+  if (!description) return undefined
+  if (ts.isStringLiteral(description) || ts.isNoSubstitutionTemplateLiteral(description)) return description.text
+  return undefined
 }
 
 function readProviderSelections(frameValue: ts.ObjectLiteralExpression): string[] | undefined {

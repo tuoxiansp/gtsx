@@ -20,6 +20,7 @@ type PreviewRuntimeValue = {
   scope?: unknown
   providerValues: Map<AnyGProvider, unknown>
   frameOverrides: Map<string, string>
+  inputOverrides: Map<string, string>
   boundaryCollector?: GBoundaryCollector
 }
 
@@ -27,6 +28,7 @@ type AnyComponentFrames<Props> = Record<string, GFrame<Props> | GFrame<Props, un
 
 const PreviewRuntimeContext = React.createContext<PreviewRuntimeValue | null>(null)
 const ActiveComponentFrameContext = React.createContext<GFrame<unknown, unknown> | null>(null)
+const ActiveInputProviderValuesContext = React.createContext<Map<AnyGProvider, unknown> | null>(null)
 const BoundaryParentContext = React.createContext<string | null>(null)
 const noopUpdate = () => {}
 
@@ -59,6 +61,7 @@ export type GPreviewProviderProps = {
   scope?: unknown
   providerValues?: Map<AnyGProvider, unknown>
   frameOverrides?: Map<string, string>
+  inputOverrides?: Map<string, string>
   boundaryCollector?: GBoundaryCollector
   children: React.ReactNode
 }
@@ -69,6 +72,7 @@ export function GPreviewProvider(props: GPreviewProviderProps) {
     ...(hasOwnProperty(props, "scope") ? { scope: props.scope } : {}),
     providerValues: props.providerValues ?? new Map(),
     frameOverrides: props.frameOverrides ?? new Map(),
+    inputOverrides: props.inputOverrides ?? new Map(),
     boundaryCollector: props.boundaryCollector,
   }
 
@@ -165,7 +169,13 @@ export function createGProvider<Props extends object, State, Update extends GPro
   const Provider = ((props: Props & { children?: React.ReactNode }) => {
     const preview = React.useContext(PreviewRuntimeContext)
     const activeFrame = React.useContext(ActiveComponentFrameContext)
-    if (preview && (preview.providerValues.has(Provider) || readFrameProviderValue(activeFrame, Provider).found)) {
+    const inputProviderValues = React.useContext(ActiveInputProviderValuesContext)
+    if (
+      preview &&
+      (readProviderValue(inputProviderValues, Provider).found ||
+        preview.providerValues.has(Provider) ||
+        readFrameProviderValue(activeFrame, Provider).found)
+    ) {
       return <>{props.children}</>
     }
 
@@ -192,6 +202,11 @@ export function createGProvider<Props extends object, State, Update extends GPro
 export function useGContextUpdate<Provider extends GProvider<any, any, any, any>>(
   provider: Provider,
 ): GProviderUpdate<Provider> {
+  const inputProviderValues = React.useContext(ActiveInputProviderValuesContext)
+  if (readProviderValue(inputProviderValues, provider).found) {
+    return noopUpdate as GProviderUpdate<Provider>
+  }
+
   if (isManagedGProvider(provider)) {
     const hasProvider = React.useContext(provider.__runelightPresenceContext)
     if (hasProvider) {
@@ -240,6 +255,11 @@ export function createGScopeHook<Props, Providers extends readonly GProvider<any
 }
 
 export function useGContext<Value>(provider: GProvider<Value> | AnyGProvider): Value {
+  const inputProviderValue = readProviderValue(React.useContext(ActiveInputProviderValuesContext), provider)
+  if (inputProviderValue.found) {
+    return inputProviderValue.value as Value
+  }
+
   if (isManagedGProvider<Value, GProviderUpdateFn>(provider)) {
     const hasProvider = React.useContext(provider.__runelightPresenceContext)
     if (hasProvider) {
@@ -284,6 +304,14 @@ function readFrameProviderValue(
   return { found: false }
 }
 
+function readProviderValue(
+  providerValues: Map<AnyGProvider, unknown> | null,
+  provider: AnyGProvider,
+): { found: true; value: unknown } | { found: false } {
+  if (!providerValues?.has(provider)) return { found: false }
+  return { found: true, value: providerValues.get(provider) }
+}
+
 export function defineGComponent<Props extends object>(
   coordinate: string,
   Component: React.ComponentType<Props>,
@@ -294,19 +322,28 @@ export function defineGComponent<Props extends object>(
     const parentBoundaryId = React.useContext(BoundaryParentContext)
     const contextBoundaryId = preview ? stableBoundaryId : null
     const collectedBoundaryId = preview?.boundaryCollector?.registerBoundary(coordinate, parentBoundaryId, stableBoundaryId) ?? null
-    const activeFrame = preview ? resolveComponentFrame(coordinate, GComponentBoundary.frames, preview) : null
+    const selectedFrame = preview ? resolveComponentFrame(coordinate, GComponentBoundary.frames, preview) : null
+    const inputOverrideFrame = preview ? resolveComponentInputOverrideFrame(coordinate, GComponentBoundary.frames, preview) : null
+    const effectiveProps = preview ? mergeFrameProps(props, inputOverrideFrame) : props
+    const activeFrame = preview ? mergeActiveFrame(selectedFrame, inputOverrideFrame, effectiveProps) : null
+    const inheritedInputProviderValues = React.useContext(ActiveInputProviderValuesContext)
+    const inputProviderValues = preview
+      ? mergeProviderValues(inheritedInputProviderValues, inputOverrideFrame?.providers)
+      : inheritedInputProviderValues
     if (preview && collectedBoundaryId) {
       const scopeSnapshot = readScopeSnapshot(activeFrame, preview, parentBoundaryId === null)
       preview.boundaryCollector?.updateBoundaryValues(collectedBoundaryId, {
-        props: serializeGRuntimeValue(props),
+        props: serializeGRuntimeValue(effectiveProps),
         ...(scopeSnapshot.found ? { scope: serializeGRuntimeValue(scopeSnapshot.value) } : {}),
         providerValues: serializeProviderValues(preview.providerValues),
       })
     }
     const rendered = preview ? (
-      <ActiveComponentFrameContext.Provider value={activeFrame as GFrame<unknown, unknown> | null}>
-        <Component {...props} />
-      </ActiveComponentFrameContext.Provider>
+      <ActiveInputProviderValuesContext.Provider value={inputProviderValues}>
+        <ActiveComponentFrameContext.Provider value={activeFrame as GFrame<unknown, unknown> | null}>
+          <Component {...effectiveProps} />
+        </ActiveComponentFrameContext.Provider>
+      </ActiveInputProviderValuesContext.Provider>
     ) : (
       <Component {...props} />
     )
@@ -379,6 +416,64 @@ function resolveComponentFrame<Props extends object>(
   }
 
   return Object.values(frames)[0] ?? null
+}
+
+function resolveComponentInputOverrideFrame<Props extends object>(
+  coordinate: string,
+  frames: AnyComponentFrames<Props> | undefined,
+  preview: PreviewRuntimeValue,
+): GFrame<Props> | GFrame<Props, unknown> | null {
+  if (!frames) return null
+
+  const overrideName = preview.inputOverrides.get(coordinate)
+  if (!overrideName) return null
+
+  const overrideFrame = frames[overrideName]
+  if (!overrideFrame) {
+    throw new Error(`Unknown Runelight input override frame "${overrideName}" for ${coordinate}.`)
+  }
+
+  return overrideFrame
+}
+
+function mergeFrameProps<Props extends object>(
+  props: Props,
+  inputOverrideFrame: GFrame<Props> | GFrame<Props, unknown> | null,
+): Props {
+  if (!inputOverrideFrame) return props
+  return { ...props, ...inputOverrideFrame.props }
+}
+
+function mergeActiveFrame<Props extends object>(
+  selectedFrame: GFrame<Props> | GFrame<Props, unknown> | null,
+  inputOverrideFrame: GFrame<Props> | GFrame<Props, unknown> | null,
+  effectiveProps: Props,
+): GFrame<Props> | GFrame<Props, unknown> | null {
+  if (!selectedFrame && !inputOverrideFrame) return null
+
+  const frame = {
+    ...(selectedFrame ?? inputOverrideFrame),
+    props: effectiveProps,
+  } as GFrame<Props> | GFrame<Props, unknown>
+
+  if (inputOverrideFrame && hasOwnProperty(inputOverrideFrame, "scope")) {
+    return { ...frame, scope: inputOverrideFrame.scope }
+  }
+
+  return frame
+}
+
+function mergeProviderValues(
+  inherited: Map<AnyGProvider, unknown> | null,
+  providers: GFrame<unknown, unknown>["providers"] | undefined,
+): Map<AnyGProvider, unknown> | null {
+  if (!providers || providers.length === 0) return inherited
+
+  const providerValues = new Map(inherited ?? [])
+  for (const [provider, value] of providers) {
+    providerValues.set(provider, value)
+  }
+  return providerValues
 }
 
 function hasOwnProperty<ObjectValue extends object, Key extends PropertyKey>(
