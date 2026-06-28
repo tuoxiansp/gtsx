@@ -6,17 +6,19 @@ const logFile = join(process.cwd(), "runelight-command-log.jsonl")
 const port = readOption(process.argv.slice(2), "--port") ?? "0"
 let manifestRequestCount = 0
 
-appendFileSync(logFile, `${JSON.stringify({ action: "serve", args: ["--port", port], runelightDev: process.env.RUNELIGHT_DEV })}\n`)
+appendLog({ action: "serve", port, runelightDev: process.env.RUNELIGHT_DEV })
 
 const server = createServer((request, response) => {
   if (request.url === "/runelight/studio/manifest") {
     manifestRequestCount += 1
-    appendFileSync(logFile, `${JSON.stringify({ action: "ready-check", path: "/runelight/studio/manifest" })}\n`)
+    appendLog({ action: "ready-check", path: "/runelight/studio/manifest", request: manifestRequestCount })
+
     if (manifestRequestCount === 1) {
       response.writeHead(503, { "content-type": "text/plain" })
       response.end("manifest still compiling")
       return
     }
+
     response.writeHead(200, { "content-type": "application/json" })
     response.end(
       JSON.stringify({
@@ -38,14 +40,19 @@ const server = createServer((request, response) => {
         diagnostics: [],
       }),
     )
-    setTimeout(() => server.close(), 500)
     return
   }
 
   if (request.url === "/runelight/studio") {
-    appendFileSync(logFile, `${JSON.stringify({ action: "ready-check", path: "/runelight/studio" })}\n`)
+    appendLog({ action: "ready-check", path: "/runelight/studio" })
     response.writeHead(200, { "content-type": "text/html" })
     response.end("<!doctype html><title>Runelight Studio</title>")
+    return
+  }
+
+  if (request.url?.startsWith("/runelight")) {
+    response.writeHead(200, { "content-type": "text/html" })
+    response.end("<!doctype html><main data-runelight-preview-capture-bounds>Delayed manifest preview</main>")
     return
   }
 
@@ -54,6 +61,19 @@ const server = createServer((request, response) => {
 })
 
 server.listen(Number(port), "127.0.0.1")
+
+process.once("SIGINT", () => shutdown("SIGINT"))
+process.once("SIGTERM", () => shutdown("SIGTERM"))
+
+function shutdown(signal) {
+  appendLog({ action: "shutdown", signal })
+  server.close(() => process.exit(0))
+  setTimeout(() => process.exit(0), 1_000).unref()
+}
+
+function appendLog(value) {
+  appendFileSync(logFile, `${JSON.stringify(value)}\n`)
+}
 
 function readOption(args, optionName) {
   const index = args.indexOf(optionName)

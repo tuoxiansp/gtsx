@@ -120,7 +120,7 @@ async function startNewRunelightServeSession(
       port = String(Number(port) + 1)
       continue
     }
-    if (!(await isRunelightServeBaseUrlHealthy(baseUrl, { projectKey, sessionId }))) {
+    if ((await waitForRunelightServeBaseUrlHealthy(baseUrl, { projectKey, sessionId }, host.waitForExit())) !== "ready") {
       host.stop()
       lastResult = {
         exitCode: 1,
@@ -324,7 +324,13 @@ export async function acquireRunelightServeSession(
     serveLock.release()
     return previewServer
   }
-  if (!(await isRunelightServeBaseUrlHealthy(baseUrl, { projectKey: runelightServeSessionProjectKey(cwd), sessionId }))) {
+  if (
+    (await waitForRunelightServeBaseUrlHealthy(
+      baseUrl,
+      { projectKey: runelightServeSessionProjectKey(cwd), sessionId },
+      previewServer.waitForExit(),
+    )) !== "ready"
+  ) {
     previewServer.stop()
     serveLock.release()
     return {
@@ -843,6 +849,25 @@ async function waitForHostUrl(readyUrl: string, exitPromise: Promise<number>): P
       fetch(readyUrl, { redirect: "manual", signal: AbortSignal.timeout(DEFAULT_PREVIEW_READY_REQUEST_TIMEOUT_MS) })
         .then((response) => (response.status >= 200 && response.status < 400 ? ("ready" as const) : ("retry" as const)))
         .catch(() => "retry" as const),
+    ])
+    if (result === "ready" || result === "exit") return result
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+
+  return "timeout"
+}
+
+async function waitForRunelightServeBaseUrlHealthy(
+  baseUrl: string,
+  expectedIdentity: { projectKey: string; sessionId: string },
+  exitPromise: Promise<number>,
+): Promise<"ready" | "exit" | "timeout"> {
+  const deadline = Date.now() + DEFAULT_PREVIEW_READY_TIMEOUT_MS
+
+  while (Date.now() < deadline) {
+    const result = await Promise.race([
+      exitPromise.then(() => "exit" as const),
+      isRunelightServeBaseUrlHealthy(baseUrl, expectedIdentity).then((healthy) => (healthy ? ("ready" as const) : ("retry" as const))),
     ])
     if (result === "ready" || result === "exit") return result
     await new Promise((resolve) => setTimeout(resolve, 100))

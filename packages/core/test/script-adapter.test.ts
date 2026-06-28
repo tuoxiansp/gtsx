@@ -45,6 +45,10 @@ describe("Runelight preview commands", () => {
         action: "ready-check",
         path: "/runelight/studio/manifest",
       },
+      {
+        action: "ready-check",
+        path: "/runelight/studio/manifest",
+      },
     ])
   })
 

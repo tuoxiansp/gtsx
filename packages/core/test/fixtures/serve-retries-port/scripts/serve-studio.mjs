@@ -29,7 +29,7 @@ const server = createServer((request, response) => {
         },
       }),
     )
-    setTimeout(() => server.close(), 25)
+    setTimeout(() => server.close(), 500)
     return
   }
 

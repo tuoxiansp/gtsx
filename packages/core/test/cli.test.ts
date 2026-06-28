@@ -726,6 +726,7 @@ Card.frames = {
       { action: "serve", args: ["--port", "4555"], runelightDev: "1" },
       { action: "ready-check", path: "/runelight/studio" },
       { action: "ready-check", path: "/runelight/studio/manifest" },
+      { action: "ready-check", path: "/runelight/studio/manifest" },
     ])
   })
 
@@ -1538,6 +1539,62 @@ process.exit(1)
       expect(() => readFileSync(logFile, "utf8")).toThrow()
     } finally {
       await server?.close()
+      if (previousSessionDir === undefined) {
+        delete process.env.RUNELIGHT_SESSION_DIR
+      } else {
+        process.env.RUNELIGHT_SESSION_DIR = previousSessionDir
+      }
+      rmSync(sessionDir, { recursive: true, force: true })
+      rmSync(logFile, { force: true })
+    }
+  })
+
+  it("waits for a temporary capture Host manifest identity to become ready", async () => {
+    const cwd = join(import.meta.dirname, "fixtures/capture-delayed-manifest")
+    const logFile = join(cwd, "runelight-command-log.jsonl")
+    const sessionDir = mkdtempSync(join(tmpdir(), "runelight-cli-sessions-"))
+    const previousSessionDir = process.env.RUNELIGHT_SESSION_DIR
+    const port = await getFreePort()
+    const captureBackend = {
+      capturePreviewPage: vi.fn(async () => undefined),
+    }
+
+    rmSync(logFile, { force: true })
+    process.env.RUNELIGHT_SESSION_DIR = sessionDir
+
+    try {
+      const result = await runCLI(["capture", "src/Badge.g.tsx", "--frame", "neutral", "--out", "delayed.png", "--port", port], {
+        captureBackend,
+        cwd,
+        stdout: "",
+        stderr: "",
+      })
+
+      expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0)
+      expect(result.stdout).toContain(`Starting temporary Runelight serve session on http://127.0.0.1:${port}`)
+      expect(result.stdout).toContain("Captured neutral to delayed.png")
+      expect(result.stderr).toBe("")
+      expect(captureBackend.capturePreviewPage).toHaveBeenCalledWith({
+        cwd,
+        out: "delayed.png",
+        url: `http://127.0.0.1:${port}/runelight?entry=src%2FBadge.g.tsx%23default&frame=neutral&chrome=0`,
+        viewport: "1440x900",
+      })
+
+      const logs = readFileSync(logFile, "utf8")
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line))
+      expect(logs).toEqual([
+        { action: "serve", port, runelightDev: "1" },
+        { action: "ready-check", path: "/runelight/studio" },
+        { action: "ready-check", path: "/runelight/studio/manifest", request: 1 },
+        { action: "ready-check", path: "/runelight/studio/manifest", request: 2 },
+        { action: "shutdown", signal: "SIGTERM" },
+      ])
+      expect(readRunelightServeSession(cwd)).toBeUndefined()
+      expect(readRunelightServeLock(cwd)).toBeUndefined()
+    } finally {
       if (previousSessionDir === undefined) {
         delete process.env.RUNELIGHT_SESSION_DIR
       } else {
