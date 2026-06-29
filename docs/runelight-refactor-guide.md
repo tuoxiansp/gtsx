@@ -26,7 +26,7 @@ Start from a user-visible visual surface, not from a file tree sweep.
 
 **Orchestration targets** are route glue, provider nesting, layout slots, feature composition, data plumbing. They are usually not final `.g.tsx` outputs, but they are useful maps. Descend through them until you find real visual surfaces, or extract their visible JSX behind props/scope when the file mixes orchestration with UI.
 
-Before deciding, gather enough migration information: prop contract, rendered JSX, branch inputs, hook/query/store/router reads, context/provider reads, callbacks, CSS/static assets, child visual surfaces, and import boundaries.
+Before deciding, gather enough migration information: prop contract, rendered JSX, branch inputs, hook/query/store/router reads, context/provider reads, callbacks, CSS/static assets, child visual surfaces, and import boundaries. For JSX-valued props, `children`, render props, icons, actions, and slots, trace the real production values before inventing frame data.
 
 ## Decision Flow
 
@@ -125,7 +125,8 @@ Normalization is not a product compromise. It is the step that makes the existin
 | Route, page, server component, loader, or mutation container with visible JSX | Extract | `.g.tsx` view props/scope; keep non-previewable work in the caller |
 | Layout/provider/router shell with no owned DOM | Descend | Child visual surfaces |
 | Helper predicates, `switch`, stored JSX, or JSX-producing loops | Normalize | Direct branch expressions over props/scope/providers/static facts |
-| `children`, slots, or render props that are the public visual contract | Migrate with real slot props | Frame values for the visible slot scenarios; never put old component nodes in scope |
+| `children`, slots, or render props that are the public visual contract | Migrate with real slot props | Representative slot fixtures that preserve production density, hierarchy, labels, controls, and edge states; never put old component nodes in scope |
+| Target whose preview would mostly be fake JSX-valued props | Descend, extract, or defer | The child visual surface or concrete runtime blocker |
 | Local wrapper around another component | Descend or move frames | The component that owns the real visual TSX |
 | Third-party component as a dependency | Keep as dependency or wrap only owned UI around it | Owned props/states; do not claim coverage of closed third-party internals |
 | Portal, imperative DOM, canvas, or ref-driven visual behavior | Extract declarative shell or defer with blocker | The visible state model that can be represented without replacing the runtime boundary |
@@ -136,6 +137,7 @@ These are never valid refactor outputs:
 
 - **Wrapper:** `export default function X(props) { return <OldX {...props} /> }`
 - **Node scope:** `scope: { node: <OldComponent /> }`
+- **Fake slot:** `children: <div>Content</div>` or `actions: <div />` when the slot determines the preview's visual value
 - **Runtime wrapper:** `<RunelightPreviewRuntime><OldClient /></RunelightPreviewRuntime>`
 - **Orchestration in `.g.tsx`:** route/provider/layout wrappers converted into UI models
 - **Bulk generation:** sweeping a directory and creating `.g.tsx` for every file
@@ -149,6 +151,7 @@ These are never valid refactor outputs:
 - [ ] Imports point at the `.g` module (or barrel re-exports it)
 - [ ] Frames enumerate meaningful visual states (happy-path first, at least two)
 - [ ] Stateful frames use concrete scope values and no-op callbacks
+- [ ] JSX-valued frame props, children, render props, icons, actions, and slots are representative visual fixtures, not placeholder divs
 - [ ] The old file is no longer responsible for the migrated visual branches
 - [ ] Deferred targets, if any, name the blocker instead of saying they were not suitable
 - [ ] `runelight check` passes

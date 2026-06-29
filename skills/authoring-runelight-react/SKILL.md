@@ -80,6 +80,8 @@ If preview is not available because setup or the Host is missing, say that rende
 - Give each meaningful frame a short `description` that explains the visible state or scenario for agents reading `preview-targets` output.
 - Happy-path frame first, then edge states.
 - No `scope: { node: <OldComponent /> }` unless a slot is the real public contract.
+- JSX-valued props, `children`, render props, icons, actions, and slots are visual inputs. Use them only when they are the component's real public contract, and make their frame values representative enough for visual review. Do not use throwaway `<div>Placeholder</div>` nodes for a slot that determines most of the preview.
+- When a frame needs JSX-valued input, trace what production actually passes and use the closest safe equivalent: real pure child components, imported design-system pieces, or a local static fixture that preserves the density, hierarchy, labels, controls, and edge state being reviewed. If that would require mounting old hookful/runtime UI, descend, extract, or migrate that child surface instead of faking it.
 - No secrets or customer data in frames.
 - Type frames: `satisfies GFrames<Props>`, `satisfies GFrames<Props, Scope>`, or `satisfies GFrames<Props, Scope, typeof providers>`.
 - In composition, parent-rendered props and ancestor provider values are authoritative for child instances. The child frame supplies child-local scope and fallback provider mocks; do not use child frame props/providers to replace values that the parent actually renders.

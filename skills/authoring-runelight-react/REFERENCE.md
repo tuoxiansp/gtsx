@@ -426,6 +426,37 @@ scope: { status: "ready", name: "Ada Lovelace", role: "Engineer" }
 scope: { status: "ready", name: "asdfasdf", role: "xxx" }
 ```
 
+### Keep JSX-valued frame inputs representative
+
+Use JSX-valued props only when they are the component's real public contract, such as `children`, `icon`, `actions`, `header`, `footer`, or a render prop. Those frame values are part of the visual surface. They should be small, but they cannot be throwaway placeholders when the preview depends on them.
+
+```tsx
+// Good
+props: {
+  title: "Production",
+  icon: <StatusDot tone="ok" />,
+  actions: <button type="button">Deploy</button>,
+  children: (
+    <dl>
+      <dt>Region</dt>
+      <dd>iad-1</dd>
+      <dt>Build</dt>
+      <dd>Ready</dd>
+    </dl>
+  ),
+}
+
+// Bad
+props: {
+  title: "Production",
+  icon: <div />,
+  actions: <div />,
+  children: <div>Content</div>,
+}
+```
+
+If the realistic JSX-valued input would require mounting an old hookful child or most of the screen would be fake slot content, change the migration target: descend to the child visual surface, extract the real JSX into `.g.tsx`, or defer with the concrete runtime blocker.
+
 ### Functions in scope
 
 No-op functions satisfy the type without side effects:

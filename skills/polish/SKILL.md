@@ -11,6 +11,7 @@ Polish existing Runelight GUI surfaces. Favor user-named targets and changed `.g
 
 - A polish target is a Runelight-covered `.g.tsx` / `.g.vue` entry, exported component coordinate, frame, or derived preview path.
 - If the requested target does not resolve to Runelight coverage, report that clearly before editing.
+- If the target resolves but the preview is mostly fake slot/mock content, such as JSX-valued props rendered as placeholder `<div>` nodes, report a coverage fidelity problem before visual polish. Use the authoring/refactor workflow to replace placeholder fixtures with representative visual inputs, or descend/extract the real child surface.
 - Default to focused visual improvements: spacing, hierarchy, density, copy fit, responsive constraints, state styling, empty/loading/error states, and frame descriptions.
 - Escalate to structural polish only when needed or requested: information architecture, grouping, navigation, panel layout, hierarchy between product surfaces, or screen-level task flow. Treat it as a larger polish radius: name the structural hypothesis, movable surfaces, protected surfaces, and verification target in the brief.
 - Keep product intent, framework wiring, routes, data flow, and host behavior intact.
@@ -113,6 +114,7 @@ Look for:
 - Missing or unclear hover, focus, disabled, loading, empty, and error states.
 - Low contrast or decorative effects that reduce inspectability.
 - Child-frame targets whose parent preview shows no meaningful visual change.
+- Placeholder slot or node fixtures that make the preview too sparse to be a useful reference.
 
 ## Report
 

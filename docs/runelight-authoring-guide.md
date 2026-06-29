@@ -135,6 +135,8 @@ Frames are static object literals attached to the component export.
 - Static object literals only — no computed keys, no dynamic generation.
 - No secrets or customer data.
 - No-op functions for callbacks: `increment() {}`.
+- JSX-valued props, `children`, render props, icons, actions, and slots are visual inputs. Use them only when they are the real public contract, and make the frame values representative enough to review. A placeholder `<div>` is not acceptable when the slot carries the surface's actual visual content.
+- When a JSX-valued input is needed, trace what production passes and use the closest safe equivalent: real pure child components, design-system pieces, or a local static fixture that preserves density, hierarchy, labels, controls, and edge state. If that would require mounting old hookful/runtime UI, descend, extract, or migrate that child surface instead of faking it.
 
 **Coverage:** think about boundary states for every component — happy path, empty, loading, error, overflow, disabled, first-use, permission-denied.
 
