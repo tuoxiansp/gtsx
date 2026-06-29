@@ -28,7 +28,7 @@ Validate these outcomes:
 - Removing the temporary frame does not leave a stale usable preview entry.
 - `${project.entryRoot}/design` is not created by setup or dev-server startup.
 - `runelight changes --json --ui-only` recognizes `.g.vue` changes in the configured source root, reports added and deleted Vue frames clearly, and omits code-only edits that do not change the static visual signature.
-- For the provide/inject component, `runelight check` and `runelight preview-targets --json` preserve the injection key as a provider axis with `admin` and `viewer` variants.
+- For the provide/inject component, `runelight check` and `runelight preview-targets <entry#default> --json` preserve the injection key as a provider axis with `admin` and `viewer` variants.
 - `/runelight?entry=...g.vue%23default&frame=<name>&chrome=0` renders the selected frame through the Vue preview client.
 - The rendered preview uses frame `scope` rather than the production setup state for structural template branches.
 - The provide/inject preview renders the value supplied by the selected frame's `providers` entry through native Vue `inject(key)`, for both `admin` and `viewer` frames.

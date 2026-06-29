@@ -71,9 +71,9 @@ runelight capture --path "<target.path>"
 3. Add exactly one `<g:frames>` block with direct `export default { ... }`.
 4. Give each meaningful frame a concise static `description` string, then use `props` for public component inputs and `scope` for frame-supplied template state.
 5. Make structural template branches reachable through frame `props`, `scope`, or static injected values from frame `providers`.
-6. Use `runelight inspect --json` when composing UI and you need the reachable GUI map for the entry.
+6. Use `runelight inspect <entry#default> --json` when composing UI and you need the reachable GUI map for the entry.
 7. Run `runelight check` and fix diagnostics.
-8. Get rendered feedback with `runelight preview-targets <entry#default> --json`, open representative `/runelight?...` paths in the browser or capture them with `runelight capture --path "<target.path>"`, then fix mismatches between the rendered UI, frame descriptions, and intended states.
+8. Get rendered feedback through the nearest covered app/screen/parent entry when available. Use `runelight preview-targets <entry#default> --json`, open representative `/runelight?...` paths in the browser or capture them with `runelight capture --path "<target.path>"`, then fix mismatches between the rendered UI, frame descriptions, and intended states.
 9. Run the host typecheck/build when touched props, imports, styles, or framework wiring could break normal app code.
 
 ## Authoring Feedback Loop
@@ -81,12 +81,14 @@ runelight capture --path "<target.path>"
 Authoring is not done when the SFC merely typechecks or passes `runelight check`. A new or edited `.g.vue` entry must also be observed through the Runelight preview path when the project is wired for preview.
 
 1. Run `runelight check <entry#default|file.g.vue>` and fix contract diagnostics.
-2. Run `runelight preview-targets <entry#default> --json`.
-3. Read the target paths and frame descriptions. Choose the happy path plus the new or risky edge states you just authored.
-4. Open those `/runelight?...` paths in the browser, or run `runelight capture --path "<target.path>"` for selected targets.
-5. Compare rendered output against the frame `description`, intended props/scope/provider values, template branch coverage, and local design language.
-6. If the render is wrong, edit the SFC or frames and repeat the same preview/capture observation.
-7. Finish with `runelight check` and typecheck/build when code changes can affect the host app.
+2. Choose the observation root. Default to the nearest meaningful covered app/screen/parent entry that renders the component, especially when checking layout, spacing, density, theme, container width, or sibling alignment. Use the component's own entry only when no covered parent exists, the component is itself the app/screen entry, or you are debugging its isolated frame contract.
+3. Run `runelight containing-frames <entry#default> --json` for the component. Prefer contexts whose `root.coordinate` differs from the target; if every returned root is the target, treat it as target-level coverage rather than broader app/screen context.
+4. If no ancestor context is available, find parent/root candidates with `rg` imports/usages, nearby route/screen `.g.vue` files, changed parent `.g.vue` files, and `runelight inspect <entry#default> --json` on likely app/screen entries. Then run `runelight preview-targets <observation-entry#default> --json`.
+5. Read the target paths and frame descriptions. Choose the happy path plus the new or risky edge states you just authored. For child-component work, prefer paths whose `paths` nodes include both the parent state and the target child state when Vue preview exposes that composition path; otherwise note the Vue nested-preview limitation.
+6. Open those `/runelight?...` paths in the browser, or run `runelight capture --path "<target.path>"` for selected targets.
+7. Compare rendered output against the frame `description`, intended props/scope/provider values, template branch coverage, parent layout context, and local design language.
+8. If the render is wrong, edit the SFC or frames and repeat the same preview/capture observation.
+9. Finish with `runelight check` and typecheck/build when code changes can affect the host app.
 
 If preview is not available because setup or the Host is missing, say that rendered feedback was blocked and name the missing setup step. If the work turns into subjective visual polish rather than authoring coverage, switch to the `polish` workflow and perform its required sync before editing.
 

@@ -96,5 +96,6 @@ These are never valid refactor outputs:
 - [ ] Stateful frames use concrete `scope` values
 - [ ] Injection frames use `providers` and, when variant axes matter, `GVueProviderFrame`
 - [ ] The old `.vue` file no longer owns the migrated visual branches
+- [ ] Preview observation uses `runelight containing-frames <entry#default> --json` or an equivalent covered app/screen/parent entry that shows the migrated surface in real layout context when such coverage exists
 - [ ] `runelight check` passes
 - [ ] Project typecheck passes

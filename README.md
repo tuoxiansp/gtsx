@@ -24,6 +24,8 @@ For admin panels, role-specific views become provider variants. For pages that l
 
 Run `runelight preview-targets <entry[#export]> --json` to list browser-ready `/runelight?...` paths for a covered surface. Run `runelight serve`, open selected paths on the local Host, or use `runelight capture --path "<target.path>"` for screenshots your agent can compare after edits.
 
+For visual judgment, prefer preview paths from the covered app, screen, or parent entry that contains the component being changed. Use `runelight containing-frames <entry[#export]> --json` to reverse-query those top-level frames. Isolated component preview is useful for frame-contract debugging, but full-tree context is usually the better default for layout, density, theme, and sibling alignment.
+
 Because covered states are declared and type-checked, your agent can verify its own work through the same preview and capture loop you can inspect.
 
 ## Get Started — One Prompt
@@ -98,7 +100,7 @@ Rename `.g.tsx` → `.tsx` or `.g.vue` → `.vue`, delete frames, and remove the
 - [Vue Authoring Guide](docs/runelight-vue-authoring-guide.md) — template-first patterns for `.g.vue` SFCs
 - [React Refactor Guide](docs/runelight-refactor-guide.md) — convert existing TSX into Runelight format
 - [Vue Refactor Guide](docs/runelight-vue-refactor-guide.md) — convert existing Vue SFCs into Runelight format
-- [CLI Reference](docs/runelight-cli.md) — `check`, `inspect`, `preview-targets`, `changes`, `serve`, and `capture`
+- [CLI Reference](docs/runelight-cli.md) — `check`, `inspect`, `preview-targets`, `containing-frames`, `changes`, `serve`, and `capture`
 - [Configuration Reference](docs/runelight-configuration.md) — `runelight.config.ts` fields, defaults, and production behavior
 
 **Understanding Runelight:**
@@ -116,4 +118,4 @@ Rename `.g.tsx` → `.tsx` or `.g.vue` → `.vue`, delete frames, and remove the
 
 pnpm workspace. `pnpm install && pnpm build && pnpm test && pnpm typecheck`.
 
-Target projects use `@runelight/cli` for the `runelight` command, `@runelight/core` for configuration, one framework package (`@runelight/react` or `@runelight/vue`) for runtime and contract imports, and one adapter package (`@runelight/adapter-vite-react`, `@runelight/adapter-next-react`, or `@runelight/adapter-vite-vue`) for the host integration. Agent automation can use `runelight inspect --json`, paged `runelight preview-targets --json`, `runelight capture`, `runelight capture --path`, and `runelight changes --json` through the CLI. The product website lives in [`apps/website`](apps/website/). Repository examples live under [`examples/`](examples/), including `react-vite` and `vue-vite`; agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).
+Target projects use `@runelight/cli` for the `runelight` command, `@runelight/core` for configuration, one framework package (`@runelight/react` or `@runelight/vue`) for runtime and contract imports, and one adapter package (`@runelight/adapter-vite-react`, `@runelight/adapter-next-react`, or `@runelight/adapter-vite-vue`) for the host integration. Agent automation can use `runelight inspect <entry[#export]> --json`, paged `runelight preview-targets <entry[#export]> --json`, `runelight containing-frames <entry[#export]> --json`, `runelight capture`, `runelight capture --path`, and `runelight changes --json` through the CLI. The product website lives in [`apps/website`](apps/website/). Repository examples live under [`examples/`](examples/), including `react-vite` and `vue-vite`; agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).

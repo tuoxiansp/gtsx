@@ -91,7 +91,7 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 2. Run `runelight check` for the configured project. Use an explicit `.g.tsx` / `.g.vue` file only when narrowing a failing diagnostic.
 3. Start the host dev server through `runelight serve` (or the package script that wraps it).
 4. Open `/runelight/session`.
-5. If at least one protocol entry exists, run `runelight preview-targets --json <entry[#export]>` and open one `/runelight?...` preview URL.
+5. If at least one protocol entry exists, run `runelight preview-targets <entry[#export]> --json` and open one `/runelight?...` preview URL.
 6. Confirm no `Missing entry`, `Unknown Runelight entry`, or `Unknown Runelight frame` errors.
 7. Run `runelight capture <entry[#export]>` against one concrete entry when at least one protocol entry exists.
 

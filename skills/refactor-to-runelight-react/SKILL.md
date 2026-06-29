@@ -57,7 +57,7 @@ When the user asks to migrate an app, screen, or set of React components, do not
 11. If most of the preview would be a fake slot fixture, the migration target is wrong: descend to the child visual surface, extract the real JSX into the `.g.tsx`, or defer with the concrete runtime blocker.
 12. Keep JSX-producing branches inspectable: direct conditionals over props/scope/providers, `if` returns, `&&`, `||`, and traceable `map`/render callbacks. Refactor helper predicates, `switch`, JSX-returning loops, and stored JSX variables before calling the refactor done.
 13. Update imports from `./Component` to `./Component.g`. Preserve barrels.
-14. Run `runelight check` + project typecheck. Render a frame in preview if available.
+14. Run `runelight check` + project typecheck. Render preview if available, defaulting to the nearest covered app/screen/parent entry that contains the migrated surface. Use `runelight containing-frames <entry[#export]> --json` to find those top-level contexts. Use isolated preview only when no covered parent exists or when debugging the component's own frame contract.
 
 For project-wide migration requests, keep a short migration inventory: target surface, chosen action (`migrate`, `split`, `descend`, `extract`, `normalize`, or `defer`), created `.g.tsx` coordinate, important frames, verification status, and any deferred blocker. The inventory is for coverage planning; do not bulk-generate `.g.tsx` files from it.
 
@@ -83,5 +83,6 @@ For project-wide migration requests, keep a short migration inventory: target su
 - JSX-valued frame props/children/render props use representative visual fixtures, not placeholder divs
 - Old TSX no longer owns migrated visual branches
 - Deferred targets, if any, name a concrete blocker and next information needed instead of using suitability language
+- Preview observation uses the app/screen/parent entry that shows the migrated surface in real layout context when such coverage exists
 - `runelight check` passes
 - Project typecheck passes, or unrelated failures are reported

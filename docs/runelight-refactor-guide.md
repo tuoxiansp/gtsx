@@ -154,5 +154,6 @@ These are never valid refactor outputs:
 - [ ] JSX-valued frame props, children, render props, icons, actions, and slots are representative visual fixtures, not placeholder divs
 - [ ] The old file is no longer responsible for the migrated visual branches
 - [ ] Deferred targets, if any, name the blocker instead of saying they were not suitable
+- [ ] Preview observation uses `runelight containing-frames <entry[#export]> --json` or an equivalent covered app/screen/parent entry that shows the migrated surface in real layout context when such coverage exists
 - [ ] `runelight check` passes
 - [ ] Project typecheck passes

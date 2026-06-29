@@ -166,7 +166,7 @@ export async function GET() {
 2. Run `runelight check`.
 3. Start the dev server through `runelight serve` (or the package script that wraps it). Runelight routes activate when the Host runs with `RUNELIGHT_DEV=1`, which `runelight serve` sets.
 4. Open `/runelight/session`.
-5. If a `.g.tsx` entry exists, use `runelight preview-targets --json <entry[#export]>` and open one `/runelight?...` preview URL.
+5. If a `.g.tsx` entry exists, use `runelight preview-targets <entry[#export]> --json` and open one `/runelight?...` preview URL.
 6. Confirm the App Router layout boundary audit was completed and any hookful production shell was moved out of the inherited `/runelight` layout chain.
 7. Watch the browser network panel or Next.js server console while loading `/runelight?...`. This is a regression check after source-level remediation: the preview shell should not trigger host application I/O. Framework assets, HMR/dev tooling, static assets, and Runelight preview/session routes are expected; app-owned API calls indicate the inherited layout chain is still polluted. If they appear, return to the App Router layout boundary audit.
 8. Confirm adapter SSR scripts render before the preview client and the preview route does not show a pre-hydration `Missing entry` flash.

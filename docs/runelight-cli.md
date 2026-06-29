@@ -8,6 +8,7 @@ Configuration lives in `runelight.config.ts`; see the [Configuration Reference](
 runelight check [-p <tsconfig-or-dir>] [entry[#export]|dir] [--json]
 runelight inspect [-p <tsconfig-or-dir>] <entry[#export]> [--json]
 runelight preview-targets [-p <tsconfig-or-dir>] <entry[#export]> [--json] [--walk breadth-first|depth-first] [--max-depth <n>] [--max-targets <n>] [--limit <n>] [--offset <n>]
+runelight containing-frames [-p <tsconfig-or-dir>] <entry[#export]> [--json] [--max-targets <n>]
 runelight changes [-p <tsconfig-or-dir>] [--json] [--ui-only] [--component <component-or-file>]
 runelight serve [-p <tsconfig-or-dir>] [--port <port>]
 runelight capture [-p <tsconfig-or-dir>] <entry[#export]|dir> [--frame <name>] [--frame-override <entry#export:frame>] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
@@ -18,7 +19,7 @@ Command options are strict: unknown flags fail with `unknown-option`, known flag
 
 ## Project Selection
 
-`check`, `inspect`, `preview-targets`, `changes`, `serve`, and `capture` accept `-p` / `--project` with either a tsconfig path or a directory. Project selection is an override chain, not a merge: an explicit `-p` wins, otherwise the CLI honors `project.tsconfig` from `runelight.config.ts`, otherwise it falls back to the nearest `tsconfig.json` from the working directory. If the nearest `tsconfig.json` is a project-reference container, pass or configure the app config that includes framework source, such as `tsconfig.app.json`.
+`check`, `inspect`, `preview-targets`, `containing-frames`, `changes`, `serve`, and `capture` accept `-p` / `--project` with either a tsconfig path or a directory. Project selection is an override chain, not a merge: an explicit `-p` wins, otherwise the CLI honors `project.tsconfig` from `runelight.config.ts`, otherwise it falls back to the nearest `tsconfig.json` from the working directory. If the nearest `tsconfig.json` is a project-reference container, pass or configure the app config that includes framework source, such as `tsconfig.app.json`.
 
 ## `runelight check`
 
@@ -65,6 +66,31 @@ Builds browser-ready preview paths from the pruned static GUI graph for one Rune
 - `--json` prints a versioned automation schema with `schemaVersion: 1`.
 
 `preview-targets` intentionally does not score or rank targets. The output order is only the requested traversal order over the fixed pruned tree. Agents should use `paths` and frame descriptions to decide what to open first.
+
+For visual judgment, choose the entry deliberately. If the target is a leaf component, prefer `containing-frames` to find the nearest top-level covered app/screen/parent frame that renders that leaf. Use isolated leaf preview for frame-contract debugging or when no covered parent exists.
+
+## `runelight containing-frames`
+
+Finds top-level covered frames that can render a target component:
+
+- Accepts an entry file or explicit coordinate such as `src/Button.g.tsx#default`.
+- Builds the configured project index and searches the pruned static GUI graph in reverse.
+- Prefers top-level `.g` roots: entries that are not themselves rendered by another covered entry.
+- Falls back to containing entries when no top-level root reaches the target.
+- Emits ready-to-open `/runelight?...` paths from the containing root, with the target included in each target's `paths` data.
+- When a returned `root.coordinate` equals the target, the target is itself the best covered root; treat that as target-level coverage, not proof of broader app/screen context.
+- Does not start the Host, open a browser, or render screenshots.
+- `--max-targets` caps generated preview targets per root and defaults to `1000`.
+- `--json` prints a versioned automation schema with `schemaVersion: 1`.
+
+Use this before judging a leaf component visually:
+
+```sh
+runelight containing-frames src/Button.g.tsx --json
+runelight capture --path "<target.path>"
+```
+
+If no containing frame is found, isolated component preview is still available through `preview-targets`, but layout and polish conclusions should be labeled as isolated.
 
 ## `runelight changes`
 

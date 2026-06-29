@@ -55,6 +55,10 @@ That selection means "use `Child.expanded` for child-local mock inputs." It does
 
 Where the framework runtime supports nested overrides, this lets a preview caller inspect a parent frame while experimenting with child-local scope or provider mocks, without rewriting the parent's render.
 
+## Observation Guidance
+
+When judging visual quality, prefer observing a child through the nearest covered app, screen, or parent entry that renders it. The parent supplies layout, density, container width, theme wrappers, sibling controls, and realistic surrounding copy. Isolated child preview is still useful for frame-contract debugging and for components with no covered parent, but it should not be the default basis for layout or polish decisions when a containing entry exists.
+
 ## Synthetic Input Overrides
 
 Preview URLs may also use `inputOverride=<coordinate>:<frame>` to overlay the input payload from another frame:

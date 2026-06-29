@@ -158,12 +158,14 @@ runelight check src                                # validate a directory
 Authoring is a feedback loop, not only a static check:
 
 1. Run `runelight check <entry[#export]|file.g.tsx>` and fix diagnostics.
-2. Run `runelight preview-targets <entry[#export]> --json`.
-3. Choose representative paths from the output: the happy path plus new, changed, or risky edge frames.
-4. Open the `/runelight?...` paths in the browser, or capture selected targets with `runelight capture --path "<target.path>"`.
-5. Compare the rendered output with the frame `description`, intended props/scope/provider values, branch coverage, and local design language.
-6. If the render is wrong, edit the component or frames and observe the same targets again.
-7. Finish with `runelight check` and project typecheck or host build when the change can affect ordinary app code.
+2. Choose the observation root. Default to the nearest meaningful covered app/screen/parent entry that renders the component, especially when checking layout, spacing, density, theme, container width, or sibling alignment.
+3. Use the component's own entry only when no covered parent exists, the component is itself the app/screen entry, or you are debugging its isolated frame contract.
+4. Run `runelight containing-frames <entry[#export]> --json`. Prefer contexts whose `root.coordinate` differs from the target; if every returned root is the target, treat it as target-level coverage rather than broader app/screen context. If no ancestor context is available, run `runelight preview-targets <observation-entry[#export]> --json`.
+5. Choose representative paths from the output: the happy path plus new, changed, or risky edge frames. For child-component work, prefer paths whose `paths` nodes include both the parent state and the target child state.
+6. Open the `/runelight?...` paths in the browser, or capture selected targets with `runelight capture --path "<target.path>"`.
+7. Compare the rendered output with the frame `description`, intended props/scope/provider values, branch coverage, parent layout context, and local design language.
+8. If the render is wrong, edit the component or frames and observe the same targets again.
+9. Finish with `runelight check` and project typecheck or host build when the change can affect ordinary app code.
 
 If the Host or preview route is not wired yet, report that rendered feedback is blocked and follow the setup playbook before claiming preview confidence. If the work becomes subjective visual polish rather than coverage authoring, use the `polish` workflow and its required sync.
 

@@ -19,6 +19,28 @@ import {
 
 const repositoryRoot = resolve(import.meta.dirname, "../../..")
 
+function writeReactRunelightProject(cwd: string) {
+  mkdirSync(join(cwd, "src"), { recursive: true })
+  writeFileSync(
+    join(cwd, "tsconfig.json"),
+    JSON.stringify({ compilerOptions: { jsx: "react-jsx", module: "ESNext", moduleResolution: "Bundler", target: "ES2022" }, include: ["src"] }),
+  )
+  writeFileSync(
+    join(cwd, "runelight.config.ts"),
+    `import { defineRunelightConfig } from "@runelight/core"
+
+export default defineRunelightConfig({
+  contracts: [${JSON.stringify(join(repositoryRoot, "packages/react/src/contract.ts"))}],
+  project: {
+    sourceRoot: "src",
+    entryRoot: "src",
+    tsconfig: "tsconfig.json",
+  },
+})
+`,
+  )
+}
+
 describe("runelight CLI", () => {
   it("prints help when invoked through a package manager bin symlink", () => {
     const tempDirectory = mkdtempSync(join(tmpdir(), "runelight-cli-"))
@@ -44,6 +66,7 @@ describe("runelight CLI", () => {
     expect(result.stdout).toContain(
       "runelight preview-targets [-p <tsconfig-or-dir>] <entry[#export]> [--json] [--walk breadth-first|depth-first] [--max-depth <n>] [--max-targets <n>] [--limit <n>] [--offset <n>]",
     )
+    expect(result.stdout).toContain("runelight containing-frames [-p <tsconfig-or-dir>] <entry[#export]> [--json] [--max-targets <n>]")
     expect(result.stdout).toContain("runelight changes [-p <tsconfig-or-dir>] [--json]")
     expect(result.stdout).toContain("runelight serve [-p <tsconfig-or-dir>] [--port <port>]")
     expect(result.stdout).toContain("--frame-override <entry#export:frame>")
@@ -445,6 +468,315 @@ ${Array.from({ length: 25 }, (_, index) => `  frame${index}: { description: "fra
       })
       expect(secondPageReport.targets).toHaveLength(5)
       expect(secondPageReport.targets[0].path).toContain("frame=frame20")
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("finds top-level containing frames for a nested component", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-cli-containing-frames-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      writeFileSync(
+        join(cwd, "tsconfig.json"),
+        JSON.stringify({ compilerOptions: { jsx: "react-jsx", module: "ESNext", moduleResolution: "Bundler", target: "ES2022" }, include: ["src"] }),
+      )
+      writeFileSync(
+        join(cwd, "runelight.config.ts"),
+        `import { defineRunelightConfig } from "@runelight/core"
+
+export default defineRunelightConfig({
+  contracts: [${JSON.stringify(join(repositoryRoot, "packages/react/src/contract.ts"))}],
+  project: {
+    sourceRoot: "src",
+    entryRoot: "src",
+    tsconfig: "tsconfig.json",
+  },
+})
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/App.g.tsx"),
+        `import Screen from "./Screen.g"
+
+type AppProps = { route: "home" | "screen" }
+
+export default function App(props: AppProps) {
+  return <main>{props.route === "screen" ? <Screen /> : <p>Home</p>}</main>
+}
+
+App.frames = {
+  home: { description: "Home route", props: { route: "home" } },
+  screen: { description: "Screen route with nested leaf", props: { route: "screen" } },
+}
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Screen.g.tsx"),
+        `import Leaf from "./Leaf.g"
+
+type ScreenProps = { showLeaf: boolean }
+
+export default function Screen(props: ScreenProps) {
+  return <section>{props.showLeaf ? <Leaf /> : <p>Empty</p>}</section>
+}
+
+Screen.frames = {
+  empty: { description: "Screen without leaf", props: { showLeaf: false } },
+  withLeaf: { description: "Screen showing leaf", props: { showLeaf: true } },
+}
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Leaf.g.tsx"),
+        `export default function Leaf() {
+  return <button>Leaf action</button>
+}
+
+Leaf.frames = {
+  ready: { description: "Leaf ready", props: {} },
+}
+`,
+      )
+
+      const result = await runCLI(["containing-frames", "src/Leaf.g.tsx", "--json"], { cwd, stdout: "", stderr: "" })
+      const report = JSON.parse(result.stdout)
+
+      expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0)
+      expect(report).toMatchObject({
+        schemaVersion: 1,
+        target: "src/Leaf.g.tsx#default",
+        rootMode: "top-level",
+        renderableRootsMatched: 1,
+        traversal: {
+          maxTargetsPerRoot: 1000,
+          truncated: false,
+        },
+        diagnostics: [],
+      })
+      expect(report.contexts).toHaveLength(1)
+      expect(report.contexts[0]).toMatchObject({
+        root: {
+          coordinate: "src/App.g.tsx#default",
+          componentName: "App",
+        },
+        frame: {
+          name: "screen",
+          description: "Screen route with nested leaf",
+        },
+        target: {
+          path: "/runelight?entry=src%2FApp.g.tsx%23default&frame=screen&chrome=0&frameOverride=src%252FScreen.g.tsx%2523default%3AwithLeaf&frameOverride=src%252FLeaf.g.tsx%2523default%3Aready",
+        },
+      })
+      expect(report.contexts[0].target.paths[0].map((node: { coordinate: string }) => node.coordinate)).toEqual([
+        "src/App.g.tsx#default",
+        "src/Screen.g.tsx#default",
+        "src/Leaf.g.tsx#default",
+      ])
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("does not report structurally pruned top-level roots as containing frames", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-cli-containing-frames-pruned-"))
+
+    try {
+      writeReactRunelightProject(cwd)
+      writeFileSync(
+        join(cwd, "src/App.g.tsx"),
+        `import Screen from "./Screen.g"
+
+type AppProps = { screenMessage: string }
+
+export default function App(props: AppProps) {
+  return <main><Screen message={props.screenMessage} /></main>
+}
+
+App.frames = {
+  emptyScreen: { description: "App frame with empty screen", props: { screenMessage: "" } },
+}
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Screen.g.tsx"),
+        `import Leaf from "./Leaf.g"
+
+type ScreenProps = { message: string }
+
+export default function Screen({ message }: ScreenProps) {
+  if (!message) return null
+  return <section><p>{message}</p><Leaf /></section>
+}
+
+Screen.frames = {
+  withLeaf: { description: "Screen frame with leaf", props: { message: "Open" } },
+}
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Leaf.g.tsx"),
+        `export default function Leaf() {
+  return <button>Leaf action</button>
+}
+
+Leaf.frames = {
+  ready: { description: "Leaf ready", props: {} },
+}
+`,
+      )
+
+      const result = await runCLI(["containing-frames", "src/Leaf.g.tsx", "--json"], { cwd, stdout: "", stderr: "" })
+      const report = JSON.parse(result.stdout)
+      const rootCoordinates = report.contexts.map((context: { root: { coordinate: string } }) => context.root.coordinate)
+      const screenContext = report.contexts.find((context: { root: { coordinate: string } }) => context.root.coordinate === "src/Screen.g.tsx#default")
+
+      expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0)
+      expect(report).toMatchObject({
+        schemaVersion: 1,
+        target: "src/Leaf.g.tsx#default",
+        rootMode: "top-level",
+        renderableRootsMatched: 1,
+        traversal: {
+          maxTargetsPerRoot: 1000,
+          truncated: false,
+        },
+        diagnostics: [],
+      })
+      expect(rootCoordinates).not.toContain("src/App.g.tsx#default")
+      expect(rootCoordinates).toContain("src/Screen.g.tsx#default")
+      expect(rootCoordinates).not.toContain("src/Leaf.g.tsx#default")
+      expect(screenContext).toMatchObject({
+        frame: {
+          name: "withLeaf",
+          description: "Screen frame with leaf",
+        },
+        target: {
+          path: "/runelight?entry=src%2FScreen.g.tsx%23default&frame=withLeaf&chrome=0&frameOverride=src%252FLeaf.g.tsx%2523default%3Aready",
+        },
+      })
+      expect(screenContext?.target.paths[0].map((node: { coordinate: string }) => node.coordinate)).toEqual([
+        "src/Screen.g.tsx#default",
+        "src/Leaf.g.tsx#default",
+      ])
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("reports target-level coverage when the target is already a top-level root", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-cli-containing-frames-self-"))
+
+    try {
+      writeReactRunelightProject(cwd)
+      writeFileSync(
+        join(cwd, "src/Solo.g.tsx"),
+        `export default function Solo() {
+  return <button>Solo action</button>
+}
+
+Solo.frames = {
+  ready: { description: "Solo ready", props: {} },
+}
+`,
+      )
+
+      const result = await runCLI(["containing-frames", "src/Solo.g.tsx", "--json"], { cwd, stdout: "", stderr: "" })
+      const report = JSON.parse(result.stdout)
+
+      expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0)
+      expect(report).toMatchObject({
+        schemaVersion: 1,
+        target: "src/Solo.g.tsx#default",
+        rootMode: "top-level",
+        renderableRootsMatched: 1,
+        contexts: [
+          {
+            root: {
+              coordinate: "src/Solo.g.tsx#default",
+              componentName: "Solo",
+            },
+            frame: {
+              name: "ready",
+              description: "Solo ready",
+            },
+            target: {
+              path: "/runelight?entry=src%2FSolo.g.tsx%23default&frame=ready&chrome=0",
+            },
+          },
+        ],
+        diagnostics: [],
+      })
+      expect(report.contexts[0].target.paths[0].map((node: { coordinate: string }) => node.coordinate)).toEqual(["src/Solo.g.tsx#default"])
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("falls back to containing entries when a cycle has no top-level root", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-cli-containing-frames-cycle-"))
+
+    try {
+      writeReactRunelightProject(cwd)
+      writeFileSync(
+        join(cwd, "src/A.g.tsx"),
+        `import B from "./B.g"
+
+export default function A() {
+  return <section><B /></section>
+}
+
+A.frames = {
+  ready: { description: "A ready", props: {} },
+}
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/B.g.tsx"),
+        `import A from "./A.g"
+
+export default function B() {
+  return <aside><A /></aside>
+}
+
+B.frames = {
+  ready: { description: "B ready", props: {} },
+}
+`,
+      )
+
+      const result = await runCLI(["containing-frames", "src/B.g.tsx", "--json"], { cwd, stdout: "", stderr: "" })
+      const report = JSON.parse(result.stdout)
+      const rootCoordinates = report.contexts.map((context: { root: { coordinate: string } }) => context.root.coordinate)
+      const aContext = report.contexts.find((context: { root: { coordinate: string } }) => context.root.coordinate === "src/A.g.tsx#default")
+
+      expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0)
+      expect(report).toMatchObject({
+        schemaVersion: 1,
+        target: "src/B.g.tsx#default",
+        rootMode: "fallback",
+        renderableRootsMatched: 2,
+        traversal: {
+          maxTargetsPerRoot: 1000,
+          truncated: false,
+        },
+        diagnostics: [],
+      })
+      expect(rootCoordinates).toContain("src/A.g.tsx#default")
+      expect(rootCoordinates).toContain("src/B.g.tsx#default")
+      expect(aContext).toMatchObject({
+        frame: {
+          name: "ready",
+          description: "A ready",
+        },
+        target: {
+          path: "/runelight?entry=src%2FA.g.tsx%23default&frame=ready&chrome=0&frameOverride=src%252FB.g.tsx%2523default%3Aready",
+        },
+      })
+      expect(aContext?.target.paths.some((path: Array<{ coordinate: string }>) =>
+        path.some((node) => node.coordinate === "src/B.g.tsx#default"),
+      )).toBe(true)
     } finally {
       rmSync(cwd, { force: true, recursive: true })
     }

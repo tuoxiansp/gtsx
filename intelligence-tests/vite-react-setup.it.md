@@ -23,7 +23,7 @@ Validate these outcomes:
 - The original app route still renders.
 - `/runelight/session` returns serve-session JSON.
 - `/runelight?entry=...&frame=...` renders an existing frame.
-- `runelight preview-targets --json <entry[#export]>` returns browser-ready paths for reachable frames.
+- `runelight preview-targets <entry[#export]> --json` returns browser-ready paths for reachable frames.
 - While the dev server is running, adding a new source `.g.tsx` frame appears in preview-target output and preview without restarting.
 - Editing that added frame updates preview without restarting.
 - Removing the temporary frame does not leave a stale usable preview entry.

@@ -147,6 +147,33 @@ type RunelightPreviewTargetsReport = {
   diagnostics: RunelightDiagnostic[]
 }
 
+type RunelightContainingFramesContext = {
+  root: {
+    coordinate: string
+    filePath: string
+    exportName: string
+    componentName: string
+  }
+  frame: {
+    name: string
+    description: string
+  }
+  target: RunelightPreviewTarget
+}
+
+type RunelightContainingFramesReport = {
+  schemaVersion: 1
+  target: string
+  rootMode: "top-level" | "fallback"
+  renderableRootsMatched: number
+  traversal: {
+    maxTargetsPerRoot: number
+    truncated: boolean
+  }
+  contexts: RunelightContainingFramesContext[]
+  diagnostics: RunelightDiagnostic[]
+}
+
 const DEFAULT_PREVIEW_TARGETS_PAGE_LIMIT = 20
 
 const HELP = `runelight
@@ -155,6 +182,7 @@ Usage:
   runelight check [-p <tsconfig-or-dir>] [entry[#export]|dir] [--json]
   runelight inspect [-p <tsconfig-or-dir>] <entry[#export]> [--json]
   runelight preview-targets [-p <tsconfig-or-dir>] <entry[#export]> [--json] [--walk breadth-first|depth-first] [--max-depth <n>] [--max-targets <n>] [--limit <n>] [--offset <n>]
+  runelight containing-frames [-p <tsconfig-or-dir>] <entry[#export]> [--json] [--max-targets <n>]
   runelight changes [-p <tsconfig-or-dir>] [--json] [--ui-only] [--component <component-or-file>]
   runelight serve [-p <tsconfig-or-dir>] [--port <port>]
   runelight capture [-p <tsconfig-or-dir>] <entry[#export]|dir> [--frame <name>] [--frame-override <entry#export:frame>] [--viewport 1440x900] [--out <file.png|dir>] [--port <port>]
@@ -363,6 +391,69 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     return {
       exitCode: hasErrorDiagnostics(report.diagnostics) ? 1 : 0,
       stdout: args.includes("--json") ? `${JSON.stringify(report, null, 2)}\n` : formatRunelightPreviewTargetsReport(report),
+      stderr: context.stderr,
+    }
+  }
+
+  if (args[0] === "containing-frames") {
+    const commandArgs = parseCommandArguments(args, {
+      booleanOptions: ["--json"],
+      maxPositionals: 1,
+      valueOptions: ["--max-targets"],
+    })
+    if (commandArgs.diagnostics.length > 0) return diagnosticsResult(commandArgs.diagnostics)
+
+    const entry = commandArgs.positionals[0]
+    if (!entry) {
+      return diagnosticsResult([
+        {
+          stage: "adapter-configuration",
+          severity: "error",
+          code: "missing-containing-frames-entry",
+          message: "Pass an entry file or coordinate to runelight containing-frames.",
+        },
+      ])
+    }
+
+    const maxTargetsResult = readPositiveIntegerOption(args, "--max-targets", 1000)
+    if (maxTargetsResult.diagnostic) return diagnosticsResult([maxTargetsResult.diagnostic])
+
+    const config = loadRunelightConfig(cwd)
+    if (!config.config) return diagnosticsResult(config.diagnostics)
+    const resolvedConfig = resolveRunelightConfig(config.config)
+    const contractResolution = await resolveCLIContracts(cwd)
+    if (contractResolution.diagnostics.length > 0) return diagnosticsResult(contractResolution.diagnostics)
+
+    if (projectSelection.tsconfigPath && !isEntryInRunelightScope(cwd, entry, projectSelection.tsconfigPath, contractResolution.contracts)) {
+      return entryOutsideProjectScopeResult(entry)
+    }
+
+    const index = buildRunelightProjectIndex({
+      contracts: contractResolution.contracts,
+      cwd,
+      sourceRoot: resolvedConfig.project.sourceRoot,
+      tsconfigPath: resolvedConfig.project.tsconfig ?? projectSelection.tsconfigPath,
+    })
+    const targetResolution = resolveInspectRootComponent(index, entry)
+    if (targetResolution.diagnostics.length > 0) return diagnosticsResult(targetResolution.diagnostics)
+    if (!targetResolution.component) {
+      return diagnosticsResult([
+        {
+          stage: "contract-extraction",
+          severity: "error",
+          code: "containing-frames-target-unresolved",
+          message: `Runelight containing-frames could not resolve ${entry}.`,
+          file: entryFile(entry),
+        },
+      ])
+    }
+
+    const report = createRunelightContainingFramesReport(cwd, index, targetResolution.component, {
+      maxTargets: maxTargetsResult.value,
+    })
+    return {
+      exitCode: hasErrorDiagnostics(report.diagnostics) ? 1 : 0,
+      stdout: args.includes("--json") ? `${JSON.stringify(report, null, 2)}\n` : formatRunelightContainingFramesReport(report),
       stderr: context.stderr,
     }
   }
@@ -950,6 +1041,130 @@ function createRunelightPreviewTargetsReport(
   }
 }
 
+function createRunelightContainingFramesReport(
+  cwd: string,
+  index: RunelightProjectIndex,
+  target: RunelightProjectIndexComponent,
+  options: { maxTargets: number },
+): RunelightContainingFramesReport {
+  const allComponents = index.files.flatMap((file) => file.components)
+  const topLevelRoots = topLevelRunelightComponents(cwd, index)
+  const topLevelReport = createRunelightContainingFramesReportForRoots(cwd, index, target, topLevelRoots, {
+    maxTargets: options.maxTargets,
+    rootMode: "top-level",
+  })
+
+  if (topLevelReport.renderableRootsMatched > 0 || topLevelRoots.some((root) => root.coordinate === target.coordinate)) {
+    return topLevelReport
+  }
+
+  return createRunelightContainingFramesReportForRoots(cwd, index, target, allComponents, {
+    maxTargets: options.maxTargets,
+    rootMode: "fallback",
+  })
+}
+
+function createRunelightContainingFramesReportForRoots(
+  cwd: string,
+  index: RunelightProjectIndex,
+  target: RunelightProjectIndexComponent,
+  roots: readonly RunelightProjectIndexComponent[],
+  options: { maxTargets: number; rootMode: RunelightContainingFramesReport["rootMode"] },
+): RunelightContainingFramesReport {
+  const contexts: RunelightContainingFramesContext[] = []
+  const diagnostics: RunelightDiagnostic[] = []
+  let renderableRootsMatched = 0
+  let truncated = false
+
+  for (const root of roots) {
+    const inspectReport = createRunelightInspectReport(cwd, index, root)
+    if (!inspectReport.nodes.some((node) => node.coordinate === target.coordinate)) continue
+
+    const previewReport = createRunelightPreviewTargetsReport(inspectReport, {
+      limit: options.maxTargets,
+      maxDepth: undefined,
+      maxTargets: options.maxTargets,
+      offset: 0,
+      order: "breadth-first",
+    })
+    truncated ||= previewReport.traversal.truncated
+    diagnostics.push(...previewReport.diagnostics)
+
+    let rootHasRenderableTarget = false
+    for (const previewTarget of previewReport.targets) {
+      if (!previewTarget.paths.some((path) => path.some((node) => node.coordinate === target.coordinate))) continue
+      rootHasRenderableTarget = true
+
+      const rootFrame = previewTarget.paths[0]?.[0]
+      if (!rootFrame) continue
+      contexts.push({
+        root: {
+          coordinate: root.coordinate,
+          filePath: root.filePath,
+          exportName: root.exportName,
+          componentName: root.componentName,
+        },
+        frame: {
+          name: rootFrame.frame,
+          description: rootFrame.description,
+        },
+        target: previewTarget,
+      })
+    }
+    if (rootHasRenderableTarget) renderableRootsMatched += 1
+  }
+
+  return {
+    schemaVersion: 1,
+    target: target.coordinate,
+    rootMode: options.rootMode,
+    renderableRootsMatched,
+    traversal: {
+      maxTargetsPerRoot: options.maxTargets,
+      truncated,
+    },
+    contexts: dedupeContainingFrameContexts(contexts),
+    diagnostics: dedupeDiagnostics(diagnostics),
+  }
+}
+
+function topLevelRunelightComponents(cwd: string, index: RunelightProjectIndex): RunelightProjectIndexComponent[] {
+  const incoming = new Set<string>()
+  const components = index.files.flatMap((file) => file.components)
+  for (const component of components) {
+    const node = toRunelightInspectNode(cwd, component, index)
+    for (const dependency of node.dependencies) {
+      incoming.add(dependency)
+    }
+  }
+
+  return components.filter((component) => !incoming.has(component.coordinate))
+}
+
+function dedupeContainingFrameContexts(contexts: readonly RunelightContainingFramesContext[]): RunelightContainingFramesContext[] {
+  const seen = new Set<string>()
+  const result: RunelightContainingFramesContext[] = []
+  for (const context of contexts) {
+    const key = `${context.root.coordinate}:${context.frame.name}:${context.target.path}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    result.push(context)
+  }
+  return result
+}
+
+function dedupeDiagnostics(diagnostics: readonly RunelightDiagnostic[]): RunelightDiagnostic[] {
+  const seen = new Set<string>()
+  const result: RunelightDiagnostic[] = []
+  for (const diagnostic of diagnostics) {
+    const key = JSON.stringify(diagnostic)
+    if (seen.has(key)) continue
+    seen.add(key)
+    result.push(diagnostic)
+  }
+  return result
+}
+
 function toRunelightPreviewTargetsPathNode(
   node: RunelightInspectNode,
   frame: RunelightInspectFrame,
@@ -1019,6 +1234,30 @@ function formatRunelightPreviewTargetsReport(report: RunelightPreviewTargetsRepo
   for (const diagnostic of report.diagnostics) {
     lines.push(formatDiagnostic(diagnostic))
   }
+  return `${lines.join("\n")}\n`
+}
+
+function formatRunelightContainingFramesReport(report: RunelightContainingFramesReport): string {
+  const mode = report.rootMode === "top-level" ? "top-level roots" : "fallback roots"
+  const truncated = report.traversal.truncated ? " (truncated by --max-targets)" : ""
+  const lines = [`Runelight containing frames for ${report.target} from ${mode}${truncated}`]
+
+  if (report.contexts.length === 0) {
+    lines.push("No containing frames found.")
+  }
+
+  for (const context of report.contexts) {
+    lines.push(`${context.root.coordinate}`)
+    lines.push(`  - ${context.frame.name}: ${context.target.path}`)
+    for (const path of context.target.paths) {
+      lines.push(`    ${path.map((node) => `${node.coordinate}:${node.frame}`).join(" -> ")}`)
+    }
+  }
+
+  for (const diagnostic of report.diagnostics) {
+    lines.push(formatDiagnostic(diagnostic))
+  }
+
   return `${lines.join("\n")}\n`
 }
 

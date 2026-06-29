@@ -139,4 +139,4 @@ declare const __RUNELIGHT_DEV__: boolean
 3. Start the dev server through `runelight serve` (or the package script that wraps it). Runelight routes only activate when the Host runs with `RUNELIGHT_DEV=1`, which `runelight serve` sets and the adapter exposes to the browser entry as `__RUNELIGHT_DEV__`.
 4. Open `/` and confirm the original app still renders.
 5. Open `/runelight/session` and confirm it returns JSON.
-6. If a `.g.vue` entry exists, use `runelight preview-targets --json <entry#default>`, open one `/runelight?...` preview URL, and verify frame `scope` or `providers` values override production setup state.
+6. If a `.g.vue` entry exists, use `runelight preview-targets <entry#default> --json`, open one `/runelight?...` preview URL, and verify frame `scope` or `providers` values override production setup state.

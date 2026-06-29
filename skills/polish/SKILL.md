@@ -78,15 +78,22 @@ Polish sync: I saw the label clip in the compact frame; I will only adjust spaci
 1. Establish the target:
    - Run `git status --short`.
    - Use the user's target when provided.
-   - If the target is already a `.g` entry, exported component coordinate, or preview path, do not rediscover the whole workspace.
+   - If the target is already a preview path, use it directly.
+   - If the target is a `.g` entry or exported component coordinate, treat it as the visual subject, not automatically as the observation root.
+   - Prefer context-first observation: find the nearest meaningful covered app/screen/parent entry that renders the target, then observe the target inside that full UI tree. Components often rely on parent layout, density, container width, theme wrappers, or sibling controls for their real appearance.
+   - For a named `.g` entry or coordinate, first run `runelight containing-frames <entry[#export]> --json`. Prefer contexts whose `root.coordinate` differs from the target. If every returned root is the target, treat it as target-level coverage, not broader app/screen context.
+   - If no ancestor context is available, look for covered ancestors with `rg` imports/usages, nearby route/screen `.g` entries, changed parent `.g` files, and `runelight inspect <entry[#export]> --json` on likely app/screen entries. Do not exhaustively rediscover the whole workspace when the parent is obvious.
+   - Use isolated component preview only when no covered ancestor exists, when the user explicitly asks for isolated inspection, or when debugging the component's own frame contract.
    - Otherwise collect changed `.g.tsx` / `.g.vue` files from Git status first.
    - When there are many changed `.g` candidates or the user asks for changed visual surfaces, use `runelight changes --json --ui-only` to narrow the candidate list.
    - For a selected entry, `runelight changes --json --component <entry[#export]>` is optional frame-status feedback; do not use it as the source of preview URLs.
    - If component-level `changes` returns JSON with diagnostics for the selected entry, keep those diagnostics as local feedback and continue to `preview-targets` when preview paths are still available.
    - Resolve route, screen, or component names to `.g` entries with `rg`, static analysis output, or repository conventions.
 2. Observe:
-   - Use paged `runelight preview-targets --json <entry[#export]>` to get preview paths; the default page is 20 targets.
+   - Use paths from `runelight containing-frames` when available; otherwise use paged `runelight preview-targets <entry[#export]> --json` on the selected observation root to get preview paths. The default `preview-targets` page is 20 targets.
    - Read each target's path nodes and frame descriptions to choose representative paths.
+   - When polishing a child component through a parent/root entry, choose paths whose `paths` nodes include both the parent state and the target child state. Use child frame overrides already encoded by `preview-targets` instead of hand-building URLs.
+   - If the relevant parent/root paths are unavailable, say that context observation is blocked and fall back to isolated preview only with that caveat.
    - If a component-level `changes` report is available, prefer added or changed root frames before unchanged frames, then use `preview-targets` output to open the actual paths.
    - Open or capture only the targets needed to judge the polish work; do not review every generated target by default.
    - Open selected paths in the browser, or capture them with `runelight capture --path "<target.path>"`.

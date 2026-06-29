@@ -33,7 +33,7 @@ If the project isn't wired for Runelight yet, follow the Runelight setup playboo
 7. For native injection-dependent UI, import the same injection key in `<g:frames>`, use `providers: [[key, value]]`, and mark meaningful finite axes with `GVueProviderFrame`.
 8. Keep structural template branches inspectable: `v-if`, `v-else-if`, `v-show`, `v-for`, and dynamic `:is` should depend directly on props, scope, or injected frame values.
 9. Update imports from `./Component.vue` to `./Component.g.vue`. Preserve barrels.
-10. Run `runelight check` + project typecheck. Render a frame in preview if available.
+10. Run `runelight check` + project typecheck. Render preview if available, defaulting to the nearest covered app/screen/parent entry that contains the migrated surface. Use `runelight containing-frames <entry#default> --json` to find those top-level contexts. Use isolated preview only when no covered parent exists or when debugging the component's own frame contract.
 
 ## Never
 
@@ -53,5 +53,6 @@ If the project isn't wired for Runelight yet, follow the Runelight setup playboo
 - Stateful frames use concrete `scope` values
 - Injection frames use `providers` and, when variant axes matter, `GVueProviderFrame`
 - Old `.vue` no longer owns migrated visual branches
+- Preview observation uses the app/screen/parent entry that shows the migrated surface in real layout context when such coverage exists
 - `runelight check` passes
 - Project typecheck passes, or unrelated failures are reported
