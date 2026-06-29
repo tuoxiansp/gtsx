@@ -269,6 +269,8 @@ importers:
         specifier: ^3.5.25
         version: 3.5.35(typescript@6.0.3)
 
+  skills: {}
+
 packages:
 
   '@babel/code-frame@7.29.0':

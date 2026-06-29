@@ -9,10 +9,11 @@ After the initial setup and preview checks, make the temporary project a git wor
 Validate these outcomes:
 
 - Before setup runs, the project contains no Runelight project-level skills unless they were already present in the copied fixture.
-- Setup installs/wires the needed Runelight packages, Vite adapter, config file, and browser-entry branch. The target project should not add `@runelight/studio` or `@runelight/changes` as direct dependencies.
-- Setup installs or refreshes only the React companion skills needed for this project: `authoring-runelight-react`, `refactor-to-runelight-react`, and `polish`.
+- Setup installs/wires the needed Runelight packages, including `@runelight/skills`, Vite adapter, config file, and browser-entry branch. The target project should not add `@runelight/studio` or `@runelight/changes` as direct dependencies.
+- Setup installs or refreshes only the React companion skills needed for this project: `authoring-runelight-react`, `refactor-to-runelight-react`, and `polish`, using this checkout's `skills/` directory for repository/intelligence-test flows and `node_modules/@runelight/skills/` for packaged flows.
 - Setup does not install `authoring-runelight-vue`, `refactor-to-runelight-vue`, or the deprecated unsplit `authoring-runelight` and `refactor-to-runelight`.
 - Setup does not install `setup-runelight` as a project-level skill.
+- Installed companion skills reference `node_modules/@runelight/skills/references/cli.md` for CLI command details instead of carrying duplicated CLI reference files in each copied skill directory.
 - The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
 - `runelight.config.ts` records `project.sourceRoot`, `project.entryRoot`, and a `host.command` with the `{port}` placeholder that `runelight serve` can wrap.
 - `${project.entryRoot}/design` is not created by setup or dev-server startup.

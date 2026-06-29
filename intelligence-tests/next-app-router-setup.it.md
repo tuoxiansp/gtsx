@@ -9,10 +9,11 @@ After the setup and preview checks, make the temporary project a git worktree if
 Validate these outcomes:
 
 - Before setup runs, the project contains no Runelight project-level skills unless they were already present in the copied fixture.
-- Setup installs/wires the needed Runelight packages, config wrapper, preview route, and session route. The target project should not add `@runelight/studio` or `@runelight/changes` as direct dependencies.
-- Setup installs or refreshes only the React companion skills needed for this project: `authoring-runelight-react`, `refactor-to-runelight-react`, and `polish`.
+- Setup installs/wires the needed Runelight packages, including `@runelight/skills`, config wrapper, preview route, and session route. The target project should not add `@runelight/studio` or `@runelight/changes` as direct dependencies.
+- Setup installs or refreshes only the React companion skills needed for this project: `authoring-runelight-react`, `refactor-to-runelight-react`, and `polish`, using this checkout's `skills/` directory for repository/intelligence-test flows and `node_modules/@runelight/skills/` for packaged flows.
 - Setup does not install `authoring-runelight-vue`, `refactor-to-runelight-vue`, or the deprecated unsplit `authoring-runelight` and `refactor-to-runelight`.
 - Setup does not install `setup-runelight` as a project-level skill.
+- Installed companion skills reference `node_modules/@runelight/skills/references/cli.md` for CLI command details instead of carrying duplicated CLI reference files in each copied skill directory.
 - The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
 - The preview route uses the documented Next preview helpers, the session route calls `createRunelightNextSessionResponse()` from `@runelight/adapter-next-react/session-route` without passing config/cwd/options, and app code does not import adapter internals outside the documented preview/session helpers.
 - The target project does not import removed Next adapter subpaths such as `@runelight/adapter-next-react/studio-route`, `@runelight/adapter-next-react/studio-manifest-route`, or `@runelight/adapter-next-react/preview-entries`.

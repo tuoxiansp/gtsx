@@ -1,0 +1,33 @@
+{
+  "name": "@runelight/skills",
+  "version": "0.0.13",
+  "description": "Project-local Runelight agent skills and shared references.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuoxiansp/runelight.git",
+    "directory": "skills"
+  },
+  "bugs": {
+    "url": "https://github.com/tuoxiansp/runelight/issues"
+  },
+  "homepage": "https://github.com/tuoxiansp/runelight#readme",
+  "keywords": [
+    "runelight",
+    "skills",
+    "agent"
+  ],
+  "files": [
+    "authoring-runelight-react",
+    "authoring-runelight-vue",
+    "polish",
+    "refactor-to-runelight-react",
+    "refactor-to-runelight-vue",
+    "setup-runelight",
+    "references"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

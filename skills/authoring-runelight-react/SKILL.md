@@ -107,17 +107,9 @@ If preview is not available because setup or the Host is missing, say that rende
 | `unknown-jsx-branch-coverage` | Inline static frame values that affect JSX reachability |
 | `uncovered-jsx-branch` | Add a frame that makes the JSX branch reachable |
 
-## CLI
+## CLI Reference
 
-```sh
-runelight check <file.g.tsx|dir>         # validate contracts
-runelight check -p tsconfig.app.json .   # explicit project
-runelight inspect <file.g.tsx> --json    # inspect static GUI dependencies for one entry
-runelight serve                          # start Runelight preview server
-runelight capture <file.g.tsx>           # screenshot all frames
-runelight preview-targets <file.g.tsx> --json  # paged preview paths, default 20
-runelight capture --path "<target.path>"       # screenshot one selected path
-```
+For the packaged command reference and workflow prompts, read `node_modules/@runelight/skills/references/cli.md`.
 
 ## Reference
 

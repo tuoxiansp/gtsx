@@ -61,6 +61,10 @@ When the user asks to migrate an app, screen, or set of React components, do not
 
 For project-wide migration requests, keep a short migration inventory: target surface, chosen action (`migrate`, `split`, `descend`, `extract`, `normalize`, or `defer`), created `.g.tsx` coordinate, important frames, verification status, and any deferred blocker. The inventory is for coverage planning; do not bulk-generate `.g.tsx` files from it.
 
+## CLI Reference
+
+For the packaged command reference and workflow prompts, read `node_modules/@runelight/skills/references/cli.md`.
+
 ## Never
 
 - `.g.tsx` that only renders `<ExistingComponent {...props} />`

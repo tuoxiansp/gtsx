@@ -127,12 +127,6 @@ Structural directives such as `v-if`, `v-for`, `v-show`, and dynamic `:is` shoul
 
 Detailed patterns: [REFERENCE.md](./REFERENCE.md)
 
-## CLI
+## CLI Reference
 
-```sh
-runelight check <file.g.vue|dir>              # validate contracts
-runelight inspect <file.g.vue> --json         # inspect static GUI dependencies for one entry
-runelight serve                               # start Runelight preview server
-runelight preview-targets <file.g.vue#default> --json  # paged preview paths, default 20
-runelight capture --path "<target.path>"      # screenshot one selected path
-```
+For the packaged command reference and workflow prompts, read `node_modules/@runelight/skills/references/cli.md`.

@@ -35,6 +35,10 @@ If the project isn't wired for Runelight yet, follow the Runelight setup playboo
 9. Update imports from `./Component.vue` to `./Component.g.vue`. Preserve barrels.
 10. Run `runelight check` + project typecheck. Render preview if available, defaulting to the nearest covered app/screen/parent entry that contains the migrated surface. Use `runelight containing-frames <entry#default> --json` to find those top-level contexts. Use isolated preview only when no covered parent exists or when debugging the component's own frame contract.
 
+## CLI Reference
+
+For the packaged command reference and workflow prompts, read `node_modules/@runelight/skills/references/cli.md`.
+
 ## Never
 
 - `.g.vue` that only renders the old component

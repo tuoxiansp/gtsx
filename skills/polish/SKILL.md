@@ -20,6 +20,18 @@ Polish existing Runelight GUI surfaces. Favor user-named targets and changed `.g
 - Every polish pass must stop for explicit user confirmation before the first edit. Reading the target, observing preview, and writing a brief is preparation, not sync.
 - Broad or subjective polish must proceed one confirmed point at a time. Do not bundle several unrelated improvements into one edit batch just because the workspace is clean.
 
+## Frame Input Leverage
+
+Use Runelight frame inputs as a polish tool whenever visual quality depends on state, environment, or data shape. Good triggers include loading, empty, error, retry, permission-denied, disabled, overflow, long copy, large collections, auth role, theme, locale, platform, feature flag, route/query/store result, selected item, or provider-driven UI.
+
+When those axes already exist in frames, choose representative preview paths from `preview-targets` / `containing-frames` and compare the states directly. For React composition, prefer generated paths that already encode child frame selections; use `inputOverride` only for deliberate synthetic exploration of a covered boundary.
+
+When an important visual axis is missing, treat that as coverage work before polish judgment: add or adjust the relevant frame `props`, `scope`, `providers`, or frame `description` on the existing `.g` surface, or switch to the authoring/refactor workflow when the real visual surface or seam has not been exposed yet. Then observe the new preview path before editing visual styling.
+
+## CLI Reference
+
+For the packaged command reference and workflow prompts, read `node_modules/@runelight/skills/references/cli.md`.
+
 ## Readiness Gate
 
 Before treating a request as Runelight polish, check whether the project is ready:
@@ -121,6 +133,7 @@ Product-surface preflight is required before any polish that may change informat
 2. Observe:
    - Use paths from `runelight containing-frames` when available; otherwise use paged `runelight preview-targets <entry[#export]> --json` on the selected observation root to get preview paths. The default `preview-targets` page is 20 targets.
    - Read each target's path nodes and frame descriptions to choose representative paths.
+   - When the visual concern is state-dependent, intentionally sample the frame input axes that matter: loading/error/empty, auth/theme/locale, long content, dense lists, disabled/permission states, and provider-driven variants.
    - When polishing a child component through a parent/root entry, choose paths whose `paths` nodes include both the parent state and the target child state. Use child frame overrides already encoded by `preview-targets` instead of hand-building URLs.
    - If the relevant parent/root paths are unavailable, say that context observation is blocked and fall back to isolated preview only with that caveat.
    - If a component-level `changes` report is available, prefer added or changed root frames before unchanged frames, then use `preview-targets` output to open the actual paths.
@@ -135,6 +148,7 @@ Product-surface preflight is required before any polish that may change informat
    - Make the smallest coherent change that addresses the confirmed point.
    - Prefer existing local components, tokens, layout patterns, and CSS conventions.
    - Add or improve static frame `description` strings when they help agents choose preview targets.
+   - If the confirmed point is missing visual-state coverage, edit the frame inputs first so the state becomes previewable, then re-observe before making style/layout changes.
 5. Re-observe:
    - Re-open or re-capture the same paths.
    - Compare against the earlier observation.

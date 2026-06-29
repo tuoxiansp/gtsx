@@ -45,7 +45,7 @@ When upgrade/ensure mode updates package versions, the agent must self-check whe
 
 ## Global Rules
 
-- Install packages from npm as `@runelight/core`, the selected framework package (`@runelight/react` or `@runelight/vue`), and the selected adapter package for validated setup profiles.
+- Install packages from npm as `@runelight/core`, `@runelight/cli`, `@runelight/skills`, the selected framework package (`@runelight/react` or `@runelight/vue`), and the selected adapter package for validated setup profiles.
 - Import framework authoring helpers from the selected package's `/runtime` subpath (`@runelight/react/runtime` or `@runelight/vue/runtime`); use `/contract` in `runelight.config.ts`; use `/preview` only inside adapter or host-integration glue.
 - Do not install legacy preview packages. Custom integration profiles may use the selected framework package's adapter runtime subpath (`@runelight/react/preview` or `@runelight/vue/preview`) when implementing their own host adapter; ordinary app components and `.g` authoring should not import it.
 - Host preview code owns only framework wiring: search params, CSS/setup imports, providers/mocks, and adapter loading.
@@ -59,14 +59,14 @@ When upgrade/ensure mode updates package versions, the agent must self-check whe
 
 ## Project-Level Companion Skills
 
-During setup, install or refresh the companion skills needed by the detected project as project-level skills.
+During setup, install or refresh the companion skills needed by the detected project as project-level skills. For packaged installs, copy companion skills from `node_modules/@runelight/skills/`. For CLI command reference, use the installed skill package file at `node_modules/@runelight/skills/references/cli.md` instead of copying command docs into each skill.
 
-Fetch or copy companion skill directories from the Runelight source repository into the target project's project-level skill location. Use these source paths as the source of truth:
+Fetch or copy companion skill directories into the target project's project-level skill location. In repository checkout flows, these live under the checkout's `skills/` directory. In packaged flows, these live at the root of `node_modules/@runelight/skills/`.
 
 | Project type | Project-level skills to install |
 | --- | --- |
-| React | `skills/authoring-runelight-react`, `skills/refactor-to-runelight-react`, `skills/polish` |
-| Vue | `skills/authoring-runelight-vue`, `skills/refactor-to-runelight-vue`, `skills/polish` |
+| React | `authoring-runelight-react`, `refactor-to-runelight-react`, `polish` |
+| Vue | `authoring-runelight-vue`, `refactor-to-runelight-vue`, `polish` |
 
 If a companion skill is already present, refresh it from the current Runelight source before relying on it. Install only the companion skills listed for the detected framework.
 

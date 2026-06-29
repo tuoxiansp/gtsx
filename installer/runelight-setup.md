@@ -43,6 +43,7 @@ For React:
 - `@runelight/react`
 - the selected adapter package, such as `@runelight/adapter-vite-react` or `@runelight/adapter-next-react`
 - `@runelight/cli`
+- `@runelight/skills`
 
 For Vue:
 
@@ -50,6 +51,7 @@ For Vue:
 - `@runelight/vue`
 - `@runelight/adapter-vite-vue`
 - `@runelight/cli`
+- `@runelight/skills`
 
 For local checkout or intelligence-test runs, wire package dependencies to the checkout as the test requires. For normal user projects, install from npm.
 
@@ -77,7 +79,9 @@ Install or refresh only the companion skills needed by the detected framework as
 | React | `authoring-runelight-react`, `refactor-to-runelight-react`, `polish` |
 | Vue | `authoring-runelight-vue`, `refactor-to-runelight-vue`, `polish` |
 
-Copy these skill directories into `.agents/skills/` from the Runelight skill source that matches this setup run. In repository and intelligence-test flows, that source is this checkout's `skills/` directory. In packaged installs, use the installed Runelight skill bundle when available. Do not install irrelevant framework companion skills, deprecated unsplit skills, or the setup playbook itself.
+Copy these skill directories into `.agents/skills/` from the Runelight skill source that matches this setup run. In repository and intelligence-test flows, that source is this checkout's `skills/` directory. In packaged installs, use `node_modules/@runelight/skills/`. Do not install irrelevant framework companion skills, deprecated unsplit skills, or the setup playbook itself.
+
+For CLI command reference while using the installed skills, read `node_modules/@runelight/skills/references/cli.md` instead of copying command docs into each skill.
 
 If a companion skill is already present, refresh it before relying on it. Report the source used for the refresh.
 

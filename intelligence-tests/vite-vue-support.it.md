@@ -15,10 +15,11 @@ After the Vue setup and preview checks, make the temporary project a git worktre
 Validate these outcomes:
 
 - Before setup runs, the project contains no Runelight project-level skills unless they were already present in the copied fixture.
-- Setup installs/wires the needed Runelight packages and does not add `@runelight/studio` or `@runelight/changes` as direct dependencies.
-- Setup installs or refreshes only the Vue companion skills needed for this project: `authoring-runelight-vue`, `refactor-to-runelight-vue`, and `polish`.
+- Setup installs/wires the needed Runelight packages, including `@runelight/skills`, and does not add `@runelight/studio` or `@runelight/changes` as direct dependencies.
+- Setup installs or refreshes only the Vue companion skills needed for this project: `authoring-runelight-vue`, `refactor-to-runelight-vue`, and `polish`, using this checkout's `skills/` directory for repository/intelligence-test flows and `node_modules/@runelight/skills/` for packaged flows.
 - Setup does not install `authoring-runelight-react`, `refactor-to-runelight-react`, or the deprecated unsplit `authoring-runelight` and `refactor-to-runelight`.
 - Setup does not install `setup-runelight` as a project-level skill.
+- Installed companion skills reference `node_modules/@runelight/skills/references/cli.md` for CLI command details instead of carrying duplicated CLI reference files in each copied skill directory.
 - The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
 - `runelight check` accepts the `.g.vue` entry and lists its frames.
 - `runelight check` reports `uncovered-vue-template-branch` when a Vue template branch has no matching frame, then accepts the component after the missing frame is added.
