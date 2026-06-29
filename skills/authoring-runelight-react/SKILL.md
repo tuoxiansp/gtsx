@@ -49,7 +49,7 @@ Verify: `runelight check src/Badge.g.tsx`
 
 - `.g.tsx` owns real visual UI. Never wrap `<ExistingComponent {...props} />`.
 - Export at least one component. Default exports are optional.
-- Author visual surfaces, not orchestration. No visual surface → descend or skip.
+- Author visual surfaces, not orchestration. During refactor work, no visual surface at the current file means descend to children or extract visible JSX; only a leaf with no owned visual UI should be left without `.g.tsx`.
 - Only Runelight hooks inside `.g.tsx` components: `useGContext`, hooks from `createGScopeHook`.
 - Use provider variants only for meaningful finite environment axes. `createGProvider(..., { variants })` declares the axis; `GProviderFrame<typeof Provider, "variant">` marks frame coverage; `providers: [[Provider, value]]` still supplies runtime context state. Leave truly env-neutral frames unmarked; use a variant union such as `GProviderFrame<typeof Provider, "login" | "anonymous">` only when one frame intentionally covers multiple variants.
 - Frames are static object literals. No computed keys, no dynamic generation.
@@ -70,6 +70,7 @@ Verify: `runelight check src/Badge.g.tsx`
 | `non-static-frame-key` | Replace computed key with string literal |
 | `missing-frame-description` | Add a static `description` string to the frame |
 | `non-static-frame-description` | Replace the frame `description` with a literal string |
+| `thin-wrapper` | Move the real visual TSX into the `.g.tsx` export, or attach frames to the component that owns it |
 | `non-runelight-hook` | Wrap with `createGScopeHook(useRealHook)`, call only the returned hook |
 | `scope-hook-frames-unsupported` | Move `.frames` from scope hook to component export |
 | `missing-provider-variant-frames` | Mark frames with `GProviderFrame` for every consumed provider variant |

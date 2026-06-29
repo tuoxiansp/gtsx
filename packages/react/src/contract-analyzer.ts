@@ -284,6 +284,14 @@ export function analyzeEntry(options: AnalyzeEntryOptions): RunelightEntryAnalys
       })
     }
 
+    validateNoLocalThinWrapper(sourceFile, componentExportName, diagnostics, options.entry, {
+      cwd: options.cwd,
+      entryPath,
+      cache,
+      sourceFilesByPath: cache?.sourceFilesByPath ?? new Map([[entryPath, sourceFile]]),
+      visitedComponents: new Set(),
+    })
+
   }
 
   if (scopeAssignments.length > 1) {
@@ -570,6 +578,102 @@ function validateFramesAssignmentOrder(
       file,
     })
   }
+}
+
+function validateNoLocalThinWrapper(
+  sourceFile: ts.SourceFile,
+  componentName: string,
+  diagnostics: RunelightDiagnostic[],
+  file: string,
+  context: NonRunelightHookAnalysisContext,
+) {
+  if (!componentHasFrames(sourceFile, componentName)) return
+
+  const componentBody = getFunctionLikeBody(sourceFile, componentName)
+  if (!componentBody) return
+
+  const rootElement = singleReturnedJSXElement(componentBody)
+  if (!rootElement || jsxElementHasOwnedPayload(rootElement)) return
+
+  const tagName = ts.isJsxSelfClosingElement(rootElement) ? rootElement.tagName : rootElement.openingElement.tagName
+  const target = componentDependencyTargetForJsxTag(tagName, {
+    filePath: context.entryPath,
+    importBindings: componentDependencyBindingsForFile(sourceFile, context.entryPath, context),
+    localAliases: localComponentAliasBindingsForBody(componentBody),
+    localComponentNames: getTopLevelFunctionLikeBodiesForPath(sourceFile, context.entryPath, context.cache),
+  })
+  if (!target || target.filePath !== context.entryPath || target.componentName === componentName) return
+  if (componentHasFrames(sourceFile, target.componentName)) return
+
+  diagnostics.push({
+    stage: "contract-extraction",
+    severity: "error",
+    code: "thin-wrapper",
+    message: `Runelight entry "${componentName}" only renders local component "${target.componentName}". Move the real visual TSX into "${componentName}" or attach frames to "${target.componentName}" directly.`,
+    file,
+  })
+}
+
+function componentHasFrames(sourceFile: ts.SourceFile, componentName: string): boolean {
+  return sourceFile.statements.some((statement) => {
+    const assignment = getFramesAssignment(statement, sourceFile, [])
+    return assignment?.targetName === componentName && assignment.frames.length > 0
+  })
+}
+
+function singleReturnedJSXElement(body: ts.ConciseBody): ts.JsxElement | ts.JsxSelfClosingElement | undefined {
+  if (!ts.isBlock(body)) return rootJSXElementForExpression(body)
+
+  let returnedExpression: ts.Expression | undefined
+  for (const statement of body.statements) {
+    if (!ts.isReturnStatement(statement)) continue
+    if (returnedExpression || !statement.expression) return undefined
+    returnedExpression = statement.expression
+  }
+
+  return returnedExpression ? rootJSXElementForExpression(returnedExpression) : undefined
+}
+
+function rootJSXElementForExpression(expression: ts.Expression): ts.JsxElement | ts.JsxSelfClosingElement | undefined {
+  const value = unwrapExpression(expression)
+
+  if (ts.isJsxSelfClosingElement(value)) return value
+  if (ts.isJsxElement(value)) return value
+  if (!ts.isJsxFragment(value)) return undefined
+
+  const meaningfulChildren = value.children.filter((child) => {
+    if (!ts.isJsxText(child)) return true
+    return child.getText(value.getSourceFile()).trim().length > 0
+  })
+  if (meaningfulChildren.length !== 1) return undefined
+
+  const child = meaningfulChildren[0]
+  if (ts.isJsxExpression(child) && child.expression) return rootJSXElementForExpression(child.expression)
+  if (ts.isJsxElement(child)) return child
+  if (ts.isJsxSelfClosingElement(child)) return child
+  return undefined
+}
+
+function jsxElementHasOwnedPayload(element: ts.JsxElement | ts.JsxSelfClosingElement): boolean {
+  const attributes = ts.isJsxSelfClosingElement(element) ? element.attributes : element.openingElement.attributes
+  if (jsxAttributesContainJSX(attributes)) return true
+  if (ts.isJsxSelfClosingElement(element)) return false
+
+  return element.children.some((child) => {
+    if (ts.isJsxText(child)) return child.getText(element.getSourceFile()).trim().length > 0
+    if (ts.isJsxExpression(child)) return Boolean(child.expression && expressionContainsJSX(child.expression))
+    return true
+  })
+}
+
+function jsxAttributesContainJSX(attributes: ts.JsxAttributes): boolean {
+  return attributes.properties.some((property) => {
+    if (ts.isJsxSpreadAttribute(property)) return expressionContainsJSX(property.expression)
+    if (!ts.isJsxAttribute(property) || !property.initializer) return false
+    if (ts.isJsxElement(property.initializer) || ts.isJsxFragment(property.initializer)) return true
+    if (!ts.isJsxExpression(property.initializer) || !property.initializer.expression) return false
+    return expressionContainsJSX(property.initializer.expression)
+  })
 }
 
 function topLevelValueDeclarationStart(sourceFile: ts.SourceFile, name: string): number | undefined {

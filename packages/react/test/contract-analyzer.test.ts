@@ -165,14 +165,18 @@ describe("Runelight analyzer", () => {
     expect(aliasImportedDependency.diagnostics).toContainEqual(
       expect.objectContaining({ code: "non-runelight-hook", stage: "contract-extraction" }),
     )
-    expect(aliasPureDependency.diagnostics).toEqual([])
+    expect(aliasPureDependency.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "thin-wrapper", stage: "contract-extraction" }),
+    )
     expect(providerUseUpdate.diagnostics).toContainEqual(
       expect.objectContaining({ code: "non-runelight-hook", stage: "contract-extraction" }),
     )
     expect(missingProviderVariant.diagnostics).toContainEqual(
       expect.objectContaining({ code: "missing-provider-variant-frames", stage: "contract-extraction" }),
     )
-    expect(thinWrapper.diagnostics).toEqual([])
+    expect(thinWrapper.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "thin-wrapper", stage: "contract-extraction" }),
+    )
     expect(framesBeforeExport.diagnostics).toContainEqual(
       expect.objectContaining({ code: "frames-before-component-export", stage: "contract-extraction" }),
     )

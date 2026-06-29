@@ -32,7 +32,7 @@ A `.g.tsx` file contains:
 1. **Author visual surfaces, not orchestration.** Route glue, provider nesting, layout slots, and permission gates belong outside `.g.tsx`.
 2. **Model visual states through props, scope, and providers.** A frame describes what the user sees.
 3. **Scope is UI state and callbacks.** Not routers, query clients, stores, or React nodes.
-4. **No visual surface → no `.g.tsx`.** Don't create files to mirror project structure.
+4. **No visual surface at this level → descend.** Don't create files to mirror project structure. During refactor work, leave a file without `.g.tsx` only after finding no owned visual UI beneath it.
 
 A wrapper is never a valid `.g.tsx` component. If the real UI lives elsewhere, the `.g.tsx` file must contain that real UI — not forward props to it.
 
@@ -157,6 +157,7 @@ runelight check src                # directory
 | `non-static-frame-key` | Use literal frame keys |
 | `missing-frame-description` | Add a static `description` string to the frame |
 | `non-static-frame-description` | Replace the frame `description` with a literal string |
+| `thin-wrapper` | Move the real visual TSX into the `.g.tsx` export, or attach frames to the component that owns it |
 | `non-runelight-hook` | Wrap with `createGScopeHook`, call only the returned hook |
 | `scope-hook-frames-unsupported` | Move `.frames` from scope hook to component export |
 | `missing-provider-variant-frames` | Mark frames with `GProviderFrame` for every consumed provider variant |

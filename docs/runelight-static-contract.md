@@ -148,6 +148,7 @@ These report entries that do not yet satisfy the `.g` protocol shape, before any
 | `missing-frame-description` | React, Vue | A frame does not declare a `description` |
 | `non-static-frame-description` | React, Vue | A frame `description` is not a static string |
 | `frames-before-component-export` | React | `Component.frames` is assigned before the component declaration |
+| `thin-wrapper` | React | A `.g.tsx` entry only renders another local component instead of owning the real visual TSX |
 | `non-runelight-hook` | React | A component body calls a raw React/library hook instead of a `createGScopeHook` hook or `useGContext` |
 | `multiple-scope-hooks` | React | A component calls more than one primary scope hook |
 | `scope-hook-frames-unsupported` | React | `.frames` is attached to a scope hook instead of the component export |
