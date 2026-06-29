@@ -1,6 +1,6 @@
 {
   "name": "@runelight/core",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "description": "Framework-neutral protocol, config, contract injection, and tooling for Runelight.",
   "license": "MIT",
   "type": "module",
