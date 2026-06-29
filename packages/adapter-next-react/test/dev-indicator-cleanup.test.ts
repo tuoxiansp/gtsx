@@ -9,7 +9,7 @@ import {
 describe("Next dev indicator cleanup", () => {
   it("only targets Runelight preview routes by default", () => {
     expect(isRunelightNextPreviewPath("/runelight")).toBe(true)
-    expect(isRunelightNextPreviewPath("/runelight/studio")).toBe(true)
+    expect(isRunelightNextPreviewPath("/runelight/session")).toBe(true)
     expect(isRunelightNextPreviewPath("/account")).toBe(false)
     expect(isRunelightNextPreviewPath("/runelight-other")).toBe(false)
   })

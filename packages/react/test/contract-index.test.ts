@@ -12,7 +12,7 @@ const tsProjectScopeRoot = join(import.meta.dirname, "../../core/test/fixtures/t
 const examplesRoot = join(import.meta.dirname, "../../../examples/react-vite")
 
 describe("Runelight project index", () => {
-  it("describes the selected Runelight project without Studio route or preview concerns", () => {
+  it("describes the selected Runelight project without route or preview concerns", () => {
     const index = buildRunelightProjectIndex({ contracts: [runelightReactContract], cwd: fixtureRoot, sourceRoot: "src/corpus" })
 
     expect(index).toEqual({
@@ -81,7 +81,7 @@ describe("Runelight project index", () => {
       ],
       diagnostics: [],
     })
-    expect(JSON.stringify(index)).not.toContain("/runelight/studio")
+    expect(JSON.stringify(index)).not.toContain("/runelight/session")
     expect(JSON.stringify(index)).not.toContain("urlTemplate")
   })
 
@@ -94,35 +94,35 @@ describe("Runelight project index", () => {
     })
 
     expect(index.files.map((file) => file.path)).toEqual([
-      "src/app/runelight/design/Sketch.g.tsx",
       "src/Child.g.tsx",
       "src/Included.g.tsx",
+      "src/Sketch.g.tsx",
     ])
   })
 
-  it("can include route design roots outside the selected source root", () => {
-    const cwd = mkdtempSync(join(tmpdir(), "runelight-route-design-index-"))
+  it("can include additional roots outside the selected source root", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-additional-root-index-"))
 
     try {
       mkdirSync(join(cwd, "src"), { recursive: true })
-      mkdirSync(join(cwd, "app/runelight/design"), { recursive: true })
+      mkdirSync(join(cwd, "scratch"), { recursive: true })
       writeFileSync(
         join(cwd, "src/Card.g.tsx"),
         ["export default function Card() { return null }", "Card.frames = { ready: { props: {} } }", ""].join("\n"),
       )
       writeFileSync(
-        join(cwd, "app/runelight/design/Sketch.g.tsx"),
+        join(cwd, "scratch/Sketch.g.tsx"),
         ["export default function Sketch() { return null }", "Sketch.frames = { live: { props: {} } }", ""].join("\n"),
       )
 
       const index = buildRunelightProjectIndex({
         contracts: [runelightReactContract],
-        additionalSourceRoots: ["app/runelight/design"],
+        additionalSourceRoots: ["scratch"],
         cwd,
         sourceRoot: "src",
       })
 
-      expect(index.files.map((file) => file.path)).toEqual(["app/runelight/design/Sketch.g.tsx", "src/Card.g.tsx"])
+      expect(index.files.map((file) => file.path)).toEqual(["scratch/Sketch.g.tsx", "src/Card.g.tsx"])
     } finally {
       rmSync(cwd, { force: true, recursive: true })
     }
@@ -490,7 +490,7 @@ describe("Runelight project index", () => {
     expect(exportList?.diagnostics).toEqual([])
   })
 
-  it("can reuse a project index briefly for high-frequency Studio route reads", () => {
+  it("can reuse a project index briefly for high-frequency project index reads", () => {
     const buildProjectIndex = createCachedRunelightProjectIndexBuilder({ ttlMs: 60_000 })
     const first = buildProjectIndex({ contracts: [runelightReactContract], cwd: fixtureRoot, sourceRoot: "src/corpus" })
     const second = buildProjectIndex({ contracts: [runelightReactContract], cwd: fixtureRoot, sourceRoot: "src/corpus" })

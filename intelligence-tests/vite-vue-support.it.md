@@ -15,19 +15,19 @@ After the Vue setup and preview checks, make the temporary project a git worktre
 Validate these outcomes:
 
 - Before setup runs, the project contains `.agents/skills/setup-runelight` and no other Runelight project-level skills.
+- Setup installs/wires the needed Runelight packages and does not add `@runelight/studio` or `@runelight/changes` as direct dependencies.
 - Setup installs or refreshes only the Vue companion skills needed for this project: `authoring-runelight-vue`, `refactor-to-runelight-vue`, and `polish`.
-- Setup does not install `authoring-runelight-react`, `refactor-to-runelight-react`, `design-runelight-react`, `design-runelight-vue`, or the deprecated unsplit `authoring-runelight`, `refactor-to-runelight`, and `design-runelight`.
+- Setup does not install `authoring-runelight-react`, `refactor-to-runelight-react`, or the deprecated unsplit `authoring-runelight` and `refactor-to-runelight`.
 - The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
 - `runelight check` accepts the `.g.vue` entry and lists its frames.
 - `runelight check` reports `uncovered-vue-template-branch` when a Vue template branch has no matching frame, then accepts the component after the missing frame is added.
-- `/runelight/studio/manifest` returns JSON that includes the `.g.vue#default` coordinate and every frame from `<g:frames>`.
-- While the dev server is running, adding a new source `.g.vue` frame appears in manifest, Studio, and preview without restarting.
+- `/runelight/session` returns serve-session JSON.
+- While the dev server is running, adding a new source `.g.vue` frame appears in preview-target output and preview without restarting.
 - Editing that added frame updates preview without restarting.
 - Removing the temporary frame does not leave a stale usable preview entry.
 - `${project.entryRoot}/design` is not created by setup or dev-server startup.
 - `runelight changes --json --ui-only` recognizes `.g.vue` changes in the configured source root, reports added and deleted Vue frames clearly, and omits code-only edits that do not change the static visual signature.
-- Studio Changes renders Vue added/deleted/modified items through the Vite Vue adapter without extra project glue. Added items show only current UI, deleted items show only the old UI with an obvious deleted presentation, and switching back to Frames still renders previews.
-- For the provide/inject component, `/runelight/studio/manifest` reports the injection key as a provider axis with `admin` and `viewer` variants, and the relevant frames include matching `providerVariants`.
+- For the provide/inject component, `runelight check` and `runelight preview-targets --json` preserve the injection key as a provider axis with `admin` and `viewer` variants.
 - `/runelight?entry=...g.vue%23default&frame=<name>&chrome=0` renders the selected frame through the Vue preview client.
 - The rendered preview uses frame `scope` rather than the production setup state for structural template branches.
 - The provide/inject preview renders the value supplied by the selected frame's `providers` entry through native Vue `inject(key)`, for both `admin` and `viewer` frames.

@@ -316,7 +316,7 @@
 .design-hero,
 .design-proof,
 .design-install,
-.design-studio-showcase {
+.design-preview-showcase {
   display: grid;
   gap: 28px;
   max-width: 960px;
@@ -338,7 +338,7 @@
 .design-hero-preview,
 .design-proof-grid,
 .design-install,
-.design-studio-showcase {
+.design-preview-showcase {
   border: 1px solid var(--ink-border);
   border-radius: var(--radius);
   background: var(--ink-panel);
@@ -428,7 +428,7 @@
   font-size: 11px;
 }
 
-.design-studio-showcase {
+.design-preview-showcase {
   grid-template-columns: 1fr 1fr;
   align-items: center;
   padding: 24px;
@@ -469,7 +469,7 @@
 .design-frame-header h2,
 .design-review-copy h2,
 .design-install-copy h2,
-.design-studio-wall-copy h2,
+.design-preview-wall-copy h2,
 .design-framework-bridge h2 {
   max-width: 13ch;
 }
@@ -535,8 +535,8 @@
 .design-proof-strip span,
 .design-code-slab span,
 .design-render-proof > span,
-.design-studio-column > span,
-.design-studio-inspector span,
+.design-preview-column > span,
+.design-preview-inspector span,
 .design-inspector-panel > span,
 .design-review-lanes article span,
 .design-capture-tile span,
@@ -659,7 +659,7 @@
   background: linear-gradient(135deg, rgb(93 255 177 / 12%), rgb(255 255 255 / 4%));
 }
 
-.design-studio-wall {
+.design-preview-wall {
   display: grid;
   grid-template-columns: 0.78fr 1.22fr;
   gap: 24px;
@@ -667,19 +667,19 @@
   padding: 34px;
 }
 
-.design-studio-wall-copy {
+.design-preview-wall-copy {
   display: grid;
   gap: 16px;
 }
 
-.design-studio-board {
+.design-preview-board {
   display: grid;
   grid-template-columns: 0.82fr 1fr;
   gap: 14px;
   align-items: start;
 }
 
-.design-studio-column {
+.design-preview-column {
   display: flex;
   flex-wrap: wrap;
   gap: 9px;
@@ -691,12 +691,12 @@
   background: rgb(255 255 255 / 4%);
 }
 
-.design-studio-column > span:first-child {
+.design-preview-column > span:first-child {
   flex-basis: 100%;
   margin-bottom: 4px;
 }
 
-.design-studio-inspector {
+.design-preview-inspector {
   grid-column: 1 / -1;
   display: grid;
   gap: 8px;
@@ -1016,7 +1016,7 @@
   filter: saturate(1.05) contrast(1.04);
 }
 
-.hero-scene-studio {
+.hero-scene-preview {
   top: 50px;
   right: 54px;
   z-index: 2;
@@ -1026,7 +1026,7 @@
   transform: rotateY(-10deg) rotateX(3deg) rotateZ(1deg);
 }
 
-.hero-scene-studio img {
+.hero-scene-preview img {
   object-fit: cover;
 }
 
@@ -1075,7 +1075,7 @@
 .hero-scene-auth::after,
 .hero-scene-data::after,
 .hero-scene-layout::after,
-.hero-scene-studio::after {
+.hero-scene-preview::after {
   content: "";
   position: absolute;
   inset: 0;

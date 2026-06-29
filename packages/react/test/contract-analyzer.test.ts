@@ -344,7 +344,7 @@ describe("Runelight analyzer", () => {
     expect(result.stdout).toContain("- error")
   })
 
-  it("checks Runelight design entries in the TypeScript project scope", async () => {
+  it("checks Runelight entries in the TypeScript project scope", async () => {
     const result = await runCLI(["check", "src"], {
       cwd: tsProjectScopeRoot,
       stdout: "",
@@ -352,7 +352,7 @@ describe("Runelight analyzer", () => {
     })
 
     expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain("Runelight pure entry: src/app/runelight/design/Sketch.g.tsx")
+    expect(result.stdout).toContain("Runelight pure entry: src/Sketch.g.tsx")
     expect(result.stdout).toContain("- live")
   })
 })

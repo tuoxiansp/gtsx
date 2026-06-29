@@ -47,8 +47,7 @@
   "peerDependencies": {
     "vue": ">=3",
     "vite": ">=5",
-    "@runelight/core": "workspace:*",
-    "@runelight/studio": "workspace:*"
+    "@runelight/core": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^6.0.3",

@@ -162,7 +162,7 @@ export default {
 </g:frames>
 ```
 
-The `providers` entry is the runtime preview value. The `GVueProviderFrame` marker is type-level metadata that tells Studio and `runelight check` which finite injection variant the frame covers.
+The `providers` entry is the runtime preview value. The `GVueProviderFrame` marker is type-level metadata that tells preview tooling and `runelight check` which finite injection variant the frame covers.
 
 ## Frame Names
 

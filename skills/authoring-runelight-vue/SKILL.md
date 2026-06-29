@@ -17,7 +17,7 @@ props + scope -> template
 
 Preview is template-first: frames provide the template-visible values needed to render visual states. Production-only `<script setup>` state does not need to run during preview when the frame supplies the values used by the template.
 
-Vue native `provide`/`inject` is an advanced authoring surface. Use it only when the component already injects Vue context. Frames may use `providers: [[key, value]]`; finite Studio axes need a typed `defineGInjectionKey` plus `GVueProviderFrame` marker.
+Vue native `provide`/`inject` is an advanced authoring surface. Use it only when the component already injects Vue context. Frames may use `providers: [[key, value]]`; finite preview axes need a typed `defineGInjectionKey` plus `GVueProviderFrame` marker.
 
 In composition, parent-rendered props and ancestor Vue injection values are authoritative for nested children. A child `.g.vue` frame is an isolated-preview mock unless the preview runtime explicitly selects that child frame. Current Vue preview preserves this by rendering unselected nested `.g.vue` children as ordinary SFCs with `<g:frames>` removed.
 

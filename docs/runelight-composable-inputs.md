@@ -112,7 +112,7 @@ This keeps the render frame-first: frames say which state is being shown; data c
 
 ### Multiple Instances Of The Same Child
 
-Two `<B />` instances inside one parent frame can receive different props. A coordinate-level child frame name alone cannot describe both instances. Studio should treat those as runtime instances first, and only show a named child frame match when the rendered instance is known to correspond to that frame.
+Two `<B />` instances inside one parent frame can receive different props. A coordinate-level child frame name alone cannot describe both instances. Preview tooling should treat those as runtime instances first, and only show a named child frame match when the rendered instance is known to correspond to that frame.
 
 ### Collections And Render Props
 
@@ -120,7 +120,7 @@ Children produced through maps, slots, or render props are still composition chi
 
 ### Provider Variants
 
-Provider variant markers are Studio axes. They can help select matching frames, but they do not change provider precedence. External provider values still win over child frame provider mocks.
+Provider variant markers are preview axes. They can help select matching frames, but they do not change provider precedence. External provider values still win over child frame provider mocks.
 
 ## Framework Status
 
@@ -132,7 +132,7 @@ React `.g.tsx` preview implements the full precedence model for nested Runelight
 - unselected nested children default to their first frame for child-local scope and fallback provider mocks;
 - explicit child frame overrides apply only child-local scope/provider mocks;
 - parent-rendered props and real ancestor provider values stay authoritative over child frame props/provider mocks;
-- Studio can label a selected child card as a parent-rendered runtime instance when runtime values are available for that boundary.
+- Preview tooling can label a selected child card as a parent-rendered runtime instance when runtime values are available for that boundary.
 
 ### Vue
 
@@ -143,5 +143,5 @@ The current Vue boundary is narrower than React: nested `.g.vue` children do not
 ## Implementation Notes
 
 - React runtime boundaries are coordinate-local so parent scope does not leak into child scope.
-- Studio's runtime instance marker is card-level state, not a values inspector. It distinguishes a parent-rendered child instance from the child's isolated frame grid without rendering prop/provider payloads.
+- Preview tooling runtime instance marker is card-level state, not a values inspector. It distinguishes a parent-rendered child instance from the child's isolated frame grid without rendering prop/provider payloads.
 - Vue's no-query transform intentionally preserves ordinary SFC execution for nested children. It only removes `<g:frames>` so child frame mocks cannot override the parent render by accident.

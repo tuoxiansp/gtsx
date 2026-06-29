@@ -9,7 +9,7 @@ For the type-level contract and branch coverage rules, see [Static Contract](./r
 ## The Formula
 
 ```
-Runelight = your UI source + the .g protocol + Studio
+Runelight = your UI source + the .g protocol + preview capture loop
 ```
 
 A `.g.tsx` file is a real TypeScript React component. A `.g.vue` file is a real Vue SFC with a Runelight `<g:frames>` custom block. Your compiler reads it. Your bundler reads it. Your tests run it.
@@ -34,7 +34,7 @@ Four primitives.
 |-----------|-----------|
 | **Runelight Project** | Your TypeScript project + the `.g` protocol |
 | **Runelight Scope** | The `.g.tsx` and `.g.vue` files in the selected TypeScript Program |
-| **Host** | Your framework runtime — Next.js, Vite, or anything else |
+| **Host** | The framework runtime that already serves your React or Vue app |
 | **Adapter** | The thin shim that mounts Runelight preview inside your Host |
 
 The invariant:
@@ -75,7 +75,7 @@ Frames are inert data. They cannot execute, cannot leak network calls, cannot br
 
 ### Preview
 
-In Studio, a substitution happens at the seam:
+In preview, a substitution happens at the seam:
 
 - `useScope()` returns the frame-supplied `scope` instead of the real hook.
 - Provider entries in the frame replace the real provider state.
@@ -89,9 +89,9 @@ Runelight is a dev sidecar for your existing Host, not a replacement runtime:
 
 ```
 ┌──────────────────┐         ┌───────────────────┐
-│  Your App        │         │  Runelight Studio │
-│  routes          │         │  /runelight/studio│
-│  components      │         │  /runelight       │
+│  Your App        │         │  Runelight Preview│
+│  routes          │         │  /runelight       │
+│  components      │         │  /runelight/session│
 │  providers       │         │                   │
 │  data layer      │         │                   │
 └────────┬─────────┘         └─────────┬─────────┘
@@ -101,13 +101,13 @@ Runelight is a dev sidecar for your existing Host, not a replacement runtime:
               ┌─────────▼─────────┐
               │ runelight serve   │
               │ starts your Host  │
-              │ (Next.js / Vite)  │
+              │ React/Vue Host    │
               └───────────────────┘
 ```
 
-Your app and Runelight share the same Host so Studio can render real components in the real framework environment. The project remains a Next.js, Vite, or custom Host project. The Runelight CLI gives the development workflow a consistent entry point: `runelight serve` starts the configured Host command, passes `RUNELIGHT_DEV=1`, and exposes the conventional `/runelight` route space.
+Your app and Runelight share the same Host so preview and capture render real components in the real framework environment. The project remains a normal React or Vue app. The validated adapter paths are Vite React, Vite Vue, and Next.js App Router, while custom Host wiring follows the same preview/session contract. The Runelight CLI gives the development workflow a consistent entry point: `runelight serve` starts the configured Host command, passes `RUNELIGHT_DEV=1`, and exposes the conventional `/runelight` route space.
 
-Runelight reads `.g.tsx` and `.g.vue` files through the selected TypeScript Program. It does not replace your routes, providers, data layer, or framework; the adapters remain installed in your normal bundler config, and only activate Studio and preview routes in Runelight dev mode.
+Runelight reads `.g.tsx` and `.g.vue` files through the selected TypeScript Program. It does not replace your routes, providers, data layer, or framework; the adapters remain installed in your normal bundler config, and only activate preview/session routes in Runelight dev mode.
 
 ### The visual boundary
 
@@ -119,13 +119,13 @@ For Next.js App Router, this means inherited layouts matter. A `/runelight` page
 
 This model gives Runelight a small, well-defined surface area:
 
-**Production code.** Frames are inert static data. The preview runtime is separate code loaded only by Studio. No production path reads frames. No bundle ships them.
+**Production code.** Frames are inert static data. The preview runtime is separate code loaded only by the development preview route. No production path reads frames. No bundle ships them.
 
 **Build pipeline.** Adapters plug into your existing pipeline. `runelight serve` starts the configured Host command rather than introducing a parallel bundler or second app runtime.
 
 **Data layer.** Runelight has no opinions about fetching, caching, stores, or providers. The seam swaps state at preview time without changing how production works.
 
-**Router.** Studio mounts at `/runelight/studio`. Preview at `/runelight`. Two routes, added and removed in one step.
+**Router.** Preview mounts at `/runelight`; the development session identity lives at `/runelight/session`. Both are adapter-owned route surfaces.
 
 **File structure.** Put files wherever you already put them.
 
@@ -139,7 +139,7 @@ For React:
 2. Replace `useScope()` with the underlying real hook. Components still work, behaving exactly as before.
 3. Rename `.g.tsx` → `.tsx`. TypeScript still compiles. Imports update once.
 4. Remove the Adapter from your build config. Your app still builds.
-5. Delete the `/runelight/studio` and `/runelight` routes. Your app still runs.
+5. Delete the `/runelight` preview route and adapter session route. Your app still runs.
 
 For Vue:
 

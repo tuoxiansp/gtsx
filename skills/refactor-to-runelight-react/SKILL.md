@@ -33,7 +33,7 @@ If the project isn't wired for Runelight yet, run the `setup-runelight` skill fi
 7. For provider-dependent UI, declare variants only when the provider has a meaningful finite environment axis, then mark coverage with `GProviderFrame`; keep provider values in `providers: [[Provider, value]]`.
 8. Keep JSX-producing branches inspectable: direct conditionals over props/scope/providers, `if` returns, `&&`, `||`, and traceable `map`/render callbacks. Refactor helper predicates, `switch`, JSX-returning loops, and stored JSX variables before calling the refactor done.
 9. Update imports from `./Component` to `./Component.g`. Preserve barrels.
-10. Run `runelight check` + project typecheck. Render a frame in Studio if available.
+10. Run `runelight check` + project typecheck. Render a frame in preview if available.
 
 ## Never
 

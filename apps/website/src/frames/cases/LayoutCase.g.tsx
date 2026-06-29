@@ -57,7 +57,7 @@ LayoutCase.frames = {
     props: {
       density: "comfortable",
       title: "Release notes",
-      body: "Comfortable spacing keeps long-form content readable while still exposing layout branches in Studio.",
+      body: "Comfortable spacing keeps long-form content readable while still exposing layout branches in preview.",
     },
   },
   compact: {
@@ -85,7 +85,7 @@ ReleaseNoteCard.frames = {
     props: {
       density: "comfortable",
       title: "Release notes",
-      body: "Comfortable spacing keeps long-form content readable while still exposing layout branches in Studio.",
+      body: "Comfortable spacing keeps long-form content readable while still exposing layout branches in preview.",
       footer: "reader viewport",
     },
   },

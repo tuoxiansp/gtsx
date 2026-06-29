@@ -1,6 +1,6 @@
 # Runelight Vue Authoring Guide
 
-How to write Runelight components: Vue 3 SFCs in `.g.vue` files that use the `.g` protocol, pass `runelight check`, and render correctly in Studio. For React, see the [React Authoring Guide](./runelight-authoring-guide.md).
+How to write Runelight components: Vue 3 SFCs in `.g.vue` files that use the `.g` protocol, pass `runelight check`, and render correctly in preview. For React, see the [React Authoring Guide](./runelight-authoring-guide.md).
 
 This is the human-readable companion to the Vue agent skill. The canonical reference for all Vue patterns lives in [skills/authoring-runelight-vue/REFERENCE.md](../skills/authoring-runelight-vue/REFERENCE.md). This guide covers the mental model and decision points.
 
@@ -80,7 +80,7 @@ Preview never runs `useResource`; `status`, `title`, and `items` come from the s
 
 ## Native Provide / Inject
 
-Vue context uses native `provide`/`inject`. When the injection should appear as a finite Studio axis (role, theme, locale, auth state, platform), define a typed key with `defineGInjectionKey(..., { variants })`, import the same key in `<g:frames lang="ts">`, supply runtime values through `providers: [[key, value]]`, and mark coverage with `GVueProviderFrame`. See [.g Protocol — Vue Provide/Inject](./g-protocol.md#vue-provideinject) for a complete example.
+Vue context uses native `provide`/`inject`. When the injection should appear as a finite preview axis (role, theme, locale, auth state, platform), define a typed key with `defineGInjectionKey(..., { variants })`, import the same key in `<g:frames lang="ts">`, supply runtime values through `providers: [[key, value]]`, and mark coverage with `GVueProviderFrame`. See [.g Protocol — Vue Provide/Inject](./g-protocol.md#vue-provideinject) for a complete example.
 
 ## Composition
 

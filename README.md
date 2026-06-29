@@ -6,11 +6,9 @@
 
 Runelight gives AI agents a visual feedback loop for front-end polish. In Runelight-covered UI, real components expose typed `.g` frames with agent-readable visual intent. Your agent can inspect reachable preview targets, observe the exact states it changes, edit source, and re-observe until the UI holds together.
 
-![Studio — Runelight-covered frames in one workspace](docs/images/studio-components.jpeg)
-
 ## Polish
 
-Ask your agent to polish a Runelight-covered component or screen. The installed `polish` skill drives a tight observe-edit-reobserve loop over real preview targets, so visual fixes are grounded in what Studio and capture can actually render.
+Ask your agent to polish a Runelight-covered component or screen. The installed `polish` skill drives a tight observe-edit-reobserve loop over real preview targets, so visual fixes are grounded in what the preview route and capture can actually render.
 
 Polish currently targets `.g.tsx` and `.g.vue` coverage: component frames, exported component coordinates, and the preview paths derived from them. It is not a promise to blindly edit arbitrary app routes without Runelight coverage.
 
@@ -18,15 +16,11 @@ Polish currently targets `.g.tsx` and `.g.vue` coverage: component frames, expor
 
 Need coverage first? Ask your agent to author a new `.g` component or refactor an existing component into `.g` format. In a Runelight project, implementation does not stop at the happy path. The agent keeps meaningful visual states beside the component as frames, and `runelight check` validates that reachable branches are represented.
 
-For admin panels, role-specific views become provider variants. For pages that look different when data is empty or populated, those states become frames. They are visible in Studio without switching accounts or seeding databases.
+For admin panels, role-specific views become provider variants. For pages that look different when data is empty or populated, those states become frames. They become explicit preview targets without switching accounts or seeding databases.
 
-## Review
+## Observe
 
-Run `runelight serve`, then open `/runelight/studio`. Runelight-covered components and their declared visual states render in Studio. Toggle filters to see how your UI responds across contexts: admin vs. regular user, signed-in vs. anonymous, empty vs. loaded.
-
-Studio gives you one URL for scanning those branches without manually navigating app flows or preparing test data.
-
-![Toggle USERSIGN to anonymous — covered frames respond](docs/images/studio-variant-filter.jpeg)
+Run `runelight preview-targets <entry[#export]> --json` to list browser-ready `/runelight?...` paths for a covered surface. Run `runelight serve`, open selected paths on the local Host, or use `runelight capture --path "<target.path>"` for screenshots your agent can compare after edits.
 
 Because covered states are declared and type-checked, your agent can verify its own work through the same preview and capture loop you can inspect.
 
@@ -49,11 +43,11 @@ After refreshing that setup skill, run `setup-runelight` in this project now.
 Follow it through setup and verification.
 ```
 
-The agent detects your project, installs packages, wires Studio, installs the matching project-level authoring/refactor/polish skills, and verifies everything works.
+The agent detects your project, installs packages, wires preview integration, installs the matching project-level authoring/refactor/polish skills, and verifies everything works.
 
 ## Supported Projects
 
-Runelight currently supports TypeScript React projects and TypeScript Vue 3 projects.
+Runelight supports TypeScript React projects, including Vite, Next.js App Router, and custom React hosts. Note that Vue 3 support exists in the repo (`.g.vue`, `@runelight/vue`, and the Vite Vue adapter), but it is still unstable and under validation.
 
 Non-React/Vue frameworks are not in scope yet.
 
@@ -91,11 +85,11 @@ That `.frames` object is the component-level footprint - inert data that never r
 
 Protocol names carry a `G` marker: `G`-prefixed types such as `GFrames`, and `createG*`/`useG*` helpers such as `createGScopeHook` and `createGProvider`.
 
-No preview wrappers in your components. No separate app shell to maintain. Your project remains a normal Vite, Next.js, or custom Host project; `@runelight/cli` starts that Host through `runelight serve`, and the framework adapter serves the prebuilt `@runelight/studio` app at `/runelight/studio`.
+No preview wrappers in your components. No separate app shell to maintain. Your project remains a normal React or Vue Host project; `@runelight/cli` starts that Host through `runelight serve`, and the framework adapter exposes the `/runelight` preview route plus the `/runelight/session` health endpoint used by CLI automation.
 
 ### Leave Anytime
 
-Rename `.g.tsx` → `.tsx` or `.g.vue` → `.vue`, delete frames, remove the Studio route. Plain app code. No lock-in.
+Rename `.g.tsx` → `.tsx` or `.g.vue` → `.vue`, delete frames, and remove the adapter route glue. Plain app code. No lock-in.
 
 ## Docs
 
@@ -122,4 +116,4 @@ Rename `.g.tsx` → `.tsx` or `.g.vue` → `.vue`, delete frames, remove the Stu
 
 pnpm workspace. `pnpm install && pnpm build && pnpm test && pnpm typecheck`.
 
-Packages: `@runelight/cli` (the `runelight` command; agent automation can use `runelight inspect --json` for static GUI maps, paged `runelight preview-targets --json` output for browser preview paths, `runelight capture <entry>` for ordinary screenshots, `runelight capture --path` for selected preview-target screenshots, and `runelight changes --json` for workspace changes), `@runelight/core` (framework-neutral protocol, config, and contract injection), `@runelight/changes` (shared implementation package for workspace change classification), `@runelight/react` (React runtime, preview, and contract modules), `@runelight/vue` (Vue runtime, preview, and contract modules), `@runelight/studio` (prebuilt Studio app and manifests), `@runelight/adapter-vite-react` (Vite React adapter), `@runelight/adapter-next-react` (Next.js adapter), and `@runelight/adapter-vite-vue` (Vite Vue adapter). The product website lives in [`apps/website`](apps/website/). Repository examples live under [`examples/`](examples/), including `react-vite` and `vue-vite`; agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).
+Target projects use `@runelight/cli` for the `runelight` command, `@runelight/core` for configuration, one framework package (`@runelight/react` or `@runelight/vue`) for runtime and contract imports, and one adapter package (`@runelight/adapter-vite-react`, `@runelight/adapter-next-react`, or `@runelight/adapter-vite-vue`) for the host integration. Agent automation can use `runelight inspect --json`, paged `runelight preview-targets --json`, `runelight capture`, `runelight capture --path`, and `runelight changes --json` through the CLI. The product website lives in [`apps/website`](apps/website/). Repository examples live under [`examples/`](examples/), including `react-vite` and `vue-vite`; agent-driven end-to-end goals live in [`intelligence-tests/`](intelligence-tests/).

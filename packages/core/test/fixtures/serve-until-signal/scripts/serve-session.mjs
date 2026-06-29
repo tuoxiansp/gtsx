@@ -8,10 +8,10 @@ const port = readOption(process.argv.slice(2), "--port") ?? "0"
 appendLog({ action: "serve", port, runelightDev: process.env.RUNELIGHT_DEV })
 
 const server = createServer((request, response) => {
-  if (request.url === "/runelight/studio/manifest") {
+  if (request.url === "/runelight/session") {
     appendLog({
       action: "ready-check",
-      path: "/runelight/studio/manifest",
+      path: "/runelight/session",
       projectKey: process.env.RUNELIGHT_PROJECT_KEY,
       sessionId: process.env.RUNELIGHT_SESSION_ID,
     })
@@ -23,26 +23,8 @@ const server = createServer((request, response) => {
           projectKey: process.env.RUNELIGHT_PROJECT_KEY,
           sessionId: process.env.RUNELIGHT_SESSION_ID,
         },
-        routes: {
-          preview: "/runelight",
-          studio: "/runelight/studio",
-          manifest: "/runelight/studio/manifest",
-        },
-        preview: {
-          urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
-          allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
-        },
-        files: [],
-        diagnostics: [],
       }),
     )
-    return
-  }
-
-  if (request.url === "/runelight/studio") {
-    appendLog({ action: "ready-check", path: "/runelight/studio" })
-    response.writeHead(200, { "content-type": "text/html" })
-    response.end("<!doctype html><title>Runelight Studio</title>")
     return
   }
 

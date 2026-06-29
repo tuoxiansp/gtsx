@@ -1,7 +1,7 @@
 {
   "name": "@runelight/cli",
   "version": "0.0.11",
-  "description": "Runelight command line interface for starting Studio, capture, and project checks.",
+  "description": "Runelight command line interface for preview capture and project checks.",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -16,7 +16,6 @@
   "keywords": [
     "runelight",
     "cli",
-    "studio",
     "component-preview"
   ],
   "bin": {

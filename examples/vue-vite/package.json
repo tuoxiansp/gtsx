@@ -12,7 +12,6 @@
     "@runelight/adapter-vite-vue": "workspace:*",
     "@runelight/cli": "workspace:*",
     "@runelight/core": "workspace:*",
-    "@runelight/studio": "workspace:*",
     "@runelight/vue": "workspace:*",
     "@vitejs/plugin-vue": "^6.0.2",
     "typescript": "^6.0.3",

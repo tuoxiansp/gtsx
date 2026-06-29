@@ -5,26 +5,31 @@ import { join } from "node:path"
 const logFile = join(process.cwd(), "runelight-command-log.jsonl")
 const port = readOption(process.argv.slice(2), "--port") ?? "0"
 
-appendLog({ action: "child-start", port })
+appendFileSync(logFile, `${JSON.stringify({ action: "serve", port })}\n`)
+
+const conflictPorts = (process.env.RUNELIGHT_TEST_CONFLICT_PORTS ?? "4300")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean)
+
+if (conflictPorts.includes(port)) {
+  process.stderr.write(`Port ${port} is already in use\n`)
+  process.exit(1)
+}
 
 const server = createServer((request, response) => {
   if (request.url === "/runelight/session") {
-    appendLog({
-      action: "ready-check",
-      path: "/runelight/session",
-      projectKey: process.env.RUNELIGHT_PROJECT_KEY,
-      sessionId: process.env.RUNELIGHT_SESSION_ID,
-    })
+    appendFileSync(logFile, `${JSON.stringify({ action: "ready-check", path: "/runelight/session", port })}\n`)
     response.writeHead(200, { "content-type": "application/json" })
     response.end(
       JSON.stringify({
-        version: 1,
         serveSession: {
           projectKey: process.env.RUNELIGHT_PROJECT_KEY,
           sessionId: process.env.RUNELIGHT_SESSION_ID,
         },
       }),
     )
+    setTimeout(() => server.close(), 500)
     return
   }
 
@@ -33,18 +38,6 @@ const server = createServer((request, response) => {
 })
 
 server.listen(Number(port), "127.0.0.1")
-
-process.once("SIGTERM", () => {
-  appendLog({ action: "child-ignored", signal: "SIGTERM" })
-})
-
-process.once("SIGINT", () => {
-  appendLog({ action: "child-ignored", signal: "SIGINT" })
-})
-
-function appendLog(value) {
-  appendFileSync(logFile, `${JSON.stringify(value)}\n`)
-}
 
 function readOption(args, optionName) {
   const index = args.indexOf(optionName)

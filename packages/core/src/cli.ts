@@ -13,7 +13,6 @@ import { loadRunelightConfig } from "./config.js"
 import {
   resolveRunelightConfig,
   runelightBaselineRootFromEntryRoot,
-  runelightDesignRootFromEntryRoot,
 } from "./config-model.js"
 import {
   resolveRunelightContractReferences,
@@ -193,7 +192,7 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
 
       return checkResolvedEntries(
         cwd,
-        discoverConfiguredRunelightProjectEntryCoordinates(cwd, resolvedConfig.project.sourceRoot, resolvedConfig.project.entryRoot, projectSelection.tsconfigPath, contracts),
+        discoverConfiguredRunelightProjectEntryCoordinates(cwd, resolvedConfig.project.sourceRoot, projectSelection.tsconfigPath, contracts),
         {
           aggregateJson: true,
           contracts,
@@ -256,7 +255,6 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     }
 
     const index = buildRunelightProjectIndex({
-      additionalSourceRoots: [runelightDesignRootFromEntryRoot(resolvedConfig.project.entryRoot)],
       contracts: contractResolution.contracts,
       cwd,
       sourceRoot: resolvedConfig.project.sourceRoot,
@@ -335,7 +333,6 @@ export async function runCLI(args: string[], context: CLIContext): Promise<CLIRe
     }
 
     const index = buildRunelightProjectIndex({
-      additionalSourceRoots: [runelightDesignRootFromEntryRoot(resolvedConfig.project.entryRoot)],
       contracts: contractResolution.contracts,
       cwd,
       sourceRoot: resolvedConfig.project.sourceRoot,
@@ -1038,7 +1035,6 @@ function createCLIWorkspaceChangesReport(input: {
   sourceRoot: string
   tsconfigPath?: string
 }): RunelightWorkspaceChangesReport {
-  const designRoot = runelightDesignRootFromEntryRoot(input.entryRoot)
   const baselineRoot = runelightBaselineRootFromEntryRoot(input.entryRoot)
   return createRunelightWorkspaceChangesReportFromGit({
     baselineRoot,
@@ -1048,11 +1044,10 @@ function createCLIWorkspaceChangesReport(input: {
       entryRoot: input.entryRoot,
     },
     cwd: input.cwd,
-    pathspecs: [input.sourceRoot, designRoot],
+    pathspecs: [input.sourceRoot],
     runtimeImportSpecifier: baselineRuntimeImportSpecifier(input.contractReferences),
     sourceRoot: input.sourceRoot,
     buildCurrentGraph: () => buildRunelightProjectIndex({
-      additionalSourceRoots: [designRoot],
       contracts: input.contracts,
       cwd: input.cwd,
       sourceRoot: input.sourceRoot,
@@ -1060,7 +1055,6 @@ function createCLIWorkspaceChangesReport(input: {
     }),
     buildBaselineGraph: ({ cwd }) => {
       const index = buildRunelightProjectIndex({
-        additionalSourceRoots: [designRoot],
         contracts: input.contracts,
         cwd,
         sourceRoot: input.sourceRoot,
@@ -1075,27 +1069,56 @@ function filterCLIWorkspaceChangesReport(
   options: { component?: string; uiOnly?: boolean },
 ): RunelightWorkspaceChangesReport {
   const filterApplied = Boolean(options.component) || Boolean(options.uiOnly)
+  const componentFilter = options.component ? normalizeProjectPath(options.component) : undefined
   const components = report.components.filter((component) => {
     if (options.uiOnly && component.uiStatus === "unchanged") return false
-    if (!options.component) return true
+    if (!componentFilter) return true
+
+    const file = normalizeProjectPath(component.file)
 
     return (
       component.componentName === options.component ||
-      component.coordinate === options.component ||
-      `${component.file}#${component.exportName}` === options.component ||
-      component.file === options.component
+      normalizeProjectPath(component.coordinate) === componentFilter ||
+      `${file}#${component.exportName}` === componentFilter ||
+      file === componentFilter
     )
   })
+  const diagnostics = componentFilter
+    ? filterCLIWorkspaceChangeDiagnostics(report.diagnostics, componentFilter, components)
+    : report.diagnostics
 
   return {
     ...report,
     components,
+    diagnostics,
     summary: {
       ...report.summary,
       files: filterApplied ? summarizeCLIWorkspaceChangeFiles(components) : report.summary.files,
       ui: summarizeCLIWorkspaceChangeUI(components),
     },
   }
+}
+
+function filterCLIWorkspaceChangeDiagnostics(
+  diagnostics: RunelightWorkspaceChangesReport["diagnostics"],
+  componentFilter: string,
+  components: readonly RunelightWorkspaceChangesReport["components"][number][],
+): RunelightWorkspaceChangesReport["diagnostics"] {
+  const relatedFiles = new Set(components.map((component) => normalizeProjectPath(component.file)))
+  const requestedFile = runelightEntryFileFromComponentFilter(componentFilter)
+  if (requestedFile) relatedFiles.add(requestedFile)
+
+  if (relatedFiles.size === 0) return diagnostics.filter((diagnostic) => !diagnostic.file)
+
+  return diagnostics.filter((diagnostic) => {
+    if (!diagnostic.file) return true
+    return relatedFiles.has(normalizeProjectPath(diagnostic.file))
+  })
+}
+
+function runelightEntryFileFromComponentFilter(componentFilter: string): string | undefined {
+  const file = normalizeProjectPath(entryFile(componentFilter))
+  return file.endsWith(".g.tsx") || file.endsWith(".g.vue") ? file : undefined
 }
 
 function summarizeCLIWorkspaceChangeFiles(
@@ -1332,12 +1355,10 @@ function discoverRunelightEntryCoordinates(
 function discoverConfiguredRunelightProjectEntryCoordinates(
   cwd: string,
   sourceRoot: string,
-  entryRoot: string,
   tsconfigPath: string | undefined,
   contracts: readonly RunelightContract[],
 ): EntryResolution {
   const index = buildRunelightProjectIndex({
-    additionalSourceRoots: [runelightDesignRootFromEntryRoot(entryRoot)],
     contracts,
     cwd,
     sourceRoot,

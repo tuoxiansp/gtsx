@@ -178,7 +178,7 @@ This keeps the Vue contract template-first: analyze what the template needs to r
 
 ### Vue Provide/Inject
 
-Vue context uses native `provide` / `inject`. Runelight adds a typed key helper only when the injection should appear as a finite Studio axis:
+Vue context uses native `provide` / `inject`. Runelight adds a typed key helper only when the injection should appear as a finite preview axis:
 
 ```ts
 // auth.ts

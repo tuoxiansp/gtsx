@@ -182,7 +182,7 @@ Card.frames = {
 
 Key points:
 - `createGProvider(useValue)` creates the provider.
-- `createGProvider(useValue, { variants })` declares a finite environment axis for Studio and static coverage.
+- `createGProvider(useValue, { variants })` declares a finite environment axis for preview and static coverage.
 - Frames supply fallback state: `providers: [[Provider, state]]`.
 - `GProviderFrame<typeof Provider, "variant">` marks which variant a frame covers; it does not supply provider state by itself.
 - Third type parameter of `GFrames` lists providers as a tuple.
@@ -357,7 +357,7 @@ Avoid moving the predicate into a helper such as `shouldShow(row)`. That hides t
 
 ## Pattern 10: Provider Variant Projection
 
-A child component may receive plain props that were shaped by a parent provider variant. It does not need to read the provider just to preserve that environment axis in Studio.
+A child component may receive plain props that were shaped by a parent provider variant. It does not need to read the provider just to preserve that environment axis in preview.
 
 ```tsx
 import type { GFrames, GProviderFrame } from "@runelight/react/runtime"
@@ -383,7 +383,7 @@ AccountName.frames = {
 
 Use this only when the props really are projections of that provider environment. If the child has no relationship to the provider axis, leave the frames unmarked.
 
-Unmarked frames are neutral in Studio, but they do not count as coverage for a component that consumes the provider. If one frame intentionally covers multiple variants, mark the union explicitly:
+Unmarked frames are neutral in preview, but they do not count as coverage for a component that consumes the provider. If one frame intentionally covers multiple variants, mark the union explicitly:
 
 ```tsx
 loading: {

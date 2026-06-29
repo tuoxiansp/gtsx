@@ -33,7 +33,7 @@ If the project isn't wired for Runelight yet, run the `setup-runelight` skill fi
 7. For native injection-dependent UI, import the same injection key in `<g:frames>`, use `providers: [[key, value]]`, and mark meaningful finite axes with `GVueProviderFrame`.
 8. Keep structural template branches inspectable: `v-if`, `v-else-if`, `v-show`, `v-for`, and dynamic `:is` should depend directly on props, scope, or injected frame values.
 9. Update imports from `./Component.vue` to `./Component.g.vue`. Preserve barrels.
-10. Run `runelight check` + project typecheck. Render a frame in Studio if available.
+10. Run `runelight check` + project typecheck. Render a frame in preview if available.
 
 ## Never
 

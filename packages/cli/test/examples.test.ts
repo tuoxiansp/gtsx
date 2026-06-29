@@ -80,7 +80,7 @@ describe("examples Vite host", () => {
     expect(statSync(childOverrideSnapshot).size).toBeGreaterThan(1_000)
   }, 60_000)
 
-  it("serves Studio and preview routes from the examples Vite host", async () => {
+  it("serves session and preview routes from the examples Vite host", async () => {
     const port = "4322"
     const server = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port", port, "--strictPort"], {
       cwd: examplesRoot,
@@ -92,88 +92,16 @@ describe("examples Vite host", () => {
     })
 
     try {
-      await fetchTextWhenReady(`http://127.0.0.1:${port}/runelight/studio`)
+      const session = JSON.parse(await fetchTextWhenReady(`http://127.0.0.1:${port}/runelight/session`))
+      expect(session).toHaveProperty("serveSession")
 
       const browser = await chromium.launch()
       try {
         const page = await browser.newPage()
-        await page.goto(`http://127.0.0.1:${port}/runelight/studio`)
-        await page
-          .locator('[data-runelight-card-coordinate="src/frames/language/PrimitiveProps.g.tsx#default"]')
-          .waitFor({ timeout: 10_000 })
-        await page
-          .locator('[data-runelight-card-coordinate="src/frames/stateful/DashboardShell.g.tsx#default"]')
-          .waitFor({ timeout: 10_000 })
-
         const entry = encodeURIComponent("src/frames/language/PrimitiveProps.g.tsx#default")
         await page.goto(`http://127.0.0.1:${port}/runelight?entry=${entry}&frame=positiveActive&chrome=0`)
         await page.getByText("Active language fixture").waitFor({ timeout: 10_000 })
         expect(await page.getByText("42 events").count()).toBeGreaterThan(0)
-      } finally {
-        await browser.close()
-      }
-    } finally {
-      server.kill()
-    }
-  }, 60_000)
-
-  it("animates Studio drilldown column exit when toggling selection closed", async () => {
-    const port = "4323"
-    const server = spawn("pnpm", ["exec", "vite", "--host", "127.0.0.1", "--port", port, "--strictPort"], {
-      cwd: examplesRoot,
-      env: {
-        ...process.env,
-        RUNELIGHT_DEV: "1",
-      },
-      stdio: "ignore",
-    })
-
-    try {
-      await fetchTextWhenReady(`http://127.0.0.1:${port}/runelight/studio`)
-
-      const browser = await chromium.launch()
-      try {
-        const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
-        await page.emulateMedia({ reducedMotion: "no-preference" })
-
-        const dashboardTile =
-          '[data-runelight-card-coordinate="src/frames/stateful/DashboardShell.g.tsx#default"] [data-runelight-frame-tile="stagingReview"]'
-        const childColumn =
-          '[data-runelight-column-index="1"] [data-runelight-card-coordinate="src/frames/stateful/NotificationBell.g.tsx#default"]'
-        const exitingColumn = '[data-runelight-drilldown-column-exit="true"][data-runelight-column-index="1"]'
-
-        await page.goto(`http://127.0.0.1:${port}/runelight/studio`)
-        await page.locator(`${dashboardTile} [data-runelight-frame-preview-frame-state="ready"]`).waitFor({
-          timeout: 10_000,
-        })
-
-        await page.locator(dashboardTile).click()
-        await page.locator(childColumn).waitFor({ timeout: 10_000 })
-
-        await page.locator(dashboardTile).click()
-        await page.locator(exitingColumn).waitFor({ state: "attached", timeout: 10_000 })
-
-        const exitAnimation = await page.locator(exitingColumn).evaluate((column) => {
-          const style = window.getComputedStyle(column)
-          return {
-            animationDuration: style.animationDuration,
-            animationName: style.animationName,
-            hasChildCard: Boolean(
-              column.querySelector(
-                '[data-runelight-card-coordinate="src/frames/stateful/NotificationBell.g.tsx#default"]',
-              ),
-            ),
-          }
-        })
-
-        expect(exitAnimation).toMatchObject({
-          animationDuration: "0.18s",
-          animationName: "runelight-studio-layout-neutral-drilldown-column-exit",
-          hasChildCard: true,
-        })
-
-        await page.locator(exitingColumn).waitFor({ state: "detached", timeout: 2_000 })
-        expect(await page.locator('[data-runelight-column-index="1"]').count()).toBe(0)
       } finally {
         await browser.close()
       }

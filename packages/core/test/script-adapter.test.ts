@@ -22,7 +22,7 @@ describe("Runelight preview commands", () => {
     rmSync(join(checkProjectRoot, "shots"), { recursive: true, force: true })
   })
 
-  it("serves the project Studio without requiring a component entry", async () => {
+  it("serves the project session without requiring a component entry", async () => {
     const port = await getFreePort()
     const result = await runCLI(["serve", "--port", port], {
       cwd: serveProjectRoot,
@@ -39,15 +39,15 @@ describe("Runelight preview commands", () => {
       },
       {
         action: "ready-check",
-        path: "/runelight/studio",
+        path: "/runelight/session",
       },
       {
         action: "ready-check",
-        path: "/runelight/studio/manifest",
+        path: "/runelight/session",
       },
       {
         action: "ready-check",
-        path: "/runelight/studio/manifest",
+        path: "/runelight/session",
       },
     ])
   })

@@ -12,7 +12,7 @@ import {
   type RunelightServeLock,
   type RunelightServeSession,
   runelightServeSessionProjectKey,
-  runelightServeSessionStudioUrl,
+  runelightServeSessionHealthUrl,
   RUNELIGHT_DEV_ENV,
   isRunelightServeBaseUrlHealthy,
   RUNELIGHT_PROJECT_KEY_ENV,
@@ -103,12 +103,12 @@ async function startNewRunelightServeSession(
     const sessionId = createRunelightServeSessionId()
     const projectKey = runelightServeSessionProjectKey(cwd)
     const baseUrl = `http://127.0.0.1:${port}`
-    const studioUrl = runelightServeSessionStudioUrl(baseUrl)
+    const healthUrl = runelightServeSessionHealthUrl(baseUrl)
     const host = await startHostServer(hostCommand, cwd, {
       hostStdio,
       port,
       projectKey,
-      readyUrl: studioUrl,
+      readyUrl: healthUrl,
       sessionId,
       writeStderr: params.writeStderr,
       writeStdout: params.writeStdout,
@@ -125,7 +125,7 @@ async function startNewRunelightServeSession(
       lastResult = {
         exitCode: 1,
         stdout: host.stdout,
-        stderr: `[adapter-configuration] preview-server-not-ready: Preview server did not expose a matching Runelight manifest at ${runelightServeSessionStudioUrl(baseUrl)}.\n`,
+        stderr: `[adapter-configuration] preview-server-not-ready: Preview server did not expose a matching Runelight session at ${runelightServeSessionHealthUrl(baseUrl)}.\n`,
       }
       if (explicitPort) return lastResult
       port = String(Number(port) + 1)
@@ -213,7 +213,8 @@ function existingServeSessionResult(
   session: RunelightServeSession,
   params: { stderr: string; writeStdout?: (chunk: string) => void },
 ): ServeSupervisorResult {
-  const stdout = `Runelight serve is already running: ${session.baseUrl}\nStudio: ${runelightServeSessionStudioUrl(session.baseUrl)}\n`
+  const baseUrl = session.baseUrl.replace(/\/+$/, "")
+  const stdout = `Runelight serve is already running: ${baseUrl}\nRunelight preview: ${baseUrl}/runelight\n`
   params.writeStdout?.(stdout)
   return {
     exitCode: 0,
@@ -311,13 +312,13 @@ export async function acquireRunelightServeSession(
     }
   }
   const baseUrl = `http://127.0.0.1:${port}`
-  const studioUrl = runelightServeSessionStudioUrl(baseUrl)
+  const healthUrl = runelightServeSessionHealthUrl(baseUrl)
   const sessionId = createRunelightServeSessionId()
   const previewServer = await startHostServer(hostCommand, cwd, {
     hostStdio: "pipe",
     port,
     projectKey: runelightServeSessionProjectKey(cwd),
-    readyUrl: studioUrl,
+    readyUrl: healthUrl,
     sessionId,
   })
   if (previewServer.exitCode !== 0) {
@@ -336,7 +337,7 @@ export async function acquireRunelightServeSession(
     return {
       exitCode: 1,
       stdout: previewServer.stdout,
-      stderr: `[adapter-configuration] preview-server-not-ready: Preview server did not expose a matching Runelight manifest at ${studioUrl}.\n`,
+      stderr: `[adapter-configuration] preview-server-not-ready: Preview server did not expose a matching Runelight session at ${healthUrl}.\n`,
       stop() {},
     }
   }
@@ -814,7 +815,8 @@ function portUnavailableResult(startPort: number, attempts: number): ServeSuperv
 }
 
 function serveSessionUrls(session: Pick<RunelightServeSession, "baseUrl">): string {
-  return `Runelight serve: ${session.baseUrl}\nStudio: ${runelightServeSessionStudioUrl(session.baseUrl)}\n`
+  const baseUrl = session.baseUrl.replace(/\/+$/, "")
+  return `Runelight serve: ${baseUrl}\nRunelight preview: ${baseUrl}/runelight\n`
 }
 
 function findAvailablePort(startPort: number, attempts: number): Promise<string | undefined> {

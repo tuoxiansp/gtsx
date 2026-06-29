@@ -17,7 +17,7 @@ export default function WebsiteHeroPreview(props: WebsiteHeroPreviewProps) {
       <p>{props.body}</p>
       <div className="case-meta-row">
         <span>Frame · live branch</span>
-        <span className="case-action case-action-primary">Open in Studio</span>
+        <span className="case-action case-action-primary">Capture preview</span>
       </div>
     </article>
   )
@@ -37,7 +37,7 @@ WebsiteHeroPreview.frames = {
     props: {
       branchLabel: "signed-in",
       headline: "Ada Lovelace · workspace ready",
-      body: "Production website frames and curated case components render together in this project's Studio.",
+      body: "Production website frames and curated case components render through this project's preview route.",
     },
   },
 } satisfies GFrames<WebsiteHeroPreviewProps>

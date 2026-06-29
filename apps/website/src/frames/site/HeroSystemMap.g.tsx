@@ -1,7 +1,7 @@
 import type { GFrames } from "@runelight/react/runtime"
 
 type HeroSystemMapProps = {
-  studioImage: string
+  previewImage: string
   authImage: string
   dataImage: string
   layoutImage: string
@@ -36,12 +36,12 @@ export default function HeroSystemMap(props: HeroSystemMapProps) {
 } satisfies GFrames<AuthCaseProps>`}</pre>
       </article>
 
-      <article className="hero-scene-panel hero-scene-studio">
+      <article className="hero-scene-panel hero-scene-preview">
         <header>
-          <span>Runelight Studio</span>
-          <strong>visual branch map</strong>
+          <span>preview target</span>
+          <strong>visual branch path</strong>
         </header>
-        <img src={props.studioImage} alt="Runelight Studio canvas showing component frame cards" />
+        <img src={props.previewImage} alt="Runelight preview capture showing a covered component frame" />
       </article>
 
       <article className="hero-scene-panel hero-scene-auth">
@@ -71,7 +71,7 @@ export default function HeroSystemMap(props: HeroSystemMapProps) {
       <div className="hero-scene-chain" aria-hidden="true">
         <span>source</span>
         <i />
-        <span>studio</span>
+        <span>preview</span>
         <i />
         <span>capture</span>
       </div>
@@ -81,9 +81,9 @@ export default function HeroSystemMap(props: HeroSystemMapProps) {
 
 HeroSystemMap.frames = {
   live: {
-    description: "Hero system map with Studio and case-study captures",
+    description: "Hero system map with preview and case-study captures",
     props: {
-      studioImage: "/captures/studio-components.png",
+      previewImage: "/captures/site/website-hero-preview.png",
       authImage: "/captures/cases/auth-case.png",
       dataImage: "/captures/cases/data-case.png",
       layoutImage: "/captures/cases/layout-case.png",

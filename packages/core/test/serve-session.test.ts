@@ -37,10 +37,10 @@ describe("Runelight serve session registry", () => {
     rmSync(projectRoot, { force: true, recursive: true })
   })
 
-  it("accepts a registry entry only when the manifest identity matches", async () => {
+  it("accepts a registry entry only when the session identity matches", async () => {
     const sessionId = createRunelightServeSessionId()
     const projectKey = runelightServeSessionProjectKey(projectRoot)
-    const server = await startManifestServer({ projectKey, sessionId })
+    const server = await startSessionServer({ projectKey, sessionId })
 
     try {
       writeRunelightServeSession(projectRoot, {
@@ -66,9 +66,9 @@ describe("Runelight serve session registry", () => {
     }
   })
 
-  it("removes stale entries when the manifest identity does not match", async () => {
+  it("removes stale entries when the session identity does not match", async () => {
     const sessionId = createRunelightServeSessionId()
-    const server = await startManifestServer({ projectKey: "other-project", sessionId })
+    const server = await startSessionServer({ projectKey: "other-project", sessionId })
 
     try {
       writeRunelightServeSession(projectRoot, {
@@ -88,10 +88,10 @@ describe("Runelight serve session registry", () => {
     }
   })
 
-  it("accepts an active manifest even when recorded supervisor pid is stale", async () => {
+  it("accepts an active session even when recorded supervisor pid is stale", async () => {
     const sessionId = createRunelightServeSessionId()
     const projectKey = runelightServeSessionProjectKey(projectRoot)
-    const server = await startManifestServer({ projectKey, sessionId })
+    const server = await startSessionServer({ projectKey, sessionId })
 
     try {
       writeRunelightServeSession(projectRoot, {
@@ -165,7 +165,7 @@ describe("Runelight serve session registry", () => {
   })
 })
 
-async function startManifestServer(identity: { projectKey: string; sessionId: string }): Promise<{
+async function startSessionServer(identity: { projectKey: string; sessionId: string }): Promise<{
   baseUrl: string
   close(): Promise<void>
   port: string

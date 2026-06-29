@@ -86,7 +86,7 @@ Verify: `runelight check src/Badge.g.tsx`
 runelight check <file.g.tsx|dir>         # validate contracts
 runelight check -p tsconfig.app.json .   # explicit project
 runelight inspect <file.g.tsx> --json    # inspect static GUI dependencies for one entry
-runelight serve                          # start Studio server
+runelight serve                          # start Runelight preview server
 runelight capture <file.g.tsx>           # screenshot all frames
 runelight preview-targets <file.g.tsx> --json  # paged preview paths, default 20
 runelight capture --path "<target.path>"       # screenshot one selected path

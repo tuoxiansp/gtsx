@@ -29,11 +29,6 @@
       "require": "./index.cjs",
       "default": "./dist/index.js"
     },
-    "./preview-entries": {
-      "types": "./dist/preview-entries.d.ts",
-      "import": "./dist/preview-entries.js",
-      "default": "./dist/preview-entries.js"
-    },
     "./preview": {
       "types": "./dist/preview.d.ts",
       "import": "./dist/preview.js",
@@ -44,15 +39,10 @@
       "import": "./dist/preview-route.js",
       "default": "./dist/preview-route.js"
     },
-    "./studio-route": {
-      "types": "./dist/studio-route.d.ts",
-      "import": "./dist/studio-route.js",
-      "default": "./dist/studio-route.js"
-    },
-    "./studio-manifest-route": {
-      "types": "./dist/studio-manifest-route.d.ts",
-      "import": "./dist/studio-manifest-route.js",
-      "default": "./dist/studio-manifest-route.js"
+    "./session-route": {
+      "types": "./dist/session-route.d.ts",
+      "import": "./dist/session-route.js",
+      "default": "./dist/session-route.js"
     }
   },
   "files": [
@@ -71,7 +61,6 @@
   },
   "peerDependencies": {
     "@runelight/core": "workspace:*",
-    "@runelight/studio": "workspace:*",
     "next": ">=13",
     "react": ">=18"
   },

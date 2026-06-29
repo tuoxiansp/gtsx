@@ -10,7 +10,7 @@ export type {
 export const G_PREVIEW_PROTOCOL_VERSION = 1
 
 /**
- * @internal Preview runtime to Studio rendered-diff protocol detail.
+ * @internal Preview runtime rendered-snapshot protocol detail.
  */
 export const G_RENDERED_SNAPSHOT_VERSION = 3
 
@@ -64,7 +64,7 @@ export type GPreviewResizeMessage = GPreviewProtocolBase & {
 }
 
 /**
- * @internal Preview runtime to Studio rendered-diff protocol detail.
+ * @internal Preview runtime rendered-snapshot protocol detail.
  */
 export type GRenderedSnapshotRect = {
   x: number
@@ -74,7 +74,7 @@ export type GRenderedSnapshotRect = {
 }
 
 /**
- * @internal Preview runtime to Studio rendered-diff protocol detail.
+ * @internal Preview runtime rendered-snapshot protocol detail.
  */
 export type GRenderedSnapshotPseudo = {
   content: string
@@ -82,7 +82,7 @@ export type GRenderedSnapshotPseudo = {
 }
 
 /**
- * @internal Preview runtime to Studio rendered-diff protocol detail.
+ * @internal Preview runtime rendered-snapshot protocol detail.
  */
 export type GRenderedSnapshotNode = {
   attrs?: Record<string, string>
@@ -96,7 +96,7 @@ export type GRenderedSnapshotNode = {
 }
 
 /**
- * @internal Preview runtime to Studio rendered-diff protocol detail.
+ * @internal Preview runtime rendered-snapshot protocol detail.
  */
 export type GRenderedSnapshot = {
   hash: string
@@ -110,7 +110,7 @@ export type GRenderedSnapshot = {
 }
 
 /**
- * @internal Preview runtime to Studio rendered-diff protocol detail.
+ * @internal Preview runtime rendered-snapshot protocol detail.
  */
 export type GPreviewRenderedSnapshotMessage = GPreviewProtocolBase & {
   type: "runelight:rendered-snapshot"
@@ -552,7 +552,7 @@ export function createGPreviewResizeMessage(
 }
 
 /**
- * @internal Preview runtime to Studio rendered-diff protocol detail.
+ * @internal Preview runtime rendered-snapshot protocol detail.
  */
 export function createGPreviewRenderedSnapshotMessage(
   sessionId: string,
@@ -727,7 +727,7 @@ const renderedSnapshotPseudoStyleProperties = [
 ] as const
 
 /**
- * @internal Preview runtime to Studio rendered-diff protocol detail.
+ * @internal Preview runtime rendered-snapshot protocol detail.
  */
 export function readGRenderedSnapshot(document: Document): GRenderedSnapshot {
   const root = document.body ?? document.documentElement

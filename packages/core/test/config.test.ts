@@ -5,14 +5,13 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import {
-  runelightBaselineRootFromEntryRoot,
   runelightGeneratedRootFromEntryRoot,
   loadRunelightConfig,
   resolveRunelightConfig,
 } from "../src/config.js"
 
 describe("runelight config", () => {
-  it("loads project, Host, and internal Studio settings", () => {
+  it("loads project and Host settings", () => {
     const root = mkdtempSync(join(tmpdir(), "runelight-config-"))
     try {
       writeFileSync(
@@ -30,9 +29,6 @@ export default defineRunelightConfig({
   host: {
     command: "pnpm dev --port {port}",
   },
-  studio: {
-    exposeInProduction: true,
-  },
 })
 `,
       )
@@ -49,18 +45,15 @@ export default defineRunelightConfig({
       })
       expect(resolveRunelightConfig(result.config!).host.command).toBe("pnpm dev --port {port}")
       expect(resolveRunelightConfig(result.config!).routes).toEqual({
-        events: "/runelight/studio/events",
         preview: "/runelight",
-        studio: "/runelight/studio",
-        manifest: "/runelight/studio/manifest",
+        session: "/runelight/session",
       })
-      expect(resolveRunelightConfig(result.config!).studio.exposeInProduction).toBe(true)
     } finally {
       rmSync(root, { force: true, recursive: true })
     }
   })
 
-  it("normalizes project roots and defaults routes and internal Studio settings", () => {
+  it("normalizes project roots and defaults routes", () => {
     const resolved = resolveRunelightConfig({
       contracts: ["@runelight/react/contract"],
       project: {
@@ -75,14 +68,11 @@ export default defineRunelightConfig({
     expect(resolved.project.sourceRoot).toBe("src")
     expect(resolved.project.entryRoot).toBe("app/runelight")
     expect(resolved.routes.preview).toBe("/runelight")
-    expect(resolved.routes.studio).toBe("/runelight/studio")
-    expect(resolved.routes.manifest).toBe("/runelight/studio/manifest")
-    expect(resolved.studio.exposeInProduction).toBe(false)
+    expect(resolved.routes.session).toBe("/runelight/session")
   })
 
   it("derives generated Runelight roots from the local entry root", () => {
     expect(runelightGeneratedRootFromEntryRoot("src/app/runelight")).toBe("src/app/runelight/.runelight")
-    expect(runelightBaselineRootFromEntryRoot("src/app/runelight")).toBe("src/app/runelight/.runelight/baselines/HEAD")
     expect(runelightGeneratedRootFromEntryRoot(".")).toBe(".runelight")
   })
 

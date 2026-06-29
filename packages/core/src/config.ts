@@ -8,12 +8,12 @@ import { defineRunelightConfig } from "./define-config.js"
 import {
   isRunelightHostCommandWithPortPlaceholder,
   resolveRunelightConfig,
-  runelightBaselineRootFromEntryRoot,
   runelightGeneratedRootFromEntryRoot,
 } from "./config-model.js"
 import type { RunelightConfig, RunelightProjectConfig } from "./config-types.js"
 
-export { resolveRunelightConfig, runelightBaselineRootFromEntryRoot, runelightGeneratedRootFromEntryRoot }
+export { resolveRunelightConfig, runelightGeneratedRootFromEntryRoot }
+export type { ResolvedRunelightConfig, RunelightConfig, RunelightProjectConfig } from "./config-types.js"
 
 const require = createRequire(import.meta.url)
 

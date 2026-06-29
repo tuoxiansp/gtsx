@@ -1,6 +1,6 @@
 # Runelight CLI
 
-The `runelight` command ships in `@runelight/cli`. It wraps the project's own Host (Vite, Next.js, or a custom dev command) rather than running a parallel bundler.
+The `runelight` command ships in `@runelight/cli`. It wraps the project's own React or Vue Host dev command rather than running a parallel bundler.
 
 Configuration lives in `runelight.config.ts`; see the [Configuration Reference](./runelight-configuration.md).
 
@@ -40,7 +40,7 @@ Builds a static GUI dependency map for one Runelight component entry:
 
 - Accepts an entry file or explicit coordinate such as `src/AppShell.g.tsx#default`.
 - If a file contains multiple Runelight component exports, pass an explicit coordinate.
-- Does not start the Host, open Studio, render screenshots, or expand dependency combinations.
+- Does not start the Host, open a browser, render screenshots, or expand dependency combinations.
 - Outputs each reachable component node and, for every frame, the `.g` component coordinates that can contribute GUI under conservative static analysis.
 - Keeps the unpruned structural graph in `structuralDependencies`; when a dependency is removed from `dependencies`, `prunedDependencies` records the coordinate and proof reason.
 - `--json` prints a versioned automation schema with `schemaVersion: 1`.
@@ -52,7 +52,7 @@ Builds a static GUI dependency map for one Runelight component entry:
 Builds browser-ready preview paths from the pruned static GUI graph for one Runelight component entry:
 
 - Accepts an entry file or explicit coordinate such as `src/AppShell.g.tsx#default`.
-- Does not start the Host, open Studio, or render screenshots.
+- Does not start the Host, open a browser, or render screenshots.
 - Emits `/runelight?...` paths without a host. Attach them to the local Host returned by `runelight serve` or an already-running app server.
 - Each target contains a `path` and one or more static `paths`. A path node contains `coordinate`, `frame`, and static `description` when the frame declares one.
 - Traversal uses the same conservative pruning as `inspect`. Pruned dependencies do not generate ordinary preview targets.
@@ -68,9 +68,9 @@ Builds browser-ready preview paths from the pruned static GUI graph for one Rune
 
 ## `runelight changes`
 
-Lists current Git workspace changes that affect Runelight frames. The command compares the working tree against `HEAD`, builds the same static visual graph used by Studio changes, and does not start the Host or render screenshots.
+Lists current Git workspace changes that affect Runelight frames. The command compares the working tree against `HEAD`, builds the same static visual graph used by `preview-targets` and capture workflows, and does not start the Host or render screenshots.
 
-The Studio changes tab is UI-focused and hides unchanged visual entries. The CLI default is audit-focused and includes code changes whose `uiStatus` is `"unchanged"`; pass `--ui-only` for a Studio-like visual change list.
+The CLI default is audit-focused and includes code changes whose `uiStatus` is `"unchanged"`; pass `--ui-only` for a visual-only change list.
 
 - Added and deleted `.g.tsx` / `.g.vue` files are reported as added or deleted UI.
 - Modified files distinguish `codeStatus` from `uiStatus`; code-only edits can be `uiStatus: "unchanged"`.
@@ -78,17 +78,18 @@ The Studio changes tab is UI-focused and hides unchanged visual entries. The CLI
 - `--json` prints a versioned automation schema with `schemaVersion: 1`.
 - `--ui-only` omits components whose UI status is unchanged.
 - `--component <component-or-file>` filters by exact component name, coordinate, file path, or `file#export`.
-- When filters are present, `summary.files` and `summary.ui` describe the visible components; `base` and `diagnostics` still describe the full analysis context.
+- When filters are present, `summary.files` and `summary.ui` describe the visible components.
+- With `--component`, diagnostics are scoped to the matching or requested component file so unrelated analyzer errors do not block single-surface discovery. Fileless project diagnostics are still included.
 
-Fatal analyzer diagnostics are included in the report and make the command exit non-zero.
+Visible fatal analyzer diagnostics make the command exit non-zero.
 
 ## `runelight serve`
 
 Starts the configured Host through `host.command` from `runelight.config.ts`:
 
 - Substitutes the `{port}` placeholder with the Runelight-owned port. Without `--port`, the supervisor starts at port 4300 and probes the next ports until it finds a free one. `--port` must be a TCP port from 1 to 65535.
-- Sets `RUNELIGHT_DEV=1` so framework adapters activate the `/runelight` and `/runelight/studio` routes.
-- Prints the local serve URL and Studio URL, and registers a serve session for the project so `runelight capture` can attach to it.
+- Sets `RUNELIGHT_DEV=1` so framework adapters activate `/runelight` and `/runelight/session`.
+- Prints the local serve URL and the base `/runelight` preview URL, waits for the session endpoint, and registers a serve session for the project so `runelight capture` can attach to it.
 - `Ctrl-C` stops the Runelight CLI, the Host command, and the Host's worker children, then removes the session registry and lock.
 
 Fails with `missing-host-command` when `host.command` is not configured, and `invalid-host-command` when the configured command does not include the `{port}` placeholder.

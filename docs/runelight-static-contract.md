@@ -70,7 +70,7 @@ Some features need type-level markers because the runtime value alone does not n
 - React provider variants use `createGProvider(..., { variants })` plus `GProviderFrame`.
 - Vue injection variants use `defineGInjectionKey(..., { variants })` plus `GVueProviderFrame`.
 
-The frame still carries the runtime value with `providers`; the marker tells Studio and `runelight check` which named variant the frame covers. Provider/injection variant axes are not inferred from arbitrary runtime values.
+The frame still carries the runtime value with `providers`; the marker tells preview-target generation and `runelight check` which named variant the frame covers. Provider/injection variant axes are not inferred from arbitrary runtime values.
 
 ## Provider Variants
 
@@ -98,20 +98,20 @@ Panel.frames = {
 }
 ```
 
-`GProviderFrame` is a static marker — it tells Studio and `runelight check` what environment the frame covers. Runtime state is still supplied separately through `providers: [[Provider, value]]`.
+`GProviderFrame` is a static marker — it tells preview tooling and `runelight check` what environment the frame covers. Runtime state is still supplied separately through `providers: [[Provider, value]]`.
 
 ### Coverage rules
 
 - If a component consumes a provider with declared variants, its frames **must** cover every variant.
-- A frame that is genuinely orthogonal to the axis can stay unmarked (neutral in Studio).
+- A frame that is genuinely orthogonal to the axis can stay unmarked.
 - A frame covering multiple variants can use a union: `GProviderFrame<typeof Provider, "login" | "anonymous">`.
 - Variants are only for meaningful finite axes (theme, auth state, role, locale, platform). Omit `variants` for providers carrying arbitrary data.
 
 ### Projection
 
-A child that only receives plain props can still mark frames with `GProviderFrame` when those props are shaped by a parent's provider variant. This lets Studio show the environment axis without forcing the child to read context directly.
+A child that only receives plain props can still mark frames with `GProviderFrame` when those props are shaped by a parent's provider variant. This preserves the environment axis without forcing the child to read context directly.
 
-Child projection frames supplement Studio expression. They do not replace the parent's coverage obligation.
+Child projection frames supplement preview-target expression. They do not replace the parent's coverage obligation.
 
 If Runelight sees provider-derived props flowing into an unmarked child, it reports a non-blocking warning - an agent can decide whether projection markers are needed.
 
@@ -127,9 +127,9 @@ The checker's branch-coverage question is still component-local: does at least o
 
 See [Composable Frame Inputs](./runelight-composable-inputs.md) for edge cases such as multiple child instances, framework-specific child frame override support, and child-local scope mocks in parent renders.
 
-### Studio expression
+### Preview expression
 
-Declared variants become environment controls in Studio. A root-level selection constrains the canvas. A component-level selection overrides locally. Matching and mismatching frames are distinguished visually rather than filtered away, so you always see the full state model.
+Declared variants become environment metadata for preview targets and capture selection. Root-level preview paths can carry one state model while child frame overrides can pin local component states. The model stays explicit in source instead of being inferred from arbitrary runtime values.
 
 ## Diagnostics
 
@@ -176,4 +176,4 @@ These report drift between the declared frame set and the component's reachable 
 |-----------|-----------|---------|
 | `unmarked-provider-variant-projection` | React | A child might need `GProviderFrame` markers for provider-derived props |
 
-The point is not to restrict how production React or Vue works. The point is to prevent Studio's map from drifting away from the component's real render surface.
+The point is not to restrict how production React or Vue works. The point is to prevent preview and capture targets from drifting away from the component's real render surface.

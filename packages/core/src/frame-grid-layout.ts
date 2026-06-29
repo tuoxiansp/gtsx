@@ -1,10 +1,10 @@
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export type RunelightPreviewViewportPreset = "desktop" | "phone" | "tablet"
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export type RunelightPreviewFrameGridItemLayout = {
   height: number
@@ -12,7 +12,7 @@ export type RunelightPreviewFrameGridItemLayout = {
 }
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export type RunelightPreviewFrameGridLayout = {
   frameChromeHeight: number
@@ -27,93 +27,93 @@ export type RunelightPreviewFrameGridLayout = {
 }
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export const runelightPreviewFixedFrameScale = 0.45
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export const runelightPreviewScreenStableChromeMinimumScale = 0.75
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export const runelightPreviewFrameGridGap = 14
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export const runelightPreviewCardTitleScreenGap = 8
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export const runelightPreviewCardTitleScreenHeight = 9
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export const runelightPreviewFrameLabelScreenGap = 5
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export const runelightPreviewFrameLabelScreenMinHeight = 13
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export const runelightPreviewCardTitleGap = runelightPreviewScreenStableChromeReservedLength(
   runelightPreviewCardTitleScreenGap,
 )
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export const runelightPreviewCardTitleHeight = runelightPreviewScreenStableChromeReservedLength(
   runelightPreviewCardTitleScreenHeight,
 )
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export const runelightPreviewFrameLabelGap = runelightPreviewScreenStableChromeReservedLength(
   runelightPreviewFrameLabelScreenGap,
 )
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export const runelightPreviewFrameLabelMinHeight = runelightPreviewScreenStableChromeReservedLength(
   runelightPreviewFrameLabelScreenMinHeight,
 )
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export const runelightPreviewFrameChromeHeight =
   runelightPreviewFrameLabelGap + runelightPreviewFrameLabelMinHeight
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export const runelightPreviewFrameGridMinScale = 0.18
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export const runelightPreviewFrameMismatchBorderOutset = 2
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export function runelightPreviewScreenStableChromeReservedLength(screenLength: number): number {
   return Math.ceil(screenLength / runelightPreviewScreenStableChromeMinimumScale)
 }
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export function runelightPreviewFrameGridMaxSide(
   viewportPreset: RunelightPreviewViewportPreset,
@@ -124,7 +124,7 @@ export function runelightPreviewFrameGridMaxSide(
 }
 
 /**
- * @internal Shared Studio/preview geometry helper. Not a user-facing layout API.
+ * @internal Shared preview geometry helper. Not a user-facing layout API.
  */
 export function computeRunelightPreviewFrameGridLayout(input: {
   frameChromeHeight?: number

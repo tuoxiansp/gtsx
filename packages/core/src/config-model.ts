@@ -1,13 +1,11 @@
 import type { RunelightConfig, RunelightProjectConfig, RunelightRouteConfig, ResolvedRunelightConfig } from "./config-types.js"
 
 /**
- * @internal Fixed adapter/Studio sidecar routes. Users should not import this as configuration.
+ * @internal Fixed adapter preview routes. Users should not import this as configuration.
  */
 export const DEFAULT_RUNELIGHT_ROUTES: RunelightRouteConfig = {
-  events: "/runelight/studio/events",
   preview: "/runelight",
-  studio: "/runelight/studio",
-  manifest: "/runelight/studio/manifest",
+  session: "/runelight/session",
 }
 export const RUNELIGHT_HOST_PORT_PLACEHOLDER = "{port}"
 
@@ -23,19 +21,11 @@ export function resolveRunelightConfig(config: RunelightConfig): ResolvedRunelig
       ...(config.project?.tsconfig ? { tsconfig: config.project.tsconfig } : {}),
     },
     routes: DEFAULT_RUNELIGHT_ROUTES,
-    studio: {
-      exposeInProduction: config.studio?.exposeInProduction ?? false,
-    },
   }
 }
 
-export function runelightDesignRootFromEntryRoot(entryRoot: string): string {
-  const root = normalizeRunelightPath(entryRoot)
-  return root === "." ? "design" : `${root}/design`
-}
-
 /**
- * @internal Adapter, Studio, and CLI generated-file location helper.
+ * @internal Adapter and CLI generated-file location helper.
  */
 export function runelightGeneratedRootFromEntryRoot(entryRoot: string): string {
   const root = normalizeRunelightPath(entryRoot)
@@ -43,7 +33,7 @@ export function runelightGeneratedRootFromEntryRoot(entryRoot: string): string {
 }
 
 /**
- * @internal Adapter, Studio, and CLI baseline-cache location helper.
+ * @internal Adapter and CLI baseline-cache location helper.
  */
 export function runelightBaselineRootFromEntryRoot(entryRoot: string): string {
   return `${runelightGeneratedRootFromEntryRoot(entryRoot)}/baselines/HEAD`

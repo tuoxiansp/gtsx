@@ -1,6 +1,6 @@
 # Runelight React Authoring Guide
 
-How to write Runelight components: React components in `.g.tsx` files that use the `.g` protocol, pass `runelight check`, and render correctly in Studio. For Vue SFCs, see the [Vue Authoring Guide](./runelight-vue-authoring-guide.md).
+How to write Runelight components: React components in `.g.tsx` files that use the `.g` protocol, pass `runelight check`, and render correctly in preview. For Vue SFCs, see the [Vue Authoring Guide](./runelight-vue-authoring-guide.md).
 
 This is the human-readable companion to the React agent skill. The canonical reference for all React patterns lives in [skills/authoring-runelight-react/REFERENCE.md](../skills/authoring-runelight-react/REFERENCE.md). This guide covers the mental model and decision points.
 

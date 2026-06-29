@@ -4,18 +4,9 @@ import {
   readRunelightPreviewFrameOverridesFromSearchParams,
   readRunelightPreviewInputOverridesFromSearchParams,
 } from "@runelight/core/preview-protocol"
-import type { RunelightConfig } from "@runelight/core"
 import { isRunelightNextRouteEnabled } from "./route-enablement.js"
 
 export type RunelightNextPreviewSearchParams = Record<string, string | string[] | undefined> | URLSearchParams | undefined
-
-/**
- * @internal Test and nonstandard host wiring escape hatch. Normal route files should call helper functions without passing config or cwd.
- */
-export type RunelightNextPreviewRouteOptions = {
-  config?: RunelightConfig
-  cwd?: string
-}
 
 export type RunelightNextPreviewRouteProps = {
   frameName?: string | null
@@ -49,8 +40,8 @@ export function readRunelightNextPreviewProps(searchParams: RunelightNextPreview
   }
 }
 
-export function isRunelightNextPreviewRouteEnabled(options: RunelightNextPreviewRouteOptions = {}): boolean {
-  return isRunelightNextRouteEnabled(options)
+export function isRunelightNextPreviewRouteEnabled(): boolean {
+  return isRunelightNextRouteEnabled()
 }
 
 export function createRunelightNextPreviewSsrScripts(

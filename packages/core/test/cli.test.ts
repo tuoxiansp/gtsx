@@ -579,6 +579,130 @@ Link.frames = {
           file: "src/Button.g.tsx",
         },
       ])
+
+      const unmatchedResult = await runCLI(["changes", "--json", "--component", "Missing"], {
+        cwd,
+        stdout: "",
+        stderr: "",
+      })
+      const unmatchedReport = JSON.parse(unmatchedResult.stdout)
+
+      expect(unmatchedResult.exitCode, `${unmatchedResult.stdout}\n${unmatchedResult.stderr}`).toBe(0)
+      expect(unmatchedReport.components).toEqual([])
+      expect(unmatchedReport.diagnostics).toEqual([])
+    } finally {
+      rmSync(cwd, { force: true, recursive: true })
+    }
+  })
+
+  it("scopes component-filtered change diagnostics to the requested surface", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "runelight-cli-changes-filtered-diagnostics-"))
+
+    try {
+      mkdirSync(join(cwd, "src"), { recursive: true })
+      writeFileSync(
+        join(cwd, "tsconfig.json"),
+        JSON.stringify({ compilerOptions: { jsx: "react-jsx", module: "ESNext", moduleResolution: "Bundler", target: "ES2022" }, include: ["src"] }),
+      )
+      writeFileSync(
+        join(cwd, "runelight.config.ts"),
+        `import { defineRunelightConfig } from "@runelight/core"
+
+export default defineRunelightConfig({
+  contracts: [${JSON.stringify(join(repositoryRoot, "packages/react/src/contract.ts"))}],
+  project: {
+    sourceRoot: "src",
+    entryRoot: "src",
+    tsconfig: "tsconfig.json",
+  },
+})
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Button.g.tsx"),
+        `import type { GFrames } from "@runelight/react"
+
+type ButtonProps = { label: string }
+
+export default function Button(props: ButtonProps) {
+  return <button>{props.label}</button>
+}
+
+Button.frames = {
+  ready: { description: "ready frame", props: { label: "Save" } },
+} satisfies GFrames<ButtonProps>
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Broken.g.tsx"),
+        `import type { GFrames } from "@runelight/react"
+
+type BrokenProps = { label: string }
+
+export default function Broken(props: BrokenProps) {
+  return <div>{props.label}</div>
+}
+
+Broken.frames = {
+  ready: { description: "ready frame", props: { label: "Ready" } },
+} satisfies GFrames<BrokenProps>
+`,
+      )
+      spawnSync("git", ["init"], { cwd, encoding: "utf8" })
+      spawnSync("git", ["add", "."], { cwd, encoding: "utf8" })
+      spawnSync("git", ["-c", "user.email=runelight@example.test", "-c", "user.name=Runelight Test", "commit", "-m", "baseline"], {
+        cwd,
+        encoding: "utf8",
+      })
+      writeFileSync(
+        join(cwd, "src/Button.g.tsx"),
+        `import type { GFrames } from "@runelight/react"
+
+type ButtonProps = { label: string }
+
+export default function Button(props: ButtonProps) {
+  return <button><strong>{props.label}</strong></button>
+}
+
+Button.frames = {
+  ready: { description: "ready frame", props: { label: "Save" } },
+} satisfies GFrames<ButtonProps>
+`,
+      )
+      writeFileSync(
+        join(cwd, "src/Broken.g.tsx"),
+        `export const value = 1
+`,
+      )
+
+      const unfilteredResult = await runCLI(["changes", "--json"], { cwd, stdout: "", stderr: "" })
+      const unfilteredReport = JSON.parse(unfilteredResult.stdout)
+
+      expect(unfilteredResult.exitCode, `${unfilteredResult.stdout}\n${unfilteredResult.stderr}`).toBe(1)
+      expect(unfilteredReport.diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: "missing-component-export",
+          file: "src/Broken.g.tsx",
+        }),
+      ]))
+
+      const filteredResult = await runCLI(["changes", "--json", "--component", "src/Button.g.tsx#default"], {
+        cwd,
+        stdout: "",
+        stderr: "",
+      })
+      const filteredReport = JSON.parse(filteredResult.stdout)
+
+      expect(filteredResult.exitCode, `${filteredResult.stdout}\n${filteredResult.stderr}`).toBe(0)
+      expect(filteredReport.diagnostics).toEqual([])
+      expect(filteredReport.summary.files).toEqual({ added: 0, deleted: 0, modified: 1 })
+      expect(filteredReport.summary.ui.changed).toBe(1)
+      expect(filteredReport.components).toMatchObject([
+        {
+          coordinate: "src/Button.g.tsx#default",
+          file: "src/Button.g.tsx",
+        },
+      ])
     } finally {
       rmSync(cwd, { force: true, recursive: true })
     }
@@ -710,7 +834,7 @@ Card.frames = {
     expect(result.stdout).not.toContain("missing-config")
   })
 
-  it("serves the project Studio URL without requiring a component entry", async () => {
+  it("serves the project preview session without requiring a component entry", async () => {
     const cwd = join(import.meta.dirname, "fixtures/serve-project")
     const logFile = join(cwd, "runelight-command-log.jsonl")
     rmSync(logFile, { force: true })
@@ -719,14 +843,14 @@ Card.frames = {
 
     expect(result).toEqual({
       exitCode: 0,
-      stdout: "Runelight serve: http://127.0.0.1:4555\nStudio: http://127.0.0.1:4555/runelight/studio\n",
+      stdout: "Runelight serve: http://127.0.0.1:4555\nRunelight preview: http://127.0.0.1:4555/runelight\n",
       stderr: "",
     })
     expect(readFileSync(logFile, "utf8").trim().split("\n").map((line) => JSON.parse(line))).toEqual([
       { action: "serve", args: ["--port", "4555"], runelightDev: "1" },
-      { action: "ready-check", path: "/runelight/studio" },
-      { action: "ready-check", path: "/runelight/studio/manifest" },
-      { action: "ready-check", path: "/runelight/studio/manifest" },
+      { action: "ready-check", path: "/runelight/session" },
+      { action: "ready-check", path: "/runelight/session" },
+      { action: "ready-check", path: "/runelight/session" },
     ])
   })
 
@@ -739,9 +863,47 @@ Card.frames = {
     expect(result.stdout).not.toContain("missing-config")
   })
 
+  it("prints the preview URL when a Runelight serve session is already running", async () => {
+    const cwd = join(import.meta.dirname, "fixtures/serve-project")
+    const sessionDir = mkdtempSync(join(tmpdir(), "runelight-cli-sessions-"))
+    const previousSessionDir = process.env.RUNELIGHT_SESSION_DIR
+    const sessionId = createRunelightServeSessionId()
+    const projectKey = runelightServeSessionProjectKey(cwd)
+    const server = await startHealthyRunelightServer({ projectKey, sessionId })
+
+    process.env.RUNELIGHT_SESSION_DIR = sessionDir
+    try {
+      writeRunelightServeSession(cwd, {
+        baseUrl: server.baseUrl,
+        hostPid: process.pid,
+        mode: "runelight-dev",
+        port: server.port,
+        sessionId,
+        startedAt: new Date().toISOString(),
+        supervisorPid: process.pid,
+      })
+
+      const result = await runCLI(["serve"], { cwd, stdout: "", stderr: "" })
+
+      expect(result).toEqual({
+        exitCode: 0,
+        stdout: `Runelight serve is already running: ${server.baseUrl}\nRunelight preview: ${server.baseUrl}/runelight\n`,
+        stderr: "",
+      })
+    } finally {
+      await server.close()
+      if (previousSessionDir === undefined) {
+        delete process.env.RUNELIGHT_SESSION_DIR
+      } else {
+        process.env.RUNELIGHT_SESSION_DIR = previousSessionDir
+      }
+      rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
   it("reports missing Host command for project-level serve", async () => {
     const result = await runCLI(["serve"], {
-      cwd: join(import.meta.dirname, "fixtures/missing-studio-url"),
+      cwd: join(import.meta.dirname, "fixtures/missing-host-command"),
       stdout: "",
       stderr: "",
     })
@@ -799,7 +961,7 @@ export default defineRunelightConfig({
         .trim()
         .split("\n")
         .map((line) => JSON.parse(line))
-      const finalPort = [...logs].reverse().find((log) => log.action === "ready-check" && log.path === "/runelight/studio/manifest")?.port
+      const finalPort = [...logs].reverse().find((log) => log.action === "ready-check" && log.path === "/runelight/session")?.port
       const serveAttempts = logs.filter((log) => log.action === "serve").map((log) => log.port)
 
       expect(result.exitCode).toBe(0)
@@ -808,8 +970,8 @@ export default defineRunelightConfig({
       expect(finalPort).toBe(serveAttempts.at(-1))
       expect(conflictPorts).not.toContain(finalPort)
       expect(result.stdout).toContain(`Runelight serve: http://127.0.0.1:${finalPort}`)
-      expect(logs).toContainEqual({ action: "ready-check", path: "/runelight/studio", port: finalPort })
-      expect(logs).toContainEqual({ action: "ready-check", path: "/runelight/studio/manifest", port: finalPort })
+      expect(result.stdout).toContain(`Runelight preview: http://127.0.0.1:${finalPort}/runelight`)
+      expect(logs).toContainEqual({ action: "ready-check", path: "/runelight/session", port: finalPort })
     } finally {
       if (previousSessionDir === undefined) {
         delete process.env.RUNELIGHT_SESSION_DIR
@@ -826,7 +988,7 @@ export default defineRunelightConfig({
     }
   })
 
-  it("reports when the preview server exits before the Studio route is reachable", async () => {
+  it("reports when the preview server exits before the session endpoint is reachable", async () => {
     const result = await runCLI(["serve", "--port", "4556"], {
       cwd: join(import.meta.dirname, "fixtures/serve-exits-before-ready"),
       stdout: "",
@@ -835,7 +997,7 @@ export default defineRunelightConfig({
 
     expect(result.exitCode).toBe(1)
     expect(result.stderr).toContain("preview-server-not-ready")
-    expect(result.stderr).toContain("http://127.0.0.1:4556/runelight/studio")
+    expect(result.stderr).toContain("http://127.0.0.1:4556/runelight/session")
   })
 
   it("adds a process-group hint when the Host reports a conflicting dev server PID", async () => {
@@ -965,7 +1127,7 @@ process.exit(1)
       await waitForCondition(
         async () => {
           try {
-            const response = await fetch(`http://127.0.0.1:${port}/runelight/studio/manifest`, {
+            const response = await fetch(`http://127.0.0.1:${port}/runelight/session`, {
               signal: AbortSignal.timeout(500),
             })
             return response.status >= 200 && response.status < 400
@@ -974,7 +1136,7 @@ process.exit(1)
           }
         },
         10_000,
-        () => `Timed out waiting for Studio manifest.\nstdout:\n${childStdout.join("")}\nstderr:\n${childStderr.join("")}`,
+        () => `Timed out waiting for session endpoint.\nstdout:\n${childStdout.join("")}\nstderr:\n${childStderr.join("")}`,
       )
       await waitForCondition(
         () => readRunelightServeSession(cwd)?.port === port,
@@ -990,7 +1152,7 @@ process.exit(1)
       await waitForCondition(
         async () => {
           try {
-            await fetch(`http://127.0.0.1:${port}/runelight/studio/manifest`, {
+            await fetch(`http://127.0.0.1:${port}/runelight/session`, {
               signal: AbortSignal.timeout(250),
             })
             return false
@@ -1050,7 +1212,7 @@ process.exit(1)
       await waitForCondition(
         async () => {
           try {
-            const response = await fetch(`http://127.0.0.1:${port}/runelight/studio/manifest`, {
+            const response = await fetch(`http://127.0.0.1:${port}/runelight/session`, {
               signal: AbortSignal.timeout(500),
             })
             return response.status >= 200 && response.status < 400
@@ -1059,7 +1221,7 @@ process.exit(1)
           }
         },
         10_000,
-        () => `Timed out waiting for terminal-group Studio manifest.\nstdout:\n${childStdout.join("")}\nstderr:\n${childStderr.join("")}`,
+        () => `Timed out waiting for terminal-group session endpoint.\nstdout:\n${childStdout.join("")}\nstderr:\n${childStderr.join("")}`,
       )
 
       const exitPromise = waitForChildExit(child, 10_000)
@@ -1070,7 +1232,7 @@ process.exit(1)
       await waitForCondition(
         async () => {
           try {
-            await fetch(`http://127.0.0.1:${port}/runelight/studio/manifest`, {
+            await fetch(`http://127.0.0.1:${port}/runelight/session`, {
               signal: AbortSignal.timeout(250),
             })
             return false
@@ -1125,7 +1287,7 @@ process.exit(1)
       await waitForCondition(
         async () => {
           try {
-            const response = await fetch(`http://127.0.0.1:${port}/runelight/studio/manifest`, {
+            const response = await fetch(`http://127.0.0.1:${port}/runelight/session`, {
               signal: AbortSignal.timeout(500),
             })
             return response.status >= 200 && response.status < 400
@@ -1134,7 +1296,7 @@ process.exit(1)
           }
         },
         10_000,
-        () => `Timed out waiting for stubborn child manifest.\nstdout:\n${childStdout.join("")}\nstderr:\n${childStderr.join("")}`,
+        () => `Timed out waiting for stubborn child session.\nstdout:\n${childStdout.join("")}\nstderr:\n${childStderr.join("")}`,
       )
 
       const exitPromise = waitForChildExit(child, 15_000)
@@ -1145,7 +1307,7 @@ process.exit(1)
       await waitForCondition(
         async () => {
           try {
-            await fetch(`http://127.0.0.1:${port}/runelight/studio/manifest`, {
+            await fetch(`http://127.0.0.1:${port}/runelight/session`, {
               signal: AbortSignal.timeout(250),
             })
             return false
@@ -1193,7 +1355,7 @@ process.exit(1)
     process.env.RUNELIGHT_SESSION_DIR = sessionDir
 
     try {
-      host = spawn(process.execPath, [join(cwd, "scripts/serve-studio.mjs"), "--port", port], {
+      host = spawn(process.execPath, [join(cwd, "scripts/serve-session.mjs"), "--port", port], {
         cwd,
         detached: process.platform !== "win32",
         env: {
@@ -1208,7 +1370,7 @@ process.exit(1)
       await waitForCondition(
         async () => {
           try {
-            const response = await fetch(`${baseUrl}/runelight/studio/manifest`, {
+            const response = await fetch(`${baseUrl}/runelight/session`, {
               signal: AbortSignal.timeout(500),
             })
             return response.status >= 200 && response.status < 400
@@ -1217,7 +1379,7 @@ process.exit(1)
           }
         },
         10_000,
-        "Timed out waiting for manually started Host manifest.",
+        "Timed out waiting for manually started Host session.",
       )
       writeRunelightServeSession(cwd, {
         baseUrl,
@@ -1246,13 +1408,13 @@ process.exit(1)
       const result = await resultPromise
       expect(result).toEqual({
         exitCode: 130,
-        stdout: `Runelight serve: ${baseUrl}\nStudio: ${baseUrl}/runelight/studio\n`,
+        stdout: `Runelight serve: ${baseUrl}\nRunelight preview: ${baseUrl}/runelight\n`,
         stderr: "",
       })
       await waitForCondition(
         async () => {
           try {
-            await fetch(`${baseUrl}/runelight/studio/manifest`, {
+            await fetch(`${baseUrl}/runelight/session`, {
               signal: AbortSignal.timeout(250),
             })
             return false
@@ -1304,7 +1466,7 @@ process.exit(1)
     process.env.RUNELIGHT_SESSION_DIR = sessionDir
 
     try {
-      host = spawn(process.execPath, [join(cwd, "scripts/serve-studio.mjs"), "--port", port], {
+      host = spawn(process.execPath, [join(cwd, "scripts/serve-session.mjs"), "--port", port], {
         cwd,
         detached: process.platform !== "win32",
         env: {
@@ -1319,7 +1481,7 @@ process.exit(1)
       await waitForCondition(
         async () => {
           try {
-            const response = await fetch(`${baseUrl}/runelight/studio/manifest`, {
+            const response = await fetch(`${baseUrl}/runelight/session`, {
               signal: AbortSignal.timeout(500),
             })
             return response.status >= 200 && response.status < 400
@@ -1328,7 +1490,7 @@ process.exit(1)
           }
         },
         10_000,
-        "Timed out waiting for manually started Host manifest.",
+        "Timed out waiting for manually started Host session.",
       )
       writeRunelightServeSession(cwd, {
         baseUrl,
@@ -1349,7 +1511,7 @@ process.exit(1)
       child.stderr?.on("data", (chunk) => childStderr.push(String(chunk)))
 
       await waitForCondition(
-        () => childStdout.join("").includes(`Runelight serve: ${baseUrl}`),
+        () => childStdout.join("").includes(`Runelight preview: ${baseUrl}/runelight`),
         5_000,
         () => `Timed out waiting for adopted CLI output.\nstdout:\n${childStdout.join("")}\nstderr:\n${childStderr.join("")}`,
       )
@@ -1366,7 +1528,7 @@ process.exit(1)
       await waitForCondition(
         async () => {
           try {
-            await fetch(`${baseUrl}/runelight/studio/manifest`, {
+            await fetch(`${baseUrl}/runelight/session`, {
               signal: AbortSignal.timeout(250),
             })
             return false
@@ -1549,8 +1711,8 @@ process.exit(1)
     }
   })
 
-  it("waits for a temporary capture Host manifest identity to become ready", async () => {
-    const cwd = join(import.meta.dirname, "fixtures/capture-delayed-manifest")
+  it("waits for a temporary capture Host session identity to become ready", async () => {
+    const cwd = join(import.meta.dirname, "fixtures/capture-delayed-session")
     const logFile = join(cwd, "runelight-command-log.jsonl")
     const sessionDir = mkdtempSync(join(tmpdir(), "runelight-cli-sessions-"))
     const previousSessionDir = process.env.RUNELIGHT_SESSION_DIR
@@ -1587,9 +1749,9 @@ process.exit(1)
         .map((line) => JSON.parse(line))
       expect(logs).toEqual([
         { action: "serve", port, runelightDev: "1" },
-        { action: "ready-check", path: "/runelight/studio" },
-        { action: "ready-check", path: "/runelight/studio/manifest", request: 1 },
-        { action: "ready-check", path: "/runelight/studio/manifest", request: 2 },
+        { action: "ready-check", path: "/runelight/session", request: 1 },
+        { action: "ready-check", path: "/runelight/session", request: 2 },
+        { action: "ready-check", path: "/runelight/session", request: 3 },
         { action: "shutdown", signal: "SIGTERM" },
       ])
       expect(readRunelightServeSession(cwd)).toBeUndefined()
@@ -1923,14 +2085,13 @@ process.exit(1)
     expect(payload.entries.map((entry: { entry: string }) => entry.entry)).not.toContain("stories/Outside.g.tsx#default")
   })
 
-  it("checks configured source and design entries when no check target is specified", async () => {
+  it("checks configured source entries when no check target is specified", async () => {
     const projectRoot = join(import.meta.dirname, "fixtures/check-project")
 
     const result = await runCLI(["check"], { cwd: projectRoot, stdout: "", stderr: "" })
 
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toContain("Runelight pure entry: src/Badge.g.tsx#default")
-    expect(result.stdout).toContain("Runelight pure entry: app/runelight/design/DesignSketch.g.tsx#default")
     expect(result.stdout).toContain("non-runelight-hook")
   })
 
@@ -2067,7 +2228,7 @@ async function startHealthyRunelightServer(identity: { projectKey: string; sessi
   port: string
 }> {
   const server = createHttpServer((request, response) => {
-    if (request.url === "/runelight/studio/manifest") {
+    if (request.url === "/runelight/session") {
       response.writeHead(200, { "content-type": "application/json" })
       response.end(JSON.stringify({ serveSession: identity }))
       return

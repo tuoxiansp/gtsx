@@ -70,22 +70,22 @@ LandingHero.frames = {
 
 export function LandingVisualProof() {
   return (
-    <section className="landing-visual" aria-label="Runelight Studio preview">
+    <section className="landing-visual" aria-label="Runelight preview capture">
       <div className="landing-visual-frame">
         <img
           className="landing-visual-shot"
-          src={captureAssets.studioComponents}
-          alt="Runelight Studio showing covered frames and visual states in one workspace"
+          src={captureAssets.hero}
+          alt="Runelight preview captures showing covered frames and visual states"
           loading="eager"
           decoding="async"
           fetchPriority="high"
         />
         <a
           className="landing-visual-tag"
-          href="/runelight/studio/?canvasX=288.795&canvasY=9.462&canvasScale=1.574&path=src%2Fapp%2FLandingScreen.g.tsx%23LandingScreen&designCanvasX=35.213&designCanvasY=-61.229&designCanvasScale=1.491"
+          href="/runelight?entry=src%2Fapp%2FLandingScreen.g.tsx%23LandingScreen&frame=live&chrome=0"
         >
           <span>live from this repo</span>
-          <strong>/runelight/studio</strong>
+          <strong>/runelight?...</strong>
         </a>
       </div>
     </section>
@@ -93,7 +93,7 @@ export function LandingVisualProof() {
 }
 
 LandingVisualProof.frames = {
-  live: { description: "Landing proof section with Studio capture", props: {} },
+  live: { description: "Landing proof section with preview capture", props: {} },
 } satisfies GFrames<EmptyProps>
 
 export function LandingCta() {

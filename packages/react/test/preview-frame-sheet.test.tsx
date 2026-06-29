@@ -30,7 +30,7 @@ const leakedFrameSheetProps = {
 void leakedFrameSheetProps
 
 describe("RunelightReactPreviewFrameSheet", () => {
-  it("renders visible chrome as a Studio-style capture sheet", () => {
+  it("renders visible chrome as a preview capture sheet", () => {
     const Preview = (() => <span>Ready preview</span>) as RunelightReactPreviewComponent
     Preview.frames = {
       ready: {

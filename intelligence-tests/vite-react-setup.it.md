@@ -1,6 +1,6 @@
 # Vite React Setup
 
-Set up Runelight in a clean supported Vite React project and verify the resulting user experience.
+Set up Runelight in a clean supported Vite React project and verify the resulting preview/capture experience.
 
 Use a fresh/minimal project, or make a temporary copy of another project and remove any existing Runelight integration before setup. Do not treat an already-initialized project as proof that setup works. Exercise the README installer flow: install or refresh only `skills/setup-runelight` from this checkout into the target project at `.agents/skills/setup-runelight`, then run that project-level setup skill.
 
@@ -9,32 +9,29 @@ After the initial setup and preview checks, make the temporary project a git wor
 Validate these outcomes:
 
 - Before setup runs, the project contains `.agents/skills/setup-runelight` and no other Runelight project-level skills.
-- Setup installs/wires the needed Runelight packages, Vite adapter, config file, and browser-entry branch.
+- Setup installs/wires the needed Runelight packages, Vite adapter, config file, and browser-entry branch. The target project should not add `@runelight/studio` or `@runelight/changes` as direct dependencies.
 - Setup installs or refreshes only the React companion skills needed for this project: `authoring-runelight-react`, `refactor-to-runelight-react`, and `polish`.
-- Setup does not install `authoring-runelight-vue`, `refactor-to-runelight-vue`, `design-runelight-react`, `design-runelight-vue`, or the deprecated unsplit `authoring-runelight`, `refactor-to-runelight`, and `design-runelight`.
+- Setup does not install `authoring-runelight-vue`, `refactor-to-runelight-vue`, or the deprecated unsplit `authoring-runelight` and `refactor-to-runelight`.
 - The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
 - `runelight.config.ts` records `project.sourceRoot`, `project.entryRoot`, and a `host.command` with the `{port}` placeholder that `runelight serve` can wrap.
 - `${project.entryRoot}/design` is not created by setup or dev-server startup.
 - Vite is configured with `runelightViteReact()` and does not statically import `runelight.config.ts` from `vite.config.*`.
-- The browser entry handles only the `/runelight` preview branch; Studio is served by the Vite adapter as a prebuilt app from the same dev server.
+- The browser entry handles only the `/runelight` preview branch; `/runelight/session` is served by the Vite adapter.
 - Runelight browser-entry branches are guarded by `__RUNELIGHT_DEV__` and use dynamic imports for preview and `virtual:runelight/preview-config`.
 - The preview loader uses `project.sourceRoot` and a static `import.meta.glob` for source `.g.tsx` coverage.
 - The original app route still renders.
-- `/runelight/studio` renders Studio and shows discovered component frames.
+- `/runelight/session` returns serve-session JSON.
 - `/runelight?entry=...&frame=...` renders an existing frame.
-- While the dev server is running, adding a new source `.g.tsx` frame appears in Studio and preview without restarting.
+- `runelight preview-targets --json <entry[#export]>` returns browser-ready paths for reachable frames.
+- While the dev server is running, adding a new source `.g.tsx` frame appears in preview-target output and preview without restarting.
 - Editing that added frame updates preview without restarting.
 - Removing the temporary frame does not leave a stale usable preview entry.
 - `runelight changes --json --ui-only` reports the added frame, deleted frame, and visually changed component with stable component/frame status, but omits the code-only edit from user-visible UI changes.
-- In the changed git worktree, opening Studio defaults to the Changes workspace; in a clean worktree, Studio defaults to Frames.
-- The Studio Changes workspace renders added, deleted, and modified Runelight surfaces without empty before/current boxes. Deleted items have a visibly disabled/deleted presentation, added items show only current UI, and modified items show before/current only where comparison is meaningful.
-- For the component with multiple frames, both Studio Changes and `runelight changes` identify the changed frame separately from unchanged frames, so the user is not asked to compare two identical previews.
-- Selecting a non-first change item stays selected while previews load, and switching between Changes and Frames does not leave either workspace permanently blank.
+- For the component with multiple frames, `runelight changes` identifies the changed frame separately from unchanged frames, so the user is not asked to compare two identical previews.
 - Setup does not rely on guessed design globs.
 - A production `vite build` succeeds when `runelight.config.ts` is missing from the production build context.
 - The production app can import and render a normal `.g.tsx` component.
-- The production output still renders the original app route and does not require `virtual:runelight/preview-config`, bundle preview route code, expose a usable `/runelight` experience, or write `${project.entryRoot}/.runelight` generated files.
-- In a controlled fixture that uses the repository's internal production opt-in hook, a production `vite build` emits a usable `/runelight/` preview entry, `/runelight/studio/` Studio entry, `/runelight/studio/manifest`, and Studio assets without platform-specific rewrites. Serving the built output should allow Studio to discover frames and render preview iframes from the production bundle. Removing the opt-in should restore the default non-exposed production output. Do not turn this fixture-only hook into user-facing setup guidance.
+- The production output still renders the original app route and does not require `virtual:runelight/preview-config`, bundle preview route code, expose a usable `/runelight` experience, expose `/runelight/session`, or write `${project.entryRoot}/.runelight` generated files.
 - The test does not write Runelight companion skills into the user's global skills directory. If global Runelight skills already exist, do not treat them as proof of success; inspect project-local `.agents/skills`.
 
 Clean up the temporary project, temporary frame, and generated artifacts created only for this test.

@@ -4,25 +4,23 @@ import { join } from "node:path"
 
 const logFile = join(process.cwd(), "runelight-command-log.jsonl")
 const port = readOption(process.argv.slice(2), "--port") ?? "0"
+let sessionRequestCount = 0
 
-appendFileSync(logFile, `${JSON.stringify({ action: "serve", port })}\n`)
-
-const conflictPorts = (process.env.RUNELIGHT_TEST_CONFLICT_PORTS ?? "4300")
-  .split(",")
-  .map((value) => value.trim())
-  .filter(Boolean)
-
-if (conflictPorts.includes(port)) {
-  process.stderr.write(`Port ${port} is already in use\n`)
-  process.exit(1)
-}
+appendFileSync(logFile, `${JSON.stringify({ action: "serve", args: ["--port", port], runelightDev: process.env.RUNELIGHT_DEV })}\n`)
 
 const server = createServer((request, response) => {
-  if (request.url === "/runelight/studio/manifest") {
-    appendFileSync(logFile, `${JSON.stringify({ action: "ready-check", path: "/runelight/studio/manifest", port })}\n`)
+  if (request.url === "/runelight/session") {
+    sessionRequestCount += 1
+    appendFileSync(logFile, `${JSON.stringify({ action: "ready-check", path: "/runelight/session" })}\n`)
+    if (sessionRequestCount === 1) {
+      response.writeHead(503, { "content-type": "text/plain" })
+      response.end("session still starting")
+      return
+    }
     response.writeHead(200, { "content-type": "application/json" })
     response.end(
       JSON.stringify({
+        version: 1,
         serveSession: {
           projectKey: process.env.RUNELIGHT_PROJECT_KEY,
           sessionId: process.env.RUNELIGHT_SESSION_ID,
@@ -30,13 +28,6 @@ const server = createServer((request, response) => {
       }),
     )
     setTimeout(() => server.close(), 500)
-    return
-  }
-
-  if (request.url === "/runelight/studio") {
-    appendFileSync(logFile, `${JSON.stringify({ action: "ready-check", path: "/runelight/studio", port })}\n`)
-    response.writeHead(200, { "content-type": "text/html" })
-    response.end("<!doctype html><title>Runelight Studio</title>")
     return
   }
 

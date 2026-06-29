@@ -134,13 +134,13 @@ type RunelightReactPreviewContactSheetFrameLayout = RunelightPreviewFrameGridIte
 const loadedRunelightPreviewEntriesByLoader = new WeakMap<RunelightReactPreviewComponentLoader, Map<string, LoadedRunelightPreviewEntry>>()
 const loadingRunelightPreviewEntriesByLoader = new WeakMap<RunelightReactPreviewComponentLoader, Map<string, Promise<LoadedRunelightPreviewEntry>>>()
 
-const runelightPreviewStudioFontFamily =
+const runelightPreviewChromeFontFamily =
   '"JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace'
 
 const runelightPreviewDefaultViewportSize = { height: 1024, width: 768 } as const
 const runelightPreviewFrameGridFallbackItem = { height: 160, width: 280 } satisfies RunelightPreviewFrameGridItemLayout
 
-const runelightPreviewStudioColors = {
+const runelightPreviewChromeColors = {
   canvasBg: "#181818",
   panelBg: "#1e1e1e",
   panelBgElevated: "#282828",
@@ -158,11 +158,11 @@ const runelightPreviewStudioColors = {
 
 const visibleChromePreviewSheetStyle: CSSProperties = {
   alignContent: "start",
-  backgroundColor: runelightPreviewStudioColors.canvasBg,
+  backgroundColor: runelightPreviewChromeColors.canvasBg,
   boxSizing: "border-box",
-  color: runelightPreviewStudioColors.text,
+  color: runelightPreviewChromeColors.text,
   display: "grid",
-  fontFamily: runelightPreviewStudioFontFamily,
+  fontFamily: runelightPreviewChromeFontFamily,
   gap: 28,
   minHeight: "100vh",
   padding: 32,
@@ -188,9 +188,9 @@ function contactSheetCardTitleSlotStyle(width: number): CSSProperties {
 
 const contactSheetCardTitleStyle: CSSProperties = {
   alignItems: "center",
-  color: runelightPreviewStudioColors.accentText,
+  color: runelightPreviewChromeColors.accentText,
   display: "flex",
-  fontFamily: runelightPreviewStudioFontFamily,
+  fontFamily: runelightPreviewChromeFontFamily,
   fontSize: 9,
   fontSynthesis: "none",
   fontWeight: 400,
@@ -208,7 +208,7 @@ const contactSheetCardTitleStyle: CSSProperties = {
 }
 
 const contactSheetCardTitleIndicatorStyle: CSSProperties = {
-  background: runelightPreviewStudioColors.accentText,
+  background: runelightPreviewChromeColors.accentText,
   flexShrink: 0,
   height: 9,
   opacity: 1,
@@ -339,7 +339,7 @@ const contactSheetFrameLabelSlotStyle: CSSProperties = {
 }
 
 const contactSheetFrameLabelStyle: CSSProperties = {
-  color: runelightPreviewStudioColors.textLabel,
+  color: runelightPreviewChromeColors.textLabel,
   display: "block",
   fontSize: 9,
   fontWeight: 400,
@@ -365,7 +365,7 @@ const contactSheetMeasuringFrameGridStyle: CSSProperties = {
 }
 
 const runelightVisiblePreviewDocumentStyle = `html, body {
-  background: ${runelightPreviewStudioColors.canvasBg} !important;
+  background: ${runelightPreviewChromeColors.canvasBg} !important;
   margin: 0;
 }`
 
@@ -1006,17 +1006,17 @@ function RunelightPreviewMessage({
     <main
       data-runelight-preview-message
       style={{
-        backgroundColor: runelightPreviewStudioColors.canvasBg,
-        color: runelightPreviewStudioColors.text,
+        backgroundColor: runelightPreviewChromeColors.canvasBg,
+        color: runelightPreviewChromeColors.text,
         display: "grid",
-        fontFamily: runelightPreviewStudioFontFamily,
+        fontFamily: runelightPreviewChromeFontFamily,
         gap: 9,
         minHeight: "100vh",
         padding: 32,
       }}
     >
       <h1 style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.25, margin: 0 }}>{title}</h1>
-      <p style={{ color: runelightPreviewStudioColors.textMuted, fontSize: 11, lineHeight: 1.45, margin: 0 }}>{detail}</p>
+      <p style={{ color: runelightPreviewChromeColors.textMuted, fontSize: 11, lineHeight: 1.45, margin: 0 }}>{detail}</p>
     </main>
   )
 }

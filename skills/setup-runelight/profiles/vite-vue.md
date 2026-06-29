@@ -8,23 +8,22 @@ Install:
 
 - `@runelight/core`
 - `@runelight/vue`
-- `@runelight/studio`
 - `@runelight/adapter-vite-vue`
 
-The adapter uses `@runelight/vue/preview` internally; user projects should not install legacy preview packages.
+The adapter uses the `@runelight/vue/preview` adapter runtime API internally; user projects should not install legacy preview packages or import it outside adapter glue.
 
 ## Configuration
 
 - Configure `runelightViteVue` from `@runelight/adapter-vite-vue`.
 - Use `runelightViteVue()` without statically importing the Runelight config from `vite.config.*`; the adapter loads the Runelight config lazily only for Runelight preview surfaces, so normal production builds do not require `runelight.config.ts`.
-- The adapter serves the prebuilt Studio app at `/runelight/studio` and `/runelight/studio/assets/*`.
+- The adapter serves the `/runelight/session` endpoint; the browser entry should branch only on `/runelight` for preview.
 - Configure `host.command` as the direct framework dev command that `runelight serve` wraps, with `{port}` as the port placeholder. Do not point `host.command` at a package script that itself runs `runelight serve`.
 - `.g.vue` files are ordinary Vue SFCs with one `<g:frames>` block.
 - Vue frames use `props` and `scope`; do not generate or document `bindings`.
 - Vue native `provide`/`inject` preview works through static frame `providers` entries when the injected key is importable from `<g:frames>`.
 - Declared Vue injection variants need `defineGInjectionKey` and `GVueProviderFrame` markers.
 - Record the local Runelight entry directory in `project.entryRoot`. Generated Runelight files live in `${project.entryRoot}/.runelight/`; ensure `.gitignore` contains `.runelight/`, which covers this generated folder at any depth. Use `src/app/runelight` when the project keeps authored source under `src`, or `app/runelight` for root-level source projects.
-- During setup, do not create a design directory or placeholder frames.
+- During setup, create only the integration glue needed for preview/session; do not create sample `.g.vue` components or placeholder frames.
 - Preserve the existing application render path. Only `/runelight` renders the preview app.
 
 `vite.config.ts`:
@@ -57,7 +56,7 @@ export default defineRunelightConfig({
 })
 ```
 
-Use the detected package manager's exec form in `host.command`: `npx vite ...` for npm, `pnpm exec vite ...` for pnpm. `runelight serve` substitutes `{port}`, sets `RUNELIGHT_DEV=1`, and prints the serve and Studio URLs. User-facing routes are fixed and not configurable: `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest`.
+Use the detected package manager's exec form in `host.command`: `npx vite ...` for npm, `pnpm exec vite ...` for pnpm. `runelight serve` substitutes `{port}`, sets `RUNELIGHT_DEV=1`, waits for `/runelight/session`, and prints the serve URL plus the base `/runelight` preview URL. User-facing routes are fixed and not configurable: `/runelight` and `/runelight/session`.
 
 `@runelight/core` is framework-neutral; Vue authoring helpers come from `@runelight/vue/runtime`.
 
@@ -139,5 +138,5 @@ declare const __RUNELIGHT_DEV__: boolean
 2. Run `runelight check`.
 3. Start the dev server through `runelight serve` (or the package script that wraps it). Runelight routes only activate when the Host runs with `RUNELIGHT_DEV=1`, which `runelight serve` sets and the adapter exposes to the browser entry as `__RUNELIGHT_DEV__`.
 4. Open `/` and confirm the original app still renders.
-5. Open `/runelight/studio`.
-6. If a `.g.vue` entry exists, open one `/runelight?...` preview URL and verify frame `scope` or `providers` values override production setup state.
+5. Open `/runelight/session` and confirm it returns JSON.
+6. If a `.g.vue` entry exists, use `runelight preview-targets --json <entry#default>`, open one `/runelight?...` preview URL, and verify frame `scope` or `providers` values override production setup state.

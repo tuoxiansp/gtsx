@@ -24,18 +24,18 @@ export default defineRunelightConfig({
 
 | Value | Meaning |
 | --- | --- |
-| `"@runelight/react/contract"` | Enables React `.g.tsx` static analysis, transform metadata, and manifest indexing. |
-| `"@runelight/vue/contract"` | Enables Vue `.g.vue` static analysis, preview transform metadata, and manifest indexing. |
+| `"@runelight/react/contract"` | Enables React `.g.tsx` static analysis, transform metadata, and preview indexing. |
+| `"@runelight/vue/contract"` | Enables Vue `.g.vue` static analysis, preview transform metadata, and preview indexing. |
 
-`contracts` are resolved from the project root, so the corresponding framework package must be installed in the app. Use string specifiers in `runelight.config.ts`; programmatic callers may pass contract objects directly to low-level APIs such as `buildRunelightProjectIndex`.
+`contracts` are resolved from the project root, so the corresponding framework package must be installed in the app. Use string specifiers in `runelight.config.ts`.
 
 ## `project`
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `sourceRoot` | — (required) | Root that scopes configured `.g` entry discovery for analysis, Studio, and preview. Use `"."` for root-level `app`, `pages`, `components`, or `lib`; use `"src"` when app source lives under `src`. |
+| `sourceRoot` | — (required) | Root that scopes configured `.g` entry discovery for analysis and preview. Use `"."` for root-level `app`, `pages`, `components`, or `lib`; use `"src"` when app source lives under `src`. |
 | `entryRoot` | — (required) | Filesystem directory that owns the local `/runelight` entry. Generated Runelight files live in `${entryRoot}/.runelight/`. Add `.runelight/` to the project `.gitignore`; that pattern covers the generated directory at any depth. Use `src/app/runelight` when source lives under `src`; use `app/runelight` for root-level source projects. |
-| `namespace` | — | Optional stable cache namespace. Runelight does not derive a default from the project directory name. Use the package name or repo slug when you want Studio browser caches to survive path or manifest-shape changes; omit it when no stable project identity is available. |
+| `namespace` | — | Optional stable project namespace. Runelight does not derive a default from the project directory name. Use the package name or repo slug when a stable project identity is available; omit it when none is available. |
 | `tsconfig` | nearest `tsconfig.json` | Optional TypeScript project override used for discovery and analysis. It replaces the nearest-tsconfig fallback rather than merging with it. Point it at the app config (such as `tsconfig.app.json`) when the root config is a references container. CLI `-p` overrides this field. |
 
 ## `host`
@@ -44,7 +44,8 @@ export default defineRunelightConfig({
 | --- | --- | --- |
 | `command` | — | The direct framework dev command that `runelight serve` wraps, with `{port}` as the port placeholder, for example `pnpm exec vite --host 127.0.0.1 --port {port} --strictPort`. Required by `runelight serve` and by `runelight capture` when no serve session is running. Do not point it at a package script that itself runs `runelight serve`. |
 
-`runelight serve` substitutes `{port}`, sets `RUNELIGHT_DEV=1` in the Host environment, and prints the serve and Studio URLs.
+`runelight serve` substitutes `{port}`, sets `RUNELIGHT_DEV=1` in the Host environment, waits for `/runelight/session`, and prints the serve URL plus the base `/runelight` preview URL.
+Validated adapters implement the session route for you. Custom Host adapters must echo the `RUNELIGHT_PROJECT_KEY` and `RUNELIGHT_SESSION_ID` environment values from `/runelight/session` so the CLI can verify the active serve session.
 
 ## Routes
 
@@ -53,9 +54,8 @@ Routes are fixed and not configurable:
 | Route | Serves |
 | --- | --- |
 | `/runelight` | Preview client (`entry`, `frame`, `frameOverride`, `inputOverride` search params) |
-| `/runelight/studio` | Prebuilt Studio app (`/runelight/studio/assets/*` for assets) |
-| `/runelight/studio/manifest` | Project manifest JSON |
+| `/runelight/session` | Development serve-session identity used by CLI automation |
 
 ## Production Behavior
 
-Runelight is development-only in normal app builds: production routes should not expose a usable `/runelight*` experience, and Runelight frames should remain inert outside Studio and preview.
+Runelight is development-only in normal app builds: production routes should not expose a usable `/runelight*` experience, and Runelight frames should remain inert outside preview.

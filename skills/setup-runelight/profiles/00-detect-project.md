@@ -19,9 +19,9 @@ Every successful integration needs:
 
 1. TypeScript Program and source-root scope for `.g.tsx` or `.g.vue` discovery.
 2. React or Vue transform for component boundaries.
-3. Project index / manifest built from the selected source set.
-4. Preview route that delegates Runelight preview query parsing and rendering to the selected adapter or runtime helper.
-5. Studio route that serves the prebuilt `@runelight/studio` app and manifest.
+3. Static project index built from the selected source set.
+4. Preview route that delegates Runelight preview query parsing and rendering to the selected adapter or adapter runtime helper.
+5. Session route that returns the Runelight serve-session identity.
 6. A `host.command` in `runelight.config.ts` so `runelight serve` and `runelight capture` can manage the Host lifecycle for verification and capture.
 
 ## Supported Project Scope
@@ -59,8 +59,8 @@ Before selecting write actions, check whether the project is already integrated:
 - Runelight packages in dependencies or devDependencies.
 - `runelight.config.ts`.
 - Adapter wrappers in `vite.config.*`, `next.config.*`, or another framework config.
-- Existing `/runelight`, `/runelight/studio`, `/runelight/studio/assets/*`, or `/runelight/studio/manifest` route files, middleware handlers, or `/runelight` browser-entry branches.
-- Existing adapter-generated output under `${project.entryRoot}/.runelight/`, including preview entry registries and workspace-change baselines.
+- Existing `/runelight` or `/runelight/session` route files, middleware handlers, or `/runelight` browser-entry branches.
+- Existing adapter-generated output under `${project.entryRoot}/.runelight/`.
 
 If any of these are present, classify the task as upgrade/ensure mode unless the user explicitly asked for a full reinstall. In upgrade/ensure mode:
 
@@ -73,28 +73,27 @@ If any of these are present, classify the task as upgrade/ensure mode unless the
 
 ## Common Configuration Rules
 
-- Always install `@runelight/core`, `@runelight/studio`, and the selected framework package (`@runelight/react` for React, `@runelight/vue` for Vue).
+- Always install `@runelight/core` and the selected framework package (`@runelight/react` for React, `@runelight/vue` for Vue).
 - Install `@runelight/adapter-vite-react` only for Vite-compatible React client-only hosts.
 - Install `@runelight/adapter-vite-vue` only for Vite Vue 3 client-only hosts.
 - Install `@runelight/adapter-next-react` only for Next.js App Router.
-- Put selected framework contract, selected source root, selected local Runelight entry root, selected tsconfig when needed, and the Host dev command in `runelight.config.ts`. The valid keys are `contracts`, `project.{sourceRoot, entryRoot, namespace, tsconfig}` and `host.command`; user-facing routes are fixed and not configurable: `/runelight`, `/runelight/studio`, and `/runelight/studio/manifest`.
-- Ensure the project `.gitignore` contains `.runelight/`. Do not add a path-specialized ignore rule such as `${project.entryRoot}/.runelight/`; `.runelight/` covers generated Runelight directories at any depth. Project-local generated Runelight files live under `${project.entryRoot}/.runelight/`; choose `project.entryRoot` inside the app's authored source tree so generated registries and baselines stay source-scoped and importable without user glue.
+- Put selected framework contract, selected source root, selected local Runelight entry root, selected tsconfig when needed, and the Host dev command in `runelight.config.ts`. The valid keys are `contracts`, `project.{sourceRoot, entryRoot, namespace, tsconfig}` and `host.command`; user-facing routes are fixed and not configurable: `/runelight` and `/runelight/session`.
+- Ensure the project `.gitignore` contains `.runelight/`. Do not add a path-specialized ignore rule such as `${project.entryRoot}/.runelight/`; `.runelight/` covers generated Runelight directories at any depth. Project-local generated Runelight files live under `${project.entryRoot}/.runelight/`; choose `project.entryRoot` inside the app's authored source tree so generated files stay source-scoped and importable without user glue.
 - `project.namespace` is optional. When a stable package name or repo slug is available, use it as `project.namespace`; do not invent a file hash or derive it from a transient folder name.
 - Choose `project.sourceRoot: "src"` when app source lives under `src`; choose `project.sourceRoot: "."` for root-level `app`, `pages`, `components`, or `lib`.
 - Choose `project.entryRoot` as the filesystem directory that owns the local `/runelight` entry: use `src/app/runelight` when the project keeps authored source under `src`, or `app/runelight` for root-level source projects. Because generated files are derived under `${project.entryRoot}/.runelight/`, keep this entry root inside the source tree the host can import. For client-only hosts without filesystem routes, still create and record this logical entry root during setup.
 - Generate `host.command` for the detected package manager and host using its exec form (`npx vite ...`, `pnpm exec next dev ...`). Do not hard-code `pnpm` in npm/yarn/bun projects, and do not point `host.command` at a package script that itself runs `runelight serve`.
-- `host.command` must bind a deterministic host (prefer `127.0.0.1`) and accept the `{port}` placeholder; `runelight serve` substitutes the Runelight-owned port and prints the serve and Studio URLs itself.
+- `host.command` must bind a deterministic host (prefer `127.0.0.1`) and accept the `{port}` placeholder; `runelight serve` substitutes the Runelight-owned port, waits for `/runelight/session`, and prints the serve URL plus the base `/runelight` preview URL itself.
 
 ## Verification
 
 1. Run project typecheck.
 2. Run `runelight check` for the configured project. Use an explicit `.g.tsx` / `.g.vue` file only when narrowing a failing diagnostic.
 3. Start the host dev server through `runelight serve` (or the package script that wraps it).
-4. Open `/runelight/studio`.
-5. Confirm the manifest contains `.g.tsx` or `.g.vue` entries when present. A setup-only project may legitimately have zero entries; Studio should show its empty state.
-6. If at least one protocol entry exists, open one `/runelight?...` preview URL.
-7. Confirm no `Missing entry`, `Unknown Runelight entry`, or `Unknown Runelight frame` errors.
-8. Run `runelight capture <entry[#export]>` against one concrete entry when at least one protocol entry exists.
+4. Open `/runelight/session`.
+5. If at least one protocol entry exists, run `runelight preview-targets --json <entry[#export]>` and open one `/runelight?...` preview URL.
+6. Confirm no `Missing entry`, `Unknown Runelight entry`, or `Unknown Runelight frame` errors.
+7. Run `runelight capture <entry[#export]>` against one concrete entry when at least one protocol entry exists.
 
 ## Report
 
@@ -108,4 +107,4 @@ After completion, tell the user:
 - Selected host and integration profile
 - Verification results
 - Any skipped steps
-- The Studio URL to open
+- The preview URL or capture command used for verification

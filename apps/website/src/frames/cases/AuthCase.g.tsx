@@ -71,7 +71,7 @@ export function SignedInWorkspaceCard(props: SignedInSurfaceProps) {
       </div>
       <div className="case-meta-row">
         <span>Workspace ready</span>
-        <span className="case-action case-action-secondary">Open Studio</span>
+        <span className="case-action case-action-secondary">Capture preview</span>
       </div>
     </section>
   )

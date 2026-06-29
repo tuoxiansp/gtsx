@@ -130,7 +130,7 @@ DataCase.frames = {
       items: [
         { id: "1", title: "Review auth branches", meta: "SessionPanel · 2 frames", priority: "high" },
         { id: "2", title: "Verify layout overflow", meta: "ContentPanel · 3 frames", priority: "medium" },
-        { id: "3", title: "Approve agent diff", meta: "StudioBoard · 4 frames", priority: "low" },
+        { id: "3", title: "Approve agent diff", meta: "PreviewBoard · 4 frames", priority: "low" },
       ],
     },
   },
@@ -155,7 +155,7 @@ InboxReviewQueue.frames = {
       items: [
         { id: "1", title: "Review auth branches", meta: "SessionPanel · 2 frames", priority: "high" },
         { id: "2", title: "Verify layout overflow", meta: "ContentPanel · 3 frames", priority: "medium" },
-        { id: "3", title: "Approve agent diff", meta: "StudioBoard · 4 frames", priority: "low" },
+        { id: "3", title: "Approve agent diff", meta: "PreviewBoard · 4 frames", priority: "low" },
       ],
       title: "Agent inbox",
     },
@@ -173,7 +173,7 @@ InboxTaskRow.frames = {
   },
   low: {
     description: "low frame",
-    props: { item: { id: "3", title: "Approve agent diff", meta: "StudioBoard · 4 frames", priority: "low" } },
+    props: { item: { id: "3", title: "Approve agent diff", meta: "PreviewBoard · 4 frames", priority: "low" } },
   },
 } satisfies GFrames<InboxTaskRowProps>
 

@@ -45,7 +45,7 @@ export type RunelightServeSessionHealth = {
   session?: RunelightServeSession
 }
 
-export type RunelightServeManifestIdentity = {
+export type RunelightServeSessionIdentity = {
   projectKey?: string
   sessionId?: string
 }
@@ -167,36 +167,32 @@ export async function readHealthyRunelightServeSession(cwd: string): Promise<Run
   return { healthy: true, session }
 }
 
-export function runelightServeSessionStudioUrl(baseUrl: string): string {
-  return `${baseUrl.replace(/\/+$/, "")}/runelight/studio`
-}
-
-export function runelightServeSessionManifestUrl(baseUrl: string): string {
-  return `${baseUrl.replace(/\/+$/, "")}/runelight/studio/manifest`
+export function runelightServeSessionHealthUrl(baseUrl: string): string {
+  return `${baseUrl.replace(/\/+$/, "")}/runelight/session`
 }
 
 export async function isRunelightServeBaseUrlHealthy(
   baseUrl: string,
-  expectedIdentity: RunelightServeManifestIdentity = {},
+  expectedIdentity: RunelightServeSessionIdentity = {},
 ): Promise<boolean> {
-  const manifest = await readRunelightServeManifestIdentity(baseUrl)
-  if (!manifest) return false
+  const identity = await readRunelightServeSessionIdentity(baseUrl)
+  if (!identity) return false
   if (!expectedIdentity.projectKey && !expectedIdentity.sessionId) return true
 
-  if (expectedIdentity.projectKey && manifest.projectKey !== expectedIdentity.projectKey) return false
-  if (expectedIdentity.sessionId && manifest.sessionId !== expectedIdentity.sessionId) return false
+  if (expectedIdentity.projectKey && identity.projectKey !== expectedIdentity.projectKey) return false
+  if (expectedIdentity.sessionId && identity.sessionId !== expectedIdentity.sessionId) return false
   return true
 }
 
-export async function readRunelightServeManifestIdentity(baseUrl: string): Promise<RunelightServeManifestIdentity | undefined> {
+export async function readRunelightServeSessionIdentity(baseUrl: string): Promise<RunelightServeSessionIdentity | undefined> {
   try {
-    const response = await fetch(runelightServeSessionManifestUrl(baseUrl), {
+    const response = await fetch(runelightServeSessionHealthUrl(baseUrl), {
       redirect: "manual",
       signal: AbortSignal.timeout(2_000),
     })
     if (response.status < 200 || response.status >= 400) return undefined
-    const manifest = (await response.json()) as { serveSession?: RunelightServeManifestIdentity }
-    return manifest.serveSession
+    const body = (await response.json()) as { serveSession?: RunelightServeSessionIdentity }
+    return body.serveSession
   } catch {
     return undefined
   }

@@ -7,6 +7,6 @@ export default defineRunelightConfig({
     entryRoot: "app/runelight",
   },
   host: {
-    command: "node scripts/serve-studio.mjs --port {port}",
+    command: "node scripts/serve-session.mjs --port {port}",
   },
 })

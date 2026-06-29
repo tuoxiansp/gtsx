@@ -1,7 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
-import { createRequire } from "node:module"
 import { execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -9,6 +8,7 @@ import {
   RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT,
   RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT_ID,
 } from "@runelight/core/preview-protocol"
+import { describe, expect, it } from "vitest"
 
 import { runelightNextReact } from "../src/index.js"
 import {
@@ -16,29 +16,7 @@ import {
   isRunelightNextPreviewRouteEnabled,
   readRunelightNextPreviewProps,
 } from "../src/preview-route.js"
-import {
-  createRunelightNextStudioAssetResponse,
-  createRunelightNextStudioResponse,
-} from "../src/studio-route.js"
-import { createRunelightNextStudioManifestResponse } from "../src/studio-manifest-route.js"
-
-const mockStudioStaticApp = vi.hoisted(() => ({
-  directory: "",
-}))
-
-type RuntimeImportGlobal = typeof globalThis & {
-  __runelightAdapterNextRuntimeImport?: <Module>(specifier: string) => Promise<Module>
-}
-
-vi.mock("@runelight/studio/static-app", () => ({
-  resolveRunelightStudioAppAssetPath(assetPath = "index.html") {
-    const normalizedAssetPath = assetPath.replace(/^\/+/, "")
-    return `${mockStudioStaticApp.directory}/${normalizedAssetPath}`
-  },
-  resolveRunelightStudioAppDirectory() {
-    return mockStudioStaticApp.directory
-  },
-}))
+import { createRunelightNextSessionResponse } from "../src/session-route.js"
 
 const require = createRequire(import.meta.url)
 const runelightConfig = {
@@ -51,15 +29,9 @@ const runelightConfig = {
     command: "next dev -H 127.0.0.1 -p {port}",
   },
 }
-const productionRunelightConfig = {
-  ...runelightConfig,
-  studio: {
-    exposeInProduction: true,
-  },
-}
 const defaultGeneratedRoot = "src/app/runelight/.runelight"
 const defaultPreviewEntriesFile = `${defaultGeneratedRoot}/preview-entries.ts`
-const defaultBaselineRoot = `${defaultGeneratedRoot}/baselines/HEAD`
+const defaultBaselineDirectory = `${defaultGeneratedRoot}/baselines`
 
 function withNodeEnv<T>(nodeEnv: string, run: () => T): T {
   const previous = process.env.NODE_ENV
@@ -67,11 +39,8 @@ function withNodeEnv<T>(nodeEnv: string, run: () => T): T {
   try {
     return run()
   } finally {
-    if (previous === undefined) {
-      delete process.env.NODE_ENV
-    } else {
-      process.env.NODE_ENV = previous
-    }
+    if (previous === undefined) delete process.env.NODE_ENV
+    else process.env.NODE_ENV = previous
   }
 }
 
@@ -81,22 +50,25 @@ function withRunelightDevEnv<T>(run: () => T): T {
   try {
     return run()
   } finally {
-    if (previous === undefined) {
-      delete process.env.RUNELIGHT_DEV
-    } else {
-      process.env.RUNELIGHT_DEV = previous
-    }
+    if (previous === undefined) delete process.env.RUNELIGHT_DEV
+    else process.env.RUNELIGHT_DEV = previous
   }
 }
 
 describe("runelight Next React adapter", () => {
-  afterEach(() => {
-    mockStudioStaticApp.directory = ""
-    delete (globalThis as RuntimeImportGlobal).__runelightAdapterNextRuntimeImport
+  it("does not expose the generated preview entries module as a package subpath", () => {
+    const packageJson = JSON.parse(readFileSync(join(import.meta.dirname, "../package.json"), "utf8")) as {
+      exports: Record<string, unknown>
+    }
+
+    expect(packageJson.exports["./preview"]).toBeDefined()
+    expect(packageJson.exports["./preview-route"]).toBeDefined()
+    expect(packageJson.exports["./session-route"]).toBeDefined()
+    expect(packageJson.exports["./preview-entries"]).toBeUndefined()
   })
 
-  it("does not enable production preview entries or write generated files by default", () => {
-    const root = mkdtempSync(join(tmpdir(), "runelight-next-production-disabled-"))
+  it("does not enable preview entries or write generated files outside Runelight dev mode", () => {
+    const root = mkdtempSync(join(tmpdir(), "runelight-next-dev-disabled-"))
     try {
       withNodeEnv("production", () => {
         const nextConfig = {
@@ -115,87 +87,39 @@ describe("runelight Next React adapter", () => {
     }
   })
 
-  it("serves prebuilt Studio HTML, assets, and manifest through App Router route helpers", async () => {
-    const root = mkdtempSync(join(tmpdir(), "runelight-next-studio-route-"))
-    const studioDirectory = join(root, "studio-app")
+  it("serves the Runelight session route helper in Runelight dev mode", async () => {
+    const previousProjectKey = process.env.RUNELIGHT_PROJECT_KEY
+    const previousSessionId = process.env.RUNELIGHT_SESSION_ID
 
     try {
-      mkdirSync(join(root, "src/components"), { recursive: true })
-      mkdirSync(join(studioDirectory, "assets"), { recursive: true })
-      writeFileSync(
-        join(root, "src/components/Card.g.tsx"),
-        ["export default function Card() { return null }", "Card.frames = { ready: { props: {} } }", ""].join("\n"),
-      )
-      writeFileSync(
-        join(studioDirectory, "index.html"),
-        '<!doctype html><div id="root"></div><script type="module" src="/runelight/studio/assets/studio.js"></script>',
-      )
-      writeFileSync(join(studioDirectory, "assets/studio.js"), "window.__runelightStudio = true")
-      mockStudioStaticApp.directory = studioDirectory
-      ;(globalThis as RuntimeImportGlobal).__runelightAdapterNextRuntimeImport = (specifier) => import(specifier)
+      process.env.RUNELIGHT_PROJECT_KEY = "project-key"
+      process.env.RUNELIGHT_SESSION_ID = "session-id"
+      await withRunelightDevEnv(async () => {
+        const response = createRunelightNextSessionResponse()
 
-      const htmlResponse = await createRunelightNextStudioResponse({ config: productionRunelightConfig })
-      const assetResponse = await createRunelightNextStudioAssetResponse(["studio.js"], {
-        config: productionRunelightConfig,
+        expect(response.status).toBe(200)
+        expect(response.headers.get("cache-control")).toBe("no-store")
+        await expect(response.json()).resolves.toEqual({
+          serveSession: {
+            projectKey: "project-key",
+            sessionId: "session-id",
+          },
+        })
       })
-      const manifestResponse = await createRunelightNextStudioManifestResponse({
-        config: productionRunelightConfig,
-        cwd: root,
-      })
-      const manifest = await manifestResponse.json()
-
-      expect(htmlResponse.status).toBe(200)
-      expect(htmlResponse.headers.get("content-type")).toContain("text/html")
-      await expect(htmlResponse.text()).resolves.toContain("/runelight/studio/assets/studio.js")
-      expect(assetResponse.status).toBe(200)
-      expect(assetResponse.headers.get("content-type")).toContain("text/javascript")
-      await expect(assetResponse.text()).resolves.toBe("window.__runelightStudio = true")
-      expect(manifestResponse.status).toBe(200)
-      expect(manifest.routes).toMatchObject({
-        changes: "/runelight/studio/changes",
-        events: "/runelight/studio/events",
-        preview: "/runelight",
-        studio: "/runelight/studio",
-        manifest: "/runelight/studio/manifest",
-      })
-      expect(manifestResponse.headers.get("cache-control")).toBe("no-store")
-      expect(manifest.files.map((file: { path: string }) => file.path)).toEqual(["src/components/Card.g.tsx"])
     } finally {
-      rmSync(root, { force: true, recursive: true })
+      if (previousProjectKey === undefined) delete process.env.RUNELIGHT_PROJECT_KEY
+      else process.env.RUNELIGHT_PROJECT_KEY = previousProjectKey
+      if (previousSessionId === undefined) delete process.env.RUNELIGHT_SESSION_ID
+      else process.env.RUNELIGHT_SESSION_ID = previousSessionId
     }
   })
 
-  it("keeps the static Studio route module decoupled from manifest server code", () => {
-    const studioRouteSource = readFileSync(new URL("../src/studio-route.ts", import.meta.url), "utf8")
-
-    expect(studioRouteSource).not.toContain("@runelight/studio/manifest-server")
-    expect(studioRouteSource).not.toContain("createStudioManifestProvider")
-  })
-
-  it("turns on Studio and preview route helpers from the internal Studio exposure config", async () => {
-    const root = mkdtempSync(join(tmpdir(), "runelight-next-studio-config-exposed-"))
-    const studioDirectory = join(root, "studio-app")
-    try {
-      mkdirSync(studioDirectory, { recursive: true })
-      writeFileSync(join(studioDirectory, "index.html"), "<!doctype html><div>Studio</div>")
-      mockStudioStaticApp.directory = studioDirectory
-
-      const htmlResponse = await createRunelightNextStudioResponse({
-        config: productionRunelightConfig,
-      })
-
-      expect(htmlResponse.status).toBe(200)
-      expect(isRunelightNextPreviewRouteEnabled({ config: productionRunelightConfig })).toBe(true)
-    } finally {
-      rmSync(root, { force: true, recursive: true })
-    }
-  })
-
-  it("keeps Studio route helpers disabled in production by default", async () => {
-    await withNodeEnv("production", async () => {
-      const response = await createRunelightNextStudioResponse()
+  it("keeps Runelight route helpers disabled in production", () => {
+    withNodeEnv("production", () => {
+      const response = createRunelightNextSessionResponse()
 
       expect(response.status).toBe(404)
+      expect(isRunelightNextPreviewRouteEnabled()).toBe(false)
     })
   })
 
@@ -208,76 +132,12 @@ describe("runelight Next React adapter", () => {
     })
   })
 
-  it("adds adapter-owned Studio sidecar rewrites under Runelight dev mode", async () => {
-    await withRunelightDevEnv(async () => {
-      const config = runelightNextReact({ config: runelightConfig, root: "/repo" })({})
-      expect(typeof config.rewrites).toBe("function")
-      const rewrites = await (config.rewrites as () => Promise<Array<{ destination: string; source: string }>>)()
-
-      expect(Array.isArray(rewrites)).toBe(true)
-      expect(rewrites?.[0]).toMatchObject({
-        source: "/runelight/studio/events",
-        destination: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/runelight\/studio\/events$/),
-      })
-      expect(rewrites?.[1]).toMatchObject({
-        source: "/runelight/studio/changes",
-        destination: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/runelight\/studio\/changes$/),
-      })
-    })
-  })
-
-  it("preserves user rewrites when adding Studio sidecar rewrites", async () => {
-    await withRunelightDevEnv(async () => {
-      const config = runelightNextReact({ config: runelightConfig, root: "/repo-with-rewrites" })({
-        async rewrites() {
-          return {
-            beforeFiles: [{ source: "/before", destination: "/before-destination" }],
-            afterFiles: [{ source: "/after", destination: "/after-destination" }],
-          }
-        },
-      })
-      const rewrites = await config.rewrites?.()
-
-      expect(rewrites).toMatchObject({
-        beforeFiles: [
-          {
-            source: "/runelight/studio/events",
-            destination: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/runelight\/studio\/events$/),
-          },
-          {
-            source: "/runelight/studio/changes",
-            destination: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/runelight\/studio\/changes$/),
-          },
-          { source: "/before", destination: "/before-destination" },
-        ],
-        afterFiles: [{ source: "/after", destination: "/after-destination" }],
-      })
-    })
-  })
-
-  it("enables production preview entries from the internal Studio exposure config", () => {
-    const root = mkdtempSync(join(tmpdir(), "runelight-next-production-exposed-"))
-    try {
-      withNodeEnv("production", () => {
-        const config = runelightNextReact({
-          config: productionRunelightConfig,
-          root,
-        })({})
-
-        expect(config.webpack?.({}, {})?.resolve?.alias?.["@runelight/adapter-next-react/preview-entries"]).toBe(
-          join(root, defaultPreviewEntriesFile),
-        )
-        expect(existsSync(join(root, defaultPreviewEntriesFile))).toBe(true)
-      })
-    } finally {
-      rmSync(root, { force: true, recursive: true })
-    }
-  })
-
   it("adds webpack and turbopack rules for .g.tsx files", () => {
-    const withRunelight = runelightNextReact({ config: productionRunelightConfig, root: "/repo" })
-    const config = withRunelight({
-      allowedDevOrigins: ["127.0.0.1"],
+    const config = withRunelightDevEnv(() => {
+      const withRunelight = runelightNextReact({ config: runelightConfig, root: "/repo" })
+      return withRunelight({
+        allowedDevOrigins: ["127.0.0.1"],
+      })
     })
 
     const webpackConfig = config.webpack?.({}, {})
@@ -308,18 +168,11 @@ describe("runelight Next React adapter", () => {
         },
       ],
     })
-    expect(config.turbopack?.resolveAlias?.["@runelight/adapter-next-react/preview-entries"]).toBe(`./${defaultPreviewEntriesFile}`)
-  })
-
-  it("aliases adapter route helpers for Turbopack package subpath resolution", () => {
-    const withRunelight = runelightNextReact({ config: productionRunelightConfig, root: "/repo" })
-    const config = withRunelight({})
-
     expect(config.turbopack?.resolveAlias).toMatchObject({
       "@runelight/adapter-next-react/preview": expect.stringMatching(/preview\.(ts|js)$/),
       "@runelight/adapter-next-react/preview-route": expect.stringMatching(/preview-route\.(ts|js)$/),
-      "@runelight/adapter-next-react/studio-route": expect.stringMatching(/studio-route\.(ts|js)$/),
-      "@runelight/adapter-next-react/studio-manifest-route": expect.stringMatching(/studio-manifest-route\.(ts|js)$/),
+      "@runelight/adapter-next-react/session-route": expect.stringMatching(/session-route\.(ts|js)$/),
+      "@runelight/adapter-next-react/preview-entries": `./${defaultPreviewEntriesFile}`,
     })
   })
 
@@ -333,7 +186,7 @@ describe("runelight Next React adapter", () => {
       writeFileSync(join(linkedAdapter, "dist/preview.js"), "export {}\n")
       symlinkSync(linkedAdapter, join(root, "node_modules/@runelight/adapter-next-react"), "dir")
 
-      const config = runelightNextReact({ config: productionRunelightConfig, root })({})
+      const config = withRunelightDevEnv(() => runelightNextReact({ config: runelightConfig, root })({}))
       const turbopackRoot = config.turbopack?.root
 
       expect(turbopackRoot).toEqual(expect.any(String))
@@ -346,86 +199,49 @@ describe("runelight Next React adapter", () => {
   })
 
   it("externalizes Runelight server-only packages while preserving user Next config", () => {
-    const withRunelight = runelightNextReact({ config: productionRunelightConfig, root: "/repo" })
-    const config = withRunelight({
-      serverExternalPackages: ["sharp", "@runelight/studio"],
+    const config = runelightNextReact({ config: runelightConfig, root: "/repo" })({
+      serverExternalPackages: ["sharp"],
     })
 
-    expect(config.serverExternalPackages).toEqual(["sharp", "@runelight/studio", "@runelight/core"])
+    expect(config.serverExternalPackages).toEqual(["sharp", "@runelight/core"])
   })
 
-  it("preserves user webpack config and prepends existing turbopack rules", () => {
-    const withRunelight = runelightNextReact({ config: productionRunelightConfig, root: "/repo" })
-    const config = withRunelight({
-      webpack(current, _context) {
-        current.module = { rules: [{ test: /other/ }] }
-        return current
-      },
-      turbopack: {
-        rules: {
-          "*.g.tsx": [{ loaders: ["other-loader"], as: "*.tsx" }],
+  it("preserves user webpack config, aliases, and existing turbopack rules", () => {
+    const config = withRunelightDevEnv(() => {
+      const withRunelight = runelightNextReact({ config: runelightConfig, root: "/repo" })
+      return withRunelight({
+        turbopack: {
+          resolveAlias: {
+            "@app/existing": "/repo/existing.ts",
+          },
+          rules: {
+            "*.g.tsx": [{ loaders: ["other-loader"], as: "*.tsx" }],
+          },
         },
-      },
+        webpack(current) {
+          current.module = { rules: [{ test: /other/ }] }
+          current.resolve = { alias: { "@app/existing": "/repo/existing.ts" } }
+          return current
+        },
+      })
     })
 
     const webpackConfig = config.webpack?.({}, {})
     const turboRule = config.turbopack?.rules?.["*.g.tsx"]
 
     expect(webpackConfig?.module?.rules).toHaveLength(2)
-    expect(webpackConfig?.resolve?.alias?.["@runelight/adapter-next-react/preview-entries"]).toBe(
-      `/repo/${defaultPreviewEntriesFile}`,
-    )
-    expect(webpackConfig?.module?.rules?.[0]?.use?.[0]?.loader).toContain("loader.cjs")
-    expect(webpackConfig?.module?.rules?.[1]?.test?.test("other")).toBe(true)
-    expect(Array.isArray(turboRule)).toBe(true)
-    expect(config.turbopack?.resolveAlias?.["@runelight/adapter-next-react/preview-entries"]).toBe(`./${defaultPreviewEntriesFile}`)
-    expect((turboRule as unknown[])[0]).toMatchObject({
-      loaders: [
-        {
-          loader: expect.stringContaining("loader.cjs"),
-          options: {
-            previewQuery: "runelight-preview",
-            root: "/repo",
-            transformPath: expect.stringContaining("contract.js"),
-            transpilePreview: true,
-          },
-        },
-      ],
-    })
-    expect((turboRule as unknown[])[1]).toEqual({ loaders: ["other-loader"], as: "*.tsx" })
-  })
-
-  it("preserves user aliases and points preview entries at the entry generated root", () => {
-    const withRunelight = runelightNextReact({
-      config: productionRunelightConfig,
-      root: "/repo",
-    })
-    const config = withRunelight({
-      turbopack: {
-        resolveAlias: {
-          "@app/existing": "/repo/existing.ts",
-        },
-      },
-      webpack(current) {
-        current.resolve = {
-          alias: {
-            "@app/existing": "/repo/existing.ts",
-          },
-        }
-        return current
-      },
-    })
-
-    const webpackConfig = config.webpack?.({}, {})
-
     expect(webpackConfig?.resolve?.alias).toMatchObject({
       "@app/existing": "/repo/existing.ts",
       "@runelight/adapter-next-react/preview-entries": `/repo/${defaultPreviewEntriesFile}`,
     })
+    expect(webpackConfig?.module?.rules?.[0]?.use?.[0]?.loader).toContain("loader.cjs")
+    expect(webpackConfig?.module?.rules?.[1]?.test?.test("other")).toBe(true)
     expect(config.turbopack?.resolveAlias).toMatchObject({
       "@app/existing": "/repo/existing.ts",
       "@runelight/adapter-next-react/preview-entries": `./${defaultPreviewEntriesFile}`,
     })
+    expect(Array.isArray(turboRule)).toBe(true)
+    expect((turboRule as unknown[])[1]).toEqual({ loaders: ["other-loader"], as: "*.tsx" })
   })
 
   it("places default generated preview entries under the Runelight entry .runelight directory", () => {
@@ -434,10 +250,10 @@ describe("runelight Next React adapter", () => {
       mkdirSync(join(root, "src/components"), { recursive: true })
       writeFileSync(join(root, "src/components/Card.g.tsx"), "export default function Card() { return null }\n")
 
-      const config = runelightNextReact({
-        config: productionRunelightConfig,
+      const config = withRunelightDevEnv(() => runelightNextReact({
+        config: runelightConfig,
         root,
-      })({})
+      })({}))
       const webpackConfig = config.webpack?.({}, {})
       const output = readFileSync(join(root, defaultPreviewEntriesFile), "utf8")
 
@@ -462,19 +278,18 @@ describe("runelight Next React adapter", () => {
       writeFileSync(join(root, "components/AppShell.g.tsx"), "export default function AppShell() { return null }\n")
       writeFileSync(join(root, "src/Ignored.g.tsx"), "export default function Ignored() { return null }\n")
 
-      runelightNextReact({
-        config: {
-          contracts: ["@runelight/react/contract"],
-          project: { sourceRoot: "components", entryRoot: "components/app/runelight" },
-          host: {
-            command: "next dev -H 127.0.0.1 -p {port}",
+      withRunelightDevEnv(() => {
+        runelightNextReact({
+          config: {
+            contracts: ["@runelight/react/contract"],
+            project: { sourceRoot: "components", entryRoot: "components/app/runelight" },
+            host: {
+              command: "next dev -H 127.0.0.1 -p {port}",
+            },
           },
-          studio: {
-            exposeInProduction: true,
-          },
-        },
-        root,
-      })({})
+          root,
+        })({})
+      })
 
       const output = readFileSync(join(root, "components/app/runelight/.runelight/preview-entries.ts"), "utf8")
       expect(output).toContain('"components/AppShell.g.tsx"')
@@ -489,27 +304,11 @@ describe("runelight Next React adapter", () => {
     try {
       mkdirSync(join(root, "src/components"), { recursive: true })
       writeFileSync(join(root, "src/components/Card.g.tsx"), "export default function Card() { return null }\n")
-      writeFileSync(
-        join(root, "runelight.config.ts"),
-        `import { defineRunelightConfig } from "@runelight/core"
+      writeRunelightConfig(root)
 
-export default defineRunelightConfig({
-  contracts: ["@runelight/react/contract"],
-  project: {
-    sourceRoot: "src",
-    entryRoot: "src/app/runelight",
-  },
-  host: {
-    command: "next dev -H 127.0.0.1 -p {port}",
-  },
-  studio: {
-    exposeInProduction: true,
-  },
-})
-`,
-      )
-
-      runelightNextReact({ root })({})
+      withRunelightDevEnv(() => {
+        runelightNextReact({ root })({})
+      })
 
       const output = readFileSync(join(root, defaultPreviewEntriesFile), "utf8")
       expect(output).toContain('"src/components/Card.g.tsx"')
@@ -527,7 +326,9 @@ export default defineRunelightConfig({
       writeFileSync(join(root, "src/components/ui/Menu.g.tsx"), "export function Menu() { return null }\n")
       writeFileSync(join(root, "src/generated/Ignored.tsx"), "export default function Ignored() { return null }\n")
 
-      runelightNextReact({ config: productionRunelightConfig, root })({})
+      withRunelightDevEnv(() => {
+        runelightNextReact({ config: runelightConfig, root })({})
+      })
 
       const output = readFileSync(join(root, defaultPreviewEntriesFile), "utf8")
       expect(output).toContain('"src/components/ui/Menu.g.tsx": () => import("../../../components/ui/Menu.g?runelight-preview")')
@@ -541,7 +342,7 @@ export default defineRunelightConfig({
     }
   })
 
-  it("includes adapter-owned HEAD baseline entries in dev preview registries", () => {
+  it("does not generate adapter-owned HEAD baseline entries during Next dev startup", () => {
     const root = mkdtempSync(join(tmpdir(), "runelight-next-baseline-registry-"))
     try {
       mkdirSync(join(root, "src/components"), { recursive: true })
@@ -565,54 +366,45 @@ export default defineRunelightConfig({
       })
 
       const output = readFileSync(join(root, defaultPreviewEntriesFile), "utf8")
-      const baselineSource = readFileSync(join(root, defaultBaselineRoot, "src/components/Card.g.tsx"), "utf8")
-      const baselineKey = JSON.parse(readFileSync(join(root, defaultBaselineRoot, ".baseline-key"), "utf8"))
       expect(output).toContain(
-        `"${defaultBaselineRoot}/src/components/Card.g.tsx": () => import("./baselines/HEAD/src/components/Card.g?runelight-preview")`,
+        '"src/components/Card.g.tsx": () => import("../../../components/Card.g?runelight-preview")',
       )
-      expect(baselineKey).toMatchObject({
-        baselineRoot: defaultBaselineRoot,
-        entryRoot: "src/app/runelight",
-        runtimeImportSpecifier: "@runelight/react/runtime",
-        sourceRoot: "src",
-      })
-      expect(baselineSource).toContain('from "@runelight/react/runtime"')
-      expect(baselineSource).not.toContain('from "@runelight/core"')
+      expect(output).not.toContain("baselines/HEAD")
+      expect(existsSync(join(root, defaultBaselineDirectory))).toBe(false)
     } finally {
       rmSync(root, { force: true, recursive: true })
     }
   })
 
-  it("includes the configured design workspace entry when present", () => {
-    const root = mkdtempSync(join(tmpdir(), "runelight-next-design-registry-"))
+  it("includes source-root preview entries and ignores root-level entry files outside source root", () => {
+    const root = mkdtempSync(join(tmpdir(), "runelight-next-preview-registry-"))
     try {
-      mkdirSync(join(root, "app/runelight/design"), { recursive: true })
-      mkdirSync(join(root, "src/app/runelight/design"), { recursive: true })
+      mkdirSync(join(root, "app/runelight"), { recursive: true })
+      mkdirSync(join(root, "src/app/runelight"), { recursive: true })
       mkdirSync(join(root, "src/components/ui"), { recursive: true })
-      writeFileSync(join(root, "app/runelight/design/RouteDesignHost.g.tsx"), "export default function RouteDesignHost() { return null }\n")
-      writeFileSync(join(root, "src/app/runelight/design/SrcRouteDesignHost.g.tsx"), "export default function SrcRouteDesignHost() { return null }\n")
+      writeFileSync(join(root, "app/runelight/RouteHost.g.tsx"), "export default function RouteHost() { return null }\n")
+      writeFileSync(join(root, "src/app/runelight/SrcRouteHost.g.tsx"), "export default function SrcRouteHost() { return null }\n")
       writeFileSync(join(root, "src/components/ui/Toast.g.tsx"), "export default function Toast() { return null }\n")
 
-      runelightNextReact({
-        config: {
-          contracts: ["@runelight/react/contract"],
-          project: {
-            sourceRoot: "src",
-            entryRoot: "src/app/runelight",
+      withRunelightDevEnv(() => {
+        runelightNextReact({
+          config: {
+            contracts: ["@runelight/react/contract"],
+            project: {
+              sourceRoot: "src",
+              entryRoot: "src/app/runelight",
+            },
+            host: {
+              command: "next dev -H 127.0.0.1 -p {port}",
+            },
           },
-          host: {
-            command: "next dev -H 127.0.0.1 -p {port}",
-          },
-          studio: {
-            exposeInProduction: true,
-          },
-        },
-        root,
-      })({})
+          root,
+        })({})
+      })
 
       const output = readFileSync(join(root, defaultPreviewEntriesFile), "utf8")
-      expect(output).toContain('"src/app/runelight/design/SrcRouteDesignHost.g.tsx": () => import("../design/SrcRouteDesignHost.g?runelight-preview")')
-      expect(output).not.toContain('"app/runelight/design/RouteDesignHost.g.tsx"')
+      expect(output).toContain('"src/app/runelight/SrcRouteHost.g.tsx": () => import("../SrcRouteHost.g?runelight-preview")')
+      expect(output).not.toContain('"app/runelight/RouteHost.g.tsx"')
       expect(output).toContain('"src/components/ui/Toast.g.tsx": () => import("../../../components/ui/Toast.g?runelight-preview")')
     } finally {
       rmSync(root, { force: true, recursive: true })
@@ -632,7 +424,7 @@ export default defineRunelightConfig({
 
   it("exposes a CommonJS entry for Next config loading", () => {
     const cjsEntry = require("../index.cjs") as typeof import("../src/index.js")
-    const config = cjsEntry.runelightNextReact({ config: productionRunelightConfig, root: "/repo" })({})
+    const config = withRunelightDevEnv(() => cjsEntry.runelightNextReact({ config: runelightConfig, root: "/repo" })({}))
 
     expect(config.webpack?.({}, {})?.module?.rules?.[0]?.use?.[0]?.loader).toContain("loader.cjs")
     expect(config.turbopack?.rules?.["*.g.tsx"]?.loaders?.[0]?.loader).toContain("loader.cjs")
@@ -644,28 +436,12 @@ export default defineRunelightConfig({
     try {
       mkdirSync(join(root, "src/components"), { recursive: true })
       writeFileSync(join(root, "src/components/Card.g.tsx"), "export default function Card() { return null }\n")
-      writeFileSync(
-        join(root, "runelight.config.ts"),
-        `import { defineRunelightConfig } from "@runelight/core"
-
-export default defineRunelightConfig({
-  contracts: ["@runelight/react/contract"],
-  project: {
-    sourceRoot: "src",
-    entryRoot: "src/app/runelight",
-  },
-  host: {
-    command: "next dev -H 127.0.0.1 -p {port}",
-  },
-  studio: {
-    exposeInProduction: true,
-  },
-})
-`,
-      )
+      writeRunelightConfig(root)
 
       const cjsEntry = require("../index.cjs") as typeof import("../src/index.js")
-      cjsEntry.runelightNextReact({ root })({})
+      withRunelightDevEnv(() => {
+        cjsEntry.runelightNextReact({ root })({})
+      })
 
       const output = readFileSync(join(root, defaultPreviewEntriesFile), "utf8")
       expect(output).toContain('"src/components/Card.g.tsx"')
@@ -674,38 +450,19 @@ export default defineRunelightConfig({
     }
   })
 
-  it("enables production preview entries from the CommonJS entry root config", () => {
+  it("does not enable preview entries from the CommonJS entry root config in production", () => {
     const root = mkdtempSync(join(tmpdir(), "runelight-next-cjs-production-config-"))
     try {
       mkdirSync(join(root, "src/components"), { recursive: true })
       writeFileSync(join(root, "src/components/Card.g.tsx"), "export default function Card() { return null }\n")
-      writeFileSync(
-        join(root, "runelight.config.ts"),
-        `import { defineRunelightConfig } from "@runelight/core"
-
-export default defineRunelightConfig({
-  contracts: ["@runelight/react/contract"],
-  project: {
-    sourceRoot: "src",
-    entryRoot: "src/app/runelight",
-  },
-  host: {
-    command: "next dev -H 127.0.0.1 -p {port}",
-  },
-  studio: {
-    exposeInProduction: true,
-  },
-})
-`,
-      )
+      writeRunelightConfig(root)
 
       withNodeEnv("production", () => {
         const cjsEntry = require("../index.cjs") as typeof import("../src/index.js")
         cjsEntry.runelightNextReact({ root })({})
       })
 
-      const output = readFileSync(join(root, defaultPreviewEntriesFile), "utf8")
-      expect(output).toContain('"src/components/Card.g.tsx"')
+      expect(existsSync(join(root, defaultPreviewEntriesFile))).toBe(false)
     } finally {
       rmSync(root, { force: true, recursive: true })
     }
@@ -720,16 +477,15 @@ export default defineRunelightConfig({
       inputOverride: ["src/Toast.g.tsx#Toast:top", "src%2FBanner.g.tsx%23default:warning"],
       pool: "1",
       sessionId: "session-1",
-      static: "1",
     })
 
     expect(props).toMatchObject({
-      frameName: "ready",
       chrome: "0",
       entry: "src/Card.g.tsx#default",
+      frameName: "ready",
       pool: "1",
       sessionId: "session-1",
-      staticMode: true,
+      staticMode: false,
     })
     expect([...props.frameOverrides!]).toEqual([
       ["src/Child.g.tsx#default", "open"],
@@ -754,3 +510,22 @@ export default defineRunelightConfig({
     expect(RUNELIGHT_PREVIEW_SSR_BOOTSTRAP_SCRIPT).toContain("runelight:render-accepted")
   })
 })
+
+function writeRunelightConfig(root: string): void {
+  writeFileSync(
+    join(root, "runelight.config.ts"),
+    `import { defineRunelightConfig } from "@runelight/core"
+
+export default defineRunelightConfig({
+  contracts: ["@runelight/react/contract"],
+  project: {
+    sourceRoot: "src",
+    entryRoot: "src/app/runelight",
+  },
+  host: {
+    command: "next dev -H 127.0.0.1 -p {port}",
+  },
+})
+`,
+  )
+}

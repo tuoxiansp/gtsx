@@ -2,7 +2,6 @@ export type RunelightConfig = {
   contracts: readonly string[]
   host?: RunelightHostConfig
   project: RunelightProjectConfig
-  studio?: RunelightStudioConfig
 }
 
 export type RunelightHostConfig = {
@@ -17,22 +16,12 @@ export type RunelightProjectConfig = {
 }
 
 export type RunelightRouteConfig = {
-  /**
-   * @internal Studio refresh event stream route. Fixed adapter/Studio sidecar protocol, not user-configurable.
-   */
-  events: string
   preview: string
-  studio: string
-  manifest: string
-}
-
-export type RunelightStudioConfig = {
-  exposeInProduction?: boolean
+  session: string
 }
 
 export type ResolvedRunelightConfig = {
   host: RunelightHostConfig
   project: Required<Pick<RunelightProjectConfig, "entryRoot" | "sourceRoot">> & Pick<RunelightProjectConfig, "namespace" | "tsconfig">
   routes: RunelightRouteConfig
-  studio: Required<RunelightStudioConfig>
 }

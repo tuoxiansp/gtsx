@@ -47,7 +47,7 @@ export function AdminWorkspacePolicy(props: PermissionSurfaceProps) {
         <strong>{props.section}</strong>
       </header>
       <h2>Manage workspace access</h2>
-      <p>Role-specific UI becomes provider variants your agent can verify in Studio.</p>
+      <p>Role-specific UI becomes provider variants your agent can verify in preview.</p>
       <div className="case-policy-grid">
         <PermissionMetric label="editable controls" value="8" />
         <PermissionMetric label="guarded branches" value="2" />

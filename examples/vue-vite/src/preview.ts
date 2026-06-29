@@ -8,10 +8,7 @@ import {
 } from "@runelight/adapter-vite-vue/preview"
 import previewConfig from "virtual:runelight/preview-config"
 
-const modules = import.meta.glob<RunelightVuePreviewModule>(
-  ["/src/**/*.g.vue", "/src/app/runelight/design/**/*.g.vue"],
-  { query: "?runelight-preview" },
-)
+const modules = import.meta.glob<RunelightVuePreviewModule>("/src/**/*.g.vue", { query: "?runelight-preview" })
 const loadExamplePreviewComponent = createRunelightViteVuePreviewComponentLoader(modules, {
   sourceRoot: previewConfig.project.sourceRoot,
 })

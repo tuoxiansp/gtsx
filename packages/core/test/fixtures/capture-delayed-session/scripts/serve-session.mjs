@@ -4,18 +4,18 @@ import { join } from "node:path"
 
 const logFile = join(process.cwd(), "runelight-command-log.jsonl")
 const port = readOption(process.argv.slice(2), "--port") ?? "0"
-let manifestRequestCount = 0
+let sessionRequestCount = 0
 
 appendLog({ action: "serve", port, runelightDev: process.env.RUNELIGHT_DEV })
 
 const server = createServer((request, response) => {
-  if (request.url === "/runelight/studio/manifest") {
-    manifestRequestCount += 1
-    appendLog({ action: "ready-check", path: "/runelight/studio/manifest", request: manifestRequestCount })
+  if (request.url === "/runelight/session") {
+    sessionRequestCount += 1
+    appendLog({ action: "ready-check", path: "/runelight/session", request: sessionRequestCount })
 
-    if (manifestRequestCount === 1) {
+    if (sessionRequestCount === 1) {
       response.writeHead(503, { "content-type": "text/plain" })
-      response.end("manifest still compiling")
+      response.end("session still starting")
       return
     }
 
@@ -27,32 +27,14 @@ const server = createServer((request, response) => {
           projectKey: process.env.RUNELIGHT_PROJECT_KEY,
           sessionId: process.env.RUNELIGHT_SESSION_ID,
         },
-        routes: {
-          preview: "/runelight",
-          studio: "/runelight/studio",
-          manifest: "/runelight/studio/manifest",
-        },
-        preview: {
-          urlTemplate: "/runelight?entry={entry}&frame={frame}{frameOverrides}",
-          allUrlTemplate: "/runelight?entry={entry}{frameOverrides}",
-        },
-        files: [],
-        diagnostics: [],
       }),
     )
     return
   }
 
-  if (request.url === "/runelight/studio") {
-    appendLog({ action: "ready-check", path: "/runelight/studio" })
-    response.writeHead(200, { "content-type": "text/html" })
-    response.end("<!doctype html><title>Runelight Studio</title>")
-    return
-  }
-
   if (request.url?.startsWith("/runelight")) {
     response.writeHead(200, { "content-type": "text/html" })
-    response.end("<!doctype html><main data-runelight-preview-capture-bounds>Delayed manifest preview</main>")
+    response.end("<!doctype html><main data-runelight-preview-capture-bounds>Delayed session preview</main>")
     return
   }
 

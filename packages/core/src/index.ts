@@ -1,16 +1,11 @@
 export { defineRunelightConfig } from "./define-config.js"
 export {
-  runelightDesignRootFromEntryRoot,
   normalizeRunelightPath,
-  resolveRunelightConfig,
 } from "./config-model.js"
 export type {
   RunelightConfig,
   RunelightHostConfig,
   RunelightProjectConfig,
-  RunelightRouteConfig,
-  RunelightStudioConfig,
-  ResolvedRunelightConfig,
 } from "./config-types.js"
 export type {
   RunelightEntryAnalysisResult,

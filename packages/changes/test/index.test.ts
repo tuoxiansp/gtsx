@@ -178,7 +178,7 @@ describe("Runelight workspace visual changes", () => {
     ])
   })
 
-  it("treats missing frame dependencies as an unknown stale manifest contract", () => {
+  it("treats missing frame dependencies as an unknown stale dependency contract", () => {
     const currentFile = {
       path: "src/Card.g.tsx",
       components: [
