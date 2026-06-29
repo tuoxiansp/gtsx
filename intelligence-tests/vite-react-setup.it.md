@@ -2,16 +2,17 @@
 
 Set up Runelight in a clean supported Vite React project and verify the resulting preview/capture experience.
 
-Use a fresh/minimal project, or make a temporary copy of another project and remove any existing Runelight integration before setup. Do not treat an already-initialized project as proof that setup works. Exercise the README installer flow: install or refresh only `skills/setup-runelight` from this checkout into the target project at `.agents/skills/setup-runelight`, then run that project-level setup skill.
+Use a fresh/minimal project, or make a temporary copy of another project and remove any existing Runelight integration before setup. Do not treat an already-initialized project as proof that setup works. Exercise the README installer flow: read `installer/runelight-setup.md` from this checkout as the floating setup playbook, then follow it from the target project.
 
 After the initial setup and preview checks, make the temporary project a git worktree if it is not already one, commit a clean Runelight baseline, then create realistic working-tree `.g.tsx` changes under the configured source root: add a covered component frame, delete a committed covered component frame, make a code-only edit that should not affect visible UI, and modify one component so only one of several frames has a visible change.
 
 Validate these outcomes:
 
-- Before setup runs, the project contains `.agents/skills/setup-runelight` and no other Runelight project-level skills.
+- Before setup runs, the project contains no Runelight project-level skills unless they were already present in the copied fixture.
 - Setup installs/wires the needed Runelight packages, Vite adapter, config file, and browser-entry branch. The target project should not add `@runelight/studio` or `@runelight/changes` as direct dependencies.
 - Setup installs or refreshes only the React companion skills needed for this project: `authoring-runelight-react`, `refactor-to-runelight-react`, and `polish`.
 - Setup does not install `authoring-runelight-vue`, `refactor-to-runelight-vue`, or the deprecated unsplit `authoring-runelight` and `refactor-to-runelight`.
+- Setup does not install `setup-runelight` as a project-level skill.
 - The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
 - `runelight.config.ts` records `project.sourceRoot`, `project.entryRoot`, and a `host.command` with the `{port}` placeholder that `runelight serve` can wrap.
 - `${project.entryRoot}/design` is not created by setup or dev-server startup.

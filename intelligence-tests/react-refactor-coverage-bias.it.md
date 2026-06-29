@@ -2,7 +2,7 @@
 
 Validate that the React refactor workflow treats existing React UI as migratable toward Runelight coverage instead of filtering for components "suitable for Runelight."
 
-Create a temporary Vite React project or fixture outside the repository workspace. Install or refresh only `skills/setup-runelight` from this checkout into that target project at `.agents/skills/setup-runelight`, run setup, and use the installed project-local React refactor skill.
+Create a temporary Vite React project or fixture outside the repository workspace. Read `installer/runelight-setup.md` from this checkout as the floating setup playbook, follow it from the target project, and use the installed project-local React refactor skill.
 
 Add a small but messy React surface before refactor: a route/container that mixes data/loading/error state with visible JSX, a child with hook or store-derived UI state, a local wrapper around a real visual component, a context/theme or auth branch, and at least one opaque-but-legal React branch such as a helper predicate, `switch`, stored JSX, or JSX-producing loop.
 

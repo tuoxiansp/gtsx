@@ -2,16 +2,17 @@
 
 Set up Runelight in a clean supported Next.js App Router project and verify the resulting preview/capture experience.
 
-Use a fresh/minimal project, or make a temporary copy of another project and remove any existing Runelight integration before setup. Do not treat an already-initialized project as proof that setup works. Exercise the README installer flow: install or refresh only `skills/setup-runelight` from this checkout into the target project at `.agents/skills/setup-runelight`, then run that project-level setup skill.
+Use a fresh/minimal project, or make a temporary copy of another project and remove any existing Runelight integration before setup. Do not treat an already-initialized project as proof that setup works. Exercise the README installer flow: read `installer/runelight-setup.md` from this checkout as the floating setup playbook, then follow it from the target project.
 
 After the setup and preview checks, make the temporary project a git worktree if needed, commit a clean Runelight baseline, and create at least one added, one deleted, and one modified `.g.tsx` working-tree change under the configured source root.
 
 Validate these outcomes:
 
-- Before setup runs, the project contains `.agents/skills/setup-runelight` and no other Runelight project-level skills.
+- Before setup runs, the project contains no Runelight project-level skills unless they were already present in the copied fixture.
 - Setup installs/wires the needed Runelight packages, config wrapper, preview route, and session route. The target project should not add `@runelight/studio` or `@runelight/changes` as direct dependencies.
 - Setup installs or refreshes only the React companion skills needed for this project: `authoring-runelight-react`, `refactor-to-runelight-react`, and `polish`.
 - Setup does not install `authoring-runelight-vue`, `refactor-to-runelight-vue`, or the deprecated unsplit `authoring-runelight` and `refactor-to-runelight`.
+- Setup does not install `setup-runelight` as a project-level skill.
 - The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
 - The preview route uses the documented Next preview helpers, the session route calls `createRunelightNextSessionResponse()` from `@runelight/adapter-next-react/session-route` without passing config/cwd/options, and app code does not import adapter internals outside the documented preview/session helpers.
 - The target project does not import removed Next adapter subpaths such as `@runelight/adapter-next-react/studio-route`, `@runelight/adapter-next-react/studio-manifest-route`, or `@runelight/adapter-next-react/preview-entries`.

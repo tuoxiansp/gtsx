@@ -12,7 +12,7 @@ Convert existing Vue 3 TypeScript components into `.g.vue` UI models.
 - This skill owns the Vue refactor workflow and decision gates.
 - For concrete `.g.vue` writing patterns, route to `authoring-runelight-vue` and read [Authoring Reference](../authoring-runelight-vue/REFERENCE.md).
 
-If the project isn't wired for Runelight yet, run the `setup-runelight` skill first.
+If the project isn't wired for Runelight yet, follow the Runelight setup playbook first.
 
 ## Invariant
 

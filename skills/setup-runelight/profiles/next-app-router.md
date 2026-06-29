@@ -1,6 +1,6 @@
 # Next.js App Router
 
-Use this profile for Next.js App Router TypeScript projects. The setup-runelight skill does not currently provide a validated Pages Router integration profile.
+Use this profile for Next.js App Router TypeScript projects. Runelight setup does not currently provide a validated Pages Router integration profile.
 
 ## Packages
 

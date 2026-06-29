@@ -4,7 +4,7 @@ How to turn existing Vue 3 SFCs into `.g.vue` UI models without creating wrapper
 
 The canonical workflow for AI agents lives in [`skills/refactor-to-runelight-vue/SKILL.md`](../skills/refactor-to-runelight-vue/SKILL.md). This guide is the human-readable version: the decision framework, the key moves, and the traps to avoid.
 
-If the project isn't wired for Runelight yet, run [`setup-runelight`](../skills/setup-runelight/SKILL.md) first. For authoring patterns in the resulting `.g.vue`, see the [Vue Authoring Guide](./runelight-vue-authoring-guide.md).
+If the project isn't wired for Runelight yet, follow the [Setup Playbook](../installer/runelight-setup.md) first. For authoring patterns in the resulting `.g.vue`, see the [Vue Authoring Guide](./runelight-vue-authoring-guide.md).
 
 ---
 

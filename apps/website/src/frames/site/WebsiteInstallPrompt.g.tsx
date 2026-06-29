@@ -14,8 +14,8 @@ export default function WebsiteInstallPrompt(props: WebsiteInstallPromptProps) {
       <h2>Install with one prompt</h2>
       <p>Paste this into your agent from the project you want to light up.</p>
       <pre className="case-install-snippet">{`Install or upgrade Runelight in this project.
-Fetch skills/setup-runelight, run setup-runelight,
-then use polish on Runelight-covered UI.`}</pre>
+Read the Runelight setup playbook from GitHub,
+follow it, then polish covered UI.`}</pre>
       <span className="case-action case-action-secondary">{props.copied ? "Copied" : "Copy prompt"}</span>
     </section>
   )

@@ -4,7 +4,7 @@ How to write Runelight components: React components in `.g.tsx` files that use t
 
 This is the human-readable companion to the React agent skill. The canonical reference for all React patterns lives in [skills/authoring-runelight-react/REFERENCE.md](../skills/authoring-runelight-react/REFERENCE.md). This guide covers the mental model and decision points.
 
-If converting existing TSX, start with the [React Refactor Guide](./runelight-refactor-guide.md). If the project isn't wired for Runelight yet, run the [`setup-runelight`](../skills/setup-runelight/SKILL.md) skill.
+If converting existing TSX, start with the [React Refactor Guide](./runelight-refactor-guide.md). If the project isn't wired for Runelight yet, follow the [Setup Playbook](../installer/runelight-setup.md).
 
 ---
 
@@ -144,12 +144,26 @@ If props, scope, or provider context decides whether JSX renders, write that bra
 
 For the full rules on what counts as inspectable vs. opaque, see [Static Contract](./runelight-static-contract.md).
 
-## Verification
+## Verification And Feedback
 
 ```sh
-runelight check src/Badge.g.tsx    # single file
-runelight check src                # directory
+runelight check src/Badge.g.tsx                    # validate the static contract
+runelight preview-targets src/Badge.g.tsx --json   # list browser-ready preview paths
+runelight capture --path "<target.path>"           # capture one selected rendered state
+runelight check src                                # validate a directory
 ```
+
+Authoring is a feedback loop, not only a static check:
+
+1. Run `runelight check <entry[#export]|file.g.tsx>` and fix diagnostics.
+2. Run `runelight preview-targets <entry[#export]> --json`.
+3. Choose representative paths from the output: the happy path plus new, changed, or risky edge frames.
+4. Open the `/runelight?...` paths in the browser, or capture selected targets with `runelight capture --path "<target.path>"`.
+5. Compare the rendered output with the frame `description`, intended props/scope/provider values, branch coverage, and local design language.
+6. If the render is wrong, edit the component or frames and observe the same targets again.
+7. Finish with `runelight check` and project typecheck or host build when the change can affect ordinary app code.
+
+If the Host or preview route is not wired yet, report that rendered feedback is blocked and follow the setup playbook before claiming preview confidence. If the work becomes subjective visual polish rather than coverage authoring, use the `polish` workflow and its required sync.
 
 | Diagnostic | Fix |
 |-----------|-----|

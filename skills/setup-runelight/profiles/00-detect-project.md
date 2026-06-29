@@ -26,13 +26,13 @@ Every successful integration needs:
 
 ## Supported Project Scope
 
-The setup-runelight skill supports TypeScript React projects and TypeScript Vue 3 projects. A supported project has:
+The Runelight setup playbook and legacy setup skill support TypeScript React projects and TypeScript Vue 3 projects. A supported project has:
 
 - A TypeScript Program that includes framework source and can include `.g.tsx` or `.g.vue` files.
 - A React or Vue host with a browser entry or framework routes.
 - A bundler/framework hook where protocol files can run through the matching Runelight transform.
 
-JavaScript-only projects, unsupported framework hosts, and projects without a selectable TypeScript Program are outside the setup-runelight scope.
+JavaScript-only projects, unsupported framework hosts, and projects without a selectable TypeScript Program are outside the setup scope.
 
 ## Detection Steps
 

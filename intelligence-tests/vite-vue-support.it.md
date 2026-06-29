@@ -2,7 +2,7 @@
 
 Validate Runelight's Vue support in a fresh Vite Vue project.
 
-Create a temporary Vite Vue 3 app outside the repository workspace. Exercise the README installer flow: install or refresh only `skills/setup-runelight` from this checkout into the target project at `.agents/skills/setup-runelight`, then run that project-level setup skill. Setup should wire the local Runelight packages from this checkout, configure Vite with `@vitejs/plugin-vue` and `runelightViteVue()`, add `runelight.config.ts` with `project.sourceRoot`, `project.entryRoot`, and a `host.command` that `runelight serve` can wrap, and add a development-only `/runelight` branch that mounts `RunelightViteVuePreviewClient` with `createRunelightViteVuePreviewComponentLoader`.
+Create a temporary Vite Vue 3 app outside the repository workspace. Exercise the README installer flow: read `installer/runelight-setup.md` from this checkout as the floating setup playbook, then follow it from the target project. Setup should wire the local Runelight packages from this checkout, configure Vite with `@vitejs/plugin-vue` and `runelightViteVue()`, add `runelight.config.ts` with `project.sourceRoot`, `project.entryRoot`, and a `host.command` that `runelight serve` can wrap, and add a development-only `/runelight` branch that mounts `RunelightViteVuePreviewClient` with `createRunelightViteVuePreviewComponentLoader`.
 
 Add at least one `.g.vue` component under the selected source root. The file must use a normal Vue `<template>`, a normal `<script setup lang="ts">`, and a single direct `<g:frames>` block whose content is `export default { ... }`. Do not use nested `<g:frame>` tags. Include at least two frames where `props` and `scope` drive visible template branches.
 
@@ -14,10 +14,11 @@ After the Vue setup and preview checks, make the temporary project a git worktre
 
 Validate these outcomes:
 
-- Before setup runs, the project contains `.agents/skills/setup-runelight` and no other Runelight project-level skills.
+- Before setup runs, the project contains no Runelight project-level skills unless they were already present in the copied fixture.
 - Setup installs/wires the needed Runelight packages and does not add `@runelight/studio` or `@runelight/changes` as direct dependencies.
 - Setup installs or refreshes only the Vue companion skills needed for this project: `authoring-runelight-vue`, `refactor-to-runelight-vue`, and `polish`.
 - Setup does not install `authoring-runelight-react`, `refactor-to-runelight-react`, or the deprecated unsplit `authoring-runelight` and `refactor-to-runelight`.
+- Setup does not install `setup-runelight` as a project-level skill.
 - The installer prompt and setup report do not instruct the agent to install the full Runelight skill set globally.
 - `runelight check` accepts the `.g.vue` entry and lists its frames.
 - `runelight check` reports `uncovered-vue-template-branch` when a Vue template branch has no matching frame, then accepts the component after the missing frame is added.

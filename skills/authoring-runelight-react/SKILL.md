@@ -34,7 +34,13 @@ Badge.frames = {
 } satisfies GFrames<{ tone: "ok" | "warn"; label: string }>
 ```
 
-Verify: `runelight check src/Badge.g.tsx`
+Verify:
+
+```sh
+runelight check src/Badge.g.tsx
+runelight preview-targets src/Badge.g.tsx --json
+runelight capture --path "<target.path>"
+```
 
 ## Workflow
 
@@ -42,8 +48,24 @@ Verify: `runelight check src/Badge.g.tsx`
 2. **Write the `.g.tsx` file** — see [REFERENCE.md](./REFERENCE.md) for patterns.
 3. **Attach `Component.frames`** with `satisfies GFrames<…>` and concise static `description` strings for meaningful states.
 4. **Run `runelight check`** — fix diagnostics.
-5. **Use `runelight inspect --json` when composing UI** — inspect the reachable GUI map for the entry you are building and choose related preview targets deliberately.
-6. **Add edge-state frames** — empty, error, loading, overflow.
+5. **Get rendered feedback** — use `runelight preview-targets <entry[#export]> --json`, open representative `/runelight?...` paths in the browser or capture them with `runelight capture --path "<target.path>"`, then fix mismatches between the rendered UI, frame descriptions, and intended states.
+6. **Use `runelight inspect --json` when composing UI** — inspect the reachable GUI map for the entry you are building and choose related preview targets deliberately.
+7. **Add edge-state frames** — empty, error, loading, overflow.
+8. **Run project typecheck or the host build** when touched props, imports, styles, or framework wiring could break normal app code.
+
+## Authoring Feedback Loop
+
+Authoring is not done when the file merely typechecks or passes `runelight check`. A new or edited `.g.tsx` entry must also be observed through the Runelight preview path when the project is wired for preview.
+
+1. Run `runelight check <entry[#export]|file.g.tsx>` and fix contract diagnostics.
+2. Run `runelight preview-targets <entry[#export]> --json`.
+3. Read the target paths and frame descriptions. Choose the happy path plus the new or risky edge states you just authored.
+4. Open those `/runelight?...` paths in the browser, or run `runelight capture --path "<target.path>"` for selected targets.
+5. Compare rendered output against the frame `description`, intended props/scope/provider values, branch coverage, and local design language.
+6. If the render is wrong, edit the component or frames and repeat the same preview/capture observation.
+7. Finish with `runelight check` and typecheck/build when code changes can affect the host app.
+
+If preview is not available because setup or the Host is missing, say that rendered feedback was blocked and name the missing setup step. If the work turns into subjective visual polish rather than authoring coverage, switch to the `polish` workflow and perform its required sync before editing.
 
 ## Rules
 

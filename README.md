@@ -10,6 +10,8 @@ Runelight gives AI agents a visual feedback loop for front-end polish. In Runeli
 
 Ask your agent to polish a Runelight-covered component or screen. The installed `polish` skill drives a tight observe-edit-reobserve loop over real preview targets, so visual fixes are grounded in what the preview route and capture can actually render.
 
+For every polish pass, the agent should first observe the surface, recommend a scoped direction, and wait for your confirmation before editing. Narrow fixes such as overflow, clipping, or broken spacing can use a compact sync, but they still stop for confirmation.
+
 Polish currently targets `.g.tsx` and `.g.vue` coverage: component frames, exported component coordinates, and the preview paths derived from them. It is not a promise to blindly edit arbitrary app routes without Runelight coverage.
 
 ## Cover Existing UI
@@ -31,16 +33,13 @@ Paste this into your AI agent:
 ```
 Install or upgrade Runelight in this project.
 
-Fetch or refresh only this Runelight Agent Skill from
-https://github.com/tuoxiansp/runelight:
+Read the latest Runelight setup playbook:
+https://github.com/tuoxiansp/runelight/blob/main/installer/runelight-setup.md
 
-- skills/setup-runelight
-
-Install it as a project-level skill in this repository
-(e.g. at .agents/skills/setup-runelight).
-
-After refreshing that setup skill, run `setup-runelight` in this project now.
-Follow it through setup and verification.
+Follow it exactly from this project. It will detect the framework,
+install or upgrade the needed @runelight packages, refresh only the
+compatible project-level authoring/refactor/polish skills, and verify
+setup.
 ```
 
 The agent detects your project, installs packages, wires preview integration, installs the matching project-level authoring/refactor/polish skills, and verifies everything works.
@@ -110,7 +109,8 @@ Rename `.g.tsx` → `.tsx` or `.g.vue` → `.vue`, delete frames, and remove the
 
 **For AI agents:**
 
-- [Skills](skills/) — agent-executable workflows: [`setup-runelight`](skills/setup-runelight/SKILL.md), [`authoring-runelight-react`](skills/authoring-runelight-react/SKILL.md), [`authoring-runelight-vue`](skills/authoring-runelight-vue/SKILL.md), [`refactor-to-runelight-react`](skills/refactor-to-runelight-react/SKILL.md), [`refactor-to-runelight-vue`](skills/refactor-to-runelight-vue/SKILL.md), [`polish`](skills/polish/SKILL.md)
+- [Setup Playbook](installer/runelight-setup.md) — floating install/upgrade instructions for agents
+- [Skills](skills/) — project-level workflows: [`authoring-runelight-react`](skills/authoring-runelight-react/SKILL.md), [`authoring-runelight-vue`](skills/authoring-runelight-vue/SKILL.md), [`refactor-to-runelight-react`](skills/refactor-to-runelight-react/SKILL.md), [`refactor-to-runelight-vue`](skills/refactor-to-runelight-vue/SKILL.md), [`polish`](skills/polish/SKILL.md)
 
 ## Contributing
 

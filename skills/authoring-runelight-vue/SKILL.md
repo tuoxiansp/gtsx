@@ -59,7 +59,9 @@ export default {
 Verify:
 
 ```sh
-runelight check
+runelight check src/UserCard.g.vue
+runelight preview-targets src/UserCard.g.vue#default --json
+runelight capture --path "<target.path>"
 ```
 
 ## Workflow
@@ -70,7 +72,23 @@ runelight check
 4. Give each meaningful frame a concise static `description` string, then use `props` for public component inputs and `scope` for frame-supplied template state.
 5. Make structural template branches reachable through frame `props`, `scope`, or static injected values from frame `providers`.
 6. Use `runelight inspect --json` when composing UI and you need the reachable GUI map for the entry.
-7. Run `runelight check`, then the host typecheck/build.
+7. Run `runelight check` and fix diagnostics.
+8. Get rendered feedback with `runelight preview-targets <entry#default> --json`, open representative `/runelight?...` paths in the browser or capture them with `runelight capture --path "<target.path>"`, then fix mismatches between the rendered UI, frame descriptions, and intended states.
+9. Run the host typecheck/build when touched props, imports, styles, or framework wiring could break normal app code.
+
+## Authoring Feedback Loop
+
+Authoring is not done when the SFC merely typechecks or passes `runelight check`. A new or edited `.g.vue` entry must also be observed through the Runelight preview path when the project is wired for preview.
+
+1. Run `runelight check <entry#default|file.g.vue>` and fix contract diagnostics.
+2. Run `runelight preview-targets <entry#default> --json`.
+3. Read the target paths and frame descriptions. Choose the happy path plus the new or risky edge states you just authored.
+4. Open those `/runelight?...` paths in the browser, or run `runelight capture --path "<target.path>"` for selected targets.
+5. Compare rendered output against the frame `description`, intended props/scope/provider values, template branch coverage, and local design language.
+6. If the render is wrong, edit the SFC or frames and repeat the same preview/capture observation.
+7. Finish with `runelight check` and typecheck/build when code changes can affect the host app.
+
+If preview is not available because setup or the Host is missing, say that rendered feedback was blocked and name the missing setup step. If the work turns into subjective visual polish rather than authoring coverage, switch to the `polish` workflow and perform its required sync before editing.
 
 ## Rules
 
@@ -105,3 +123,13 @@ Structural directives such as `v-if`, `v-for`, `v-show`, and dynamic `:is` shoul
 ## Reference
 
 Detailed patterns: [REFERENCE.md](./REFERENCE.md)
+
+## CLI
+
+```sh
+runelight check <file.g.vue|dir>              # validate contracts
+runelight inspect <file.g.vue> --json         # inspect static GUI dependencies for one entry
+runelight serve                               # start Runelight preview server
+runelight preview-targets <file.g.vue#default> --json  # paged preview paths, default 20
+runelight capture --path "<target.path>"      # screenshot one selected path
+```

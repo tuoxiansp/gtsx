@@ -4,7 +4,7 @@ How to write Runelight components: Vue 3 SFCs in `.g.vue` files that use the `.g
 
 This is the human-readable companion to the Vue agent skill. The canonical reference for all Vue patterns lives in [skills/authoring-runelight-vue/REFERENCE.md](../skills/authoring-runelight-vue/REFERENCE.md). This guide covers the mental model and decision points.
 
-If converting existing SFCs, start with the [Vue Refactor Guide](./runelight-vue-refactor-guide.md). If the project isn't wired for Runelight yet, run the [`setup-runelight`](../skills/setup-runelight/SKILL.md) skill.
+If converting existing SFCs, start with the [Vue Refactor Guide](./runelight-vue-refactor-guide.md). If the project isn't wired for Runelight yet, follow the [Setup Playbook](../installer/runelight-setup.md).
 
 ---
 
@@ -110,12 +110,26 @@ Structural directives — `v-if`, `v-else-if`, `v-show`, `v-for`, and dynamic `:
 
 For the full rules, see [Static Contract](./runelight-static-contract.md).
 
-## Verification
+## Verification And Feedback
 
 ```sh
-runelight check src/UserCard.g.vue    # single file
-runelight check src                   # directory
+runelight check src/UserCard.g.vue                         # validate the static contract
+runelight preview-targets src/UserCard.g.vue#default --json # list browser-ready preview paths
+runelight capture --path "<target.path>"                    # capture one selected rendered state
+runelight check src                                         # validate a directory
 ```
+
+Authoring is a feedback loop, not only a static check:
+
+1. Run `runelight check <entry#default|file.g.vue>` and fix diagnostics.
+2. Run `runelight preview-targets <entry#default> --json`.
+3. Choose representative paths from the output: the happy path plus new, changed, or risky edge frames.
+4. Open the `/runelight?...` paths in the browser, or capture selected targets with `runelight capture --path "<target.path>"`.
+5. Compare the rendered output with the frame `description`, intended props/scope/provider values, template branch coverage, and local design language.
+6. If the render is wrong, edit the SFC or frames and observe the same targets again.
+7. Finish with `runelight check` and project typecheck or host build when the change can affect ordinary app code.
+
+If the Host or preview route is not wired yet, report that rendered feedback is blocked and follow the setup playbook before claiming preview confidence. If the work becomes subjective visual polish rather than coverage authoring, use the `polish` workflow and its required sync.
 
 Common diagnostics and fixes:
 

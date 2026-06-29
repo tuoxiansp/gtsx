@@ -7,6 +7,8 @@ description: Install, upgrade, or ensure Runelight preview/capture integration i
 
 Install, upgrade, or repair the smallest working Runelight integration for a TypeScript React project or TypeScript Vue 3 project. Inspect project shape, preserve existing app behavior, and do not migrate components unless the user explicitly asked.
 
+This legacy bootstrap skill is kept as repository reference material and for existing project-local installs. New installs should use the floating [Runelight Setup Playbook](../../installer/runelight-setup.md) instead of copying this skill into `.agents/skills`.
+
 This file is the router. Read the detection profile first, then enter exactly one primary integration profile.
 
 ## Integration Profiles
