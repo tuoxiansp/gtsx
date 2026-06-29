@@ -1,6 +1,6 @@
 ---
 name: polish
-description: Polish Runelight-covered GUI through a required explicit sync before editing, then an observe-edit-reobserve loop. Use when the user asks to polish, refine, improve visual quality, clean up UI details, or make an existing `.g.tsx` / `.g.vue` interface feel better.
+description: Polish Runelight-covered GUI through a required explicit sync before editing, then a red-team observe-edit-reobserve loop that works from product surface model down to details one confirmed point at a time. Use when the user asks to polish, refine, improve visual quality, clean up UI details, or make an existing `.g.tsx` / `.g.vue` interface feel better.
 ---
 
 # Polish GUI
@@ -18,6 +18,7 @@ Polish existing Runelight GUI surfaces. Favor user-named targets and changed `.g
 - Do not expand public Runelight boundaries such as protocol concepts, CLI/config fields, routes, exports, framework ends, setup strategy, or production exposure unless the user explicitly asks for that product change.
 - Every polish pass must include a real visual observation before edits and another observation after edits.
 - Every polish pass must stop for explicit user confirmation before the first edit. Reading the target, observing preview, and writing a brief is preparation, not sync.
+- Broad or subjective polish must proceed one confirmed point at a time. Do not bundle several unrelated improvements into one edit batch just because the workspace is clean.
 
 ## Readiness Gate
 
@@ -42,7 +43,9 @@ After observation, always stop before the first edit. Give a compact sync brief 
 
 This sync is required for every Runelight polish pass, including narrow fixes such as overflow, clipped controls, broken spacing, contrast failures, or one-frame responsive bugs. Narrow fixes may use a one-sentence sync, but they still need confirmation.
 
-Do not treat a polish brief as user confirmation. Do not say sync was done implicitly. If a new visual direction, scope expansion, product boundary, framework wiring change, data-flow change, route behavior change, public copy promise, or setup strategy change appears after confirmation, stop for another explicit sync before continuing.
+For broad polish, a clean working tree permits a coherent polish commit, not a free-form redesign. First observe and rank candidate surfaces or issues, then sync on the single next point to change. If the user asked for broad polish such as "polish this console" or "make this UI better", the first sync should name the commit-sized scope, the first point, and what is deliberately deferred.
+
+Do not treat a polish brief as user confirmation. Do not say sync was done implicitly. If a new visual direction, scope expansion, product boundary, framework wiring change, data-flow change, route behavior change, public copy promise, setup strategy change, or second polish point appears after confirmation, stop for another explicit sync before continuing.
 
 For the required sync question:
 
@@ -60,8 +63,10 @@ Before the first edit, give a compact polish sync. Include only what matters:
 Polish sync:
 - Scope: ...
 - Priority: ...
+- First point: ...
 - Protect: ...
 - Non-goals: ...
+- Deferred: ...
 - Verify with: ...
 
 Proceed with this polish direction?
@@ -72,6 +77,30 @@ For narrow, low-risk polish, the sync may be one short sentence:
 ```md
 Polish sync: I saw the label clip in the compact frame; I will only adjust spacing and wrapping, preserve props/data flow/routes, and verify the same preview path plus `runelight check`. Proceed?
 ```
+
+## Red-Team Ladder
+
+Treat polish itself as the red-team role. Before choosing each polish point, look for the strongest current failure case instead of justifying the existing UI or listing every possible improvement.
+
+Work from macro to micro:
+
+1. Product surface model: object ownership, durable context versus live activity, state semantics, workflow step, and whether the layout implies the right relationship.
+2. Information architecture: what is anchor, signal, action, evidence, context, history, or noise; what should remain visible, collapse, move, or disappear.
+3. Layout and interaction: grouping, navigation, spatial rhythm, density, responsive behavior, and how the user moves to the next action.
+4. Visual craft: spacing, contrast, type scale, copy fit, controls, affordances, hover/focus/disabled/loading/empty/error states.
+
+At each loop:
+
+- Rank candidate problems by product risk and visual leverage.
+- Select exactly one point for the next edit. A point may be structural, but it must have one clear hypothesis and one verification target.
+- Sync that point with the user before editing. Do not hide a second point inside the same confirmation.
+- Edit only enough to test or resolve that point.
+- Re-observe the same representative preview paths.
+- Decide whether the point is resolved, falsified, or still needs another pass. Only then choose the next point, normally moving from macro toward finer details.
+
+Use a separate reviewer only as optional validation when the user asks for independent review or when the polish point is high-risk enough that independence matters. If another reviewer is used, give raw artifacts and the task, not the user's complaint or your expected answer. Ask for the strongest failure cases, evidence that could falsify them, and two or three minimal experiments; do not ask for a rubber stamp on a chosen design.
+
+Product-surface preflight is required before any polish that may change information hierarchy, object ownership, state semantics, workflow sequencing, or the user's decision path. Do not limit this to panels or sidebars; tables, forms, empty states, headers, timelines, settings, command surfaces, and feeds can all need it.
 
 ## Loop
 
@@ -98,15 +127,20 @@ Polish sync: I saw the label clip in the compact frame; I will only adjust spaci
    - Open or capture only the targets needed to judge the polish work; do not review every generated target by default.
    - Open selected paths in the browser, or capture them with `runelight capture --path "<target.path>"`.
    - Check responsive states when the surface is viewport-sensitive.
-3. Edit:
-   - Make the smallest coherent batch of visual changes.
+3. Red-team and sync the next point:
+   - Apply the red-team ladder to choose one next point.
+   - For broad polish, surface the strongest macro-level point first before detail work.
+   - Stop for explicit sync before editing this point.
+4. Edit:
+   - Make the smallest coherent change that addresses the confirmed point.
    - Prefer existing local components, tokens, layout patterns, and CSS conventions.
    - Add or improve static frame `description` strings when they help agents choose preview targets.
-4. Re-observe:
+5. Re-observe:
    - Re-open or re-capture the same paths.
    - Compare against the earlier observation.
-   - Repeat the loop while a concrete visual issue remains.
-5. Verify:
+   - State whether the confirmed point is resolved, falsified, or still unresolved.
+   - Repeat the loop while a concrete visual issue remains, choosing one next point each time.
+6. Verify:
    - Run `runelight check` for affected entries or the configured project.
    - Run typecheck or targeted tests when touched code requires it.
 
