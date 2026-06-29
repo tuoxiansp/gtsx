@@ -13,6 +13,7 @@
   },
   "include": [
     "src/index.ts",
+    "src/preview-entries-disabled.ts",
     "src/preview-entries.ts",
     "src/preview.tsx",
     "src/preview-route.ts",

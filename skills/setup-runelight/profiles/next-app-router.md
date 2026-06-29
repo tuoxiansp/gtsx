@@ -121,6 +121,8 @@ export { RunelightNextPreviewClient } from "@runelight/adapter-next-react/previe
 import { notFound } from "next/navigation"
 import Script from "next/script"
 
+export const dynamic = "force-dynamic"
+
 type RunelightPreviewPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }

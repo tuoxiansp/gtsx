@@ -31,6 +31,7 @@ const runelightConfig = {
 }
 const defaultGeneratedRoot = "src/app/runelight/.runelight"
 const defaultPreviewEntriesFile = `${defaultGeneratedRoot}/preview-entries.ts`
+const disabledPreviewEntriesFile = "node_modules/@runelight/adapter-next-react/dist/preview-entries-disabled.js"
 const defaultBaselineDirectory = `${defaultGeneratedRoot}/baselines`
 
 function withNodeEnv<T>(nodeEnv: string, run: () => T): T {
@@ -78,9 +79,16 @@ describe("runelight Next React adapter", () => {
           },
         }
         const config = runelightNextReact({ root })(nextConfig)
+        const webpackConfig = config.webpack?.({}, {})
 
         expect(config).not.toBe(nextConfig)
         expect(existsSync(join(root, defaultPreviewEntriesFile))).toBe(false)
+        expect(webpackConfig?.resolve?.alias?.["@runelight/adapter-next-react/preview-entries"]).toBe(
+          join(root, disabledPreviewEntriesFile),
+        )
+        expect(config.turbopack?.resolveAlias?.["@runelight/adapter-next-react/preview-entries"]).toBe(
+          `./${disabledPreviewEntriesFile}`,
+        )
       })
     } finally {
       rmSync(root, { force: true, recursive: true })

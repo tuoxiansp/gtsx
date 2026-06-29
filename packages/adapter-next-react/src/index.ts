@@ -67,6 +67,7 @@ type ResolvedRunelightNextPreviewEntriesOptions = {
 }
 
 const defaultPreviewEntriesModuleId = "@runelight/adapter-next-react/preview-entries"
+const disabledPreviewEntriesFileName = "preview-entries-disabled"
 const ignoredPreviewEntryDirs = new Set(["node_modules", "dist", ".next", ".git", ".runelight"])
 const previewEntriesPluginName = "RunelightNextPreviewEntriesPlugin"
 const previewEntriesWatcherDebounceMs = 50
@@ -110,7 +111,7 @@ export function runelightNextReact(
         resolvedConfig.resolve ??= {}
         resolvedConfig.resolve.alias = {
           ...(resolvedConfig.resolve.alias ?? {}),
-          ...(previewEntries ? { [defaultPreviewEntriesModuleId]: previewEntries.outputPath } : {}),
+          [defaultPreviewEntriesModuleId]: runelightNextPreviewEntriesWebpackAlias(root, previewEntries),
         }
         installRunelightNextPreviewEntriesPlugin(resolvedConfig, root, previewEntries)
         resolvedConfig.module.rules.unshift({
@@ -158,7 +159,7 @@ function withRunelightTurbopackConfig(
     resolveAlias: {
       ...(turbopack?.resolveAlias ?? {}),
       ...runelightNextAdapterTurbopackResolveAliases(root),
-      ...(previewEntries ? { [defaultPreviewEntriesModuleId]: toTurbopackResolveAliasPath(root, previewEntries.outputPath) } : {}),
+      [defaultPreviewEntriesModuleId]: runelightNextPreviewEntriesTurbopackAlias(root, previewEntries),
     },
     rules: {
       ...rules,
@@ -167,13 +168,31 @@ function withRunelightTurbopackConfig(
   }
 }
 
+function runelightNextPreviewEntriesWebpackAlias(
+  root: string,
+  previewEntries: ResolvedRunelightNextPreviewEntriesOptions | undefined,
+): string {
+  return previewEntries?.outputPath ?? runelightNextAdapterDistFile(root, disabledPreviewEntriesFileName)
+}
+
+function runelightNextPreviewEntriesTurbopackAlias(
+  root: string,
+  previewEntries: ResolvedRunelightNextPreviewEntriesOptions | undefined,
+): string {
+  return toTurbopackResolveAliasPath(root, runelightNextPreviewEntriesWebpackAlias(root, previewEntries))
+}
+
 function runelightNextAdapterTurbopackResolveAliases(root: string): Record<string, string> {
   return Object.fromEntries(
     Object.entries(runelightNextAdapterSubpathFiles).map(([moduleId, fileName]) => [
       moduleId,
-      toTurbopackResolveAliasPath(root, resolve(root, `node_modules/@runelight/adapter-next-react/dist/${fileName}.js`)),
+      toTurbopackResolveAliasPath(root, runelightNextAdapterDistFile(root, fileName)),
     ]),
   )
+}
+
+function runelightNextAdapterDistFile(root: string, fileName: string): string {
+  return resolve(root, `node_modules/@runelight/adapter-next-react/dist/${fileName}.js`)
 }
 
 function runelightNextTurbopackRootOption(root: string): { root: string } | Record<string, never> {
