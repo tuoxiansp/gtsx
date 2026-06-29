@@ -68,11 +68,6 @@ const status = useRemoteStatus(props.userId)
 
 <g:frames>
 export default {
-  loading: {
-    description: "Loading state while the remote user is unavailable",
-    props: { userId: "user_1" },
-    scope: { status: "loading" },
-  },
   ready: {
     description: "Ready state with loaded user details",
     props: { userId: "user_42" },
@@ -80,6 +75,11 @@ export default {
       status: "ready",
       user: { name: "Ada Lovelace" },
     },
+  },
+  loading: {
+    description: "Loading state while the remote user is unavailable",
+    props: { userId: "user_1" },
+    scope: { status: "loading" },
   },
 }
 </g:frames>
@@ -107,15 +107,15 @@ Vue frames use the same static object shape inside `<g:frames>`:
 ```vue
 <g:frames>
 export default {
-  loading: {
-    description: "Loading state while the remote user is unavailable",
-    props: { userId: "user_1" },
-    scope: { status: "loading" },
-  },
   ready: {
     description: "Ready state with loaded user details",
     props: { userId: "user_42" },
     scope: { status: "ready", user: { name: "Ada Lovelace" } },
+  },
+  loading: {
+    description: "Loading state while the remote user is unavailable",
+    props: { userId: "user_1" },
+    scope: { status: "loading" },
   },
 }
 </g:frames>

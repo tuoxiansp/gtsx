@@ -62,15 +62,15 @@ const { status, title, items } = useResource(props.resourceId)
 
 <g:frames>
 export default {
-  loading: {
-    description: "Loading state while resource data is unavailable",
-    props: { resourceId: "res_1" },
-    scope: { status: "loading" },
-  },
   ready: {
     description: "Ready state with resource items loaded",
     props: { resourceId: "res_1" },
     scope: { status: "ready", title: "Dashboard", items: [1, 2, 3] },
+  },
+  loading: {
+    description: "Loading state while resource data is unavailable",
+    props: { resourceId: "res_1" },
+    scope: { status: "loading" },
   },
 }
 </g:frames>

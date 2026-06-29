@@ -39,11 +39,6 @@ const status = useRemoteStatus(props.userId)
 
 <g:frames>
 export default {
-  loading: {
-    description: "Loading state while remote user data is unavailable",
-    props: { userId: "user_loading" },
-    scope: { status: "loading" },
-  },
   ready: {
     description: "Ready state with loaded user details",
     props: { userId: "user_42" },
@@ -51,6 +46,11 @@ export default {
       status: "ready",
       user: { name: "Ada Lovelace" },
     },
+  },
+  loading: {
+    description: "Loading state while remote user data is unavailable",
+    props: { userId: "user_loading" },
+    scope: { status: "loading" },
   },
 }
 </g:frames>
@@ -102,6 +102,7 @@ If preview is not available because setup or the Host is missing, say that rende
 - Use `GVueProviderFrame` only for meaningful finite axes such as role, theme, locale, auth state, or platform.
 - Frame keys must be statically enumerable object literal keys.
 - Frame `description` values should be static strings that explain the visible state or scenario for agents reading `preview-targets` output.
+- Put the happy-path frame first, then edge states.
 - Keep frames static. Do not generate frame objects from runtime code.
 - `scope` should include every non-prop template value that affects branch shape.
 - Opaque helpers are okay for formatting text, but not for structural directives.

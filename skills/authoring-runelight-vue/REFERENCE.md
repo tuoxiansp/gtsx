@@ -55,6 +55,11 @@ const status = useRemoteStatus(props.resourceId)
 
 <g:frames>
 export default {
+  ready: {
+    description: "Ready state with resource items loaded",
+    props: { resourceId: "res_1" },
+    scope: { status: "ready", title: "Dashboard", items: [1, 2, 3] },
+  },
   loading: {
     description: "Loading state while resource data is unavailable",
     props: { resourceId: "res_1" },
@@ -64,11 +69,6 @@ export default {
     description: "Retryable resource error state",
     props: { resourceId: "res_1" },
     scope: { status: "error", message: "Retry" },
-  },
-  ready: {
-    description: "Ready state with resource items loaded",
-    props: { resourceId: "res_1" },
-    scope: { status: "ready", title: "Dashboard", items: [1, 2, 3] },
   },
 }
 </g:frames>
