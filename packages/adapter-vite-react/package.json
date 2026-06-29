@@ -1,6 +1,6 @@
 {
   "name": "@runelight/adapter-vite-react",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "description": "Vite React adapter for Runelight component preview integration.",
   "license": "MIT",
   "type": "module",

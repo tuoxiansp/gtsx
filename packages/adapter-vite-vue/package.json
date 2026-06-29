@@ -1,6 +1,6 @@
 {
   "name": "@runelight/adapter-vite-vue",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "description": "Vite Vue adapter for Runelight component preview integration.",
   "license": "MIT",
   "type": "module",
